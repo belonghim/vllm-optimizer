@@ -25,13 +25,13 @@ patches:
       - op: replace
         path: /spec/host
         value: vllm-optimizer.apps.cluster.example.com
-configMapGenerator:
-  - name: vllm-optimizer-backend-config
-    behavior: merge
-    literals:
-      - LOG_LEVEL=warning
 images:
-  - name: image-registry.openshift-image-registry.svc:5000/vllm-optimizer/vllm-optimizer-backend
+  - name: quay.io/joopark/vllm-optimizer-backend
     newTag: "1.0.0"
-  - name: image-registry.openshift-image-registry.svc:5000/vllm-optimizer/vllm-optimizer-frontend
+  - name: quay.io/joopark/vllm-optimizer-frontend
+    newTag: "1.0.0"
+images:
+  - name: quay.io/joopark/vllm-optimizer-backend
+    newTag: "1.0.0"
+  - name: quay.io/joopark/vllm-optimizer-frontend
     newTag: "1.0.0"

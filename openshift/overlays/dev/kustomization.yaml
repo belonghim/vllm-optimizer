@@ -37,14 +37,8 @@ patches:
       - op: replace
         path: /spec/minReplicas
         value: 1
-configMapGenerator:
-  - name: vllm-optimizer-backend-config
-    behavior: merge
-    literals:
-      - LOG_LEVEL=debug
-      - VLLM_ENDPOINT=http://vllm-service.vllm-dev.svc.cluster.local:8000
 images:
-  - name: image-registry.openshift-image-registry.svc:5000/vllm-optimizer/vllm-optimizer-backend
+  - name: quay.io/joopark/vllm-optimizer-backend
     newTag: dev
-  - name: image-registry.openshift-image-registry.svc:5000/vllm-optimizer/vllm-optimizer-frontend
+  - name: quay.io/joopark/vllm-optimizer-frontend
     newTag: dev
