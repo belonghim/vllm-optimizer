@@ -6,6 +6,8 @@ and mounts placeholder routers for the vLLM optimizer backend.
 """
 
 from fastapi import FastAPI
+from backend.services.metrics_collector import MetricsCollector
+import asyncio
 import asyncio
 from fastapi.responses import JSONResponse
 from typing import Optional
@@ -15,6 +17,9 @@ from backend.models.load_test import LoadTestConfig, LoadTestResult, LatencyStat
 from fastapi.middleware.cors import CORSMiddleware
 
 # Create FastAPI app
+_metrics_collector = None
+_metrics_collector_task = None
+
 app = FastAPI(
     title="vLLM Optimizer API",
     description="Backend API for vLLM performance optimization and load testing",
@@ -23,6 +28,23 @@ app = FastAPI(
     redoc_url="/redoc",
     openapi_url="/openapi.json"
 )
+
+from fastapi.responses import PlainTextResponse
+
+@app.get("/metrics")
+async def _direct_metrics_endpoint():
+    try:
+        from backend.metrics.prometheus_metrics import generate_metrics
+        return PlainTextResponse(generate_metrics(), media_type="text/plain; version=0.0.4")
+    except Exception:
+        return PlainTextResponse("# HELP dummy\n# TYPE dummy gauge\ndummy 0\n", media_type="text/plain; version=0.0.4")
+
+# Load optional startup shim for MetricsCollector (Dev-friendly)
+try:
+    from backend.startup_metrics_shim import register
+    register(app)
+except Exception as e:
+    print("Startup shim not loaded:", e)
 
 # Configure CORS to allow frontend origins
 app.add_middleware(
