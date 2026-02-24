@@ -31,13 +31,6 @@ app = FastAPI(
 
 from fastapi.responses import PlainTextResponse
 
-@app.get("/metrics")
-async def _direct_metrics_endpoint():
-    try:
-        from backend.metrics.prometheus_metrics import generate_metrics
-        return PlainTextResponse(generate_metrics(), media_type="text/plain; version=0.0.4")
-    except Exception:
-        return PlainTextResponse("# HELP dummy\n# TYPE dummy gauge\ndummy 0\n", media_type="text/plain; version=0.0.4")
 
 # Load optional startup shim for MetricsCollector (Dev-friendly)
 try:
@@ -187,32 +180,6 @@ app.include_router(metrics, prefix="/api/metrics", tags=["metrics"])
 app.include_router(benchmark, prefix="/api/benchmark", tags=["benchmark"])
 app.include_router(tuner, prefix="/api/tuner", tags=["tuner"])
 
-
-# MetricsCollector lifecycle integration (startup/shutdown)
-_metrics_collector = None
-_metrics_collector_task = None
-
-@app.on_event("startup")
-async def _start_metrics_collector():
-    global _metrics_collector, _metrics_collector_task
-    try:
-        from backend.services.metrics_collector import MetricsCollector
-        _metrics_collector = MetricsCollector()
-        _metrics_collector_task = asyncio.create_task(_metrics_collector.start_collection(interval=2.0))
-    except Exception as e:
-        _metrics_collector = None
-        _metrics_collector_task = None
-        print(f"[Main] Failed to start MetricsCollector: {e}")
-
-@app.on_event("shutdown")
-async def _shutdown_metrics_collector():
-    global _metrics_collector, _metrics_collector_task
-    if _metrics_collector is not None and _metrics_collector_task is not None:
-        _metrics_collector.stop()
-        try:
-            await _metrics_collector_task
-        except Exception:
-            pass
 
 @app.get("/health", tags=["health"])
 async def health_check():
