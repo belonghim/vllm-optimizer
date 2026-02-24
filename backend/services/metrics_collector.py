@@ -117,6 +117,17 @@ class MetricsCollector:
             metrics.pod_count = k8s_data.get("pod_count", 0)
             metrics.pod_ready = k8s_data.get("pod_ready", 0)
 
+        # Update Prometheus metrics (Task 3)
+        try:
+            from metrics.prometheus_metrics import update_metrics
+            update_metrics(metrics)
+        except ImportError:
+            # prometheus_metrics module not available yet (Task 2 pending)
+            pass
+        except Exception as e:
+            # Log error but don't break collection flow
+            print(f"[MetricsCollector] Failed to update Prometheus metrics: {e}")
+
         return metrics
 
     async def _query_prometheus(self) -> dict:

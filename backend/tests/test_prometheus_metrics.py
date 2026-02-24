@@ -1,0 +1,109 @@
+import types
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from unittest.mock import patch
+
+# Import the app and metrics module from the backend
+try:
+    from backend.main import app  # type: ignore
+except Exception:
+    # Fallback: construct a tiny FastAPI app if main import isn't available in test env
+    app = FastAPI()
+
+from backend.services.metrics_collector import MetricsCollector  # type: ignore
+
+
+@pytest.fixture
+def client():
+    # Ensure we always use the FastAPI TestClient against the real app
+    return TestClient(app)
+
+
+def _mock_collector_state(state: dict):
+    """Helper to patch MetricsCollector to return a deterministic state."""
+    class DummyCollector:
+        def __init__(self):
+            pass
+
+        def collect(self):
+            # Return a mapping of metric names to values
+            return state
+
+    return DummyCollector()
+
+
+def test_metrics_empty_state(client):
+    empty_state = {
+        'vllm_request_success_total': 0,
+        'vllm_generation_tokens_total': 0,
+        'vllm_num_requests_running': 0,
+        'vllm_num_requests_waiting': 0,
+        'vllm_gpu_cache_usage_perc': 0,
+        'vllm_gpu_utilization': 0,
+        'vllm_time_to_first_token_seconds': 0.0,
+        'vllm_e2e_request_latency_seconds': 0.0,
+    }
+
+    with patch.object(pm, 'MetricsCollector', autospec=True) as MockCollector:
+        MockCollector.return_value = _mock_collector_state(empty_state)
+        resp = client.get("/api/metrics")
+        assert resp.status_code == 200
+        assert resp.headers.get('content-type') == 'text/plain; version=0.0.4'
+        body = resp.text
+        for name in empty_state.keys():
+            assert name in body
+
+
+def test_metrics_populated_state(client):
+    populated_state = {
+        'vllm_request_success_total': 42,
+        'vllm_generation_tokens_total': 12345,
+        'vllm_num_requests_running': 2,
+        'vllm_num_requests_waiting': 1,
+        'vllm_gpu_cache_usage_perc': 75,
+        'vllm_gpu_utilization': 65,
+        'vllm_time_to_first_token_seconds': 0.123,
+        'vllm_e2e_request_latency_seconds': 0.456,
+    }
+
+    with patch.object(pm, 'MetricsCollector', autospec=True) as MockCollector:
+        MockCollector.return_value = _mock_collector_state(populated_state)
+        resp = client.get("/api/metrics")
+        assert resp.status_code == 200
+        assert resp.headers.get('content-type') == 'text/plain; version=0.0.4'
+        body = resp.text
+        for name in populated_state.keys():
+            assert str(populated_state[name]) in body
+
+
+def test_metrics_name_presence(client):
+    # Ensure all required metric names appear regardless of values
+    any_state = {
+        'vllm_request_success_total': 0,
+        'vllm_generation_tokens_total': 1,
+        'vllm_num_requests_running': 0,
+        'vllm_num_requests_waiting': 0,
+        'vllm_gpu_cache_usage_perc': 50,
+        'vllm_gpu_utilization': 30,
+        'vllm_time_to_first_token_seconds': 0.5,
+        'vllm_e2e_request_latency_seconds': 0.8,
+    }
+
+    with patch.object(pm, 'MetricsCollector', autospec=True) as MockCollector:
+        MockCollector.return_value = _mock_collector_state(any_state)
+        resp = client.get("/api/metrics")
+        assert resp.status_code == 200
+        text = resp.text
+        required = [
+            'vllm_request_success_total',
+            'vllm_generation_tokens_total',
+            'vllm_num_requests_running',
+            'vllm_num_requests_waiting',
+            'vllm_gpu_cache_usage_perc',
+            'vllm_gpu_utilization',
+            'vllm_time_to_first_token_seconds',
+            'vllm_e2e_request_latency_seconds',
+        ]
+        for name in required:
+            assert name in text

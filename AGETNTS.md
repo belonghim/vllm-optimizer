@@ -55,7 +55,6 @@ vllm-optimizer/
     │   ├── 03-backend.yaml          # Deployment + Service + HPA
     │   ├── 04-frontend.yaml         # Deployment + Service + Route
     │   ├── 05-monitoring.yaml       # ServiceMonitor + PrometheusRule + PDB + NetworkPolicy
-    │   ├── 06-imagestream.yaml      # ImageStream (Quay.io 자동 동기화)
     │   └── kustomization.yaml
     ├── overlays/
     │   ├── dev/kustomization.yaml   # Dev: 리소스 축소, 1 레플리카
@@ -105,7 +104,6 @@ spec:
 
 ### 5. 이미지 레지스트리
 - 이미지는 반드시 **Quay.io** 또는 내부 레지스트리 사용
-- **ImageStream**을 통한 이미지 관리 권장
 
 ### 6. 모니터링
 - Prometheus 직접 설치 금지
@@ -300,7 +298,6 @@ oc adm policy add-scc-to-user vllm-optimizer-scc \
 
 ### 이미지 Pull 실패 시
 ```bash
-# ImageStream 수동 동기화
 oc import-image vllm-optimizer-backend:latest \
   --from=quay.io/your-org/vllm-optimizer-backend:latest \
   --confirm -n vllm-optimizer

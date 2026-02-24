@@ -14,10 +14,6 @@ metadata:
     app.kubernetes.io/component: frontend
     app.kubernetes.io/part-of: vllm-optimizer
     app.kubernetes.io/version: "1.0.0"
-  annotations:
-    image.openshift.io/triggers: >-
-      [{"from":{"kind":"ImageStreamTag","name":"vllm-optimizer-frontend:latest","namespace":"vllm-optimizer"},
-        "fieldPath":"spec.template.spec.containers[0].image","pause":"false"}]
 spec:
   replicas: 2
   selector:
@@ -46,7 +42,7 @@ spec:
 
       containers:
         - name: frontend
-          image: quay.io/joopark/vllm-optimizer-frontend:latest
+          image: quay.io/joopark/vllm-optimizer-frontend:dev
 
           securityContext:
             allowPrivilegeEscalation: false

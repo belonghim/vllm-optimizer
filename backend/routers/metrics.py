@@ -111,3 +111,17 @@ async def get_metrics_history(
         )
         for h in history_dict
     ]
+
+
+@router.get("/metrics")
+async def get_prometheus_metrics():
+    """
+    Expose Prometheus metrics for OpenShift Monitoring.
+
+    Returns plaintext Prometheus format. This endpoint is scraped by ServiceMonitor
+    and does not require authentication.
+    """
+    from ..metrics.prometheus_metrics import generate_metrics
+
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse(generate_metrics(), media_type="text/plain; version=0.0.4")

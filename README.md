@@ -50,7 +50,6 @@ vLLM 서비스의 부하 테스트, 실시간 모니터링, 벤치마크 비교,
 | 포트 | 80, 443 가능 | **8080, 8000** (non-root 포트) |
 | 사용자 | root 가능 | **non-root + arbitrary UID** (SCC) |
 | Ingress | Ingress 객체 | **OpenShift Route** (Edge TLS) |
-| 이미지 레지스트리 | DockerHub | **Quay.io** + ImageStream |
 | CI/CD | 자유 선택 | **Tekton Pipeline** (Buildah 빌드) |
 | 모니터링 | 직접 설치 | **OpenShift Monitoring Stack** (Thanos) |
 | 네트워크 정책 | 선택 | **NetworkPolicy** (최소 권한) |
@@ -135,7 +134,6 @@ vllm-optimizer/
     │   ├── 03-backend.yaml          # Deployment + Service + HPA
     │   ├── 04-frontend.yaml         # Deployment + Service + Route
     │   ├── 05-monitoring.yaml       # ServiceMonitor + PrometheusRule + PDB + NetworkPolicy
-    │   ├── 06-imagestream.yaml      # ImageStream (Quay.io 자동 동기화)
     │   └── kustomization.yaml
     ├── overlays/
     │   ├── dev/kustomization.yaml   # Dev: 리소스 축소, 1 레플리카
@@ -217,7 +215,6 @@ oc adm policy add-scc-to-user vllm-optimizer-scc \
 # Pull Secret 확인
 oc get secret quay-pull-secret -n vllm-optimizer -o yaml
 
-# ImageStream 수동 import
 oc import-image vllm-optimizer-backend:latest \
   --from=quay.io/your-org/vllm-optimizer-backend:latest \
   --confirm -n vllm-optimizer

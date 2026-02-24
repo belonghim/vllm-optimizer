@@ -12,6 +12,9 @@ patches:
         path: /spec/replicas
         value: 1
       - op: replace
+        path: /spec/template/spec/containers/0/image
+        value: quay.io/joopark/vllm-optimizer-backend:dev
+      - op: replace
         path: /spec/template/spec/containers/0/resources/limits/cpu
         value: "500m"
       - op: replace
@@ -24,6 +27,9 @@ patches:
       - op: replace
         path: /spec/replicas
         value: 1
+      - op: replace
+        path: /spec/template/spec/containers/0/image
+        value: quay.io/joopark/vllm-optimizer-frontend:dev
   - target:
       kind: Route
       name: vllm-optimizer
@@ -37,8 +43,3 @@ patches:
       - op: replace
         path: /spec/minReplicas
         value: 1
-images:
-  - name: quay.io/joopark/vllm-optimizer-backend
-    newTag: dev
-  - name: quay.io/joopark/vllm-optimizer-frontend
-    newTag: dev

@@ -6,6 +6,7 @@ and mounts placeholder routers for the vLLM optimizer backend.
 """
 
 from fastapi import FastAPI
+import asyncio
 from fastapi.responses import JSONResponse
 from typing import Optional
 import uuid
@@ -40,7 +41,7 @@ app.add_middleware(
 # Placeholder router imports
 # These will be implemented in subsequent tasks (T6-T9)
 try:
-     from routers import load_test, metrics, benchmark, tuner
+     from backend.routers import load_test, metrics, benchmark, tuner
 except ImportError:
     # If routers don't exist yet, create minimal placeholders
     # Note: prefix is added in include_router, not here, to avoid double-prefixes
@@ -164,6 +165,32 @@ app.include_router(metrics, prefix="/api/metrics", tags=["metrics"])
 app.include_router(benchmark, prefix="/api/benchmark", tags=["benchmark"])
 app.include_router(tuner, prefix="/api/tuner", tags=["tuner"])
 
+
+# MetricsCollector lifecycle integration (startup/shutdown)
+_metrics_collector = None
+_metrics_collector_task = None
+
+@app.on_event("startup")
+async def _start_metrics_collector():
+    global _metrics_collector, _metrics_collector_task
+    try:
+        from backend.services.metrics_collector import MetricsCollector
+        _metrics_collector = MetricsCollector()
+        _metrics_collector_task = asyncio.create_task(_metrics_collector.start_collection(interval=2.0))
+    except Exception as e:
+        _metrics_collector = None
+        _metrics_collector_task = None
+        print(f"[Main] Failed to start MetricsCollector: {e}")
+
+@app.on_event("shutdown")
+async def _shutdown_metrics_collector():
+    global _metrics_collector, _metrics_collector_task
+    if _metrics_collector is not None and _metrics_collector_task is not None:
+        _metrics_collector.stop()
+        try:
+            await _metrics_collector_task
+        except Exception:
+            pass
 
 @app.get("/health", tags=["health"])
 async def health_check():
