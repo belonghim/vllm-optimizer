@@ -28,30 +28,6 @@ spec:
     interval: 15s
     scrapeTimeout: 10s
     scheme: http
-
----
-# ── ServiceMonitor: vLLM 메트릭 수집 (Cross-Namespace) ────────────────────────
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: vllm-service-monitor
-  labels:
-    app.kubernetes.io/part-of: vllm-optimizer
-    openshift.io/cluster-monitoring: "true"
-spec:
-  # vLLM이 배포된 namespace 지정
-  namespaceSelector:
-    matchNames:
-      - vllm
-  selector:
-    matchLabels:
-      app: vllm-deployment
-  endpoints:
-    - port: "8000"
-      path: /metrics
-      interval: 5s
-      scrapeTimeout: 4s
-
 ---
 # ── PrometheusRule: 알람 규칙 ─────────────────────────────────────────────────
 apiVersion: monitoring.coreos.com/v1
