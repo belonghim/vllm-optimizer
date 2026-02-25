@@ -29,21 +29,6 @@ spec:
     interval: 15s
     scrapeTimeout: 10s
     scheme: http
-  - port: http
-    path: /api/metrics
-    interval: 15s
-    scrapeTimeout: 10s
-    scheme: http
-  endpoints:
-  - port: http
-    path: /api/metrics
-    interval: 15s
-    scrapeTimeout: 10s
-    scheme: http
-    path: /api/metrics
-    interval: 15s
-    scrapeTimeout: 10s
-    scheme: http
 
 ---
 # ── ServiceMonitor: vLLM 메트릭 수집 (Cross-Namespace) ────────────────────────
