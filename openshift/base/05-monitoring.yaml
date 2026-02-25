@@ -13,7 +13,6 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: vllm-optimizer-backend
-  namespace: vllm-optimizer
   labels:
     app.kubernetes.io/name: vllm-optimizer-backend
     app.kubernetes.io/part-of: vllm-optimizer
@@ -36,7 +35,6 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: vllm-service-monitor
-  namespace: vllm-optimizer
   labels:
     app.kubernetes.io/part-of: vllm-optimizer
     openshift.io/cluster-monitoring: "true"
@@ -60,7 +58,6 @@ apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
   name: vllm-optimizer-alerts
-  namespace: vllm-optimizer
   labels:
     app.kubernetes.io/part-of: vllm-optimizer
     openshift.io/cluster-monitoring: "true"
@@ -173,7 +170,6 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: vllm-optimizer-backend-pdb
-  namespace: vllm-optimizer
   labels:
     app.kubernetes.io/part-of: vllm-optimizer
 spec:
@@ -187,7 +183,6 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: vllm-optimizer-frontend-pdb
-  namespace: vllm-optimizer
   labels:
     app.kubernetes.io/part-of: vllm-optimizer
 spec:
@@ -202,7 +197,6 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: vllm-optimizer-backend-netpol
-  namespace: vllm-optimizer
   labels:
     app.kubernetes.io/part-of: vllm-optimizer
 spec:
@@ -256,7 +250,6 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: vllm-optimizer-frontend-netpol
-  namespace: vllm-optimizer
 spec:
   podSelector:
     matchLabels:
