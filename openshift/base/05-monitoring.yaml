@@ -24,11 +24,11 @@ spec:
     matchLabels:
       app: vllm-optimizer-backend
   endpoints:
-    - port: http
-      path: /metrics
-      interval: 15s
-      scrapeTimeout: 10s
-      scheme: http
+  - port: http
+    path: /api/metrics
+    interval: 15s
+    scrapeTimeout: 10s
+    scheme: http
 
 ---
 # ── ServiceMonitor: vLLM 메트릭 수집 (Cross-Namespace) ────────────────────────
