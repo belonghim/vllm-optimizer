@@ -4,42 +4,10 @@ namespace: vllm-optimizer-dev
 resources:
   - ../../base
 patches:
-  - target:
-      kind: Deployment
-      name: vllm-optimizer-backend
-    patch: |-
-      - op: replace
-        path: /spec/replicas
-        value: 1
-      - op: replace
-        path: /spec/template/spec/containers/0/image
-        value: quay.io/joopark/vllm-optimizer-backend:dev
-      - op: replace
-        path: /spec/template/spec/containers/0/resources/limits/cpu
-        value: "500m"
-      - op: replace
-        path: /spec/template/spec/containers/0/resources/limits/memory
-        value: "512Mi"
-  - target:
-      kind: Deployment
-      name: vllm-optimizer-frontend
-    patch: |-
-      - op: replace
-        path: /spec/replicas
-        value: 1
-      - op: replace
-        path: /spec/template/spec/containers/0/image
-        value: quay.io/joopark/vllm-optimizer-frontend:dev
-  - target:
-      kind: Route
-      name: vllm-optimizer
-    patch: |-
-      - op: replace
-        path: /spec/host
-        value: vllm-optimizer-dev.apps.cluster.example.com
-  - target:
-      kind: HorizontalPodAutoscaler
-    patch: |-
-      - op: replace
-        path: /spec/minReplicas
-        value: 1
+  - patches.yaml
+kind: Kustomization
+namespace: vllm-optimizer-dev
+resources:
+  - ../../base
+patches:
+  - patches.yaml
