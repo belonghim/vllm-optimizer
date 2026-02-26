@@ -2,7 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 
-def test_metrics_endpoint_plaintext():
+def test_metrics_endpoint_plaintext(monkeypatch):
     """Test /api/metrics endpoint returns correct Prometheus format"""
     import backend.metrics.prometheus_metrics as prom
     
@@ -53,7 +53,6 @@ vllm_e2e_request_latency_seconds_count{model="default"} 150.0
     def fake_generate_metrics():
         return fake_metrics_output
     
-    monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(prom, 'generate_metrics', fake_generate_metrics)
 
     from backend.main import app
@@ -127,7 +126,7 @@ vllm_e2e_request_latency_seconds_count{model="default"} 150.0
         assert len(gauge_lines) >= 1, f"Missing gauge value line for {metric}"
 
 
-def test_metrics_endpoint_no_server_required():
+def test_metrics_endpoint_no_server_required(monkeypatch):
     """Test that endpoint works without requiring external server or backend services"""
     import backend.metrics.prometheus_metrics as prom
     
@@ -135,7 +134,6 @@ def test_metrics_endpoint_no_server_required():
     def fake_generate_metrics():
         return b"# HELP test_metric Test metric\n# TYPE test_metric gauge\ntest_metric 1.0\n"
     
-    monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(prom, 'generate_metrics', fake_generate_metrics)
 
     from backend.main import app
