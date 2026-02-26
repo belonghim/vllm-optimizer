@@ -18,3 +18,8 @@ node_modules/
 # mac
 .DS_Store
 
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+

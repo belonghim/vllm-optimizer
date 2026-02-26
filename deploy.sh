@@ -1,6 +1,5 @@
 #!/bin/bash
 set -euo pipefail
-
 # Simple, auditable OpenShift deploy script aligned with image registry overlays
 
 # Root directory of repo (where Dockerfiles live)
@@ -22,12 +21,12 @@ for arg in "$@"; do
       echo ""
       echo "Environment:"
       echo "  dev    - Deploy to vllm-optimizer-dev namespace"
-      echo "  prod   - Deploy to vllm-optimizer namespace"
+      echo "  prod   - Deploy to vllm-optimizer-prod namespace"
       echo ""
       echo "Registry and tags (overrideable via environment variables):"
       echo "  REGISTRY=${REGISTRY:-quay.io/joopark}"
       echo "  IMAGE_TAG (dev) => dev  |  (prod) => 1.0.0"
-      echo "  NAMESPACE (dev) => vllm-optimizer-dev | (prod) => vllm-optimizer"
+      echo "  NAMESPACE (dev) => vllm-optimizer-dev | (prod) => vllm-optimizer-prod"
       echo ""
       echo "Examples:"
       echo "  $0 dev --dry-run         # Preview dev deployment"
@@ -35,7 +34,7 @@ for arg in "$@"; do
       echo "  REGISTRY=myreg.io $0 dev  # Use custom registry"
       exit 0
       ;;
-esac
+  esac
 done
 
 # Registry and namespace defaults (overrideable via env)
@@ -46,7 +45,7 @@ if [[ "$ENV" == "dev" ]]; then
   NAMESPACE="vllm-optimizer-dev"
   IMAGE_TAG="dev"
 elif [[ "$ENV" == "prod" ]]; then
-  NAMESPACE="vllm-optimizer"
+  NAMESPACE="vllm-optimizer-prod"
   IMAGE_TAG="1.0.0"
 else
   NAMESPACE="vllm-optimizer-dev"
@@ -120,10 +119,18 @@ fi
 ## Deploy phase (overlay-based via kustomize)
 log "Applying OpenShift overlays (environment: ${ENV})..."
 OVERLAY_PATH="${SCRIPT_DIR}/openshift/overlays/${ENV}"
-if command -v kustomize >/dev/null 2>&1; then
-  kustomize build "${OVERLAY_PATH}" | oc apply -n "${NAMESPACE}" -f -
+if [[ "$DRY_RUN" == "true" ]]; then
+  if command -v kustomize >/dev/null 2>&1; then
+    kustomize build "${OVERLAY_PATH}" | oc apply --dry-run=client -n "${NAMESPACE}" -f -
+  else
+    oc kustomize "${OVERLAY_PATH}" | oc apply --dry-run=client -n "${NAMESPACE}" -f -
+  fi
 else
-  oc kustomize "${OVERLAY_PATH}" | oc apply -n "${NAMESPACE}" -f -
+  if command -v kustomize >/dev/null 2>&1; then
+    kustomize build "${OVERLAY_PATH}" | oc apply -n "${NAMESPACE}" -f -
+  else
+    oc kustomize "${OVERLAY_PATH}" | oc apply -n "${NAMESPACE}" -f -
+  fi
 fi
 ok "Overlay applied: ${ENV} -> namespace ${NAMESPACE}"
 
