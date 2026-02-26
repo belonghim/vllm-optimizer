@@ -9,7 +9,7 @@ from typing import Optional, List
 from kubernetes import client as k8s_client, config as k8s_config
 
 # Import Pydantic models from models module
-from models.load_test import TuningConfig, TuningTrial
+from ..models.load_test import TuningConfig, TuningTrial
 
 # scikit-optimize 또는 optuna 기반
 try:
@@ -194,7 +194,7 @@ class AutoTuner:
         self, endpoint: str, config: TuningConfig
     ) -> tuple[float, float, float]:
         """부하 테스트 실행 후 점수 반환"""
-        from models.load_test import LoadTestConfig
+        from ..models.load_test import LoadTestConfig
 
         test_config = LoadTestConfig(
             endpoint=endpoint,

@@ -74,11 +74,21 @@ oc login --token=<token> --server=https://api.your-cluster.example.com:6443
 ### 2. 환경변수 설정
 
 ```bash
-export REGISTRY="quay.io/your-org"
-export IMAGE_TAG="1.0.0"
-export CLUSTER_DOMAIN="apps.your-cluster.example.com"
+# 레지스트리 (기본값: quay.io/joopark)
+export REGISTRY="quay.io/joopark"
+
+# IMAGE_TAG는 ENV에 따라 자동 설정됩니다:
+#   dev  -> dev
+#   prod -> 1.0.0
+# 별도로 설정하려면 ENV 전에 지정하세요:
+# export IMAGE_TAG="custom-tag"
+
+# (선택) 클러스터 도메인, 네임스페이스 (스크립트가 자동으로 ENV에 맞춰 설정)
+export CLUSTER_DOMAIN="apps.cluster.example.com"
 export VLLM_NAMESPACE="vllm"
 ```
+
+
 
 ### 3. 배포 (Dev)
 
@@ -96,9 +106,27 @@ export VLLM_NAMESPACE="vllm"
 ### 4. 배포 (Prod)
 
 ```bash
+# 프로덕션 배포 (IMAGE_TAG=1.0.0는 ENV=prod일 때 자동 설정)
+./deploy.sh prod
+
+# 드라이런으로 확인
+./deploy.sh prod --dry-run
+```
+
+---
+
+```bash
 IMAGE_TAG="1.0.0" ./scripts/deploy.sh prod
 ```
 
+
+### Monitoring (Prometheus Metrics)
+
+- Prometheus metrics endpoint: GET /api/metrics
+- Content-Type: text/plain; version=0.0.4
+- Exposes 8 base metrics (vllm_metric_1 ... vllm_metric_8) with HELP/TYPE annotations
+- Troubleshooting: If no metrics appear, verify that the ServiceMonitor path is /api/metrics and that the collector shim is active
+- Reference: docs/monitoring_runbook.md
 ---
 
 ## 프로젝트 구조

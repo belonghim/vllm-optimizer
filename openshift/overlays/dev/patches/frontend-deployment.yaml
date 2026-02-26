@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-optimizer-frontend
+  namespace: vllm-optimizer-dev
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+      - name: frontend
+        image: quay.io/joopark/vllm-optimizer-frontend:dev
+        resources:
+          requests:
+            cpu: "25m"
+            memory: "32Mi"
+          limits:
+            cpu: "100m"
+            memory: "64Mi"

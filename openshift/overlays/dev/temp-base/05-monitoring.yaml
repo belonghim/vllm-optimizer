@@ -1,0 +1,251 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# 05-monitoring.yaml
+# OpenShift Monitoring Stack 연동
+# - ServiceMonitor (Prometheus Operator)
+# - PrometheusRule (알람 규칙)
+# - PodDisruptionBudget
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ── ServiceMonitor: Backend 메트릭 수집 ───────────────────────────────────────
+# openshift-monitoring의 Prometheus가 자동으로 이 ServiceMonitor를 감지
+# Namespace에 openshift.io/cluster-monitoring: "true" 레이블 필요
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: vllm-optimizer-backend
+  labels:
+    app.kubernetes.io/name: vllm-optimizer-backend
+    app.kubernetes.io/part-of: vllm-optimizer
+    # OpenShift Monitoring이 이 레이블로 ServiceMonitor를 감지
+    openshift.io/cluster-monitoring: "true"
+spec:
+  selector:
+    matchLabels:
+      app: vllm-optimizer-backend
+  endpoints:
+  - port: http
+    path: /api/metrics
+    interval: 15s
+    scrapeTimeout: 10s
+    scheme: http
+---
+# ── PrometheusRule: 알람 규칙 ─────────────────────────────────────────────────
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: vllm-optimizer-alerts
+  labels:
+    app.kubernetes.io/part-of: vllm-optimizer
+    openshift.io/cluster-monitoring: "true"
+    # Prometheus Operator가 이 레이블로 Rule 감지
+    role: alert-rules
+spec:
+  groups:
+    # ── vLLM 성능 알람 ───────────────────────────────────────────────────────
+    - name: vllm.performance
+      interval: 30s
+      rules:
+        - alert: VLLMHighP99Latency
+          expr: |
+            histogram_quantile(0.99,
+              rate(vllm:e2e_request_latency_seconds_bucket[5m])
+            ) > 2.0
+          for: 5m
+          labels:
+            severity: warning
+            team: mlops
+          annotations:
+            summary: "vLLM P99 레이턴시 임계치 초과"
+            description: |
+              vLLM P99 레이턴시가 {{ $value | humanizeDuration }}으로
+              2초 임계치를 초과했습니다. (namespace: {{ $labels.namespace }})
+            runbook_url: "https://wiki.example.com/runbooks/vllm-high-latency"
+
+        - alert: VLLMHighQueueDepth
+          expr: vllm:num_requests_waiting > 50
+          for: 2m
+          labels:
+            severity: warning
+            team: mlops
+          annotations:
+            summary: "vLLM 대기 요청 큐 증가"
+            description: |
+              대기 중인 요청이 {{ $value }}개로 50개 임계치를 초과했습니다.
+              HPA 스케일아웃 또는 파라미터 튜닝을 고려하세요.
+
+        - alert: VLLMKVCacheSaturation
+          expr: vllm:gpu_cache_usage_perc > 0.95
+          for: 3m
+          labels:
+            severity: critical
+            team: mlops
+          annotations:
+            summary: "vLLM KV Cache 포화 상태"
+            description: |
+              KV Cache 사용률이 {{ $value | humanizePercentage }}로
+              95% 임계치를 초과했습니다. OOM 위험이 있습니다.
+
+        - alert: VLLMLowThroughput
+          expr: |
+            rate(vllm:generation_tokens_total[5m]) < 10
+          for: 10m
+          labels:
+            severity: warning
+            team: mlops
+          annotations:
+            summary: "vLLM 처리량 비정상적으로 낮음"
+            description: "TPS가 {{ $value | humanize }}로 10 이하로 떨어졌습니다."
+
+    # ── vLLM Optimizer 앱 알람 ───────────────────────────────────────────────
+    - name: vllm-optimizer.app
+      rules:
+        - alert: OptimizerBackendDown
+          expr: |
+            up{job="vllm-optimizer-backend"} == 0
+          for: 1m
+          labels:
+            severity: critical
+            team: mlops
+          annotations:
+            summary: "vLLM Optimizer Backend 다운"
+            description: "Optimizer Backend Pod가 응답하지 않습니다."
+
+        - alert: OptimizerBackendHighErrorRate
+          expr: |
+            rate(http_requests_total{job="vllm-optimizer-backend",status=~"5.."}[5m])
+            /
+            rate(http_requests_total{job="vllm-optimizer-backend"}[5m]) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+            team: mlops
+          annotations:
+            summary: "Optimizer Backend 에러율 5% 초과"
+            description: "에러율: {{ $value | humanizePercentage }}"
+
+    # ── vLLM Pod 가용성 알람 ─────────────────────────────────────────────────
+    - name: vllm.availability
+      rules:
+        - alert: VLLMPodNotReady
+          expr: |
+            kube_deployment_status_replicas_available{deployment="vllm-deployment"}
+            <
+            kube_deployment_spec_replicas{deployment="vllm-deployment"} * 0.5
+          for: 5m
+          labels:
+            severity: critical
+            team: mlops
+          annotations:
+            summary: "vLLM Pod 50% 이상 비가용 상태"
+            description: |
+              전체 {{ $labels.deployment }} 레플리카 중 절반 이상이 비가용입니다.
+
+---
+# ── PodDisruptionBudget: 롤링 업데이트 시 가용성 보장 ─────────────────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: vllm-optimizer-backend-pdb
+  labels:
+    app.kubernetes.io/part-of: vllm-optimizer
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: vllm-optimizer-backend
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: vllm-optimizer-frontend-pdb
+  labels:
+    app.kubernetes.io/part-of: vllm-optimizer
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: vllm-optimizer-frontend
+
+---
+# ── NetworkPolicy: 최소 권한 네트워크 접근 ────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vllm-optimizer-backend-netpol
+  labels:
+    app.kubernetes.io/part-of: vllm-optimizer
+spec:
+  podSelector:
+    matchLabels:
+      app: vllm-optimizer-backend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Frontend에서만 API 접근 허용
+    - from:
+        - podSelector:
+            matchLabels:
+              app: vllm-optimizer-frontend
+      ports:
+        - port: 8000
+    # Prometheus 스크래핑 허용
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-monitoring
+      ports:
+        - port: 8000
+  egress:
+    # vLLM Service 접근
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: vllm
+      ports:
+        - port: 8000
+    # Prometheus/Thanos 접근
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-monitoring
+      ports:
+        - port: 9091
+    # Kubernetes API Server 접근 (K8s SDK)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 169.254.0.0/16  # Link-local 차단
+      ports:
+        - port: 6443  # OCP API Server
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vllm-optimizer-frontend-netpol
+spec:
+  podSelector:
+    matchLabels:
+      app: vllm-optimizer-frontend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # OpenShift Router에서만 접근 허용
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-ingress
+      ports:
+        - port: 8080
+  egress:
+    # Backend API만 접근 허용
+    - to:
+        - podSelector:
+            matchLabels:
+              app: vllm-optimizer-backend
+      ports:
+        - port: 8000

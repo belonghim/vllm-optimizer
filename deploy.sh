@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 set -euo pipefail
 
 # Simple, auditable OpenShift deploy script aligned with image registry overlays
@@ -7,16 +7,35 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
 
-# Environment and run options
+# Environment and run options (defaults)
 ENV="${1:-dev}"
 DRY_RUN=false
 SKIP_BUILD=false
 
+# Parse flags
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=true ;;
     --skip-build) SKIP_BUILD=true ;;
-  esac
+    -h|--help)
+      echo "Usage: $0 [ENV] [--dry-run] [--skip-build]"
+      echo ""
+      echo "Environment:"
+      echo "  dev    - Deploy to vllm-optimizer-dev namespace"
+      echo "  prod   - Deploy to vllm-optimizer namespace"
+      echo ""
+      echo "Registry and tags (overrideable via environment variables):"
+      echo "  REGISTRY=${REGISTRY:-quay.io/joopark}"
+      echo "  IMAGE_TAG (dev) => dev  |  (prod) => 1.0.0"
+      echo "  NAMESPACE (dev) => vllm-optimizer-dev | (prod) => vllm-optimizer"
+      echo ""
+      echo "Examples:"
+      echo "  $0 dev --dry-run         # Preview dev deployment"
+      echo "  $0 prod                  # Deploy to production"
+      echo "  REGISTRY=myreg.io $0 dev  # Use custom registry"
+      exit 0
+      ;;
+esac
 done
 
 # Registry and namespace defaults (overrideable via env)
@@ -34,14 +53,33 @@ else
   IMAGE_TAG="dev"
 fi
 
-log() { echo "["$(date +%H:%M:%S)"] $*"; }
+log() { echo "[$(date +%H:%M:%S)] $*"; }
 ok()  { echo "[OK] $*"; }
 warn() { echo "[WARN] $*"; }
+
+info_dry_run() {
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo ""
+    echo "==== DRY-RUN CONFIGURATION ===="
+    echo "Environment:   $ENV"
+    echo "Namespace:     $NAMESPACE"
+    echo "Registry:      $REGISTRY"
+    echo "Image Tags:    Backend => ${REGISTRY}/vllm-optimizer-backend:${IMAGE_TAG}"
+    echo "               Frontend => ${REGISTRY}/vllm-optimizer-frontend:${IMAGE_TAG}"
+    echo "Build:         $([[ "$SKIP_BUILD" == "true" ]] && echo 'SKIPPED' || echo 'ENABLED')"
+    echo "Push:          $([[ "$DRY_RUN" == "true" ]] && echo 'SKIPPED (dry-run)' || echo 'ENABLED')"
+    echo "================================"
+    echo ""
+  fi
+}
 
 ## Pre-flight checks (non-fatal in dry-run)
 log "Checking prerequisites..."
 command -v oc >/dev/null 2>&1 || { warn "OpenShift CLI 'oc' not found; proceeding with dry-run only"; }
 command -v podman >/dev/null 2>&1 || { warn "Podman not found; deploy steps requiring build will fail"; }
+
+## Show dry-run info before any actions
+info_dry_run
 
 ## Build phase
 if [[ "$SKIP_BUILD" != "true" ]]; then
@@ -60,6 +98,8 @@ if [[ "$SKIP_BUILD" != "true" ]]; then
     -f "${PROJECT_ROOT}/frontend/Dockerfile" \
     "${PROJECT_ROOT}/frontend"
   ok "Frontend image built: ${REGISTRY}/vllm-optimizer-frontend:${IMAGE_TAG}"
+else
+  log "Build skipped (--skip-build flag)"
 fi
 
 ## Push phase (non-dry-run)

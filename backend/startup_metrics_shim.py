@@ -16,7 +16,10 @@ def register(app):
 
     @app.on_event("shutdown")
     async def _shutdown_metrics_collector():
-        collector.stop()
+        try:
+            collector.stop()
+        except Exception:
+            pass
         if task_holder["task"] is not None:
             try:
                 await task_holder["task"]

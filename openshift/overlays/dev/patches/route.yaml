@@ -1,0 +1,7 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: vllm-optimizer
+  namespace: vllm-optimizer-dev
+spec:
+  host: vllm-optimizer-dev.apps.cluster.example.com

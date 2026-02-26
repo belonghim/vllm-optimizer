@@ -113,7 +113,7 @@ async def get_metrics_history(
     ]
 
 
-@router.get("/metrics")
+@router.get("")
 async def get_prometheus_metrics():
     """
     Expose Prometheus metrics for OpenShift Monitoring.

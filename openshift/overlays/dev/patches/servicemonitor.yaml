@@ -1,0 +1,13 @@
+patches:
+- target:
+    kind: ServiceMonitor
+    name: vllm-optimizer-backend
+  patch: |-
+    - op: replace
+      path: /spec/endpoints
+      value:
+      - port: http
+        path: /api/metrics
+        interval: 15s
+        scrapeTimeout: 10s
+        scheme: http

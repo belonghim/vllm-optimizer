@@ -7,7 +7,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: vllm-optimizer-frontend
-  namespace: vllm-optimizer
   labels:
     app: vllm-optimizer-frontend
     app.kubernetes.io/name: vllm-optimizer-frontend
@@ -116,7 +115,6 @@ apiVersion: v1
 kind: Service
 metadata:
   name: vllm-optimizer-frontend
-  namespace: vllm-optimizer
   labels:
     app: vllm-optimizer-frontend
     app.kubernetes.io/part-of: vllm-optimizer
@@ -137,7 +135,6 @@ apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
   name: vllm-optimizer
-  namespace: vllm-optimizer
   labels:
     app.kubernetes.io/name: vllm-optimizer
     app.kubernetes.io/part-of: vllm-optimizer
@@ -175,7 +172,6 @@ spec:
 # kind: Route
 # metadata:
 #   name: vllm-optimizer-api
-#   namespace: vllm-optimizer
 # spec:
 #   host: vllm-optimizer-api.apps.compact.jooan.local
 #   to:

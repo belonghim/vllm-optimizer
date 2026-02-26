@@ -4,10 +4,37 @@ namespace: vllm-optimizer-dev
 resources:
   - ../../base
 patches:
-  - patches.yaml
-kind: Kustomization
-namespace: vllm-optimizer-dev
-resources:
-  - ../../base
-patches:
-  - patches.yaml
+  - target:
+      kind: Deployment
+      name: vllm-optimizer-backend
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 1
+      - op: replace
+        path: /spec/template/spec/containers/0/image
+        value: quay.io/joopark/vllm-optimizer-backend:dev
+  - target:
+      kind: Deployment
+      name: vllm-optimizer-frontend
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 1
+      - op: replace
+        path: /spec/template/spec/containers/0/image
+        value: quay.io/joopark/vllm-optimizer-frontend:dev
+  - target:
+      kind: Service
+      name: vllm-optimizer-backend
+    patch: |-
+      - op: replace
+        path: /spec/type
+        value: ClusterIP
+  - target:
+      kind: Route
+      name: vllm-optimizer
+    patch: |
+      - op: replace
+        path: /spec/host
+        value: vllm-optimizer-dev.apps.cluster.example.com

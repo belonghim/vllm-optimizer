@@ -1,9 +1,29 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: vllm-optimizer
+namespace: vllm-optimizer-prod
 resources:
   - ../../base
+labels:
+  - pairs:
+      app.kubernetes.io/name: vllm-optimizer-prod
+      app.kubernetes.io/component: production
+      app.kubernetes.io/version: "1.0.0"
 patches:
+  - target:
+      kind: Namespace
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: vllm-optimizer-prod
+  - target:
+      group: rbac.authorization.k8s.io
+      version: v1
+      kind: ClusterRoleBinding
+      name: vllm-optimizer-controller
+    patch: |-
+      - op: replace
+        path: /subjects/0/namespace
+        value: vllm-optimizer-prod
   - target:
       kind: Deployment
       name: vllm-optimizer-backend
@@ -33,45 +53,14 @@ patches:
         value: vllm-optimizer.apps.cluster.example.com
   - target:
       kind: HorizontalPodAutoscaler
+      name: vllm-optimizer-backend
     patch: |-
       - op: replace
         path: /spec/minReplicas
         value: 1
-kind: Kustomization
-namespace: vllm-optimizer
-namespace: vllm-optimizer
-resources:
-  - ../../base
-patches:
-  - target:
-      kind: Deployment
-      name: vllm-optimizer-backend
-    patch: |-
-      - op: replace
-        path: /spec/replicas
-        value: 3
-      - op: replace
-        path: /spec/template/spec/containers/0/image
-        value: quay.io/joopark/vllm-optimizer-backend:1.0.0
-  - target:
-      kind: Deployment
-      name: vllm-optimizer-frontend
-    patch: |-
-      - op: replace
-        path: /spec/replicas
-        value: 3
-      - op: replace
-        path: /spec/template/spec/containers/0/image
-        value: quay.io/joopark/vllm-optimizer-frontend:1.0.0
-  - target:
-      kind: Route
-      name: vllm-optimizer
-    patch: |-
-      - op: replace
-        path: /spec/host
-        value: vllm-optimizer.apps.cluster.example.com
   - target:
       kind: HorizontalPodAutoscaler
+      name: vllm-optimizer-frontend
     patch: |-
       - op: replace
         path: /spec/minReplicas
