@@ -5,13 +5,11 @@
 import asyncio
 import os
 import json
+import datetime
 from typing import Optional, List
 from kubernetes import client as k8s_client, config as k8s_config
+from ..models.load_test import TuningConfig, TuningTrial, LoadTestConfig
 
-# Import Pydantic models from models module
-from ..models.load_test import TuningConfig, TuningTrial
-
-# scikit-optimize 또는 optuna 기반
 try:
     import optuna
     optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -70,7 +68,6 @@ class AutoTuner:
         self._trials = []
         self._best_trial = None
 
-        # Optuna study 생성
         direction = "maximize" if config.objective == "tps" else "minimize"
         self._study = optuna.create_study(
             direction=direction,
@@ -95,10 +92,7 @@ class AutoTuner:
                 await asyncio.sleep(30)
 
                 # 성능 측정
-                score, tps, p99_lat = await self._evaluate(
-                    vllm_endpoint, config
-                )
-
+                score, tps, p99_lat = await self._evaluate(vllm_endpoint, config)
                 self._study.tell(trial, score)
 
                 t = TuningTrial(
@@ -111,7 +105,7 @@ class AutoTuner:
                 )
                 self._trials.append(t)
 
-                if self._best_trial is None or score > self._best_trial.score:
+                if self._best_trial is None or (direction == "maximize" and score > self._best_trial.score) or (direction == "minimize" and score < self._best_trial.score):
                     self._best_trial = t
 
             return {
@@ -171,7 +165,6 @@ class AutoTuner:
             )
 
             # Deployment 롤링 재시작
-            import datetime
             patch = {
                 "spec": {
                     "template": {
@@ -190,12 +183,8 @@ class AutoTuner:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _evaluate(
-        self, endpoint: str, config: TuningConfig
-    ) -> tuple[float, float, float]:
+    async def _evaluate(self, endpoint: str, config: TuningConfig) -> tuple[float, float, float]:
         """부하 테스트 실행 후 점수 반환"""
-        from ..models.load_test import LoadTestConfig
-
         test_config = LoadTestConfig(
             endpoint=endpoint,
             model="auto",

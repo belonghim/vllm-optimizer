@@ -8,6 +8,7 @@ import os
 from dataclasses import dataclass
 from typing import Optional
 from kubernetes import client as k8s_client, config as k8s_config
+from backend.metrics.prometheus_metrics import update_metrics
 
 PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "http://prometheus:9090")
 K8S_NAMESPACE = os.getenv("K8S_NAMESPACE", "default")
@@ -117,16 +118,8 @@ class MetricsCollector:
             metrics.pod_count = k8s_data.get("pod_count", 0)
             metrics.pod_ready = k8s_data.get("pod_ready", 0)
 
-        # Update Prometheus metrics (Task 3)
-        try:
-            from metrics.prometheus_metrics import update_metrics
-            update_metrics(metrics)
-        except ImportError:
-            # prometheus_metrics module not available yet (Task 2 pending)
-            pass
-        except Exception as e:
-            # Log error but don't break collection flow
-            print(f"[MetricsCollector] Failed to update Prometheus metrics: {e}")
+        # Update Prometheus metrics
+        update_metrics(metrics)
 
         return metrics
 
