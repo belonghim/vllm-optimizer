@@ -36,6 +36,7 @@ spec:
       containers:
         - name: backend
           image: quay.io/joopark/vllm-optimizer-backend:dev
+          imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true

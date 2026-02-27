@@ -315,8 +315,8 @@ oc import-image vllm-optimizer-backend:latest \
 - `80` 또는 `443` 포트 직접 바인딩
 - Kubernetes `Ingress` 객체 생성 (OpenShift Route 사용)
 - DockerHub 이미지 직접 참조
-- `cluster-admin` 권한에 의존하는 로직 작성
-- `kubectl` 대신 `oc` 사용 금지 위반 (이 프로젝트는 `oc` 기준)
+#- `cluster-admin` 권한에 의존하는 로직 작성
+- `kubectl` 사용 (이 프로젝트는 `oc` 기준)
 
 ---
 

@@ -42,7 +42,7 @@ spec:
       containers:
         - name: frontend
           image: quay.io/joopark/vllm-optimizer-frontend:dev
-
+          imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true

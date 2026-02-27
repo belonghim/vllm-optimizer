@@ -49,7 +49,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: vllm-optimizer-backend
-    namespace: ""
+    namespace: "vllm-optimizer-$DEPLOY_ENV"
 ---
 # OpenShift SCC: non-root + arbitrary UID
 apiVersion: security.openshift.io/v1
@@ -83,6 +83,6 @@ allowedCapabilities: []
 defaultAddCapabilities: []
 requiredDropCapabilities: [ALL]
 users:
-  - system:serviceaccount:vllm-optimizer:vllm-optimizer-backend
-  - system:serviceaccount:vllm-optimizer:vllm-optimizer-frontend
+  - system:serviceaccount:vllm-optimizer-${DEPLOY_ENV}:vllm-optimizer-backend
+  - system:serviceaccount:vllm-optimizer-${DEPLOY_ENV}:vllm-optimizer-frontend
 groups: []
