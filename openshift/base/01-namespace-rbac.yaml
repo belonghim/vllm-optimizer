@@ -49,7 +49,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: vllm-optimizer-backend
-    namespace: "vllm-optimizer-$DEPLOY_ENV"
+    namespace: "vllm-optimizer"
 ---
 # OpenShift SCC: non-root + arbitrary UID
 apiVersion: security.openshift.io/v1

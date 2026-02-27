@@ -6,8 +6,9 @@ import asyncio
 import httpx
 import os
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, cast
 from kubernetes import client as k8s_client, config as k8s_config
+from kubernetes.client import V1Deployment
 from ..metrics.prometheus_metrics import update_metrics
 
 PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091")
@@ -158,10 +159,10 @@ class MetricsCollector:
 
     def _query_kubernetes(self) -> dict:
         try:
-            deployment = self._k8s_apps.read_namespaced_deployment(
+            deployment = cast(V1Deployment, self._k8s_apps.read_namespaced_deployment(
                 name=K8S_DEPLOYMENT,
                 namespace=K8S_NAMESPACE,
-            )
+            ))
             pods = self._k8s_core.list_namespaced_pod(
                 namespace=K8S_NAMESPACE,
                 label_selector=f"app={K8S_DEPLOYMENT}",
