@@ -1,7 +1,7 @@
 # Stage 1: Builder
 FROM registry.access.redhat.com/ubi9/python-311 AS builder
 WORKDIR /build
-COPY requirements.txt .
+COPY backend/requirements.txt .
 USER root
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
@@ -13,9 +13,9 @@ LABEL app="vllm-optimizer-backend" version="1.0.0"
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/app PORT=8000 PATH="/usr/local/bin:$PATH"
 WORKDIR /app
 USER root
-RUN dnf update -y && dnf install -y --allowerasing curl && dnf clean all
+# curl is pre-installed in ubi9/python-311; no additional packages needed for healthchecks.
 COPY --from=builder /install /usr/local
-COPY . .
+COPY backend/ /app
 RUN chown -R 1001:0 /app && chmod -R g+rwX /app
 USER 1001
 EXPOSE 8000
