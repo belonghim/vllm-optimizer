@@ -172,8 +172,12 @@ class MetricsCollector:
                 if p.status.phase == "Running" and
                 all(c.ready for c in (p.status.container_statuses or []))
             )
+            # Safely extract replicas, guarding against None attributes
+            dep_spec = getattr(deployment, "spec", None)
+            replicas = getattr(dep_spec, "replicas", None) if dep_spec is not None else None
+            pod_count = replicas if replicas is not None else 0
             return {
-                "pod_count": deployment.spec.replicas,
+                "pod_count": pod_count,
                 "pod_ready": ready,
             }
         except Exception:

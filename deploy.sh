@@ -134,4 +134,7 @@ else
 fi
 ok "Overlay applied: ${ENV} -> namespace ${NAMESPACE}"
 
+# Post-deployment: assign SCC to backend/frontend service accounts
+oc adm policy add-scc-to-user vllm-optimizer-scc -z vllm-optimizer-backend -n "${NAMESPACE}" || warn "SCC assignment failed. Backend"
+oc adm policy add-scc-to-user vllm-optimizer-scc -z vllm-optimizer-frontend -n "${NAMESPACE}" || warn "SCC assignment failed. Frontend"
 log "Deployment complete (dev/prod overlay applied)."
