@@ -1,0 +1,20 @@
+// Export constants for use in other components
+export const API = "http://localhost:8000/api";
+
+export const COLORS = {
+  bg: "#0a0b0d",
+  surface: "#111318",
+  border: "#1e2330",
+  accent: "#f5a623",
+  cyan: "#00d4ff",
+  green: "#00ff87",
+  red: "#ff3b6b",
+  purple: "#b060ff",
+  text: "#c8cfe0",
+  muted: "#4a5578",
+};
+
+export const font = {
+  mono: "'JetBrains Mono', 'Fira Code', monospace",
+  display: "'Barlow Condensed', 'Oswald', sans-serif",
+};

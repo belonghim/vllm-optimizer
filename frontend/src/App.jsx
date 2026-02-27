@@ -1,10 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { mockMetrics, mockHistory, mockBenchmarks, mockTrials, simulateLoadTest } from "./mockData";
-import {
-  LineChart, Line, AreaChart, Area, BarChart, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
-  ScatterChart, Scatter, ReferenceLine,
-} from "recharts";
+import { API, COLORS, font } from "./constants";
+import MetricCard from "./components/MetricCard";
+import Chart from "./components/Chart";
 
 // ──────────────────────────────────────────────
 // DESIGN: Industrial / Terminal aesthetic
@@ -12,73 +10,11 @@ import {
 // 폰트: JetBrains Mono (코드) + Barlow Condensed (헤더)
 // ──────────────────────────────────────────────
 
-const API = "http://localhost:8000/api";
-
-const COLORS = {
-  bg: "#0a0b0d",
-  surface: "#111318",
-  border: "#1e2330",
-  accent: "#f5a623",
-  cyan: "#00d4ff",
-  green: "#00ff87",
-  red: "#ff3b6b",
-  purple: "#b060ff",
-  text: "#c8cfe0",
-  muted: "#4a5578",
-};
-
-// ── 인라인 스타일 ──
-const font = {
-  mono: "'JetBrains Mono', 'Fira Code', monospace",
-  display: "'Barlow Condensed', 'Oswald', sans-serif",
-};
-
-
 // ── 유틸 함수 ──
 const fmt = (n, d = 1) => (n == null ? "—" : Number(n).toFixed(d));
 const fmtTime = (ts) => new Date(ts * 1000).toLocaleTimeString("ko-KR", { hour12: false });
 
 // ── 컴포넌트 ──
-
-function MetricCard({ label, value, unit, color = "amber", delta }) {
-  return (
-    <div className={`metric-card ${color}`}>
-      <div className="label">{label}</div>
-      <div className="big-num" style={{ color: COLORS[color] || COLORS.accent }}>
-        {value ?? "—"}
-      </div>
-      <div className="big-unit">{unit}</div>
-      {delta != null && (
-        <div style={{ fontSize: 10, color: delta >= 0 ? COLORS.green : COLORS.red, marginTop: 4 }}>
-          {delta >= 0 ? "▲" : "▼"} {Math.abs(delta).toFixed(1)}%
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Chart({ data, lines, title, height = 180 }) {
-  return (
-    <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, padding: 16 }}>
-      <div className="section-title">{title}</div>
-      <ResponsiveContainer width="100%" height={height}>
-        <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
-          <XAxis dataKey="t" tick={{ fontSize: 9, fill: COLORS.muted }} tickFormatter={d => d} />
-          <YAxis tick={{ fontSize: 9, fill: COLORS.muted }} />
-          <Tooltip
-            contentStyle={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, fontSize: 11 }}
-            labelStyle={{ color: COLORS.muted }}
-          />
-          {lines.map(l => (
-            <Line key={l.key} type="monotone" dataKey={l.key} stroke={l.color}
-              dot={false} strokeWidth={1.5} name={l.label} />
-          ))}
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
 
 // ──────────────────────────
 // PAGE: Dashboard (모니터링)
