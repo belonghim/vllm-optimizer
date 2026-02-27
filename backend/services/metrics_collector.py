@@ -8,9 +8,9 @@ import os
 from dataclasses import dataclass
 from typing import Optional
 from kubernetes import client as k8s_client, config as k8s_config
-from backend.metrics.prometheus_metrics import update_metrics
+from ..metrics.prometheus_metrics import update_metrics
 
-PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "http://prometheus:9090")
+PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091")
 K8S_NAMESPACE = os.getenv("K8S_NAMESPACE", "default")
 K8S_DEPLOYMENT = os.getenv("K8S_DEPLOYMENT_NAME", "vllm-deployment")
 
@@ -64,7 +64,19 @@ class MetricsCollector:
         self._max_history = 300  # 5분 @ 1초 간격
         self._running = False
         self._k8s_available = False
+        self._token = self._load_token()
         self._init_k8s()
+
+    def _load_token(self) -> Optional[str]:
+        # Read Kubernetes serviceaccount token if available
+        token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+        try:
+            with open(token_path, "r") as f:
+                return f.read().strip()
+        except FileNotFoundError:
+            return None
+        except Exception:
+            return None
 
     def _init_k8s(self):
         try:
@@ -125,7 +137,11 @@ class MetricsCollector:
 
     async def _query_prometheus(self) -> dict:
         results = {}
-        async with httpx.AsyncClient(timeout=5) as client:
+        # Prepare headers with optional Bearer token
+        headers = {}
+        if getattr(self, "_token", None):
+            headers["Authorization"] = f"Bearer {self._token}"
+        async with httpx.AsyncClient(timeout=5, verify=False, headers=headers) as client:
             for metric_name, query in VLLM_QUERIES.items():
                 try:
                     resp = await client.get(
