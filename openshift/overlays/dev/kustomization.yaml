@@ -31,10 +31,3 @@ patches:
       - op: replace
         path: /spec/type
         value: ClusterIP
-  - target:
-      kind: Route
-      name: vllm-optimizer
-    patch: |
-      - op: replace
-        path: /spec/host
-        value: vllm-optimizer-dev.apps.cluster.example.com

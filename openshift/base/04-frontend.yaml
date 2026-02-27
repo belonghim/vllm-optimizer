@@ -149,7 +149,6 @@ metadata:
     haproxy.router.openshift.io/hsts_header: "max-age=31536000;includeSubDomains;preload"
 spec:
   # 실제 클러스터 도메인으로 수정
-  host: vllm-optimizer.apps.compact.jooan.local
   to:
     kind: Service
     name: vllm-optimizer-frontend
@@ -173,7 +172,6 @@ spec:
 # metadata:
 #   name: vllm-optimizer-api
 # spec:
-#   host: vllm-optimizer-api.apps.compact.jooan.local
 #   to:
 #     kind: Service
 #     name: vllm-optimizer-backend

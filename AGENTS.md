@@ -123,7 +123,6 @@ spec:
 |--------|------|------|
 | `REGISTRY` | 컨테이너 레지스트리 | `quay.io/your-org` |
 | `IMAGE_TAG` | 이미지 태그 | `1.0.0` |
-| `CLUSTER_DOMAIN` | OpenShift 클러스터 도메인 | `apps.your-cluster.example.com` |
 | `VLLM_NAMESPACE` | vLLM 서비스 네임스페이스 | `vllm` |
 | `THANOS_URL` | Thanos Querier URL | `https://thanos-querier.openshift-monitoring.svc.cluster.local:9091` |
 
@@ -145,7 +144,6 @@ podman build -t vllm-optimizer-frontend:dev ./frontend
 # 환경변수 설정 후
 export REGISTRY="quay.io/your-org"
 export IMAGE_TAG="1.0.0"
-export CLUSTER_DOMAIN="apps.your-cluster.example.com"
 export VLLM_NAMESPACE="vllm"
 
 # Dev 배포 (빌드 + 푸시 + 배포)

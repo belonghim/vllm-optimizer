@@ -54,6 +54,8 @@ vLLM 서비스의 부하 테스트, 실시간 모니터링, 벤치마크 비교,
 | 모니터링 | 직접 설치 | **OpenShift Monitoring Stack** (Thanos) |
 | 네트워크 정책 | 선택 | **NetworkPolicy** (최소 권한) |
 
+> (참고: Route URL은 클러스터의 기본 도메인에 따라 자동으로 할당되지만, 커스텀 도메인이 필요한 경우 Kustomize 패치를 통해 재정의할 수 있습니다.)
+
 ---
 
 ## 빠른 시작
@@ -83,8 +85,6 @@ export REGISTRY="quay.io/joopark"
 # 별도로 설정하려면 ENV 전에 지정하세요:
 # export IMAGE_TAG="custom-tag"
 
-# (선택) 클러스터 도메인, 네임스페이스 (스크립트가 자동으로 ENV에 맞춰 설정)
-export CLUSTER_DOMAIN="apps.cluster.example.com"
 export VLLM_NAMESPACE="vllm"
 ```
 

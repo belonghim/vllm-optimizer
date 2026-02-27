@@ -1,7 +1,0 @@
-apiVersion: v1
-kind: Service
-metadata:
-  name: vllm-optimizer-backend
-  namespace: vllm-optimizer-dev
-spec:
-  type: ClusterIP

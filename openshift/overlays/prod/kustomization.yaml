@@ -45,13 +45,6 @@ patches:
         path: /spec/template/spec/containers/0/image
         value: quay.io/joopark/vllm-optimizer-frontend:1.0.0
   - target:
-      kind: Route
-      name: vllm-optimizer
-    patch: |-
-      - op: replace
-        path: /spec/host
-        value: vllm-optimizer.apps.cluster.example.com
-  - target:
       kind: HorizontalPodAutoscaler
       name: vllm-optimizer-backend
     patch: |-
