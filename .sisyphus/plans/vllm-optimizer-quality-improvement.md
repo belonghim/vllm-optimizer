@@ -42,6 +42,6 @@ This plan addresses OpenShift compliance gaps and project quality improvements f
   - **QA**: Run `bash -n deploy.sh` to ensure no syntax errors.
 
 ## Final Verification Wave
-- Verify `podman build` succeeds for both images using UBI9.
-- Verify `metrics_collector.py` correctly reads the token and passes it to the `httpx` client.
-- Run a dry-run of the deployment script (`./deploy.sh dev --dry-run`) to ensure no syntax errors.
+- [x] Verify `podman build` succeeds for both images using UBI9.
+- [x] Verify `metrics_collector.py` correctly reads the token and passes it to the `httpx` client.
+- [x] Run a dry-run of the deployment script (`./deploy.sh dev --dry-run`) to ensure no syntax errors.

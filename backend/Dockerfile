@@ -1,9 +1,9 @@
 # Stage 1: Builder
 FROM registry.access.redhat.com/ubi9/python-311 AS builder
 WORKDIR /build
-COPY backend/requirements.txt .
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 USER root
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 # Stage 2: Runtime
 # OpenShift SCC restricted-v2 준수:
@@ -14,8 +14,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/app PORT=8000 PATH=
 WORKDIR /app
 USER root
 # curl is pre-installed in ubi9/python-311; no additional packages needed for healthchecks.
-COPY --from=builder /install /usr/local
-COPY backend/ /app
+COPY --from=builder /usr/local /usr/local
+COPY . /app
 RUN chown -R 1001:0 /app && chmod -R g+rwX /app
 USER 1001
 EXPOSE 8000
