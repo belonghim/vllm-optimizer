@@ -3,95 +3,21 @@ import { mockMetrics, mockHistory, mockBenchmarks, mockTrials, simulateLoadTest 
 import { API, COLORS, font } from "./constants";
 import MetricCard from "./components/MetricCard";
 import Chart from "./components/Chart";
+// Import the extracted MonitorPage component
+import MonitorPage from "./pages/MonitorPage";
 
 // ──────────────────────────────────────────────
 // DESIGN: Industrial / Terminal aesthetic
 // 색상: 어두운 배경 + 형광 앰버/시안 강조색
 // 폰트: JetBrains Mono (코드) + Barlow Condensed (헤더)
 // ──────────────────────────────────────────────
-
+//
 // ── 유틸 함수 ──
 const fmt = (n, d = 1) => (n == null ? "—" : Number(n).toFixed(d));
 const fmtTime = (ts) => new Date(ts * 1000).toLocaleTimeString("ko-KR", { hour12: false });
-
+//
 // ── 컴포넌트 ──
-
-// ──────────────────────────
-// PAGE: Dashboard (모니터링)
-// ──────────────────────────
-function MonitorPage() {
-  const [metrics, setMetrics] = useState(null);
-  const [history, setHistory] = useState([]);
-
-  useEffect(() => {
-    const fetchLatest = async () => {
-      try {
-        const r = await fetch(`${API}/metrics/latest`);
-        const d = await r.json();
-        setMetrics(d);
-      } catch { /* mock */ setMetrics(mockMetrics()); }
-    };
-
-    const fetchHistory = async () => {
-      try {
-        const r = await fetch(`${API}/metrics/history?last_n=60`);
-        const d = await r.json();
-        setHistory(d.map((m, i) => ({
-          t: fmtTime(m.timestamp),
-          tps: m.tps, ttft: m.ttft_mean, lat_p99: m.latency_p99,
-          kv: m.kv_cache, running: m.running, waiting: m.waiting,
-        })));
-      } catch {
-        setHistory(mockHistory());
-      }
-    };
-
-    fetchLatest(); fetchHistory();
-    const id = setInterval(() => { fetchLatest(); fetchHistory(); }, 2000);
-    return () => clearInterval(id);
-  }, []);
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-      {/* KPI 행 */}
-      <div className="grid-4" style={{ gap: 1 }}>
-        <MetricCard label="Tokens / sec" value={fmt(metrics?.tps, 0)} unit="TPS" color="amber" />
-        <MetricCard label="TTFT Mean" value={fmt(metrics?.ttft_mean, 0)} unit="ms" color="cyan" />
-        <MetricCard label="P99 Latency" value={fmt(metrics?.latency_p99, 0)} unit="ms" color="red" />
-        <MetricCard label="KV Cache" value={fmt(metrics?.kv_cache, 1)} unit="%" color="purple" />
-      </div>
-
-      <div className="grid-4" style={{ gap: 1 }}>
-        <MetricCard label="Running Reqs" value={metrics?.running ?? "—"} unit="requests" color="green" />
-        <MetricCard label="Waiting Reqs" value={metrics?.waiting ?? "—"} unit="queue" color="red" />
-        <MetricCard label="GPU Memory" value={metrics?.gpu_mem_used ? `${fmt(metrics.gpu_mem_used, 1)} / ${fmt(metrics.gpu_mem_total, 0)}` : "—"} unit="GB" color="amber" />
-        <MetricCard label="Pods Ready" value={metrics ? `${metrics.pods_ready} / ${metrics.pods}` : "—"} unit="k8s pods" color="cyan" />
-      </div>
-
-      {/* 차트 */}
-      <div className="grid-2" style={{ gap: 1 }}>
-        <Chart data={history} title="Throughput (TPS)" lines={[
-          { key: "tps", color: COLORS.accent, label: "TPS" },
-        ]} />
-        <Chart data={history} title="Latency (ms)" lines={[
-          { key: "ttft", color: COLORS.cyan, label: "TTFT" },
-          { key: "lat_p99", color: COLORS.red, label: "P99" },
-        ]} />
-      </div>
-
-      <div className="grid-2" style={{ gap: 1 }}>
-        <Chart data={history} title="KV Cache Usage (%)" lines={[
-          { key: "kv", color: COLORS.purple, label: "KV Cache %" },
-        ]} />
-        <Chart data={history} title="Request Queue" lines={[
-          { key: "running", color: COLORS.green, label: "Running" },
-          { key: "waiting", color: COLORS.red, label: "Waiting" },
-        ]} />
-      </div>
-    </div>
-  );
-}
-
+//
 // ──────────────────────────
 // PAGE: Load Test
 // ──────────────────────────
@@ -110,16 +36,13 @@ function LoadTestPage() {
   const [result, setResult] = useState(null);
   const [progress, setProgress] = useState(0);
   const [latencyData, setLatencyData] = useState([]);
-
   const start = async () => {
     setStatus("running"); setResult(null); setLatencyData([]); setProgress(0);
-
     try {
       await fetch(`${API}/load-test/start`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(config),
       });
-
       const es = new EventSource(`${API}/load-test/stream`);
       es.onmessage = (e) => {
         const data = JSON.parse(e.data);
@@ -142,12 +65,14 @@ function LoadTestPage() {
       simulateLoadTest(config, setProgress, setResult, setStatus, setLatencyData);
     }
   };
-
   const stop = async () => {
     await fetch(`${API}/load-test/stop`, { method: "POST" });
     setStatus("stopped");
   };
-
+  const scatterData = trials.map(t => ({
+    x: t.tps, y: t.p99_latency, name: `Trial ${t.id}`,
+    best: status.best?.params && JSON.stringify(t.params) === JSON.stringify(status.best.params),
+  }));
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* 설정 */}
@@ -169,7 +94,6 @@ function LoadTestPage() {
             </div>
           ))}
         </div>
-
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16 }}>
           <input type="checkbox" id="stream" checked={config.stream}
             onChange={e => setConfig(c => ({ ...c, stream: e.target.checked }))} />
@@ -177,7 +101,6 @@ function LoadTestPage() {
             Streaming Mode (TTFT 측정 활성화)
           </label>
         </div>
-
         <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
           <button className="btn btn-primary" onClick={start} disabled={status === "running"}>
             ▶ Run Load Test
@@ -188,7 +111,6 @@ function LoadTestPage() {
           <span className={`tag tag-${status}`}>{status.toUpperCase()}</span>
         </div>
       </div>
-
       {/* 진행률 */}
       {status === "running" && (
         <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, padding: 20 }}>
@@ -201,7 +123,6 @@ function LoadTestPage() {
           </div>
         </div>
       )}
-
       {/* 결과 */}
       {result && (
         <>
@@ -213,7 +134,6 @@ function LoadTestPage() {
               value={result.total ? fmt((result.success / result.total) * 100, 1) : "—"}
               unit="%" color="green" />
           </div>
-
           <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, padding: 20 }}>
             <div className="section-title">Latency Distribution</div>
             <table className="table">
@@ -244,7 +164,6 @@ function LoadTestPage() {
               </tbody>
             </table>
           </div>
-
           {latencyData.length > 0 && (
             <Chart data={latencyData} title="실시간 레이턴시 (ms)" height={160} lines={[
               { key: "lat", color: COLORS.red, label: "Latency ms" },
@@ -263,18 +182,15 @@ function LoadTestPage() {
 function BenchmarkPage() {
   const [benchmarks, setBenchmarks] = useState([]);
   const [selected, setSelected] = useState([]);
-
   useEffect(() => {
     fetch(`${API}/benchmark/list`)
       .then(r => r.json())
       .then(setBenchmarks)
       .catch(() => setBenchmarks(mockBenchmarks()));
   }, []);
-
   const toggle = (id) => setSelected(s =>
     s.includes(id) ? s.filter(x => x !== id) : [...s, id]
   );
-
   const compareData = benchmarks
     .filter(b => selected.includes(b.id))
     .map(b => ({
@@ -284,7 +200,6 @@ function BenchmarkPage() {
       p99: (b.result?.latency?.p99 || 0) * 1000,
       rps: b.result?.rps_actual || 0,
     }));
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, padding: 20 }}>
@@ -315,7 +230,6 @@ function BenchmarkPage() {
           </tbody>
         </table>
       </div>
-
       {compareData.length >= 2 && (
         <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, padding: 20 }}>
           <div className="section-title">비교 차트</div>
@@ -365,7 +279,6 @@ function TunerPage() {
     max_num_seqs_min: 64, max_num_seqs_max: 512,
     gpu_memory_min: 0.80, gpu_memory_max: 0.95,
   });
-
   const fetchStatus = useCallback(async () => {
     try {
       const [s, t, imp] = await Promise.all([
@@ -376,13 +289,11 @@ function TunerPage() {
       setStatus(s); setTrials(t); setImportance(imp);
     } catch { setTrials(mockTrials()); }
   }, []);
-
   useEffect(() => {
     fetchStatus();
     const id = setInterval(fetchStatus, 3000);
     return () => clearInterval(id);
   }, [fetchStatus]);
-
   const start = async () => {
     await fetch(`${API}/tuner/start`, {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -390,22 +301,18 @@ function TunerPage() {
     });
     fetchStatus();
   };
-
   const stop = async () => {
     await fetch(`${API}/tuner/stop`, { method: "POST" });
     fetchStatus();
   };
-
   const applyBest = async () => {
     await fetch(`${API}/tuner/apply-best`, { method: "POST" });
     alert("최적 파라미터를 Kubernetes ConfigMap에 적용했습니다.");
   };
-
   const scatterData = trials.map(t => ({
     x: t.tps, y: t.p99_latency, name: `Trial ${t.id}`,
     best: status.best?.params && JSON.stringify(t.params) === JSON.stringify(status.best.params),
   }));
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* 설정 */}
@@ -445,7 +352,6 @@ function TunerPage() {
             </div>
           </div>
         </div>
-
         <div style={{ display: "flex", gap: 8, marginTop: 16, alignItems: "center" }}>
           <button className="btn btn-primary" onClick={start} disabled={status.running}>
             ▶ Start Tuning
@@ -466,7 +372,6 @@ function TunerPage() {
           </span>
         </div>
       </div>
-
       {/* 최적 파라미터 */}
       {status.best && (
         <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.accent}`, padding: 20 }}>
@@ -490,7 +395,6 @@ function TunerPage() {
           )}
         </div>
       )}
-
       {/* Scatter: TPS vs Latency */}
       {scatterData.length > 0 && (
         <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, padding: 20 }}>
@@ -507,8 +411,6 @@ function TunerPage() {
           </ResponsiveContainer>
         </div>
       )}
-
-      {/* 파라미터 중요도 */}
       {Object.keys(importance).length > 0 && (
         <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, padding: 20 }}>
           <div className="section-title">파라미터 중요도 (FAnova)</div>
@@ -540,15 +442,12 @@ const PAGES = [
   { id: "benchmark", label: "벤치마크 비교", Component: BenchmarkPage },
   { id: "tuner", label: "자동 파라미터 튜닝", Component: TunerPage },
 ];
-
 export default function App() {
   const [page, setPage] = useState("monitor");
   const ActivePage = PAGES.find(p => p.id === page)?.Component ?? MonitorPage;
-
   return (
     <>
       <div className="scanline" />
-
       {/* HEADER */}
       <header style={{
         background: COLORS.surface, borderBottom: `1px solid ${COLORS.border}`,
@@ -563,7 +462,6 @@ export default function App() {
             Kubernetes Performance Suite
           </div>
         </div>
-
         <nav style={{ display: "flex", flex: 1 }}>
           {PAGES.map(p => (
             <button key={p.id} className={`nav-btn ${page === p.id ? "active" : ""}`}
@@ -572,13 +470,11 @@ export default function App() {
             </button>
           ))}
         </nav>
-
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 6, height: 6, borderRadius: "50%", background: COLORS.green, boxShadow: `0 0 8px ${COLORS.green}` }} />
           <span style={{ fontSize: 10, color: COLORS.muted, letterSpacing: "0.1em" }}>CONNECTED</span>
         </div>
       </header>
-
       {/* MAIN */}
       <main style={{ padding: 1, minHeight: "calc(100vh - 57px)", background: COLORS.bg }}>
         <ActivePage />
