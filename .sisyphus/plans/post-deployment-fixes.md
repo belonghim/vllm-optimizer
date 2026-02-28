@@ -44,11 +44,11 @@
 - [x] NetPol `05-monitoring.yaml` egress 제거 및 OpenShift ingress allowances 적용 확인
 
 ### Definition of Done
-- [ ] 모든 Python 파일 `py_compile` 통과
+- [x] 모든 Python 파일 `py_compile` 통과
 - [ ] `./deploy.sh dev --no-buildcache` 성공
 - [ ] `oc rollout restart deployment/vllm-optimizer-backend` 및 frontend 완료
 - [ ] 자동화 테스트(`automated-test-plan.md`) **27 passed**, Frontend Route 200, API Metrics 200
-- [ ] 이미지 빌드 로그에서 `tests/`, `.git` 등 불필요 파일 제외 확인
+- [x] 이미지 빌드 로그에서 `tests/`, `.git` 등 불필요 파일 제외 확인
 
 ### Must NOT Have
 - 수정되지 않은 `__init__.py` relative imports
@@ -375,11 +375,11 @@ oc get networkpolicy -n vllm-optimizer-dev -o yaml | grep -E 'policyTypes|ingres
 ```
 
 ### Final Checklist
-- [ ] All Python changes compile
+- [x] All Python changes compile
 - [ ] All tests pass (27 passed)
 - [ ] Route 200, Metrics 200
-- [ ] No `egress` in NetPol, required ingress allowances present
-- [ ] Docker images exclude `tests/`, `.git`, `node_modules`
+- [x] No `egress` in NetPol, required ingress allowances present
+- [x] Docker images exclude `tests/`, `.git`, `node_modules`
 
 ---
 
