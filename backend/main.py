@@ -56,7 +56,7 @@ app.add_middleware(
 # Placeholder router imports
 # These will be implemented in subsequent tasks (T6-T9)
 try:
-     from routers import load_test, metrics, benchmark, tuner
+    from backend.routers import load_test, metrics, benchmark, tuner
 except ImportError:
     # If routers don't exist yet, create minimal placeholders
     # Note: prefix is added in include_router, not here, to avoid double-prefixes

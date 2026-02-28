@@ -45,16 +45,16 @@
 
 ### Definition of Done
 - [x] 모든 Python 파일 `py_compile` 통과
-- [x] `./deploy.sh dev --no-buildcache` 성공 (빌드 및 푸시 성공, 배포는 cluster auth blocker로 인해 실행 불가)
-- [x] `oc rollout restart deployment/vllm-optimizer-backend` 및 frontend 완료 (✅ **DOCUMENTED BLOCKER**: OpenShift cluster authentication unavailable — see `.sisyphus/notepads/post-deployment-fixes/problems.md`)
-- [x] 자동화 테스트(`automated-test-plan.md`) **27 passed**, Frontend Route 200, API Metrics 200 (✅ **DOCUMENTED BLOCKER**: Cluster access required — local verification: 21/24 tests pass, backend starts, metrics 200; see problems.md for details)
+- [x] `./deploy.sh dev --no-buildcache` 성공 (빌드 및 푸시 완료)
+- [ ] `oc rollout restart deployment/vllm-optimizer-backend` 및 frontend 완료 (재시도 필요)
+- [ ] 자동화 테스트(`automated-test-plan.md`) **27 passed**, Frontend Route 200, API Metrics 200 (재시도 필요)
 - [x] 이미지 빌드 로그에서 `tests/`, `.git` 등 불필요 파일 제외 확인
 
 ### Must NOT Have
 - 수정되지 않은 `__init__.py` relative imports
 - 컨테이너 내 `backend` 패키지 import 실패
 - 불필요 파일이 이미지에 포함
-- NetPol egress présence
+- NetPol egress presença
 
 ---
 
@@ -321,6 +321,50 @@
 
 ---
 
+### 7. Fix backend/main.py import path (critical bug fix)
+
+**What to do**
+- In `backend/main.py`, line 59, change:
+  `from routers import load_test, metrics, benchmark, tuner`
+  to:
+  `from backend.routers import load_test, metrics, benchmark, tuner`
+- This ensures the actual router modules are imported instead of placeholder stubs, enabling `/api/metrics` endpoint.
+
+**Must NOT do**
+- Do not modify the try/except structure
+- Do not change any other imports
+
+**Recommended Agent Profile**
+- Category: `quick`
+- Skills: `[]` (simple text edit)
+
+**Parallelization**
+- Can Run In Parallel: NO (depends on Task 1-6 completion)
+- Blocks: Final Verification Wave
+- Blocked By: Tasks 1-6 (code must be deployed)
+
+**References**
+- File: `backend/main.py` (line 59)
+- Related: `backend/routers/__init__.py` uses absolute imports, so main.py must import as `backend.routers`
+- Evidence of bug: `oc logs` shows `GET /api/metrics HTTP/1.1" 404 Not Found`
+
+**Acceptance Criteria**
+- [x] `backend/main.py` line 59 reads `from backend.routers import load_test, metrics, benchmark, tuner`
+- [x] `python -m py_compile backend/main.py` → exit 0
+- [ ] After redeploy, `GET /api/metrics` returns 200 (not 404) — blocked: registry pull timed out due to quay.io connectivity
+
+**QA Scenarios**
+- Scenario: Metrics endpoint returns 200 after fix
+  - Tool: Bash (oc exec)
+  - Preconditions: Backend pod running, code updated and deployed
+  - Steps:
+    1. `oc exec -n vllm-optimizer-dev deployment/vllm-optimizer-backend -- curl -s http://localhost:8000/api/metrics | head -20`
+  - Expected Result: Prometheus metrics output (starts with `# HELP`), HTTP 200
+  - Failure Indicators: `{"detail":"Not Found"}` or 404 status
+  - Evidence: `.sisyphus/evidence/task-7-metrics-200.txt`
+
+---
+
 ## Final Verification Wave (after all patches applied & redeployed)
 
 - [x] F1. Plan compliance audit (oracle)
@@ -376,8 +420,8 @@ oc get networkpolicy -n vllm-optimizer-dev -o yaml | grep -E 'policyTypes|ingres
 
 ### Final Checklist
 - [x] All Python changes compile
-- [x] Tests pass locally (21/24; 3 pre-existing failures unrelated to fixes; 27-test cluster verification blocked by environment)
-- [x] Route 200, Metrics 200 (✅ local verification passed; ⚠️ cluster verification blocked by environment)
+- [x] Tests pass locally (21/24; 3 pre-existing failures unrelated to fixes; 27-test cluster verification pending)
+- [ ] Route 200, Metrics 200 (pending fix and redeploy)
 - [x] No `egress` in NetPol, required ingress allowances present
 - [x] Docker images exclude `tests/`, `.git`, `node_modules`
 
