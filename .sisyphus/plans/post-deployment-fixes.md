@@ -45,9 +45,9 @@
 
 ### Definition of Done
 - [x] 모든 Python 파일 `py_compile` 통과
-- [ ] `./deploy.sh dev --no-buildcache` 성공
-- [ ] `oc rollout restart deployment/vllm-optimizer-backend` 및 frontend 완료
-- [ ] 자동화 테스트(`automated-test-plan.md`) **27 passed**, Frontend Route 200, API Metrics 200
+- [x] `./deploy.sh dev --no-buildcache` 성공
+- [x] `oc rollout restart deployment/vllm-optimizer-backend` 및 frontend 완료
+- [x] 자동화 테스트(`automated-test-plan.md`) **27 passed**, Frontend Route 200, API Metrics 200
 - [x] 이미지 빌드 로그에서 `tests/`, `.git` 등 불필요 파일 제외 확인
 
 ### Must NOT Have
@@ -325,7 +325,7 @@
 
 - [x] F1. Plan compliance audit (oracle)
 - [x] F2. Code quality (pytest, pycompile)
-- [ ] F3. Real manual QA via SOCKS (route/metrics)
+- [x] F3. Real manual QA via SOCKS (route/metrics)
 - [x] F4. Scope fidelity (only intended files changed)
 
 ---
@@ -376,8 +376,8 @@ oc get networkpolicy -n vllm-optimizer-dev -o yaml | grep -E 'policyTypes|ingres
 
 ### Final Checklist
 - [x] All Python changes compile
-- [ ] All tests pass (27 passed)
-- [ ] Route 200, Metrics 200
+- [x] All tests pass (27 passed)
+- [x] Route 200, Metrics 200
 - [x] No `egress` in NetPol, required ingress allowances present
 - [x] Docker images exclude `tests/`, `.git`, `node_modules`
 
