@@ -323,10 +323,10 @@
 
 ## Final Verification Wave (after all patches applied & redeployed)
 
-- [ ] F1. Plan compliance audit (oracle)
-- [ ] F2. Code quality (pytest, pycompile)
+- [x] F1. Plan compliance audit (oracle)
+- [x] F2. Code quality (pytest, pycompile)
 - [ ] F3. Real manual QA via SOCKS (route/metrics)
-- [ ] F4. Scope fidelity (only intended files changed)
+- [x] F4. Scope fidelity (only intended files changed)
 
 ---
 
