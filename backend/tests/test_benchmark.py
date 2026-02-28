@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.main import app
+from ..main import app
 from ..models.load_test import LoadTestConfig, LoadTestResult, LatencyStats, TpsStats
 from ..models.load_test import Benchmark
 

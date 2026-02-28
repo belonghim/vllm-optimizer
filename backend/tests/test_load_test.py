@@ -1,8 +1,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.main import app
-from backend.models.load_test import LoadTestConfig
+from ..main import app
+from ..models.load_test import LoadTestConfig
 
 
 @pytest.fixture
