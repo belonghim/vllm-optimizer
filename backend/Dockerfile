@@ -15,7 +15,7 @@ WORKDIR /app
 USER root
 # curl is pre-installed in ubi9/python-311; no additional packages needed for healthchecks.
 COPY --from=builder /usr/local /usr/local
-COPY . /app
+COPY backend/ /app
 RUN chown -R 1001:0 /app && chmod -R g+rwX /app
 USER 1001
 EXPOSE 8000

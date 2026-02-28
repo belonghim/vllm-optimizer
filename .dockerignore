@@ -1,0 +1,53 @@
+# Ignore Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python/
+env/
+venv/
+pip-wheel-metadata/
+.tox/
+.coverage
+.coverage.*
+.hypothesis/
+.pytest_cache/
+build/
+dist/
+*.egg-info/
+.benchmarks/
+
+# Ignore editor/IDE files
+.vscode/
+.idea/
+*.swp
+*.bak
+*.swo
+
+# Ignore OS-specific files
+.DS_Store
+Thumbs.db
+
+# Ignore Git artifacts
+.git/
+.gitignore
+.gitmodules
+.gitattributes
+
+# Ignore logs and temporary files
+*.log
+tmp/
+.temp/
+
+# Ignore frontend build artifacts
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+
+# Ignore sisyphus files
+.sisyphus/
+
+# Ignore environment variables
+.env
+.flaskenv
+.venv
