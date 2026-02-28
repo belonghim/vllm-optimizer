@@ -80,7 +80,7 @@ spec:
               path: /health
               port: 8000
             initialDelaySeconds: 10
-            periodSeconds: 5
+            periodSeconds: 10
             failureThreshold: 12
           resources:
             requests:

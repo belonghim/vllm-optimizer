@@ -181,45 +181,37 @@ spec:
       app: vllm-optimizer-backend
   policyTypes:
     - Ingress
-    - Egress
   ingress:
-    # Frontend에서만 API 접근 허용
+    # allow-from-same-namespace
     - from:
-        - podSelector:
-            matchLabels:
-              app: vllm-optimizer-frontend
+        - podSelector: {}
       ports:
         - port: 8000
-    # Prometheus 스크래핑 허용
+    # allow-from-openshift-ingress
     - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: openshift-monitoring
+              network.openshift.io/policy-group: ingress
       ports:
         - port: 8000
-  egress:
-    # vLLM Service 접근
-    - to:
+    # allow-from-openshift-monitoring
+    - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: vllm
+              network.openshift.io/policy-group: monitoring
       ports:
         - port: 8000
-    # Prometheus/Thanos 접근
-    - to:
+    # allow-from-kube-apiserver-operator
+    - from:
         - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: openshift-monitoring
+            matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: In
+                values:
+                  - openshift-kube-apiserver-operator
+                  - kube-apiserver-operator
       ports:
-        - port: 9091
-    # Kubernetes API Server 접근 (K8s SDK)
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-            except:
-              - 169.254.0.0/16  # Link-local 차단
-      ports:
-        - port: 6443  # OCP API Server
+        - port: 8000
 
 ---
 apiVersion: networking.k8s.io/v1
@@ -232,20 +224,34 @@ spec:
       app: vllm-optimizer-frontend
   policyTypes:
     - Ingress
-    - Egress
   ingress:
-    # OpenShift Router에서만 접근 허용
+    # allow-from-same-namespace
+    - from:
+        - podSelector: {}
+      ports:
+        - port: 8080
+    # allow-from-openshift-ingress
     - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: openshift-ingress
+              network.openshift.io/policy-group: ingress
       ports:
         - port: 8080
-  egress:
-    # Backend API만 접근 허용
-    - to:
-        - podSelector:
+    # allow-from-openshift-monitoring
+    - from:
+        - namespaceSelector:
             matchLabels:
-              app: vllm-optimizer-backend
+              network.openshift.io/policy-group: monitoring
       ports:
-        - port: 8000
+        - port: 8080
+    # allow-from-kube-apiserver-operator
+    - from:
+        - namespaceSelector:
+            matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: In
+                values:
+                  - openshift-kube-apiserver-operator
+                  - kube-apiserver-operator
+      ports:
+        - port: 8080
