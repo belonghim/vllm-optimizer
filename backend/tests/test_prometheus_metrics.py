@@ -1,5 +1,5 @@
 import types
-import backend.metrics.prometheus_metrics as pm
+from ..metrics import prometheus_metrics as pm
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -7,12 +7,12 @@ from unittest.mock import patch
 
 # Import the app and metrics module from the backend
 try:
-    from backend.main import app  # type: ignore
+    from ..main import app  # type: ignore
 except Exception:
     # Fallback: construct a tiny FastAPI app if main import isn't available in test env
     app = FastAPI()
 
-from backend.services.metrics_collector import MetricsCollector  # type: ignore
+from ..services.metrics_collector import MetricsCollector  # type: ignore
 
 
 @pytest.fixture

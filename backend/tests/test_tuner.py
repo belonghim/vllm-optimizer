@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.main import app
+from ..main import app
 
 
 @pytest.fixture
@@ -32,7 +32,7 @@ def test_tuner_apply_best_response(client):
 
 def test_tuner_start_endpoint(client):
     """Test starting auto-tuning"""
-    from backend.models.load_test import TuningConfig
+    from ..models.load_test import TuningConfig
     
     config = TuningConfig(n_trials=2, eval_requests=10)
     request_data = {
