@@ -1,5 +1,5 @@
 # Models package
-from .load_test import (
+from backend.models.load_test import (
     LoadTestConfig,
     LoadTestResult,
     RequestResult,
