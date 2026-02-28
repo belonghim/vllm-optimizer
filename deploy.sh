@@ -87,7 +87,7 @@ if [[ "$SKIP_BUILD" != "true" ]]; then
     --platform linux/amd64 \
     -t "${REGISTRY}/vllm-optimizer-backend:${IMAGE_TAG}" \
     -f "${PROJECT_ROOT}/backend/Dockerfile" \
-    "${PROJECT_ROOT}/backend"
+    "${PROJECT_ROOT}"
   ok "Backend image built: ${REGISTRY}/vllm-optimizer-backend:${IMAGE_TAG}"
 
   log "Starting container image build (frontend) -> ${REGISTRY}/vllm-optimizer-frontend:${IMAGE_TAG}"
@@ -95,7 +95,7 @@ if [[ "$SKIP_BUILD" != "true" ]]; then
     --platform linux/amd64 \
     -t "${REGISTRY}/vllm-optimizer-frontend:${IMAGE_TAG}" \
     -f "${PROJECT_ROOT}/frontend/Dockerfile" \
-    "${PROJECT_ROOT}/frontend"
+    "${PROJECT_ROOT}"
   ok "Frontend image built: ${REGISTRY}/vllm-optimizer-frontend:${IMAGE_TAG}"
 else
   log "Build skipped (--skip-build flag)"
