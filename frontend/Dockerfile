@@ -6,7 +6,7 @@ COPY package*.json .
 # Switch to root for npm install to avoid permission issues with node_modules
 USER root
 RUN npm install
-COPY frontend/ /build
+COPY . /build
 RUN npm run build
 
 # Stage 2: nginx-unprivileged (OpenShift 준수: non-root, port 8080)
