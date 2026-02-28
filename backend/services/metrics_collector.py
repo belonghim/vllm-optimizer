@@ -137,13 +137,12 @@ class MetricsCollector:
         return metrics
 
     async def _query_prometheus(self) -> dict:
-        results = {}
-        # Prepare headers with optional Bearer token
         headers = {}
         if getattr(self, "_token", None):
             headers["Authorization"] = f"Bearer {self._token}"
+
         async with httpx.AsyncClient(timeout=5, verify=False, headers=headers) as client:
-            for metric_name, query in VLLM_QUERIES.items():
+            async def fetch(metric_name: str, query: str) -> tuple[str, Optional[float]]:
                 try:
                     resp = await client.get(
                         f"{PROMETHEUS_URL}/api/v1/query",
@@ -152,10 +151,15 @@ class MetricsCollector:
                     data = resp.json()
                     if data["status"] == "success" and data["data"]["result"]:
                         value = float(data["data"]["result"][0]["value"][1])
-                        results[metric_name] = round(value, 3)
+                        return metric_name, round(value, 3)
                 except Exception:
                     pass
-        return results
+                return metric_name, None
+
+            tasks = [fetch(name, query) for name, query in VLLM_QUERIES.items()]
+            responses = await asyncio.gather(*tasks)
+
+        return {name: value for name, value in responses if value is not None}
 
     def _query_kubernetes(self) -> dict:
         try:
