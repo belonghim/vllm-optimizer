@@ -6,14 +6,14 @@ and mounts placeholder routers for the vLLM optimizer backend.
 """
 
 from fastapi import FastAPI
-from backend.services.metrics_collector import MetricsCollector
+from services.metrics_collector import MetricsCollector
 import asyncio
 import asyncio
 from fastapi.responses import JSONResponse
 from typing import Optional
 import uuid
 import time
-from backend.models.load_test import LoadTestConfig, LoadTestResult, LatencyStats, TpsStats, TuningConfig, Benchmark
+from models.load_test import LoadTestConfig, LoadTestResult, LatencyStats, TpsStats, TuningConfig, Benchmark
 from fastapi.middleware.cors import CORSMiddleware
 
 # Create FastAPI app
@@ -34,7 +34,7 @@ from fastapi.responses import PlainTextResponse
 
 # Load optional startup shim for MetricsCollector (Dev-friendly)
 try:
-    from backend.startup_metrics_shim import register
+    from startup_metrics_shim import register
     register(app)
 except Exception as e:
     print("Startup shim not loaded:", e)
@@ -56,7 +56,7 @@ app.add_middleware(
 # Placeholder router imports
 # These will be implemented in subsequent tasks (T6-T9)
 try:
-     from backend.routers import load_test, metrics, benchmark, tuner
+     from routers import load_test, metrics, benchmark, tuner
 except ImportError:
     # If routers don't exist yet, create minimal placeholders
     # Note: prefix is added in include_router, not here, to avoid double-prefixes

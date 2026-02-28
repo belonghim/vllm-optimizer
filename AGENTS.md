@@ -42,6 +42,8 @@ vllm-optimizer/
 │   └── models/
 │       └── load_test.py        # Pydantic 요청/응답 모델
 │
+├── deploy.sh                    # OpenShift 배포
+│
 ├── frontend/
 │   ├── Dockerfile              # UBI9 nginx, 8080 포트, non-root
 │   ├── nginx.conf              # SPA 라우팅, /api/* 프록시 설정
@@ -147,16 +149,16 @@ export IMAGE_TAG="1.0.0"
 export VLLM_NAMESPACE="vllm"
 
 # Dev 배포 (빌드 + 푸시 + 배포)
-./scripts/deploy.sh dev
+./deploy.sh dev
 
 # 드라이런 (변경사항 미리 확인)
-./scripts/deploy.sh dev --dry-run
+./deploy.sh dev --dry-run
 
 # 빌드 없이 배포만
-./scripts/deploy.sh dev --skip-build
+./deploy.sh dev --skip-build
 
 # Prod 배포
-IMAGE_TAG="1.0.0" ./scripts/deploy.sh prod
+IMAGE_TAG="1.0.0" ./deploy.sh prod
 ```
 
 ### Kustomize 직접 배포
@@ -315,7 +317,7 @@ oc import-image vllm-optimizer-backend:latest \
 - `80` 또는 `443` 포트 직접 바인딩
 - Kubernetes `Ingress` 객체 생성 (OpenShift Route 사용)
 - DockerHub 이미지 직접 참조
-#- `cluster-admin` 권한에 의존하는 로직 작성
+- `docker` 사용 (이 프로젝트는 `podman` 기준)
 - `kubectl` 사용 (이 프로젝트는 `oc` 기준)
 
 ---

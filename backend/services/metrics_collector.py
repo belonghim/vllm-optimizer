@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Optional, cast
 from kubernetes import client as k8s_client, config as k8s_config
 from kubernetes.client import V1Deployment
-from ..metrics.prometheus_metrics import update_metrics
+from metrics.prometheus_metrics import update_metrics
 
 PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091")
 K8S_NAMESPACE = os.getenv("K8S_NAMESPACE", "default")
