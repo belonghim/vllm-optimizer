@@ -39,9 +39,9 @@
 - [x] `backend/tests/*.py` 상대 import 전환 (7개 파일)
 - [x] 프로젝트 루트 `.dockerignore` 추가
 - [x] `backend/Dockerfile` `COPY . .` → `COPY backend/ /app` (루트 빌드 컨텍스트 가정)
-- [x] `frontend/Dockerfile` 빌드/복사 범위 조정 (`frontend/`만 복사)
-- [x] `openshift/base/03-backend.yaml` startupProbe `periodSeconds: 5 → 10`
-- [x] NetPol `05-monitoring.yaml` egress 제거 및 OpenShift ingress allowances 적용 확인
+- [ ] `frontend/Dockerfile` 빌드/복사 범위 조정 (`frontend/`만 복사)
+- [ ] `openshift/base/03-backend.yaml` startupProbe `periodSeconds: 5 → 10`
+- [ ] NetPol `05-monitoring.yaml` egress 제거 및 OpenShift ingress allowances 적용 확인
 
 ### Definition of Done
 - [ ] 모든 Python 파일 `py_compile` 통과
