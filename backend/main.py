@@ -10,6 +10,11 @@ from services.metrics_collector import MetricsCollector
 import asyncio
 import asyncio
 from fastapi.responses import JSONResponse
+from fastapi.responses import PlainTextResponse
+try:
+    from metrics.prometheus_metrics import generate_metrics
+except Exception:
+    generate_metrics = None
 from typing import Optional
 import uuid
 import time
@@ -56,7 +61,7 @@ app.add_middleware(
 # Placeholder router imports
 # These will be implemented in subsequent tasks (T6-T9)
 try:
-    from backend.routers import load_test, metrics, benchmark, tuner
+    from routers import load_test, metrics, benchmark, tuner
 except ImportError:
     # If routers don't exist yet, create minimal placeholders
     # Note: prefix is added in include_router, not here, to avoid double-prefixes
@@ -185,6 +190,14 @@ app.include_router(tuner, prefix="/api/tuner", tags=["tuner"])
 async def health_check():
     """Health check endpoint for readiness probes."""
     return {"status": "healthy", "service": "vllm-optimizer"}
+
+
+@app.get("/api/metrics", response_class=PlainTextResponse, include_in_schema=False)
+async def plaintext_metrics_root():
+    """Plaintext Prometheus metrics exposed at a stable path independent of router wiring."""
+    if generate_metrics is None:
+        return PlainTextResponse("# ERROR: metrics generator unavailable", media_type="text/plain; version=0.0.4")
+    return PlainTextResponse(generate_metrics(), media_type="text/plain; version=0.0.4")
 
 
 @app.get("/", tags=["root"])

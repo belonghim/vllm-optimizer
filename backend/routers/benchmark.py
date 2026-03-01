@@ -5,7 +5,7 @@ Provides endpoints for saving, retrieving, and managing benchmark results.
 from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any
 from datetime import datetime
-from ..models.load_test import Benchmark
+from models.load_test import Benchmark
 
 router = APIRouter()
 

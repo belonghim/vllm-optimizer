@@ -7,8 +7,8 @@ from fastapi import APIRouter
 from datetime import datetime
 from typing import List, Optional
 
-from ..models.load_test import MetricsSnapshot
-from ..services.metrics_collector import MetricsCollector
+from models.load_test import MetricsSnapshot
+from services.metrics_collector import MetricsCollector
 
 router = APIRouter()
 
@@ -121,7 +121,24 @@ async def get_prometheus_metrics():
     Returns plaintext Prometheus format. This endpoint is scraped by ServiceMonitor
     and does not require authentication.
     """
-    from ..metrics.prometheus_metrics import generate_metrics
+    from metrics.prometheus_metrics import generate_metrics
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse(generate_metrics(), media_type="text/plain; version=0.0.4")
 
+
+@router.get("/plain")
+async def get_prometheus_metrics_plain():
+    """
+    Expose plaintext Prometheus metrics at /api/metrics/plain as a reliable endpoint.
+    """
+    from metrics.prometheus_metrics import generate_metrics
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse(generate_metrics(), media_type="text/plain; version=0.0.4")
+
+
+@router.get("/")
+async def get_prometheus_metrics_root():
+    """Expose plaintext Prometheus metrics at the router root as a compatibility shim."""
+    from metrics.prometheus_metrics import generate_metrics
     from fastapi.responses import PlainTextResponse
     return PlainTextResponse(generate_metrics(), media_type="text/plain; version=0.0.4")

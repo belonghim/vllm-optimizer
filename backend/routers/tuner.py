@@ -8,10 +8,10 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
-from ..models.load_test import TuningConfig, TuningTrial
-from ..services.load_engine import load_engine
-from ..services.metrics_collector import MetricsCollector
-from ..services.auto_tuner import AutoTuner
+from models.load_test import TuningConfig, TuningTrial
+from services.load_engine import load_engine
+from services.metrics_collector import MetricsCollector
+from services.auto_tuner import AutoTuner
 
 router = APIRouter()
 

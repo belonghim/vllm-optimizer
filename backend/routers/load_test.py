@@ -10,7 +10,7 @@ import json
 import asyncio
 import uuid
 
-from ..models.load_test import (
+from models.load_test import (
     LoadTestConfig,
     LoadTestResult,
     RequestResult,
@@ -18,7 +18,7 @@ from ..models.load_test import (
     TpsStats,
 )
 
-from ..services.load_engine import load_engine, LoadTestStatus
+from services.load_engine import load_engine, LoadTestStatus
 
 router = APIRouter()
 
