@@ -52,5 +52,3 @@ frontend/build/
 .flaskenv
 .venv
 
-# Ignore backend tests (exclude from backend image)
-backend/tests/

@@ -26,6 +26,7 @@
 
 ```
 vllm-optimizer/
+├── AGENTS.md
 ├── backend/
 │   ├── Dockerfile              # UBI9 Python 기반, non-root, arbitrary UID
 │   ├── main.py                 # FastAPI 엔트리포인트
