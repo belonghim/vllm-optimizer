@@ -8,6 +8,11 @@ labels:
       app.kubernetes.io/version: "dev"
 resources:
   - ../../base
+  - ../base/vllm-rbac.yaml
+  - ../base/vllm-runtime.yaml
+  - ../base/vllm-inferenceservice.yaml
+  - ../base/06-vllm-monitoring.yaml
+  - ../base/vllm-networkpolicy.yaml
 patches:
   - target:
       kind: Namespace

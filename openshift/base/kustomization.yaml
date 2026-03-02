@@ -12,8 +12,3 @@ resources:
   - 03-backend.yaml
   - 04-frontend.yaml
   - 05-monitoring.yaml
-  - vllm-rbac.yaml
-  - vllm-runtime.yaml
-  - vllm-inferenceservice.yaml
-  - 06-vllm-monitoring.yaml
-  - vllm-networkpolicy.yaml
