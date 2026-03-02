@@ -30,7 +30,7 @@ OpenVINO/Qwen2.5-Coder-3B-Instruct 모델 샘플을 사용해 누락된 YAML을 
 - vLLM 메트릭 포맷: `vllm:*` prefix (Prometheus exporter)
 - ServingRuntime API 버전: `kserve.io/v1alpha1` (사용자 예시와 일치)
 - vLLM ConfigMap 키: auto_tuner.py가 패치하는 키 (`MAX_NUM_SEQS`, `GPU_MEMORY_UTILIZATION`, `MAX_MODEL_LEN`, `ENABLE_CHUNKED_PREFILL`)
-- 네트워크: Backend는 `vllm-optimizer` 네임스페이스, vLLM은 `vllm` 네임스페이스
+- 네트워크: Backend는 `vllm-optimizer-dev` 네임스페이스, vLLM은 `vllm` 네임스페이스
 - 모니터링: Thanos Querier 사용 (OpenShift Monitoring Stack)
 
 **Research Findings**:
@@ -632,7 +632,7 @@ Wave FINAL (Independent Review):
     Tool: Bash
     Preconditions: ServiceMonitor applied; vLLM metrics exist
     Steps:
-      1. Get token: `TOKEN=$(oc serviceaccounts get-token vllm-optimizer-backend -n vllm-optimizer)`
+      1. Get token: `TOKEN=$(oc serviceaccounts get-token vllm-optimizer-backend -n vllm-optimizer-dev)`
       2. Query a rule target metric: `curl -k -H "Authorization: Bearer $TOKEN" "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091/api/v1/query?query=vllm:num_requests_running"`
     Expected Result: JSON with non-empty `data.result` array (or empty array if no requests yet, but metric exists)
     Failure Indicators: `status: error` or `data: []` with no metric family → metric not scraped
@@ -704,9 +704,9 @@ Wave FINAL (Independent Review):
     Tool: Bash
     Preconditions: NetworkPolicy applied; both backends running
     Steps:
-      1. Get optimizer pod: `OPT_POD=$(oc get pod -l app=vllm-optimizer-backend -n vllm-optimizer -o name | head -1)`
+      1. Get optimizer pod: `OPT_POD=$(oc get pod -l app=vllm-optimizer-backend -n vllm-optimizer-dev -o name | head -1)`
       2. Get vLLM service clusterIP: `VLLM_SVC=$(oc get svc llm-ov -n vllm -o jsonpath='{.spec.clusterIP}')`
-      3. `oc exec $OPT_POD -n vllm-optimizer -- curl -s http://$VLLM_SVC:8000/v1/models`
+      3. `oc exec $OPT_POD -n vllm-optimizer-dev -- curl -s http://$VLLM_SVC:8000/v1/models`
     Expected Result: HTTP 200 (connection allowed)
     Failure Indicators: Connection timeout or refused → NetworkPolicy too restrictive OR vLLM not ready
     Evidence: .sisyphus/evidence/task-8-connectivity-check.txt
@@ -754,8 +754,8 @@ Wave FINAL (Independent Review):
     Tool: Bash
     Preconditions: vLLM InferenceService Ready; Backend pod running
     Steps:
-      1. `BACKEND_POD=$(oc get pod -l app=vllm-optimizer-backend -n vllm-optimizer -o jsonpath='{.items[0].metadata.name}')`
-      2. `oc exec $BACKEND_POD -n vllm-optimizer -- curl -s http://llm-ov.vllm.svc.cluster.local:8000/v1/models`
+      1. `BACKEND_POD=$(oc get pod -l app=vllm-optimizer-backend -n vllm-optimizer-dev -o jsonpath='{.items[0].metadata.name}')`
+      2. `oc exec $BACKEND_POD -n vllm-optimizer-dev -- curl -s http://llm-ov.vllm.svc.cluster.local:8000/v1/models`
     Expected Result: JSON output with `"object": "list"` or `"model_id"`
     Failure Indicators: `curl: (7) Failed to connect` → NetworkPolicy issue
     Evidence: .sisyphus/evidence/task-10-connectivity.txt
