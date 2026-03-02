@@ -26,4 +26,4 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: vllm-optimizer-backend
-    namespace: vllm-optimizer
+    namespace: vllm-optimizer-dev

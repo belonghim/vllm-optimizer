@@ -912,7 +912,7 @@ oc exec $BACKEND_POD -n vllm-optimizer-dev -- curl -s http://llm-ov.vllm.svc.clu
 - [x] vLLM InferenceService YAML created and applied
 - [x] vLLM ServiceMonitor + PrometheusRule created
 - [ ] vLLM NetworkPolicy created (allow optimizer-backend, monitoring)
-- [ ] RBAC Role/RoleBinding created (optimizer-backend SA permissions)
+- [x] RBAC Role/RoleBinding created (optimizer-backend SA permissions)
 - [ ] kustomization.yaml updated with all new resources
 - [ ] Integration test guide written with agent-executable scenarios
 - [ ] All acceptance criteria passed in test environment

@@ -1,0 +1,93 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# 06-vllm-monitoring.yaml
+# vLLM 서비스 모니터링 정의
+# - ServiceMonitor (Prometheus Operator)
+# - PrometheusRule (vLLM 성능 알람 규칙)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ── ServiceMonitor: vLLM 메트릭 수집 ──────────────────────────────────────────
+# openshift-monitoring의 Prometheus가 자동으로 이 ServiceMonitor를 감지
+# vLLM 서비스가 배포된 네임스페이스에 openshift.io/cluster-monitoring: "true" 레이블 필요
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: vllm-openvino-runtime
+  labels:
+    app.kubernetes.io/name: vllm-openvino-runtime
+    app.kubernetes.io/part-of: vllm-optimizer
+    openshift.io/cluster-monitoring: "true"
+spec:
+  selector:
+    matchLabels:
+      serving.kserve.io/inferenceservice: llm-ov
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 15s
+    scrapeTimeout: 10s
+    scheme: http
+---
+# ── PrometheusRule: vLLM 성능 알람 규칙 ───────────────────────────────────────
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: vllm-performance-alerts
+  labels:
+    app.kubernetes.io/part-of: vllm-optimizer
+    openshift.io/cluster-monitoring: "true"
+    role: alert-rules
+spec:
+  groups:
+    - name: vllm.performance
+      interval: 30s
+      rules:
+        - alert: VLLMHighP99Latency
+          expr: |
+            histogram_quantile(0.99,
+              rate(vllm:e2e_request_latency_seconds_bucket[5m])
+            ) > 2.0
+          for: 5m
+          labels:
+            severity: warning
+            team: mlops
+          annotations:
+            summary: "vLLM P99 레이턴시 임계치 초과"
+            description: |
+              vLLM P99 레이턴시가 {{ $value | humanizeDuration }}으로
+              2초 임계치를 초과했습니다. (namespace: {{ $labels.namespace }})
+            runbook_url: "https://wiki.example.com/runbooks/vllm-high-latency"
+
+        - alert: VLLMHighQueueDepth
+          expr: vllm:num_requests_waiting > 50
+          for: 2m
+          labels:
+            severity: warning
+            team: mlops
+          annotations:
+            summary: "vLLM 대기 요청 큐 증가"
+            description: |
+              vLLM 대기 중인 요청이 {{ $value }}개로 50개 임계치를 초과했습니다.
+              HPA 스케일아웃 또는 파라미터 튜닝을 고려하세요.
+
+        - alert: VLLMKVCacheSaturation
+          expr: vllm:gpu_cache_usage_perc > 0.95
+          for: 3m
+          labels:
+            severity: critical
+            team: mlops
+          annotations:
+            summary: "vLLM KV Cache 포화 상태"
+            description: |
+              vLLM KV Cache 사용률이 {{ $value | humanizePercentage }}로
+              95% 임계치를 초과했습니다. OOM 위험이 있습니다.
+
+        - alert: VLLMLowThroughput
+          expr: |
+            rate(vllm:generation_tokens_total[5m]) < 10
+          for: 10m
+          labels:
+            severity: warning
+            team: mlops
+          annotations:
+            summary: "vLLM 처리량 비정상적으로 낮음"
+            description: "vLLM TPS가 {{ $value | humanize }}로 10 이하로 떨어졌습니다."
