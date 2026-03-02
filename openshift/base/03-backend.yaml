@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/component: backend
     app.kubernetes.io/part-of: vllm-optimizer
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: vllm-optimizer-backend
@@ -139,7 +139,7 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: vllm-optimizer-backend
-  minReplicas: 2
+  minReplicas: 1
   maxReplicas: 5
   metrics:
     - type: Resource

@@ -148,6 +148,7 @@ class AutoTuner:
 
         try:
             # ConfigMap 업데이트
+            print(f"[AutoTuner] ConfigMap '{K8S_CONFIGMAP}' in namespace '{K8S_NAMESPACE}'")
             current_cm = self._k8s_core.read_namespaced_config_map(
                 name=K8S_CONFIGMAP, namespace=K8S_NAMESPACE
             )
@@ -164,22 +165,7 @@ class AutoTuner:
             self._k8s_core.patch_namespaced_config_map(
                 name=K8S_CONFIGMAP, namespace=K8S_NAMESPACE, body=patch_body
             )
-
-            # Deployment 롤링 재시작
-            patch = {
-                "spec": {
-                    "template": {
-                        "metadata": {
-                            "annotations": {
-                                "kubectl.kubernetes.io/restartedAt": datetime.datetime.utcnow().isoformat()
-                            }
-                        }
-                    }
-                }
-            }
-            self._k8s_apps.patch_namespaced_deployment(
-                name=K8S_DEPLOYMENT, namespace=K8S_NAMESPACE, body=patch
-            )
+            print(f"[AutoTuner] ConfigMap '{K8S_CONFIGMAP}' patched successfully.")
             return {"success": True}
         except Exception as e:
             print(f"[AutoTuner] 파라미터 적용 실패: {e}")

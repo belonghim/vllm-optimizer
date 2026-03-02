@@ -519,6 +519,7 @@ Wave FINAL (Independent Review):
   **What to do**:
   - `deploy.sh` 스크립트를 통해 vLLM 리소스가 배포됨 (openshift/overlays/dev 또는 prod 사용).
   - `deploy.sh dev` 또는 `deploy.sh prod` 실행 시 자동으로 vLLM 리소스가 `vllm` 네임스페이스에 적용됨.
+  - **Note**: When executing `deploy.sh dev` (without `--skip-build`) for a full build and push, ensure the `bash` tool is called with a `timeout` of `1200000` ms (20 minutes).
 
   **Must NOT do**:
   - 별도로 `oc apply`를 수동으로 실행하지 않음 (deploy.sh가 처리)
@@ -572,7 +573,7 @@ Wave FINAL (Independent Review):
 
 ## Wave 3: Monitoring + Network
 
-- [x] 7. Create vLLM ServiceMonitor + PrometheusRule (06-vllm-monitoring.yaml)
+- [ ] 7. Create vLLM ServiceMonitor + PrometheusRule (06-vllm-monitoring.yaml)
 
   **What to do**:
   - `openshift/base/06-vllm-monitoring.yaml` 생성 (기존 05-monitoring.yaml과 별도 파일 또는 확장)
@@ -649,7 +650,7 @@ Wave FINAL (Independent Review):
 
 ---
 
-- [x] 8. Create vLLM NetworkPolicy (allow optimizer-backend access)
+- [ ] 8. Create vLLM NetworkPolicy (allow optimizer-backend access)
 
   **What to do**:
   - `openshift/base/vllm-networkpolicy.yaml` 생성
@@ -722,7 +723,7 @@ Wave FINAL (Independent Review):
 
 ---
 
-- [x] 9. Verify ServiceMonitor scraping
+- [ ] 9. Verify ServiceMonitor scraping
 
   **What to do**:
   - `deploy.sh`를 실행하여 vLLM 리소스 배포 후,
@@ -738,7 +739,7 @@ Wave FINAL (Independent Review):
 
 ## Wave 4: Integration + Validation
 
-- [x] 10. Verify Backend → vLLM connectivity
+- [ ] 10. Verify Backend → vLLM connectivity
 
   **What to do**:
   - Optimizer Backend Pod에서 vLLM 서비스의 OpenAI API 엔드포인트에 curl 요청 보냄
@@ -765,7 +766,7 @@ Wave FINAL (Independent Review):
 
 ---
 
-- [x] 11. Verify Optimizer API returns vLLM metrics
+- [ ] 11. Verify Optimizer API returns vLLM metrics
 
   **What to do**:
   - Optimizer Backend의 `/api/metrics/latest` 엔드포인트 호출
@@ -791,7 +792,7 @@ Wave FINAL (Independent Review):
 
 ---
 
-- [x] 12. Verify Auto Tuner ConfigMap patch (end-to-end)
+- [ ] 12. Verify Auto Tuner ConfigMap patch (end-to-end)
 
   **What to do**:
   - `POST /api/tuner/start` 호출로 튜닝 시작 (실제 vLLM 엔드포인트 지정)
@@ -811,16 +812,17 @@ Wave FINAL (Independent Review):
     Preconditions: vLLM service running; ConfigMap exists; Backend tuner endpoints working
     Steps:
       1. Get initial ConfigMap value: `BEFORE=$(oc get cm vllm-config -n vllm -o jsonpath='{.data.MAX_NUM_SEQS}')`
-      2. Start tuning: `curl -X POST http://<backend>/api/tuner/start -H "Content-Type: application/json" -d '{"n_trials":1, "objective":"tps", "max_num_seqs_range":[64,128]}'`
-      3. Wait 60 seconds for trial to complete and deployment to restart
-      4. Get new ConfigMap value: `AFTER=$(oc get cm vllm-config -n vllm -o jsonpath='{.data.MAX_NUM_SEQS}')`
+      2. In a separate terminal, watch the ConfigMap: `watch -n 1 "oc get cm vllm-config -n vllm -o yaml"`
+      3. Start tuning: `curl -X POST http://<backend>/api/tuner/start -H "Content-Type: application/json" -d '{"n_trials":1, "objective":"tps", "max_num_seqs_range":[64,128]}'`
+      4. Wait for the ConfigMap to be updated: `oc wait --for=condition=updated cm/vllm-config -n vllm --timeout=60s`
+      5. Get new ConfigMap value: `AFTER=$(oc get cm vllm-config -n vllm -o jsonpath='{.data.MAX_NUM_SEQS}')`
     Expected Result: `AFTER` is different from `BEFORE` and within trial range
     Failure Indicators: Values unchanged → patch failed OR no permissions OR vLLM not using that ConfigMap
     Evidence: .sisyphus/evidence/task-12-autotuner-patch.txt
 
 ---
 
-- [x] 13. Write integration test guide (docs/integration_test_guide.md)
+- [ ] 13. Write integration test guide (docs/integration_test_guide.md)
 
   **What to do**:
   - 통합 테스트 전체 절차를 단계별로 문서화
@@ -847,22 +849,22 @@ Wave FINAL (Independent Review):
 
 ## Final Verification Wave
 
-- [x] F1. Plan compliance audit (oracle)
+- [ ] F1. Plan compliance audit (oracle)
   Read the plan end-to-end. Verify all deliverables exist in filesystem after plan execution:
   - Files: `openshift/base/vllm-runtime.yaml`, `vllm-inferenceservice.yaml`, `06-vllm-monitoring.yaml`, `vllm-networkpolicy.yaml`, `vllm-rbac.yaml`, `docs/integration_test_guide.md`
   - Kustomization includes all
   - ConfigMap keys verified
   Output: `Deliverables [6/6] | Updates [2/2] | VERDICT: APPROVE/REJECT`
 
-- [x] F2. Code quality review (unspecified-high)
+- [ ] F2. Code quality review (unspecified-high)
   Ensure YAML syntax valid, no stray tabs, consistent indentation, no hardcoded image tags other than provided. Check that conditional idempotency patterns used (oc apply dry-run).
   Output: `YAML [PASS/FAIL] | Schema [PASS/FAIL] | VERDICT`
 
-- [x] F3. Real manual QA (unspecified-high)
+- [ ] F3. Real manual QA (unspecified-high)
   Execute every QA scenario from tasks 1-12 in a test cluster. Capture evidence. Ensure no manual intervention needed; all commands must be scriptable.
   Output: `Scenarios [N/N pass] | Integration [PASS/FAIL] | VERDICT`
 
-- [x] F4. Scope fidelity check (deep)
+- [ ] F4. Scope fidelity check (deep)
   Compare plan tasks with user request: Did we create exactly the missing YAMLs? Did we avoid modifying backend code? Did we exclude model download? Yes. Check no extra files (e.g., new backend routes) were added.
   Output: `Scope [CLEAN/CREEP] | Files changed [N] | VERDICT`
 
@@ -902,16 +904,15 @@ oc exec $BACKEND_POD -n vllm-optimizer-dev -- curl -s http://llm-ov-predictor.vl
 ```
 
 ### Final Checklist
-- [x] vLLM ServingRuntime YAML created and applied
-- [x] vLLM InferenceService YAML created and applied
-- [x] vLLM ServiceMonitor + PrometheusRule created
-- [x] vLLM NetworkPolicy created (allow optimizer-backend, monitoring)
-- [x] RBAC Role/RoleBinding created (optimizer-backend SA permissions)
- - [x] kustomization.yaml updated with all new resources
- - [x] Integration test guide written with agent-executable scenarios
- - [x] vLLM 관련 리소스는 `prod` 환경에 배포되지 않음
+- [ ] vLLM ServingRuntime YAML created and applied
+- [ ] vLLM InferenceService YAML created and applied
+- [ ] vLLM ServiceMonitor + PrometheusRule created
+- [ ] vLLM NetworkPolicy created (allow optimizer-backend, monitoring)
+- [ ] RBAC Role/RoleBinding created (optimizer-backend SA permissions)
+ - [ ] kustomization.yaml updated with all new resources
+ - [ ] Integration test guide written with agent-executable scenarios
+ - [ ] vLLM 관련 리소스는 `prod` 환경에 배포되지 않음
  - [ ] All acceptance criteria passed in test environment
-   > **BLOCKER**: Full verification of this item is blocked by the `deploy.sh` image push timeout. The `auto_tuner.py` fix cannot be deployed and tested until the images are successfully pushed to Quay.io. User intervention required to manually push images or increase `bash` tool timeout for the push operation.
  - [ ] vLLM 모델은 사용자가 사전 배포 (PVC 생성, 모델 복사) — **범위外, 사용자 책임**
  - [ ] Backend router implementations are untouched (placeholder endpoints remain)
 
