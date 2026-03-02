@@ -5,8 +5,37 @@ metadata:
   namespace: vllm
 spec:
   containers:
-    - name: vllm-openvino
+    - name: kserve-container
       image: quay.io/joopark/vllm-openvino:latest
       imagePullPolicy: Always
-      env: []
-      args: []
+      args:
+        - --port=8080
+        - --model=/models/Qwen2.5-Coder-3B-Instruct-int4-ov
+        - --served-model-name=Qwen2.5-Coder-3B-Instruct-int4-ov
+        - --max-model-len=8192
+      env:
+        - name: VLLM_TARGET_DEVICE
+          value: "cpu"
+        - name: CUDA_VISIBLE_DEVICES
+          value: ""
+        - name: VLLM_USE_V1
+          value: "0"
+        - name: HF_HUB_OFFLINE
+          value: "1"
+        - name: TRANSFORMERS_OFFLINE
+          value: "1"
+        - name: VLLM_OPENVINO_ENABLE_QUANTIZED_WEIGHTS
+          value: "ON"
+        - name: VLLM_OPENVINO_KV_CACHE_PRECISION
+          value: "u8"
+        - name: VLLM_OPENVINO_DEVICE
+          value: "CPU"
+      ports:
+        - containerPort: 8080
+      volumeMounts:
+        - name: models
+          mountPath: /models
+  volumes:
+    - name: models
+      persistentVolumeClaim:
+        claimName: model-pvc
