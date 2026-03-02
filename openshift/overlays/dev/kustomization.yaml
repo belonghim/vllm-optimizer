@@ -1,13 +1,33 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: vllm-optimizer-dev
+labels:
+  - pairs:
+      app.kubernetes.io/name: vllm-optimizer-dev
+      app.kubernetes.io/component: development
+      app.kubernetes.io/version: "dev"
 resources:
   - ../../base
 patches:
   - target:
+      kind: Namespace
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: vllm-optimizer-prod
+  - target:
+      group: rbac.authorization.k8s.io
+      version: v1
+      kind: ClusterRoleBinding
+      name: vllm-optimizer-controller
+    patch: |-
+      - op: replace
+        path: /subjects/0/namespace
+        value: vllm-optimizer-prod
+  - target:
       kind: Deployment
       name: vllm-optimizer-backend
-    patch: |
+    patch: |-
       - op: replace
         path: /spec/replicas
         value: 1
@@ -17,17 +37,10 @@ patches:
   - target:
       kind: Deployment
       name: vllm-optimizer-frontend
-    patch: |
+    patch: |-
       - op: replace
         path: /spec/replicas
         value: 1
       - op: replace
         path: /spec/template/spec/containers/0/image
         value: quay.io/joopark/vllm-optimizer-frontend:dev
-  - target:
-      kind: Service
-      name: vllm-optimizer-backend
-    patch: |-
-      - op: replace
-        path: /spec/type
-        value: ClusterIP

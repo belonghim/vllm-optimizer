@@ -4,10 +4,8 @@ namespace: vllm-optimizer
 labels:
   - pairs:
       app.kubernetes.io/name: vllm-optimizer
-      app.kubernetes.io/component: backend
       app.kubernetes.io/part-of: vllm-optimizer
       app.kubernetes.io/managed-by: kustomize
-      app.kubernetes.io/version: "1.0.0"
 resources:
   - 01-namespace-rbac.yaml
   - 02-config.yaml
