@@ -5,11 +5,21 @@ metadata:
   namespace: vllm
 spec:
   predictor:
-    runtime: vllm-openvino-runtime
-    volumes:
-      - name: model-volume
-        persistentVolumeClaim:
-          claimName: model-pvc
-    volumeMounts:
-      - name: model-volume
-        mountPath: /models
+    model:
+      modelFormat:
+        name: vLLM
+      runtime: vllm-openvino-runtime
+      resources:
+        requests:
+          cpu: "4"
+          memory: "8Gi"
+        limits:
+          cpu: "8"
+          memory: "16Gi"
+      volumeMounts:
+        - name: models
+          mountPath: /models
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: model-pvc
