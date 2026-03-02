@@ -82,9 +82,7 @@ command -v podman >/dev/null 2>&1 || { warn "Podman not found; deploy steps requ
 ## Show dry-run info before any actions
 info_dry_run
 
-## Build phase
-if [[ "$SKIP_BUILD" != "true" ]]; then
-  log "Starting container image build (backend) -> ${REGISTRY}/vllm-optimizer-backend:${IMAGE_TAG}"
+log "Starting container image build (backend) -> ${REGISTRY}/vllm-optimizer-backend:${IMAGE_TAG}"
   podman build \
     --platform linux/amd64 \
     -t "${REGISTRY}/vllm-optimizer-backend:${IMAGE_TAG}" \
@@ -99,12 +97,9 @@ if [[ "$SKIP_BUILD" != "true" ]]; then
     -f "${PROJECT_ROOT}/frontend/Dockerfile" \
     "${PROJECT_ROOT}"
   ok "Frontend image built: ${REGISTRY}/vllm-optimizer-frontend:${IMAGE_TAG}"
-else
-  log "Build skipped (--skip-build flag)"
-fi
 
 ## Push phase (non-dry-run)
-if [[ "$DRY_RUN" != "true" ]]; then
+if [[ "$DRY_RUN" != "true" && "$SKIP_BUILD" != "true" ]]; then
   log "Logging in to registry..."
   podman login "${REGISTRY}" || true
 
@@ -139,7 +134,7 @@ ok "Overlay applied: ${ENV} -> namespace ${NAMESPACE}"
 ## Deploy phase for vLLM resources (overlay-based via kustomize)
 if [[ "$ENV" == "dev" ]]; then
   log "Applying OpenShift overlays for vLLM resources (environment: ${ENV}) to namespace ${VLLM_NAMESPACE}..."
-  OVERLAY_PATH="${SCRIPT_DIR}/openshift/overlays/${ENV}"
+  OVERLAY_PATH="${SCRIPT_DIR}/openshift/dev-only"
   if [[ "$DRY_RUN" == "true" ]]; then
     if command -v kustomize >/dev/null 2>&1; then
       kustomize build "${OVERLAY_PATH}" | oc apply --dry-run=client -n "${VLLM_NAMESPACE}" -f -

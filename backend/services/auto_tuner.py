@@ -10,12 +10,9 @@ from typing import Optional, List
 from kubernetes import client as k8s_client, config as k8s_config
 from ..models.load_test import TuningConfig, TuningTrial, LoadTestConfig
 
-try:
-    import optuna
-    optuna.logging.set_verbosity(optuna.logging.WARNING)
-    OPTUNA_AVAILABLE = True
-except ImportError:
-    OPTUNA_AVAILABLE = False
+import optuna
+optuna.logging.set_verbosity(optuna.logging.WARNING)
+OPTUNA_AVAILABLE = True
 
 K8S_NAMESPACE = os.getenv("K8S_NAMESPACE", "default")
 K8S_DEPLOYMENT = os.getenv("K8S_DEPLOYMENT_NAME", "vllm-deployment")
@@ -151,17 +148,21 @@ class AutoTuner:
 
         try:
             # ConfigMap 업데이트
-            cm = self._k8s_core.read_namespaced_config_map(
+            current_cm = self._k8s_core.read_namespaced_config_map(
                 name=K8S_CONFIGMAP, namespace=K8S_NAMESPACE
             )
-            cm.data.update({
-                "MAX_NUM_SEQS": str(params["max_num_seqs"]),
-                "GPU_MEMORY_UTILIZATION": str(params["gpu_memory_utilization"]),
-                "MAX_MODEL_LEN": str(params["max_model_len"]),
-                "ENABLE_CHUNKED_PREFILL": str(params["enable_chunked_prefill"]).lower(),
-            })
+            
+            patch_body = {
+                "data": {
+                    "MAX_NUM_SEQS": str(params["max_num_seqs"]),
+                    "GPU_MEMORY_UTILIZATION": str(params["gpu_memory_utilization"]),
+                    "MAX_MODEL_LEN": str(params["max_model_len"]),
+                    "ENABLE_CHUNKED_PREFILL": str(params["enable_chunked_prefill"]).lower(),
+                }
+            }
+            
             self._k8s_core.patch_namespaced_config_map(
-                name=K8S_CONFIGMAP, namespace=K8S_NAMESPACE, body=cm
+                name=K8S_CONFIGMAP, namespace=K8S_NAMESPACE, body=patch_body
             )
 
             # Deployment 롤링 재시작
@@ -181,6 +182,7 @@ class AutoTuner:
             )
             return {"success": True}
         except Exception as e:
+            print(f"[AutoTuner] 파라미터 적용 실패: {e}")
             return {"success": False, "error": str(e)}
 
     async def _evaluate(self, endpoint: str, config: TuningConfig) -> tuple[float, float, float]:

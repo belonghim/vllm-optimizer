@@ -4,6 +4,9 @@ metadata:
   name: vllm-openvino-runtime
   namespace: vllm
 spec:
+  supportedModelFormats:
+    - name: vLLM
+      autoSelect: true
   containers:
     - name: kserve-container
       image: quay.io/joopark/vllm-openvino:latest

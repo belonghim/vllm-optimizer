@@ -20,8 +20,4 @@ spec:
     - namespaceSelector:
         matchLabels:
           name: openshift-monitoring
-  ports:
-  - protocol: TCP
-    port: 8000
-  - protocol: TCP
-    port: 8080
+
