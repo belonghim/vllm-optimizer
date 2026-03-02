@@ -137,25 +137,29 @@ fi
 ok "Overlay applied: ${ENV} -> namespace ${NAMESPACE}"
 
 ## Deploy phase for vLLM resources (overlay-based via kustomize)
-log "Applying OpenShift overlays for vLLM resources (environment: ${ENV}) to namespace ${VLLM_NAMESPACE}..."
-OVERLAY_PATH="${SCRIPT_DIR}/openshift/overlays/${ENV}"
-if [[ "$DRY_RUN" == "true" ]]; then
-  if command -v kustomize >/dev/null 2>&1; then
-    kustomize build "${OVERLAY_PATH}" | oc apply --dry-run=client -n "${VLLM_NAMESPACE}" -f -
+if [[ "$ENV" == "dev" ]]; then
+  log "Applying OpenShift overlays for vLLM resources (environment: ${ENV}) to namespace ${VLLM_NAMESPACE}..."
+  OVERLAY_PATH="${SCRIPT_DIR}/openshift/overlays/${ENV}"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    if command -v kustomize >/dev/null 2>&1; then
+      kustomize build "${OVERLAY_PATH}" | oc apply --dry-run=client -n "${VLLM_NAMESPACE}" -f -
+    else
+      oc kustomize "${OVERLAY_PATH}" | oc apply --dry-run=client -n "${VLLM_NAMESPACE}" -f -
+    fi
   else
-    oc kustomize "${OVERLAY_PATH}" | oc apply --dry-run=client -n "${VLLM_NAMESPACE}" -f -
+    if command -v kustomize >/dev/null 2>&1; then
+      kustomize build "${OVERLAY_PATH}" | oc apply -n "${VLLM_NAMESPACE}" -f -
+    else
+      oc kustomize "${OVERLAY_PATH}" | oc apply -n "${VLLM_NAMESPACE}" -f -
+    fi
   fi
-else
-  if command -v kustomize >/dev/null 2>&1; then
-    kustomize build "${OVERLAY_PATH}" | oc apply -n "${VLLM_NAMESPACE}" -f -
-  else
-    oc kustomize "${OVERLAY_PATH}" | oc apply -n "${VLLM_NAMESPACE}" -f -
-  fi
+  ok "vLLM Overlay applied: ${ENV} -> namespace ${VLLM_NAMESPACE}"
 fi
-ok "vLLM Overlay applied: ${ENV} -> namespace ${VLLM_NAMESPACE}"
 
 # Post-deployment: assign SCC to backend/frontend service accounts
 oc adm policy add-scc-to-user vllm-optimizer-scc -z vllm-optimizer-backend -n "${NAMESPACE}" || warn "SCC assignment failed. Backend"
 oc adm policy add-scc-to-user vllm-optimizer-scc -z vllm-optimizer-frontend -n "${NAMESPACE}" || warn "SCC assignment failed. Frontend"
-oc adm policy add-scc-to-user vllm-optimizer-scc -z vllm-optimizer-backend -n "${VLLM_NAMESPACE}" || warn "SCC assignment failed for vLLM namespace. Backend"
+if [[ "$ENV" == "dev" ]]; then
+  oc adm policy add-scc-to-user vllm-optimizer-scc -z vllm-optimizer-backend -n "${VLLM_NAMESPACE}" || warn "SCC assignment failed for vLLM namespace. Backend"
+fi
 log "Deployment complete (dev/prod overlay applied)."
