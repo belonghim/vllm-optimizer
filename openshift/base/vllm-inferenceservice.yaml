@@ -1,0 +1,15 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: llm-ov
+  namespace: vllm
+spec:
+  predictor:
+    runtime: vllm-openvino-runtime
+    volumes:
+      - name: model-volume
+        persistentVolumeClaim:
+          claimName: model-pvc
+    volumeMounts:
+      - name: model-volume
+        mountPath: /models

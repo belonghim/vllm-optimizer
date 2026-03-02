@@ -1,0 +1,12 @@
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: vllm-openvino-runtime
+  namespace: vllm
+spec:
+  containers:
+    - name: vllm-openvino
+      image: quay.io/joopark/vllm-openvino:latest
+      imagePullPolicy: Always
+      env: []
+      args: []

@@ -1,0 +1,27 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vllm-networkpolicy
+  namespace: vllm
+spec:
+  podSelector:
+    matchLabels:
+      serving.kserve.io/inferenceservice: llm-ov
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: vllm-optimizer
+      podSelector:
+        matchLabels:
+          app: vllm-optimizer-backend
+    - namespaceSelector:
+        matchLabels:
+          name: openshift-monitoring
+  ports:
+  - protocol: TCP
+    port: 8000
+  - protocol: TCP
+    port: 8080
