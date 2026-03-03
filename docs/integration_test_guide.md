@@ -80,7 +80,7 @@ The AI Agent will test direct connectivity from the `vllm-optimizer-backend` pod
 Example command the AI Agent will use:
 ```bash
 BACKEND_POD=$(oc get pod -n vllm-optimizer-dev -l app=vllm-optimizer-backend -o jsonpath='{.items[0].metadata.name}')
-oc exec -n vllm-optimizer-dev $BACKEND_POD -- curl -sS http://llm-ov.vllm.svc.cluster.local:8000/v1/models
+oc exec -n vllm-optimizer-dev $BACKEND_POD -- curl -sS http://llm-ov-predictor.vllm.svc.cluster.local:8080/v1/models
 ```
 The AI Agent expects to receive a JSON response listing the available models. If a DNS error is encountered, the AI Agent will attempt to diagnose the issue (e.g., verify service name and namespace).
 
@@ -91,7 +91,7 @@ The AI Agent will check if the vLLM Optimizer backend's `/metrics` endpoint is e
 Example command the AI Agent will use:
 ```bash
 OPTIMIZER_ROUTE=$(oc get route vllm-optimizer -n vllm-optimizer-dev -o jsonpath='{"http://"}{.spec.host}{"\n"}')
-curl -sS "$OPTIMIZER_ROUTE/metrics" | grep "vllm_"
+curl -sS "$OPTIMIZER_ROUTE/api/metrics" | grep "vllm_"
 ```
 The AI Agent expects to see output containing `vllm_` prefixed metrics.
 
