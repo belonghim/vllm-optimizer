@@ -129,9 +129,13 @@ else
   fi
 fi
 
+echo "⏳ Start rollout restart"
+oc rollout restart deployment/vllm-optimizer-backend -n "${NAMESPACE}"
+oc rollout restart deployment/vllm-optimizer-frontend -n "${NAMESPACE}"
+
 echo "⏳ Waiting for rollout to complete..."
-oc rollout restart deployment/vllm-optimizer-backend -n "${NAMESPACE}" --timeout=5m
-oc rollout restart deployment/vllm-optimizer-frontend -n "${NAMESPACE}" --timeout=5m
+oc rollout status deployment/vllm-optimizer-backend -n "${NAMESPACE}" --timeout=5m
+oc rollout status deployment/vllm-optimizer-frontend -n "${NAMESPACE}" --timeout=5m
 
 echo "⏳ Waiting for pods to be ready..."
 oc wait --for=condition=Ready pod -l app=vllm-optimizer-backend -n "${NAMESPACE}" --timeout=300s
@@ -156,9 +160,13 @@ if [[ "$ENV" == "dev" ]]; then
     fi
   fi
 
+  echo "⏳ Start rollout restart"
+  oc rollout restart deployment/vllm-optimizer-backend -n "${NAMESPACE}"
+  oc rollout restart deployment/vllm-optimizer-frontend -n "${NAMESPACE}"
+
   echo "⏳ Waiting for rollout to complete..."
-  oc rollout restart deployment/vllm-optimizer-backend -n "${NAMESPACE}" --timeout=5m
-  oc rollout restart deployment/vllm-optimizer-frontend -n "${NAMESPACE}" --timeout=5m
+  oc rollout status deployment/vllm-optimizer-backend -n "${NAMESPACE}" --timeout=5m
+  oc rollout status deployment/vllm-optimizer-frontend -n "${NAMESPACE}" --timeout=5m
 
   echo "⏳ Waiting for pods to be ready..."
   oc wait --for=condition=Ready pod -l app=vllm-optimizer-backend -n "${NAMESPACE}" --timeout=300s
