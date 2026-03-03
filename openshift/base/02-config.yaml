@@ -15,7 +15,7 @@ data:
   APP_ENV: "production"
   LOG_LEVEL: "info"
   METRICS_INTERVAL_SEC: "2"
-  ALLOWED_ORIGINS: "https://vllm-optimizer.apps.compact.jooan.local"
+  ALLOWED_ORIGINS: "https://vllm-optimizer-dev.apps.compact.jooan.local"
 ---
 apiVersion: v1
 kind: Secret
