@@ -215,8 +215,8 @@ Wave FINAL (Independent Review):
 ## TODOs
 
 ### Wave 1: Foundation & Validation
-- [ ] 1. Validate vLLM ConfigMap structure in 02-config.yaml
-- [ ] 2. Create vLLM-Role + RoleBinding for optimizer-backend SA
+- [x] 1. Validate vLLM ConfigMap structure in 02-config.yaml
+- [x] 2. Create vLLM-Role + RoleBinding for optimizer-backend SA
 - [ ] 3. Update kustomization.yaml with new resources
 
 ### Wave 2: vLLM Service Deployment
