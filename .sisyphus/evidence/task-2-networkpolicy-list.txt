@@ -1,0 +1,3 @@
+NAME                             POD-SELECTOR                  AGE
+vllm-optimizer-backend-netpol    app=vllm-optimizer-backend    9h
+vllm-optimizer-frontend-netpol   app=vllm-optimizer-frontend   9h
