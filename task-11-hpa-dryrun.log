@@ -1,6 +1,0 @@
-Dry-run validation successful for openshift/base/04-frontend.yaml using oc apply --dry-run=client -f.
-Resources validated:
-- deployment.apps/vllm-optimizer-frontend
-- horizontalpodautoscaler.autoscaling/vllm-optimizer-frontend
-- service/vllm-optimizer-frontend
-- route.route.openshift.io/vllm-optimizer

@@ -1,3 +1,0 @@
-- Removed verify=False usage from httpx.AsyncClient instantiation in backend/services/metrics_collector.py
-- Verified by patch: verify param now uses CA path logic (verify = ca_path if os.path.exists(ca_path) else True)
-- Current search for verify=False: none found in repository

@@ -1,4 +1,0 @@
-Python syntax check attempted for backend/services/metrics_collector.py
-Result: Deferred due to environment limitations in tool execution. Please run locally:
-python -m py_compile backend/services/metrics_collector.py
-Expected: Exit code 0 with ZERO syntax errors

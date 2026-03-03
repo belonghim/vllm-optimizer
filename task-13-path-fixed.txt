@@ -1,2 +1,0 @@
-grep output showing updated path:
-27:     path: /metrics
