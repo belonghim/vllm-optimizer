@@ -173,6 +173,35 @@ class AutoTuner:
                     name=K8S_CONFIGMAP, namespace=K8S_NAMESPACE, body=patch_body
                 )
                 logging.info(f"[AutoTuner] ConfigMap '{K8S_CONFIGMAP}' patched successfully.")
+
+                # InferenceService 재시작 트리거
+                try:
+                    k8s_custom_api = k8s_client.CustomObjectsApi()
+                    group = "serving.kserve.io"
+                    version = "v1beta1"
+                    plural = "inferenceservices"
+                    name = K8S_DEPLOYMENT # Use K8S_DEPLOYMENT for InferenceService name
+                    
+                    restart_body = {
+                        "metadata": {
+                            "annotations": {
+                                "serving.kserve.io/restartedAt": datetime.datetime.utcnow().isoformat() + "Z"
+                            }
+                        }
+                    }
+                    
+                    k8s_custom_api.patch_namespaced_custom_object(
+                        group=group,
+                        version=version,
+                        namespace=K8S_NAMESPACE,
+                        plural=plural,
+                        name=name,
+                        body=restart_body
+                    )
+                    logging.info(f"[AutoTuner] InferenceService '{name}' in namespace '{K8S_NAMESPACE}' restarted successfully.")
+                except Exception as e:
+                    logging.error(f"[AutoTuner] InferenceService 재시작 실패: {e}")
+
             return {"success": True}
         except Exception as e:
             logging.error(f"[AutoTuner] 파라미터 적용 실패: {e}")
