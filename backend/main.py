@@ -5,25 +5,22 @@ This module creates the main FastAPI app with CORS middleware
 and mounts placeholder routers for the vLLM optimizer backend.
 """
 
-from fastapi import FastAPI
-from services.metrics_collector import MetricsCollector
-import asyncio
-import asyncio
-from fastapi.responses import JSONResponse
-from fastapi.responses import PlainTextResponse
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, PlainTextResponse
+from typing import Optional
+import uuid
+import time
+import os
+
+from kubernetes import config, client
+
 try:
     from metrics.prometheus_metrics import generate_metrics
 except Exception:
     generate_metrics = None
-from typing import Optional
-import uuid
-import time
-from models.load_test import LoadTestConfig, LoadTestResult, LatencyStats, TpsStats, TuningConfig, Benchmark
-from fastapi.middleware.cors import CORSMiddleware
 
-# Create FastAPI app
-_metrics_collector = None
-_metrics_collector_task = None
+from models.load_test import LoadTestConfig, LoadTestResult, LatencyStats, TpsStats, TuningConfig, Benchmark
 
 app = FastAPI(
     title="vLLM Optimizer API",
@@ -34,7 +31,34 @@ app = FastAPI(
     openapi_url="/openapi.json"
 )
 
-from fastapi.responses import PlainTextResponse
+# Helper function for Prometheus connectivity check
+async def check_prometheus_health() -> bool:
+    """Check Prometheus/Thanos connectivity with a lightweight query."""
+    try:
+        import httpx
+        
+        thanos_url = os.getenv("THANOS_URL", "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091")
+        
+        token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+        token = None
+        if os.path.exists(token_path):
+            with open(token_path, 'r') as f:
+                token = f.read().strip()
+        
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        
+        query = "1"
+        async with httpx.AsyncClient(timeout=3, verify=False) as client:
+            resp = await client.get(
+                f"{thanos_url}/api/v1/query",
+                headers=headers,
+                params={"query": query},
+            )
+            return resp.status_code == 200
+    except Exception:
+        return False
+
+
 
 
 # Load optional startup shim for MetricsCollector (Dev-friendly)
@@ -187,9 +211,35 @@ app.include_router(tuner, prefix="/api/tuner", tags=["tuner"])
 
 
 @app.get("/health", tags=["health"])
-async def health_check():
-    """Health check endpoint for readiness probes."""
-    return {"status": "healthy", "service": "vllm-optimizer"}
+async def health_check(request: Request):
+    """Health check with dependency validation.
+    Query param: deep=1 enables full connectivity checks (slow)."""
+    health = {"status": "healthy", "dependencies": {}}
+    deep_check = request.query_params.get("deep") == "1"
+
+    health["timestamp"] = time.time()
+
+    if deep_check:
+        try:
+            prom_ok = await check_prometheus_health()
+            health["dependencies"]["prometheus"] = "healthy" if prom_ok else "unhealthy"
+        except Exception:
+            health["dependencies"]["prometheus"] = "unhealthy"
+
+        try:
+            config.load_incluster_config()
+            v1 = client.CoreV1Api()
+            v1.list_namespaced_pod(namespace=os.getenv("POD_NAMESPACE", "default"), limit=1)
+            health["dependencies"]["kubernetes"] = "healthy"
+        except Exception:
+            health["dependencies"]["kubernetes"] = "unhealthy"
+
+    all_healthy = all(v == "healthy" for v in health["dependencies"].values())
+    if not all_healthy:
+        health["status"] = "unhealthy"
+        return JSONResponse(status_code=503, content=health)
+
+    return health
 
 
 @app.get("/api/metrics", response_class=PlainTextResponse, include_in_schema=False)

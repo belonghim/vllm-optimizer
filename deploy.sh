@@ -53,6 +53,7 @@ else
   NAMESPACE="vllm-optimizer-dev"
   IMAGE_TAG="dev"
 fi
+ 
 
 log() { echo "[$(date +%H:%M:%S)] $*"; }
 ok()  { echo "[OK] $*"; }
@@ -129,7 +130,16 @@ else
     oc kustomize "${OVERLAY_PATH}" | oc apply -n "${NAMESPACE}" -f -
   fi
 fi
-ok "Overlay applied: ${ENV} -> namespace ${NAMESPACE}"
+
+echo "⏳ Waiting for rollout to complete..."
+oc rollout status deployment/vllm-optimizer-backend -n "${NAMESPACE}" --timeout=5m
+oc rollout status deployment/vllm-optimizer-frontend -n "${NAMESPACE}" --timeout=5m
+
+echo "⏳ Waiting for pods to be ready..."
+oc wait --for=condition=Ready pod -l app=vllm-optimizer-backend -n "${NAMESPACE}" --timeout=300s
+oc wait --for=condition=Ready pod -l app=vllm-optimizer-frontend -n "${NAMESPACE}" --timeout=300s
+
+echo "✅ Deployment completed successfully"
 
 if [[ "$ENV" == "dev" ]]; then
   log "Applying OpenShift overlays for vLLM resources (environment: ${ENV}) to namespace ${VLLM_NAMESPACE}..."
@@ -147,6 +157,17 @@ if [[ "$ENV" == "dev" ]]; then
       oc kustomize "${OVERLAY_PATH}" | oc apply -n "${VLLM_NAMESPACE}" -f -
     fi
   fi
+
+  echo "⏳ Waiting for rollout to complete..."
+  oc rollout status deployment/vllm-optimizer-backend -n "${NAMESPACE}" --timeout=5m
+  oc rollout status deployment/vllm-optimizer-frontend -n "${NAMESPACE}" --timeout=5m
+
+  echo "⏳ Waiting for pods to be ready..."
+  oc wait --for=condition=Ready pod -l app=vllm-optimizer-backend -n "${NAMESPACE}" --timeout=300s
+  oc wait --for=condition=Ready pod -l app=vllm-optimizer-frontend -n "${NAMESPACE}" --timeout=300s
+
+  echo "✅ Deployment completed successfully"
+  
   ok "vLLM Overlay applied: ${ENV} -> namespace ${VLLM_NAMESPACE}"
 fi
 

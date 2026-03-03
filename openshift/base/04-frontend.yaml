@@ -99,7 +99,7 @@ spec:
           emptyDir:
             sizeLimit: 10Mi
 
-      affinity:
+  affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
             - weight: 100
@@ -109,6 +109,34 @@ spec:
                     app: vllm-optimizer-frontend
                 topologyKey: kubernetes.io/hostname
 
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: vllm-optimizer-frontend
+  labels:
+    app.kubernetes.io/name: vllm-optimizer-frontend
+    app.kubernetes.io/part-of: vllm-optimizer
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: vllm-optimizer-frontend
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 80
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 85
 ---
 # ── Frontend Service ───────────────────────────────────────────────────────────
 apiVersion: v1

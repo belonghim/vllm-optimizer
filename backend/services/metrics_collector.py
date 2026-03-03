@@ -2,6 +2,7 @@
 실시간 메트릭 수집기 — Prometheus + Kubernetes API
 vLLM 전용 메트릭: TPS, TTFT, KV Cache, GPU Memory
 """
+import logging
 import asyncio
 import httpx
 import os
@@ -44,17 +45,17 @@ class VLLMMetrics:
 
 # vLLM Prometheus 메트릭 쿼리 매핑
 VLLM_QUERIES = {
-    "tokens_per_second": 'rate(vllm:generation_tokens_total[1m])',
-    "requests_per_second": 'rate(vllm:request_success_total[1m])',
-    "mean_ttft_ms": 'histogram_quantile(0.5, rate(vllm:time_to_first_token_seconds_bucket[1m])) * 1000',
-    "p99_ttft_ms": 'histogram_quantile(0.99, rate(vllm:time_to_first_token_seconds_bucket[1m])) * 1000',
-    "mean_e2e_latency_ms": 'histogram_quantile(0.5, rate(vllm:e2e_request_latency_seconds_bucket[1m])) * 1000',
-    "p99_e2e_latency_ms": 'histogram_quantile(0.99, rate(vllm:e2e_request_latency_seconds_bucket[1m])) * 1000',
-    "kv_cache_usage_pct": 'vllm:gpu_cache_usage_perc * 100',
-    "kv_cache_hit_rate": 'vllm:cache_config_info',
-    "running_requests": 'vllm:num_requests_running',
-    "waiting_requests": 'vllm:num_requests_waiting',
-    "gpu_memory_used_gb": 'vllm:gpu_cache_usage_perc * vllm:gpu_memory_total_bytes / 1024^3',
+    "tokens_per_second": 'rate(vllm_generation_tokens_total[1m])',
+    "requests_per_second": 'rate(vllm_request_success_total[1m])',
+    "mean_ttft_ms": 'histogram_quantile(0.5, rate(vllm_time_to_first_token_seconds_bucket[1m])) * 1000',
+    "p99_ttft_ms": 'histogram_quantile(0.99, rate(vllm_time_to_first_token_seconds_bucket[1m])) * 1000',
+    "mean_e2e_latency_ms": 'histogram_quantile(0.5, rate(vllm_e2e_request_latency_seconds_bucket[1m])) * 1000',
+    "p99_e2e_latency_ms": 'histogram_quantile(0.99, rate(vllm_e2e_request_latency_seconds_bucket[1m])) * 1000',
+    "kv_cache_usage_pct": 'vllm_gpu_cache_usage_perc * 100',
+    "kv_cache_hit_rate": 'vllm_cache_config_info',
+    "running_requests": 'vllm_num_requests_running',
+    "waiting_requests": 'vllm_num_requests_waiting',
+    "gpu_memory_used_gb": 'vllm_gpu_cache_usage_perc * vllm_gpu_memory_total_bytes / 1024^3',
 }
 
 
@@ -89,7 +90,7 @@ class MetricsCollector:
             self._k8s_core = k8s_client.CoreV1Api()
             self._k8s_available = True
         except Exception as e:
-            print(f"[MetricsCollector] K8s 초기화 실패 (모의 데이터 사용): {e}")
+            logging.error(f"[MetricsCollector] K8s 초기화 실패 (모의 데이터 사용): {e}")
 
     async def start_collection(self, interval: float = 2.0):
         self._running = True
@@ -101,7 +102,7 @@ class MetricsCollector:
                 if len(self._history) > self._max_history:
                     self._history.pop(0)
             except Exception as e:
-                print(f"[MetricsCollector] 수집 오류: {e}")
+                logging.error(f"[MetricsCollector] 수집 오류: {e}")
             await asyncio.sleep(interval)
 
     def stop(self):
@@ -141,7 +142,11 @@ class MetricsCollector:
         if getattr(self, "_token", None):
             headers["Authorization"] = f"Bearer {self._token}"
 
-        async with httpx.AsyncClient(timeout=5, verify=False, headers=headers) as client:
+        # CA certificate path for in-cluster TLS verification
+        ca_path = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+        verify = ca_path if os.path.exists(ca_path) else True
+
+        async with httpx.AsyncClient(timeout=5, verify=verify, headers=headers) as client:
             async def fetch(metric_name: str, query: str) -> tuple[str, Optional[float]]:
                 try:
                     resp = await client.get(

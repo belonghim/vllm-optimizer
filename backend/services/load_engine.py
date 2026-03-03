@@ -36,21 +36,27 @@ class LoadTestEngine:
         self._state = LoadTestState()
         self._stop_event = asyncio.Event()
         self._subscribers: list[asyncio.Queue] = []
+        self._state_lock = asyncio.Lock()
+        self._subscribers_lock = asyncio.Lock()
 
     @property
     def status(self) -> LoadTestStatus:
         return self._state.status
 
-    def subscribe(self) -> asyncio.Queue:
+    async def subscribe(self) -> asyncio.Queue:
         q: asyncio.Queue = asyncio.Queue()
-        self._subscribers.append(q)
+        async with self._subscribers_lock:
+            self._subscribers.append(q)
         return q
 
-    def unsubscribe(self, q: asyncio.Queue):
-        self._subscribers.remove(q)
+    async def unsubscribe(self, q: asyncio.Queue):
+        async with self._subscribers_lock:
+            self._subscribers.remove(q)
 
     async def _broadcast(self, data: dict):
-        for q in self._subscribers:
+        async with self._subscribers_lock:
+            targets = list(self._subscribers)
+        for q in targets:
             await q.put(data)
 
     async def run(self, config: LoadTestConfig) -> AsyncGenerator[dict, None]:
@@ -136,11 +142,12 @@ class LoadTestEngine:
             )
             for t in done:
                 result = await t
-                self._state.results.append(result)
-                if result.success:
-                    self._state.completed_requests += 1
-                else:
-                    self._state.failed_requests += 1
+                async with self._state_lock:
+                    self._state.results.append(result)
+                    if result.success:
+                        self._state.completed_requests += 1
+                    else:
+                        self._state.failed_requests += 1
 
                 # 실시간 통계 계산
                 stats = self._compute_stats()
@@ -160,16 +167,19 @@ class LoadTestEngine:
             )
             for result in remaining:
                 if isinstance(result, RequestResult):
-                    self._state.results.append(result)
+                    async with self._state_lock:
+                        self._state.results.append(result)
 
-        self._state.status = LoadTestStatus.COMPLETED
+        async with self._state_lock:
+            self._state.status = LoadTestStatus.COMPLETED
         final_stats = self._compute_stats()
         await self._broadcast({"type": "completed", "data": final_stats})
         return final_stats
 
-    def stop(self):
+    async def stop(self):
         self._stop_event.set()
-        self._state.status = LoadTestStatus.STOPPED
+        async with self._state_lock:
+            self._state.status = LoadTestStatus.STOPPED
 
     def _compute_stats(self) -> dict:
         results = self._state.results

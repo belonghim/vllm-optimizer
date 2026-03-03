@@ -2,6 +2,7 @@
 자동 파라미터 튜너 — Bayesian Optimization으로 최적 vLLM 설정 탐색
 목표: 처리량(TPS) 최대화, 레이턴시(P99) 최소화
 """
+import logging
 import asyncio
 import os
 import json
@@ -28,6 +29,9 @@ class AutoTuner:
         self._running = False
         self._study = None
         self._k8s_available = False
+        self._lock = asyncio.Lock()
+        self._study_lock = asyncio.Lock()
+        self._k8s_lock = asyncio.Lock()
         self._init_k8s()
 
     def _init_k8s(self):
@@ -55,34 +59,34 @@ class AutoTuner:
         return self._running
 
     async def start(self, config: TuningConfig, vllm_endpoint: str) -> dict:
-        if self._running:
-            return {"error": "이미 튜닝이 실행 중입니다."}
-
-        if not OPTUNA_AVAILABLE:
-            return {"error": "optuna 패키지가 필요합니다: pip install optuna"}
-
-        self._running = True
-        self._trials = []
-        self._best_trial = None
-
-        direction = "maximize" if config.objective == "tps" else "minimize"
-        self._study = optuna.create_study(
-            direction=direction,
-            sampler=optuna.samplers.TPESampler(seed=42),
-        )
+        async with self._lock:
+            if self._running:
+                return {"error": "이미 튜닝이 실행 중입니다."}
+            if not OPTUNA_AVAILABLE:
+                return {"error": "optuna 패키지가 필요합니다: pip install optuna"}
+            self._running = True
+            self._trials = []
+            self._best_trial = None
+            direction = "maximize" if config.objective == "tps" else "minimize"
+            self._study = optuna.create_study(
+                direction=direction,
+                sampler=optuna.samplers.TPESampler(seed=42),
+            )
 
         try:
             for trial_num in range(config.n_trials):
                 if not self._running:
                     break
 
-                trial = self._study.ask()
+                async with self._study_lock:
+                    trial = self._study.ask()
                 params = self._suggest_params(trial, config)
 
                 # 파라미터 적용 (Kubernetes ConfigMap 업데이트)
                 apply_result = await self._apply_params(params)
                 if not apply_result["success"]:
-                    self._study.tell(trial, state=optuna.trial.TrialState.FAIL)
+                    async with self._study_lock:
+                        self._study.tell(trial, state=optuna.trial.TrialState.FAIL)
                     continue
 
                 # vLLM 재시작 대기
@@ -90,7 +94,8 @@ class AutoTuner:
 
                 # 성능 측정
                 score, tps, p99_lat = await self._evaluate(vllm_endpoint, config)
-                self._study.tell(trial, score)
+                async with self._study_lock:
+                    self._study.tell(trial, score)
 
                 t = TuningTrial(
                     trial_id=trial_num,
@@ -100,10 +105,10 @@ class AutoTuner:
                     score=score,
                     status="completed",
                 )
-                self._trials.append(t)
-
-                if self._best_trial is None or (direction == "maximize" and score > self._best_trial.score) or (direction == "minimize" and score < self._best_trial.score):
-                    self._best_trial = t
+                async with self._lock:
+                    self._trials.append(t)
+                    if self._best_trial is None or (direction == "maximize" and score > self._best_trial.score) or (direction == "minimize" and score < self._best_trial.score):
+                        self._best_trial = t
 
             return {
                 "completed": True,
@@ -114,8 +119,9 @@ class AutoTuner:
         finally:
             self._running = False
 
-    def stop(self):
-        self._running = False
+    async def stop(self):
+        async with self._lock:
+            self._running = False
 
     def _suggest_params(self, trial, config: TuningConfig) -> dict:
         return {
@@ -143,32 +149,33 @@ class AutoTuner:
     async def _apply_params(self, params: dict) -> dict:
         """ConfigMap 업데이트 → Deployment 재시작"""
         if not self._k8s_available:
-            print(f"[AutoTuner] K8s 없음 — 파라미터 적용 시뮬레이션: {params}")
+            logging.info(f"[AutoTuner] K8s 없음 — 파라미터 적용 시뮬레이션: {params}")
             return {"success": True}
 
         try:
-            # ConfigMap 업데이트
-            print(f"[AutoTuner] ConfigMap '{K8S_CONFIGMAP}' in namespace '{K8S_NAMESPACE}'")
-            current_cm = self._k8s_core.read_namespaced_config_map(
-                name=K8S_CONFIGMAP, namespace=K8S_NAMESPACE
-            )
-            
-            patch_body = {
-                "data": {
-                    "MAX_NUM_SEQS": str(params["max_num_seqs"]),
-                    "GPU_MEMORY_UTILIZATION": str(params["gpu_memory_utilization"]),
-                    "MAX_MODEL_LEN": str(params["max_model_len"]),
-                    "ENABLE_CHUNKED_PREFILL": str(params["enable_chunked_prefill"]).lower(),
+            async with self._k8s_lock:
+                # ConfigMap 업데이트
+                logging.info(f"[AutoTuner] ConfigMap '{K8S_CONFIGMAP}' in namespace '{K8S_NAMESPACE}'")
+                current_cm = self._k8s_core.read_namespaced_config_map(
+                    name=K8S_CONFIGMAP, namespace=K8S_NAMESPACE
+                )
+                
+                patch_body = {
+                    "data": {
+                        "MAX_NUM_SEQS": str(params["max_num_seqs"]),
+                        "GPU_MEMORY_UTILIZATION": str(params["gpu_memory_utilization"]),
+                        "MAX_MODEL_LEN": str(params["max_model_len"]),
+                        "ENABLE_CHUNKED_PREFILL": str(params["enable_chunked_prefill"]).lower(),
+                    }
                 }
-            }
-            
-            self._k8s_core.patch_namespaced_config_map(
-                name=K8S_CONFIGMAP, namespace=K8S_NAMESPACE, body=patch_body
-            )
-            print(f"[AutoTuner] ConfigMap '{K8S_CONFIGMAP}' patched successfully.")
+                
+                self._k8s_core.patch_namespaced_config_map(
+                    name=K8S_CONFIGMAP, namespace=K8S_NAMESPACE, body=patch_body
+                )
+                logging.info(f"[AutoTuner] ConfigMap '{K8S_CONFIGMAP}' patched successfully.")
             return {"success": True}
         except Exception as e:
-            print(f"[AutoTuner] 파라미터 적용 실패: {e}")
+            logging.error(f"[AutoTuner] 파라미터 적용 실패: {e}")
             return {"success": False, "error": str(e)}
 
     async def _evaluate(self, endpoint: str, config: TuningConfig) -> tuple[float, float, float]:
