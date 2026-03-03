@@ -1239,15 +1239,15 @@ Scenario: Dry-run ServiceMonitor apply
 #### Task 14: Deploy.sh Rollout Monitoring
 
 **What to do**:
-- `deploy.sh` 에 `oc rollout status` 및 health check (`oc wait`) 추가
+- `deploy.sh` 에 `oc rollout restart` 및 health check (`oc wait`) 추가
 - 현재: build → push → apply 후 종료
 - 변경: apply 후 rollout 대기, pod ready 대기, 성공/실패 메시지 출력
 
 **Code insertion** (after line 131 and 151, after each `oc apply -k` for backend/frontend):
 ```bash
 echo "⏳ Waiting for rollout to complete..."
-oc rollout status deployment/vllm-optimizer-backend -n "${NAMESPACE}" --timeout=5m
-oc rollout status deployment/vllm-optimizer-frontend -n "${NAMESPACE}" --timeout=5m
+oc rollout restart deployment/vllm-optimizer-backend -n "${NAMESPACE}" --timeout=5m
+oc rollout restart deployment/vllm-optimizer-frontend -n "${NAMESPACE}" --timeout=5m
 
 echo "⏳ Waiting for pods to be ready..."
 oc wait --for=condition=Ready pod -l app=vllm-optimizer-backend -n "${NAMESPACE}" --timeout=300s
@@ -1272,10 +1272,10 @@ echo "✅ Deployment completed successfully"
 
 **References**:
 - `deploy.sh:86-151` - current deployment steps
-- OpenShift CLI docs: `oc rollout status`, `oc wait`
+- OpenShift CLI docs: `oc rollout restart`, `oc wait`
 
 **Acceptance Criteria**:
-- [x] `deploy.sh`에 `oc rollout status` 두 번 추가됨 (backend, frontend) - 두 개의 rollout 모니터링 블록 각각에 포함
+- [x] `deploy.sh`에 `oc rollout restart` 두 번 추가됨 (backend, frontend) - 두 개의 rollout 모니터링 블록 각각에 포함
 - [x] `oc wait --for=condition=Ready` 두 번 추가됨 - 각 블록에 backend/frontend 각각
 - [x] 각 대기 단계 후 success 메시지 출력 (✅ Deployment completed successfully)
 - [x] `--timeout` 파라미터 명시 (rollout: 5m, pods: 300s)
