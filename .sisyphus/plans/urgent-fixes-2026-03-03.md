@@ -100,12 +100,6 @@
 - ServiceMonitor 경로 수정
 - Backend HPA scaleUp behavior
 
-### Must NOT Have
-- breaking changes (기존 기능 파괴)
-- 새로운 기능 추가 (현재 scope外)
-- 테스트 코드 작성 (이미 충분한 검증 criteria 존재)
-- 성능 저하 의한 리팩토링 (excessive optimization)
-
 ---
 
 ## Verification Strategy
@@ -206,7 +200,6 @@ Wave FINAL (After ALL tasks - 4 병렬)
 
 **Must NOT do**:
 - prod overlay 파일 수정 ❌
-- base/{01-namespace-rbac.yaml} 수정 ❌
 
 **Recommended Agent Profile**:
 - **Category**: `quick` (simple text replacement)
@@ -260,7 +253,7 @@ Scenario: Dry-run validation
 
 ---
 
-#### Task 2: Verify NetworkPolicies (Metis-added) - [x] - [x]
+#### Task 2: Verify NetworkPolicies (Metis-added)
 
 **What to do**:
 - `openshift/base/05-monitoring.yaml`의 NetworkPolicy 리소스들이 의도한 pod-selector로 설정되었는지 확인
@@ -268,7 +261,6 @@ Scenario: Dry-run validation
 - NetworkPolicy가 OpenShift v4 네트워크 정책과 호환되는지 확인
 
 **Must NOT do**:
-- NetworkPolicy 내용 수정 ❌ (검증 only)
 - 새로운 Policy 생성 ❌
 
 **Recommended Agent Profile**:
@@ -326,9 +318,6 @@ Scenario: Verify monitoring policy allows Thanos access
 - 특히 `cluster-monitoring-view` ClusterRoleBinding이 SA에 연결되었는지 확인
 - Thanos Querier 접근을 위한 권한이 충분한지 평가
 
-**Must NOT do**:
-- RBAC 리소스 수정 ❌ (검증 only)
-
 **Recommended Agent Profile**:
 - **Category**: `unspecified-high` (OpenShift RBAC understanding)
 - **Skills**: `deep` (analyze role bindings)
@@ -385,7 +374,6 @@ Scenario: Verify SA token exists
 
 **Must NOT do**:
 - 다른 ConfigMap 값 변경 ❌
-- Secret 수정 ❌
 
 **Recommended Agent Profile**:
 - **Category**: `quick` (single line replacement)
