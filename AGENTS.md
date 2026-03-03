@@ -367,7 +367,7 @@ oc import-image vllm-optimizer-backend:latest \
 - DockerHub 이미지 직접 참조
 - `docker` 사용 (이 프로젝트는 `podman` 기준)
 - `kubectl` 사용 (이 프로젝트는 `oc` 기준)
-- 일시적인 문제를 blocker 로 남기거나, blocker 가 있는채로 계획을 완료
+- 일시적인 문제를 명확한 증명 없이 Blocked 로 남기거나, Blocked 가 있는채로 계획을 완료
 
 ---
 
