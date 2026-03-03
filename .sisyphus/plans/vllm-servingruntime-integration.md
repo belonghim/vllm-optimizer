@@ -5,13 +5,13 @@
 ## 체크박스 요약 (Quick Navigation)
 
 ### 필수 Deliverables
-- [ ] vllm-runtime.yaml (ServingRuntime)
-- [ ] vllm-inferenceservice.yaml (InferenceService)
-- [ ] 06-vllm-monitoring.yaml (ServiceMonitor + PrometheusRule)
-- [ ] vllm-networkpolicy.yaml (NetworkPolicy)
-- [ ] vllm-rbac.yaml (RBAC Role/RoleBinding)
-- [ ] vllm-config.yaml (vLLM ConfigMap)
-- [ ] integration_test_guide.md (통합 테스트 가이드)
+- [x] vllm-runtime.yaml (ServingRuntime)
+- [x] vllm-inferenceservice.yaml (InferenceService)
+- [x] 06-vllm-monitoring.yaml (ServiceMonitor + PrometheusRule)
+- [x] vllm-networkpolicy.yaml (NetworkPolicy)
+- [x] vllm-rbac.yaml (RBAC Role/RoleBinding)
+- [x] vllm-config.yaml (vLLM ConfigMap)
+- [x] integration_test_guide.md (통합 테스트 가이드)
 - [ ] kustomization.yaml 업데이트
 
 ### Wave별 진행 상황
@@ -71,13 +71,13 @@ OpenVINO/Qwen2.5-Coder-3B-Instruct 모델 샘플을 사용해 누락된 YAML을 
 vLLM Optimizer가 실제 배포된 vLLM ServingRuntime/InferenceService와 성공적으로 통합되어 메트릭 수집, 부하 테스트, 자동 튜닝이 동작하도록 필요한 인프라 리소스 생성 및 검증
 
 ### Concrete Deliverables
-- [ ] 1. `openshift/dev-only/vllm-runtime.yaml` — vLLM ServingRuntime 정의 (Dev 환경 전용)
-- [ ] 2. `openshift/dev-only/vllm-inferenceservice.yaml` — InferenceService 정의 (PVC, 모델 경로, 리소스 요청) (Dev 환경 전용)
-- [ ] 3. `openshift/dev-only/06-vllm-monitoring.yaml` — vLLM ServiceMonitor + PrometheusRule (Dev 환경 전용)
-- [ ] 4. `openshift/dev-only/vllm-networkpolicy.yaml` — Optimizer Backend → vLLM Service 통신 허용 (Dev 환경 전용)
-- [ ] 5. `openshift/dev-only/vllm-rbac.yaml` — vLLM namespace에 optimizer-backend SA 권한 부여 (Dev 환경 전용)
-- [ ] 6. `openshift/dev-only/vllm-config.yaml` — auto_tuner.py와 호환되는 vLLM ConfigMap (Dev 환경 전용)
-- [ ] 7. `docs/integration_test_guide.md` — 통합 테스트 절차 (에이전트 실행 가능 QA 시나리오 포함)
+- [x] 1. `openshift/dev-only/vllm-runtime.yaml` — vLLM ServingRuntime 정의 (Dev 환경 전용)
+- [x] 2. `openshift/dev-only/vllm-inferenceservice.yaml` — InferenceService 정의 (PVC, 모델 경로, 리소스 요청) (Dev 환경 전용)
+- [x] 3. `openshift/dev-only/06-vllm-monitoring.yaml` — vLLM ServiceMonitor + PrometheusRule (Dev 환경 전용)
+- [x] 4. `openshift/dev-only/vllm-networkpolicy.yaml` — Optimizer Backend → vLLM Service 통신 허용 (Dev 환경 전용)
+- [x] 5. `openshift/dev-only/vllm-rbac.yaml` — vLLM namespace에 optimizer-backend SA 권한 부여 (Dev 환경 전용)
+- [x] 6. `openshift/dev-only/vllm-config.yaml` — auto_tuner.py와 호환되는 vLLM ConfigMap (Dev 환경 전용)
+- [x] 7. `docs/integration_test_guide.md` — 통합 테스트 절차 (에이전트 실행 가능 QA 시나리오 포함)
 - [ ] 8. Updates to `openshift/dev-only/kustomization.yaml` — 새 리소스 추가
 - [ ] 9. Updates to `openshift/base/02-config.yaml` — vLLM ConfigMap 타입/키 검증 및 보강
 
@@ -220,20 +220,20 @@ Wave FINAL (Independent Review):
 - [ ] 3. Update kustomization.yaml with new resources
 
 ### Wave 2: vLLM Service Deployment
-- [ ] 4. Create vLLM ServingRuntime YAML
-- [ ] 5. Create vLLM InferenceService YAML
+- [x] 4. Create vLLM ServingRuntime YAML
+- [x] 5. Create vLLM InferenceService YAML
 - [ ] 6. Deploy vLLM resources with Kustomize
 
 ### Wave 3: Monitoring + Network
-- [ ] 7. Create vLLM ServiceMonitor + PrometheusRule
-- [ ] 8. Create vLLM NetworkPolicy
+- [x] 7. Create vLLM ServiceMonitor + PrometheusRule
+- [x] 8. Create vLLM NetworkPolicy
 - [ ] 9. Verify ServiceMonitor scraping
 
 ### Wave 4: Integration + Validation
 - [ ] 10. Verify Backend → vLLM connectivity
 - [ ] 11. Verify Optimizer API returns vLLM metrics
 - [ ] 12. Verify Auto Tuner ConfigMap patch (end-to-end)
-- [ ] 13. Write integration test guide
+- [x] 13. Write integration test guide
 
 ### Final Verification
 - [ ] F1. Plan compliance audit
