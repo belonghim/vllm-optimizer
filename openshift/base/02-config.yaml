@@ -3,9 +3,9 @@ kind: ConfigMap
 metadata:
   name: vllm-optimizer-config
 data:
-  VLLM_ENDPOINT: "http://vllm-service-predictor.vllm.svc.cluster.local:8080"
+  VLLM_ENDPOINT: "http://llm-ov-predictor.vllm.svc.cluster.local:8080"
   VLLM_NAMESPACE: "vllm"
-  VLLM_DEPLOYMENT_NAME: "vllm-deployment"
+  VLLM_DEPLOYMENT_NAME: "llm-ov"
   VLLM_CONFIGMAP_NAME: "vllm-config"
   # OpenShift Monitoring Stack — Thanos Querier
   PROMETHEUS_URL: "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091"
