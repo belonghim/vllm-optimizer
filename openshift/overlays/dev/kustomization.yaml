@@ -12,19 +12,19 @@ resources:
 patches:
   - target:
       kind: Namespace
-    patch: |-
+    patch: |- 
       - op: replace
         path: /metadata/name
-        value: vllm-optimizer-prod
+        value: vllm-optimizer-dev
   - target:
       group: rbac.authorization.k8s.io
       version: v1
       kind: ClusterRoleBinding
       name: vllm-optimizer-controller
-    patch: |-
+    patch: |- 
       - op: replace
         path: /subjects/0/namespace
-        value: vllm-optimizer-prod
+        value: vllm-optimizer-dev
   - target:
       kind: Deployment
       name: vllm-optimizer-backend
