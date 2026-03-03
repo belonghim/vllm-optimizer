@@ -1,6 +1,0 @@
-servicemonitor.monitoring.coreos.com/vllm-optimizer-backend configured (dry run)
-prometheusrule.monitoring.coreos.com/vllm-optimizer-alerts configured (dry run)
-poddisruptionbudget.policy/vllm-optimizer-backend-pdb configured (dry run)
-poddisruptionbudget.policy/vllm-optimizer-frontend-pdb configured (dry run)
-networkpolicy.networking.k8s.io/vllm-optimizer-backend-netpol configured (dry run)
-networkpolicy.networking.k8s.io/vllm-optimizer-frontend-netpol configured (dry run)

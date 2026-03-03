@@ -1,6 +1,0 @@
-          network.openshift.io/policy-group: monitoring
-    ports:
-    - port: 8000
-      protocol: TCP
-  - from:
-    - namespaceSelector:
