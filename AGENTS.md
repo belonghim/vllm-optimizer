@@ -142,7 +142,7 @@ podman build -t vllm-optimizer-backend:dev ./backend
 podman build -t vllm-optimizer-frontend:dev ./frontend
 ```
 
-### OpenShift 배포
+### OpenShift 배포 (Air-gapped)
 ```bash
 # 환경변수 설정 후
 export REGISTRY="quay.io/your-org"
