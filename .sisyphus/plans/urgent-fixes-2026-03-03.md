@@ -856,7 +856,7 @@ Scenario: Nginx syntax check (dry-build)
   Tool: Bash (nginx -t with Docker)
   Steps:
     # Build temporary image to test config
-    1. podman build -t nginx-test -f frontend/Dockerfile . > /dev/null 2>&1
+    1. podman build -t nginx-test frontend . > /dev/null 2>&1
     2. podman run --rm nginx-test nginx -t
   Expected Result: "syntax is ok" and "test is successful"
 ```

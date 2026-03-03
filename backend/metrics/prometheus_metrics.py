@@ -3,6 +3,9 @@ Prometheus metrics definitions for vLLM Optimizer backend.
 Exposes metrics in Prometheus format for OpenShift Monitoring.
 """
 
+import sys
+print(f"[DEBUG] Loading prometheus_metrics module from {__file__}, __name__={__name__}", file=sys.stderr)
+
 from prometheus_client import (
     Counter,
     Gauge,

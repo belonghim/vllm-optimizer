@@ -21,4 +21,4 @@ RUN chown -R 1001:0 /app && chmod -R g+rwX /app
 USER 1001
 EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3     CMD curl -f http://localhost:8000/health || exit 1
-CMD /opt/app-root/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2
+CMD /opt/app-root/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1

@@ -2,7 +2,7 @@ import asyncio
 
 def register(app):
     try:
-        from backend.services.metrics_collector import MetricsCollector
+        from services.metrics_collector import MetricsCollector
     except Exception:
         return
 
