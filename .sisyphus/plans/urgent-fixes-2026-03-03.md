@@ -260,7 +260,7 @@ Scenario: Dry-run validation
 
 ---
 
-#### Task 2: Verify NetworkPolicies (Metis-added) - [x]
+#### Task 2: Verify NetworkPolicies (Metis-added) - [x] - [x]
 
 **What to do**:
 - `openshift/base/05-monitoring.yaml`의 NetworkPolicy 리소스들이 의도한 pod-selector로 설정되었는지 확인
