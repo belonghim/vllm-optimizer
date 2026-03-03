@@ -378,7 +378,7 @@ Wave FINAL (Independent Review):
   - 순서 고려: RBAC → Runtime → IS → Monitoring → NetworkPolicy
 
   **Must NOT do**:
-  - 기존 resources.yaml의 순서를 망가뜨리지 않음 (Kustomize는 순서대로 적용)
+  - 기존 resources.yaml 을 제거하거나 순서를 망가뜨리지 않음 (Kustomize는 순서대로 적용)
 
   **Recommended Agent Profile**:
   - **Category**: `quick`
@@ -407,7 +407,7 @@ Wave FINAL (Independent Review):
     Tool: Bash
     Preconditions: kustomization.yaml updated
     Steps:
-      1. `oc kustomize openshift/base | grep -E 'kind: (Role|ServingRuntime|InferenceService|ServiceMonitor|PrometheusRule|NetworkPolicy)'`
+      1. `oc kustomize openshift/dev-only | grep -E 'kind: (Role|ServingRuntime|InferenceService|ServiceMonitor|PrometheusRule|NetworkPolicy)'`
     Expected Result: Output contains 6+ resources (including RBAC, runtime, IS, etc.)
     Failure Indicators: Missing kinds or fewer than expected
     Evidence: .sisyphus/evidence/task-3-kustomize-check.txt
