@@ -573,7 +573,7 @@ Wave FINAL (Independent Review):
 
 ## Wave 3: Monitoring + Network
 
-- [ ] 7. Create vLLM ServiceMonitor + PrometheusRule (06-vllm-monitoring.yaml)
+- [x] 7. Create vLLM ServiceMonitor + PrometheusRule (06-vllm-monitoring.yaml)
 
   **What to do**:
   - `openshift/dev-only/06-vllm-monitoring.yaml` 생성 (기존 05-monitoring.yaml과 별도 파일 또는 확장)
@@ -650,7 +650,7 @@ Wave FINAL (Independent Review):
 
 ---
 
-- [ ] 8. Create vLLM NetworkPolicy (allow optimizer-backend access)
+- [x] 8. Create vLLM NetworkPolicy (allow optimizer-backend access)
 
   **What to do**:
   - `openshift/dev-only/vllm-networkpolicy.yaml` 생성
@@ -663,7 +663,7 @@ Wave FINAL (Independent Review):
     - allow from `vllm-optimizer-dev` namespace, selector `app=vllm-optimizer-backend`
     - allow from `openshift-monitoring` (for Prometheus scraping)
     - allow from kube-apiserver (cluster monitoring)
-  - Ports: `- port: 8000` (vLLM OpenAI-compatible API) and `- port: 8080` (metrics) if separate; check vLLM service port names
+  - Ports: `- port: 8080` (vLLM OpenAI-compatible API) and `- port: 8080` (metrics) if separate; check vLLM service port names
 
   **Must NOT do**:
   - vLLM service의 포트 범위를 지나치게 넓히기 (8000, 8080만)
@@ -691,7 +691,7 @@ Wave FINAL (Independent Review):
   - [ ] `ingress.from` includes:
     - namespaceSelector for `vllm-optimizer-dev` with podSelector `app=vllm-optimizer-backend`
     - namespaceSelector for `openshift-monitoring`
-  - [ ] `ingress.ports` include at least port 8000 (API) and 8080 (metrics)
+  - [ ] `ingress.ports` include at least port 8080 (API) and 8000 (metrics)
 
   **QA Scenarios**:
 
@@ -711,7 +711,7 @@ Wave FINAL (Independent Review):
     Steps:
       1. Get optimizer pod: `OPT_POD=$(oc get pod -l app=vllm-optimizer-backend -n vllm-optimizer-dev -o name | head -1)`
       2. Get vLLM service clusterIP: `VLLM_SVC=$(oc get svc llm-ov -n vllm -o jsonpath='{.spec.clusterIP}')`
-      3. `oc exec $OPT_POD -n vllm-optimizer-dev -- curl -s http://$VLLM_SVC:8000/v1/models`
+      3. `oc exec $OPT_POD -n vllm-optimizer-dev -- curl -s http://$VLLM_SVC:8080/v1/models`
     Expected Result: HTTP 200 (connection allowed)
     Failure Indicators: Connection timeout or refused → NetworkPolicy issue
     Evidence: .sisyphus/evidence/task-8-connectivity-check.txt
@@ -723,7 +723,7 @@ Wave FINAL (Independent Review):
 
 ---
 
-- [ ] 9. Verify ServiceMonitor scraping
+- [x] 9. Verify ServiceMonitor scraping
 
   **What to do**:
   - `deploy.sh`를 실행하여 vLLM 리소스 배포 후,
@@ -731,9 +731,9 @@ Wave FINAL (Independent Review):
   - ServiceMonitor status 확인: `oc get servicemonitor -n vllm`
 
   **Acceptance Criteria** (for test guide):
-  - [ ] `oc get endpoints -n vllm`에 vLLM service의 metrics endpoint (name: http) 보임
-  - [ ] OpenShift console → Monitoring → Targets에서 `vllm-openvino-runtime`이 Up 상태
-  - [ ] Thanos Querier 쿼리: `up{service="vllm-openvino-runtime"}` returns data
+  - [x] `oc get endpoints -n vllm`에 vLLM service의 metrics endpoint (name: http) 보임
+  - [x] OpenShift console → Monitoring → Targets에서 `vllm-openvino-runtime`이 Up 상태
+  - [x] Thanos Querier 쿼리: `up{service="vllm-openvino-runtime"}` returns data
 
 ---
 
@@ -743,7 +743,7 @@ Wave FINAL (Independent Review):
 
   **What to do**:
   - Optimizer Backend Pod에서 vLLM 서비스의 OpenAI API 엔드포인트에 curl 요청 보냄
-  - 엔드포인트: `http://llm-ov.vllm.svc.cluster.local:8000/v1/models` (또는 route로 테스트)
+  - 엔드포인트: `http://llm-ov.vllm.svc.cluster.local:8080/v1/models` (또는 route로 테스트)
   - 인증 없이 접근 가능한지 확인
 
   **Recommended Agent Profile**:
@@ -759,7 +759,7 @@ Wave FINAL (Independent Review):
     Preconditions: vLLM InferenceService Ready; Backend pod running
     Steps:
       1. `BACKEND_POD=$(oc get pod -l app=vllm-optimizer-backend -n vllm-optimizer-dev -o jsonpath='{.items[0].metadata.name}')`
-      2. `oc exec $BACKEND_POD -n vllm-optimizer-dev -- curl -s http://llm-ov.vllm.svc.cluster.local:8000/v1/models`
+      2. `oc exec $BACKEND_POD -n vllm-optimizer-dev -- curl -s http://llm-ov.vllm.svc.cluster.local:8080/v1/models`
     Expected Result: JSON output with `"object": "list"` or `"model_id"`
     Failure Indicators: `curl: (7) Failed to connect` → NetworkPolicy issue
     Evidence: .sisyphus/evidence/task-10-connectivity.txt
