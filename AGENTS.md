@@ -158,7 +158,8 @@ spec:
 ### 6. 모니터링
 - Prometheus 직접 설치 금지
 - **OpenShift Monitoring Stack (Thanos Querier)** 활용
-- Thanos Querier 엔드포인트: `https://thanos-querier.openshift-monitoring.svc.cluster.local:9091`
+- Thanos Querier 서비스 엔드포인트(내부용): `https://thanos-querier.openshift-monitoring.svc.cluster.local:9091`
+- Thanos Querier 라우트 엔드포인트(외부용): `https://thanos-querier-openshift-monitoring.apps.compact.jooan.local` (socks5 proxy 필요)
 - 메트릭 노출은 `/metrics` 엔드포인트 사용
 
 ### 7. 네트워크 정책
@@ -328,9 +329,9 @@ oc exec -it $(oc get pod -l app=vllm-optimizer-backend -n $NS -o name | head -1)
   -n $NS -- curl localhost:8000/metrics
 
 # Thanos Querier 직접 쿼리 테스트
-TOKEN=$(oc serviceaccounts get-token vllm-optimizer-backend -n vllm-optimizer-dev)
-curl -H "Authorization: Bearer $TOKEN" \
-  https://thanos-querier.openshift-monitoring.svc.cluster.local:9091/api/v1/query \
+TOKEN=$(oc create token vllm-optimizer-backend -n vllm-optimizer-dev)
+curl --socks5-hostname 127.0.0.1:8882 -H "Authorization: Bearer $TOKEN" \
+  https://thanos-querier-openshift-monitoring.apps.compact.jooan.local/api/v1/query \
   --data-urlencode 'query=vllm:num_requests_running' -k
 ```
 

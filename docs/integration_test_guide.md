@@ -23,8 +23,6 @@ oc apply -k openshift/overlays/dev
 This command will deploy the following resources to the `vllm` namespace:
 
 - **Namespace**: The `vllm` namespace itself (defined in `openshift/base/00-vllm-namespace.yaml`).
-- **PersistentVolumeClaim**: `vllm-model-pvc` (defined in `openshift/base/07-model-pvc.yaml`).
-- **Model Downloader Job**: `vllm-model-downloader` (defined in `openshift/base/08-model-download-job.yaml`).
 - **Service Account, Role, RoleBinding**: Defined in `openshift/dev-only/vllm-rbac.yaml`.
 - **ServingRuntime**: Defined in `openshift/dev-only/vllm-runtime.yaml` for the OpenVINO-based vLLM.
 - **InferenceService**: Defined in `openshift/dev-only/vllm-inferenceservice.yaml` for the Qwen2.5-Coder-3B-Instruct-int4-ov model.
