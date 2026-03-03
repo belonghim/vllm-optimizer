@@ -59,7 +59,7 @@ vllm-optimizer/
     │   ├── 04-frontend.yaml         # Deployment + Service + Route
     │   ├── 05-monitoring.yaml       # ServiceMonitor + PrometheusRule + PDB + NetworkPolicy
     │   └── kustomization.yaml
-    ├── dev-only/
+    ├── dev-only/                    # vllm-optimizer 통합 검증용 vllm 자원
     │   ├── 06-vllm-monitoring.yaml
     │   ├── kustomization.yaml
     │   ├── vllm-config.yaml
@@ -91,17 +91,16 @@ vllm-optimizer/
 
 ### 3. 사용자 권한 (SCC)
 - 컨테이너는 **non-root** 실행 필수
-- **arbitrary UID** 지원 필요 (OpenShift는 임의 UID를 할당함)
-- `USER 1001` 또는 `USER 65532` 등 고정 UID 사용 가능하나, arbitrary UID 호환 코드 작성
+- OpenShift는 임의 UID를 할당함
+- OpenShift는 기본적으로 root group 으로 할당함
 
 ```dockerfile
 # 올바른 예시
-RUN chown -R 1001:0 /app && chmod -R g=u /app
+RUN chgrp -R 0 . && chmod -R g+rwX .
 USER 1001
 ```
 
 ### 4. Ingress → OpenShift Route
-- Kubernetes `Ingress` 객체 사용 금지
 - **OpenShift Route** 사용 (Edge TLS 종료)
 
 ```yaml
@@ -132,7 +131,7 @@ spec:
 
 | 변수명 | 설명 | 예시 |
 |--------|------|------|
-| `REGISTRY` | 컨테이너 레지스트리 | `quay.io/your-org` |
+| `REGISTRY` | 컨테이너 레지스트리 | `quay.io/joopark` |
 | `IMAGE_TAG` | 이미지 태그 | `1.0.0` |
 | `VLLM_NAMESPACE` | vLLM 서비스 네임스페이스 | `vllm` |
 | `THANOS_URL` | Thanos Querier URL | `https://thanos-querier.openshift-monitoring.svc.cluster.local:9091` |
@@ -153,7 +152,7 @@ podman build -t vllm-optimizer-frontend:dev ./frontend
 ### OpenShift 배포 (Air-gapped)
 ```bash
 # 환경변수 설정 후
-export REGISTRY="quay.io/your-org"
+export REGISTRY="quay.io/joopark"
 export IMAGE_TAG="1.0.0"
 export VLLM_NAMESPACE="vllm"
 
@@ -267,7 +266,7 @@ tkn pipelinerun logs -f -n vllm-optimizer
 에이전트가 배포 후 검증이 필요할 때 사용하는 명령어입니다.
 
 ```bash
-NS=vllm-optimizer
+NS=vllm-optimizer-dev
 
 # Pod 상태 확인
 oc get pods -n $NS
@@ -289,7 +288,7 @@ oc exec -it $(oc get pod -l app=vllm-optimizer-backend -n $NS -o name | head -1)
   -n $NS -- curl localhost:8000/metrics
 
 # Thanos Querier 직접 쿼리 테스트
-TOKEN=$(oc serviceaccounts get-token vllm-optimizer-backend -n vllm-optimizer)
+TOKEN=$(oc serviceaccounts get-token vllm-optimizer-backend -n vllm-optimizer-dev)
 curl -H "Authorization: Bearer $TOKEN" \
   https://thanos-querier.openshift-monitoring.svc.cluster.local:9091/api/v1/query \
   --data-urlencode 'query=vllm:num_requests_running' -k
@@ -302,14 +301,14 @@ curl -H "Authorization: Bearer $TOKEN" \
 ### SCC 오류 발생 시
 ```bash
 oc adm policy add-scc-to-user vllm-optimizer-scc \
-  -z vllm-optimizer-backend -n vllm-optimizer
+  -z vllm-optimizer-backend -n vllm-optimizer-dev
 ```
 
 ### 이미지 Pull 실패 시
 ```bash
 oc import-image vllm-optimizer-backend:latest \
-  --from=quay.io/your-org/vllm-optimizer-backend:latest \
-  --confirm -n vllm-optimizer
+  --from=quay.io/joopark/vllm-optimizer-backend:latest \
+  --confirm -n vllm-optimizer-dev
 ```
 
 ### Thanos 접근 불가 시
