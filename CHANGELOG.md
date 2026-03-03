@@ -14,7 +14,6 @@ All notable changes to this project will be documented in this file.
 - NetworkPolicy verification for inter-service communication
 
 ### Changed
-- **Metric names**: Standardized from colon (`vllm:`) to underscore (`vllm_`) format across all monitoring configurations
 - **VLLM endpoint**: Corrected service name from `vllm-service-predictor` to `llm-ov-predictor`
 - **SSL verification**: Removed insecure `verify=False`, implemented CA certificate auto-detection
 - **Backend HPA**: Added scaleUp/scaleDown behavior tuning to prevent thrashing

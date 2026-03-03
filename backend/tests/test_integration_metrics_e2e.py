@@ -19,5 +19,5 @@ def test_integration_metrics_endpoint_no_mock():
             parts = line.split()
             if len(parts) >= 3:
                 names.add(parts[2])
-    assert any(n.startswith("vllm_") for n in names), \
-        f"Expected at least one vllm_ metric in output, found: {sorted(list(names))}"
+    assert any(n.startswith("vllm:") for n in names), \
+        f"Expected at least one vllm: metric in output, found: {sorted(list(names))}"

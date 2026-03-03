@@ -9,7 +9,7 @@ import json
 import datetime
 from typing import Optional, List
 from kubernetes import client as k8s_client, config as k8s_config
-from ..models.load_test import TuningConfig, TuningTrial, LoadTestConfig
+from models.load_test import TuningConfig, TuningTrial, LoadTestConfig
 
 import optuna
 optuna.logging.set_verbosity(optuna.logging.WARNING)

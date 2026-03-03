@@ -37,10 +37,10 @@ def test_dev_integration_metrics_endpoint():
         if not parts:
             continue
         name = parts[0]
-        if name.startswith("vllm_"):
+        if name.startswith("vllm:"):
             metric_names.add(name)
-    # 최소 2개 이상의 vllm_ 메트릭이 존재해야 함
-    assert len(metric_names) >= 2, f"Expected at least 2 vllm_ metrics, got {sorted(metric_names)}"
+    # 최소 2개 이상의 vllm: 메트릭이 존재해야 함
+    assert len(metric_names) >= 2, f"Expected at least 2 vllm: metrics, got {sorted(metric_names)}"
 
     # 각 메트릭에 최소 하나의 샘플 값이 존재하는지 확인
     def _has_numeric_value(l: str) -> bool:
@@ -53,8 +53,8 @@ def test_dev_integration_metrics_endpoint():
         except ValueError:
             return False
 
-    has_value = any(_has_numeric_value(l) for l in lines if l.startswith("vllm_"))
-    assert has_value, "No numeric sample values found for vllm_ metrics"
+    has_value = any(_has_numeric_value(l) for l in lines if l.startswith("vllm:"))
+    assert has_value, "No numeric sample values found for vllm: metrics"
 
 def test_dev_integration_metrics_format_headers():
     if os.environ.get("DEV_INTEGRATION_ENABLED") != "1":
@@ -76,8 +76,8 @@ def test_dev_integration_metrics_format_headers():
     lines = content.splitlines()
     help_lines = [ln for ln in lines if ln.startswith("# HELP ")]
     type_lines = [ln for ln in lines if ln.startswith("# TYPE ")]
-    assert any(line.startswith("# HELP vllm_") for line in help_lines), "Missing # HELP header for vllm_ metrics"
-    assert any(line.startswith("# TYPE vllm_") for line in type_lines), "Missing # TYPE for vllm_ metrics"
+    assert any(line.startswith("# HELP vllm:") for line in help_lines), "Missing # HELP header for vllm: metrics"
+    assert any(line.startswith("# TYPE vllm:") for line in type_lines), "Missing # TYPE for vllm: metrics"
 
 def test_dev_integration_metrics_endpoint_multihost():
     if os.environ.get("DEV_INTEGRATION_ENABLED") != "1":
@@ -103,7 +103,7 @@ def test_dev_integration_metrics_endpoint_multihost():
                 continue
             assert content_type.startswith("text/plain")
             lines = [ln for ln in content.splitlines() if ln.strip() and not ln.startswith("#")]
-            assert any(line.split()[0].startswith("vllm_") for line in lines)
+            assert any(line.split()[0].startswith("vllm:") for line in lines)
 
 def test_dev_integration_metrics_endpoint_multihost_parallel():
     if os.environ.get("DEV_INTEGRATION_ENABLED") != "1":
@@ -146,7 +146,7 @@ def test_dev_integration_smoke_http_metrics_endpoint():
     if not content_type.startswith("text/plain"):
         return
     lines = [ln for ln in content.splitlines() if ln.strip() and not ln.startswith("#")]
-    assert any(line.split()[0].startswith("vllm_") for line in lines)
+    assert any(line.split()[0].startswith("vllm:") for line in lines)
 
 def _fetch_metrics_with_retries(url, retries=3, delay=2, ctx=None):
     for attempt in range(1, retries + 1):
@@ -184,4 +184,4 @@ def test_dev_integration_metrics_endpoint_with_retries():
     assert content_type.startswith("text/plain")
     lines = [ln for ln in content.splitlines() if ln.strip() and not ln.startswith("#")]
     metric_names = {ln.split()[0] for ln in lines}
-    assert any(name.startswith("vllm_") for name in metric_names)
+    assert any(name.startswith("vllm:") for name in metric_names)

@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 import json
 
-from ..models.load_test import LoadTestConfig, LoadTestResult, RequestResult
+from models.load_test import LoadTestConfig, LoadTestResult, RequestResult
 
 
 class LoadTestStatus(str, Enum):

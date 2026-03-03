@@ -207,9 +207,9 @@
 #JQ|  1. Create file `backend/metrics/prometheus_metrics.py`
 #BK|  2. Define REGISTRY = CollectorRegistry()
 #HM|  3. Define metrics:
-#XB|     - Counter: `vllm_request_success_total`, `vllm_generation_tokens_total`
-#NX|     - Gauge: `vllm_num_requests_running`, `vllm_num_requests_waiting`, `vllm_gpu_cache_usage_perc`, `vllm_gpu_utilization`
-#ZV|     - Histogram: `vllm_time_to_first_token_seconds`, `vllm_e2e_request_latency_seconds`
+#XB|     - Counter: `vllm:request_success_total`, `vllm:generation_tokens_total`
+#NX|     - Gauge: `vllm:num_requests_running`, `vllm:num_requests_waiting`, `vllm:gpu_cache_usage_perc`, `vllm:gpu_utilization`
+#ZV|     - Histogram: `vllm:time_to_first_token_seconds`, `vllm:e2e_request_latency_seconds`
 #SQ|  4. Define function `generate_metrics() -> bytes` using `generate_latest(REGISTRY)`
 #YN|  5. Define function `update_metrics(data: VLLMMetrics)` to update gauge/histogram values
 #QZ|
@@ -284,7 +284,7 @@
 #WR|  Scenario: MetricsCollector updates Prometheus metrics each cycle
 #KP|    Tool: Bash (test with mocked httpx)
 #VS|    Steps: Start Dev server, wait 3s, curl /api/metrics
-#TM|    Expected: Response contains non-zero vllm_* values if collector ran
+#TM|    Expected: Response contains non-zero vllm:* values if collector ran
 #BT|    Evidence: .sisyphus/evidence/task-3-collection-cycle.txt
 #VK|  ```
 #PZ|
@@ -337,7 +337,7 @@
 #VB|      2. curl -s http://localhost:8000/api/metrics | head -30
 #BT|    Expected:
 #BT|      - content-type: "text/plain; version=0.0.4"
-#BT|      - Output contains "# HELP vllm_" and "# TYPE vllm_"
+#BT|      - Output contains "# HELP vllm:" and "# TYPE vllm:"
 #VK|    Evidence: .sisyphus/evidence/task-4-metrics-endpoint.txt
 #PZ|  ```
 #PZ|
@@ -508,7 +508,7 @@
 #BK|  2. Wait for pods Ready: `oc get pods -n vllm-optimizer`
 #HM|  3. Port-forward backend service: `oc port-forward svc/vllm-optimizer-backend 8000:8000 -n vllm-optimizer`
 #XB|  4. Verify endpoint: `curl http://localhost:8000/api/metrics` returns 200 with Prometheus text
-#NX|  5. Check Prometheus (Thanos Querier) for `vllm_*` metrics: query `vllm_request_success_total`
+#NX|  5. Check Prometheus (Thanos Querier) for `vllm:*` metrics: query `vllm:request_success_total`
 #ZV|  6. Confirm metrics have recent timestamps
 #SQ|
 #QX|  **Must NOT do**:
@@ -639,7 +639,7 @@
 #ZV|python -m py_compile backend/routers/metrics.py backend/main.py backend/services/metrics_collector.py backend/metrics/prometheus_metrics.py
 #SQ|
 #YN|# 3. Endpoint validation (Dev)
-#QZ|curl -s http://localhost:8000/api/metrics | grep -E '^# HELP vllm_'
+#QZ|curl -s http://localhost:8000/api/metrics | grep -E '^# HELP vllm:'
 #QK|
 #JJ|# 4. OpenShift config validation
 #KZ|python openshift/validate_monitoring_config.py

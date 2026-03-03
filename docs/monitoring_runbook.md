@@ -41,14 +41,14 @@ The backend exposes 8 vLLM-specific metrics:
 
 | Name | Type | Labels | Description |
 |------|------|--------|-------------|
-| `vllm_request_success_total` | Counter | `model` | Total successful vLLM requests |
-| `vllm_generation_tokens_total` | Counter | `model` | Total tokens generated |
-| `vllm_num_requests_running` | Gauge | - | Currently running requests |
-| `vllm_num_requests_waiting` | Gauge | - | Requests in queue |
-| `vllm_gpu_cache_usage_perc` | Gauge | - | GPU KV cache usage % |
-| `vllm_gpu_utilization` | Gauge | - | GPU utilization % |
-| `vllm_time_to_first_token_seconds` | Histogram | `model` | TTFT distribution (seconds) |
-| `vllm_e2e_request_latency_seconds` | Histogram | `model` | End-to-end latency (seconds) |
+| `vllm:request_success_total` | Counter | `model` | Total successful vLLM requests |
+| `vllm:generation_tokens_total` | Counter | `model` | Total tokens generated |
+| `vllm:num_requests_running` | Gauge | - | Currently running requests |
+| `vllm:num_requests_waiting` | Gauge | - | Requests in queue |
+| `vllm:gpu_cache_usage_perc` | Gauge | - | GPU KV cache usage % |
+| `vllm:gpu_utilization` | Gauge | - | GPU utilization % |
+| `vllm:time_to_first_token_seconds` | Histogram | `model` | TTFT distribution (seconds) |
+| `vllm:e2e_request_latency_seconds` | Histogram | `model` | End-to-end latency (seconds) |
 
 ## Verification Procedures
 
@@ -94,12 +94,12 @@ Query the metrics endpoint:
 curl -s http://localhost:8000/api/metrics | head -30
 ```
 
-**Expected**: Output starts with `# HELP vllm_...` and `# TYPE vllm_...`. Content-Type header: `text/plain; version=0.0.4`.
+**Expected**: Output starts with `# HELP vllm:...` and `# TYPE vllm:...`. Content-Type header: `text/plain; version=0.0.4`.
 
 **Check all metrics**:
 
 ```bash
-curl -s http://localhost:8000/api/metrics | grep '^vllm_' | awk '{print $1}' | sort -u
+curl -s http://localhost:8000/api/metrics | grep '^vllm:' | awk '{print $1}' | sort -u
 ```
 
 Should list all 8 base metric base names (without suffixes).
@@ -184,7 +184,7 @@ oc logs -l app=vllm-optimizer-backend -n vllm-optimizer-dev | grep "StartupShim"
 1. Check that the shim is loaded: `StartupShim` message in logs.
 2. Verify collector loop is running (no exceptions).
 3. Confirm that `update_metrics()` is called and sets gauge values; histograms require `.observe()` calls to create bucket samples.
-4. If metrics still absent, manually trigger a scrape by calling `/api/metrics` and inspect output for `vllm_` lines. Zero-value gauges are emitted; histograms with no observations emit only HELP/TYPE.
+4. If metrics still absent, manually trigger a scrape by calling `/api/metrics` and inspect output for `vllm:` lines. Zero-value gauges are emitted; histograms with no observations emit only HELP/TYPE.
 
 ### Symptom: ServiceMonitor not scraping
 

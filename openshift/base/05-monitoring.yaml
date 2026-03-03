@@ -19,15 +19,15 @@ metadata:
     # OpenShift Monitoring이 이 레이블로 ServiceMonitor를 감지
     openshift.io/cluster-monitoring: "true"
 spec:
-  selector:
-    matchLabels:
-      app: vllm-optimizer-backend
-  endpoints:
-  - port: http
-    path: /metrics
-    interval: 15s
-    scrapeTimeout: 10s
-    scheme: http
+   selector:
+     matchLabels:
+       app: vllm-optimizer-backend
+   endpoints:
+   - port: http
+     path: /api/metrics
+     interval: 15s
+     scrapeTimeout: 10s
+     scheme: http
 ---
 # ── PrometheusRule: 알람 규칙 ─────────────────────────────────────────────────
 apiVersion: monitoring.coreos.com/v1
@@ -48,7 +48,7 @@ spec:
         - alert: VLLMHighP99Latency
           expr: |
             histogram_quantile(0.99,
-              rate(vllm_e2e_request_latency_seconds_bucket[5m])
+              rate(vllm:e2e_request_latency_seconds_bucket[5m])
             ) > 2.0
           for: 5m
           labels:
@@ -62,7 +62,7 @@ spec:
             runbook_url: "https://wiki.example.com/runbooks/vllm-high-latency"
 
         - alert: VLLMHighQueueDepth
-          expr: vllm_num_requests_waiting > 50
+          expr: vllm:num_requests_waiting > 50
           for: 2m
           labels:
             severity: warning
@@ -74,7 +74,7 @@ spec:
               HPA 스케일아웃 또는 파라미터 튜닝을 고려하세요.
 
         - alert: VLLMKVCacheSaturation
-          expr: vllm_gpu_cache_usage_perc > 0.95
+          expr: vllm:gpu_cache_usage_perc > 0.95
           for: 3m
           labels:
             severity: critical
@@ -87,7 +87,7 @@ spec:
 
         - alert: VLLMLowThroughput
           expr: |
-            rate(vllm_generation_tokens_total[5m]) < 10
+            rate(vllm:generation_tokens_total[5m]) < 10
           for: 10m
           labels:
             severity: warning

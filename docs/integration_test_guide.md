@@ -67,7 +67,7 @@ Example command the AI Agent will use:
 ```bash
 TOKEN=$(oc create token vllm-optimizer-backend -n vllm-optimizer-dev)
 THANOS_URL=$(oc get route thanos-querier -n openshift-monitoring -o jsonpath='{"https://"}{.spec.host}')
-curl -k -H "Authorization: Bearer $TOKEN" "$THANOS_URL/api/v1/query?query=vllm_total_requests"
+curl -k -H "Authorization: Bearer $TOKEN" "$THANOS_URL/api/v1/query?query=vllm:total_requests"
 ```
 The AI Agent expects to see metrics being returned, indicating successful scraping.
 
@@ -89,9 +89,9 @@ The AI Agent will check if the vLLM Optimizer backend's `/metrics` endpoint is e
 Example command the AI Agent will use:
 ```bash
 OPTIMIZER_ROUTE=$(oc get route vllm-optimizer -n vllm-optimizer-dev -o jsonpath='{"http://"}{.spec.host}{"\n"}')
-curl -sS "$OPTIMIZER_ROUTE/api/metrics" | grep "vllm_"
+curl -sS "$OPTIMIZER_ROUTE/api/metrics" | grep "vllm:"
 ```
-The AI Agent expects to see output containing `vllm_` prefixed metrics.
+The AI Agent expects to see output containing `vllm:` prefixed metrics.
 
 ### Task 12: Verify Auto Tuner ConfigMap Patch
 

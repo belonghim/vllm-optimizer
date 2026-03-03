@@ -45,17 +45,24 @@ class VLLMMetrics:
 
 # vLLM Prometheus 메트릭 쿼리 매핑
 VLLM_QUERIES = {
-    "tokens_per_second": 'rate(vllm_generation_tokens_total[1m])',
-    "requests_per_second": 'rate(vllm_request_success_total[1m])',
-    "mean_ttft_ms": 'histogram_quantile(0.5, rate(vllm_time_to_first_token_seconds_bucket[1m])) * 1000',
-    "p99_ttft_ms": 'histogram_quantile(0.99, rate(vllm_time_to_first_token_seconds_bucket[1m])) * 1000',
-    "mean_e2e_latency_ms": 'histogram_quantile(0.5, rate(vllm_e2e_request_latency_seconds_bucket[1m])) * 1000',
-    "p99_e2e_latency_ms": 'histogram_quantile(0.99, rate(vllm_e2e_request_latency_seconds_bucket[1m])) * 1000',
-    "kv_cache_usage_pct": 'vllm_gpu_cache_usage_perc * 100',
-    "kv_cache_hit_rate": 'vllm_cache_config_info',
-    "running_requests": 'vllm_num_requests_running',
-    "waiting_requests": 'vllm_num_requests_waiting',
-    "gpu_memory_used_gb": 'vllm_gpu_cache_usage_perc * vllm_gpu_memory_total_bytes / 1024^3',
+    # Throughput
+    "tokens_per_second": 'rate(vllm:generation_tokens_total[1m])',
+    "requests_per_second": 'rate(vllm:request_success_total[1m])',
+    # Latency
+    "mean_ttft_ms": 'histogram_quantile(0.5, rate(vllm:time_to_first_token_seconds_bucket[1m])) * 1000',
+    "p99_ttft_ms": 'histogram_quantile(0.99, rate(vllm:time_to_first_token_seconds_bucket[1m])) * 1000',
+    "mean_e2e_latency_ms": 'histogram_quantile(0.5, rate(vllm:e2e_request_latency_seconds_bucket[1m])) * 1000',
+    "p99_e2e_latency_ms": 'histogram_quantile(0.99, rate(vllm:e2e_request_latency_seconds_bucket[1m])) * 1000',
+    # KV Cache
+    "kv_cache_usage_pct": 'vllm:gpu_cache_usage_perc * 100',
+    "kv_cache_hit_rate": 'vllm:cache_config_info',
+    # Queue
+    "running_requests": 'vllm:num_requests_running',
+    "waiting_requests": 'vllm:num_requests_waiting',
+    # GPU Memory
+    "gpu_memory_used_gb": 'vllm:gpu_cache_usage_perc * vllm:gpu_memory_total_bytes / 1024^3',
+    # GPU Utilization (new)
+    "gpu_utilization_pct": 'vllm:gpu_utilization',
 }
 
 
