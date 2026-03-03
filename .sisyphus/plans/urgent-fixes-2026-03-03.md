@@ -198,7 +198,7 @@ Wave FINAL (After ALL tasks - 4 병렬)
 
 ### Wave 1: Foundation (6 tasks)
 
-#### Task 1: Fix Dev Overlay Namespace Bug
+#### Task 1: Fix Dev Overlay Namespace Bug - [x]
 
 **What to do**:
 - `openshift/overlays/dev/kustomization.yaml`의 Namespace 패치 (`lines 12-18`)에서 `value: vllm-optimizer-prod`를 `value: vllm-optimizer-dev`로 변경
