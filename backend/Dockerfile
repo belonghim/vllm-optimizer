@@ -1,7 +1,7 @@
 # Stage 1: Builder
 FROM registry.access.redhat.com/ubi9/python-311 AS builder
 WORKDIR /build
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 USER root
 
@@ -15,7 +15,7 @@ WORKDIR /app
 USER root
 # curl is pre-installed in ubi9/python-311; no additional packages needed for healthchecks.
 COPY --from=builder /opt/app-root /opt/app-root
-COPY . /app
+COPY backend/ /app
 RUN echo $(date +%s)
 RUN chown -R 1001:0 /app && chmod -R g+rwX /app
 USER 1001
