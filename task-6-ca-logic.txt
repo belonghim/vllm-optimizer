@@ -1,0 +1,5 @@
+- CA logic added in _query_prometheus:
+  ca_path = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+  verify = ca_path if os.path.exists(ca_path) else True
+  # httpx.AsyncClient now uses verify=verify
+- import os already present at top of file (line ~7)

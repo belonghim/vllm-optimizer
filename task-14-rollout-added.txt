@@ -1,0 +1,3 @@
+Evidence: rollout monitoring blocks inserted into deploy.sh
+- After first oc apply block (line ~131): added rollout status commands for backend/frontend and readiness waits.
+- After second oc apply block (dev overlay, line ~161+): added identical rollout status and readiness waits.

@@ -1,0 +1,7 @@
+Dry-run results for openshift/base/05-monitoring.yaml:
+servicemonitor.monitoring.coreos.com/vllm-optimizer-backend created (dry run)
+prometheusrule.monitoring.coreos.com/vllm-optimizer-alerts created (dry run)
+poddisruptionbudget.policy/vllm-optimizer-backend-pdb created (dry run)
+poddisruptionbudget.policy/vllm-optimizer-frontend-pdb created (dry run)
+networkpolicy.networking.k8s.io/vllm-optimizer-backend-netpol created (dry run)
+networkpolicy.networking.k8s.io/vllm-optimizer-frontend-netpol created (dry run)

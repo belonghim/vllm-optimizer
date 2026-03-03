@@ -1,0 +1,2 @@
+bash: syntax check for deploy.sh completed with no errors (bash -n deploy.sh).
+Note: The script contains two rollout monitoring blocks as required.

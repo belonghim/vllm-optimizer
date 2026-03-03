@@ -1,0 +1,6 @@
+HorizontalPodAutoscaler added to openshift/base/04-frontend.yaml
+Target: vllm-optimizer-frontend Deployment
+apiVersion: autoscaling/v2
+name: vllm-optimizer-frontend
+spec:
+- fields verified via grep output
