@@ -27,39 +27,79 @@
 ```
 vllm-optimizer/
 ├── AGENTS.md
+├── CHANGELOG.md
+├── deploy.sh                    # OpenShift 배포 스크립트
+├── nginx.conf                   # 루트 레벨 nginx 설정 (프론트엔드용)
+├── kustomize                    # 로컬 kustomize 바이너리
+├── debug_routes.py              # 디버그용 라우트
+│
 ├── backend/
+│   ├── __init__.py
 │   ├── Dockerfile              # UBI9 Python 기반, non-root, arbitrary UID
 │   ├── main.py                 # FastAPI 엔트리포인트
 │   ├── requirements.txt
+│   ├── startup_metrics_shim.py #/startup_metrics 엔드포인트
 │   ├── routers/
+│   │   ├── __init__.py
 │   │   ├── load_test.py        # 부하 테스트 API + SSE 스트림
 │   │   ├── metrics.py          # Thanos Querier 메트릭 조회
 │   │   ├── benchmark.py        # 벤치마크 저장/비교
 │   │   └── tuner.py            # Bayesian Optimization 튜너 API
 │   ├── services/
+│   │   ├── __init__.py
 │   │   ├── load_engine.py      # 비동기 부하 생성 엔진
 │   │   ├── metrics_collector.py # Prometheus + K8s API 수집기
 │   │   └── auto_tuner.py       # Optuna + K8s ConfigMap 업데이트
-│   └── models/
-│       └── load_test.py        # Pydantic 요청/응답 모델
-│
-├── deploy.sh                    # OpenShift 배포
+│   ├── models/
+│   │   ├── __init__.py
+│   │   └── load_test.py        # Pydantic 요청/응답 모델
+│   ├── metrics/
+│   │   ├── __init__.py
+│   │   └── prometheus_metrics.py # Prometheus 메트릭 정의
+│   └── tests/                   # 테스트 디렉토리
+│       ├── __init__.py
+│       ├── conftest.py
+│       ├── test_load_test.py
+│       ├── test_benchmark.py
+│       ├── test_tuner.py
+│       ├── test_metrics.py
+│       ├── test_prometheus_metrics.py
+│       ├── test_integration_metrics_e2e.py
+│       ├── test_dev_metrics_endpoint.py
+│       ├── test_service_monitor_config.py
+│       └── test_stub.py
 │
 ├── frontend/
-│   ├── Dockerfile              # UBI9 nginx, 8080 포트, non-root
+│   ├── Dockerfile              # UBI9 nginx-124, 8080 포트, non-root
 │   ├── nginx.conf              # SPA 라우팅, /api/* 프록시 설정
-│   ├── src/App.jsx             # React 대시보드 (4개 탭)
-│   └── package.json
+│   ├── package.json
+│   ├── vite.config.js          # Vite 빌드 설정
+│   ├── index.html              # HTML 엔트리포인트
+│   └── src/
+│       ├── main.jsx            # React 엔트리포인트
+│       ├── index.css           # 글로벌 스타일
+│       ├── App.jsx             # React 대시보드 (4개 탭)
+│       ├── constants.js        # 상수 정의
+│       ├── mockData.js         # 목업 데이터
+│       ├── pages/
+│       │   ├── MonitorPage.jsx    # 메트릭 모니터링 탭
+│       │   ├── LoadTestPage.jsx   # 부하 테스트 탭
+│       │   ├── BenchmarkPage.jsx  # 벤치마크 비교 탭
+│       │   └── TunerPage.jsx      # Auto Tuner 탭
+│       └── components/
+│           ├── Chart.jsx         # 차트 컴포넌트
+│           └── MetricCard.jsx    # 메트릭 카드 컴포넌트
 │
 └── openshift/
     ├── base/
-    │   ├── 01-namespace-rbac.yaml   # Namespace + ServiceAccount + ClusterRole + SCC
-    │   ├── 02-config.yaml           # ConfigMap + Secret
-    │   ├── 03-backend.yaml          # Deployment + Service + HPA
-    │   ├── 04-frontend.yaml         # Deployment + Service + Route
-    │   ├── 05-monitoring.yaml       # ServiceMonitor + PrometheusRule + PDB + NetworkPolicy
+    │   ├── 00-vllm-namespace.yaml  # vLLM 네임스페이스
+    │   ├── 01-namespace-rbac.yaml  # Namespace + ServiceAccount + ClusterRole + SCC
+    │   ├── 02-config.yaml          # ConfigMap + Secret
+    │   ├── 03-backend.yaml        # Deployment + Service + HPA
+    │   ├── 04-frontend.yaml      # Deployment + Service + Route
+    │   ├── 05-monitoring.yaml    # ServiceMonitor + PrometheusRule + PDB + NetworkPolicy
     │   └── kustomization.yaml
-    ├── dev-only/                    # vllm-optimizer 통합 검증용 vllm 자원
+    ├── dev-only/                    # vllm-optimizer 통합 검증용 vLLM 자원
     │   ├── 06-vllm-monitoring.yaml
     │   ├── kustomization.yaml
     │   ├── vllm-config.yaml
