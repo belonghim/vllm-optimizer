@@ -2,6 +2,8 @@
 실시간 메트릭 수집기 — Prometheus + Kubernetes API
 vLLM 전용 메트릭: TPS, TTFT, KV Cache, GPU Memory
 """
+import sys
+print(f"[DEBUG] Loading services/metrics_collector: __name__={__name__}, __file__={__file__}", file=sys.stderr)
 import logging
 import asyncio
 import httpx
