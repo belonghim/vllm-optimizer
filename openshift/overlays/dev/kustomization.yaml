@@ -8,7 +8,6 @@ labels:
       app.kubernetes.io/version: "dev"
 resources:
   - ../../base
-  - ../../dev-only
 patches:
   - target:
       kind: Namespace
