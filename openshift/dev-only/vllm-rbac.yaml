@@ -4,26 +4,30 @@ metadata:
   name: vllm-optimizer-backend-role
   namespace: vllm
 rules:
-  - apiGroups: ["apps"]
-    resources: ["deployments"]
-    verbs: ["get", "list", "patch"]
-  - apiGroups: [""]
-    resources: ["configmaps"]
-    verbs: ["get", "list", "patch"]
-  - apiGroups: [""]
-    resources: ["pods", "services"]
-    verbs: ["get", "list"]
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "patch"]
+- apiGroups: ["v1"]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "patch"]
+- apiGroups: ["v1"]
+  resources: ["services"]
+  verbs: ["get", "list"]
+- apiGroups: ["v1"]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: vllm-optimizer-backend-rb
   namespace: vllm
+subjects:
+- kind: ServiceAccount
+  name: vllm-optimizer-backend
+  namespace: vllm-optimizer-dev
 roleRef:
-  apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: vllm-optimizer-backend-role
-subjects:
-  - kind: ServiceAccount
-    name: vllm-optimizer-backend
-    namespace: vllm-optimizer-dev
+  apiGroup: rbac.authorization.k8s.io
