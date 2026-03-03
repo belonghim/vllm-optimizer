@@ -59,6 +59,14 @@ vllm-optimizer/
     │   ├── 04-frontend.yaml         # Deployment + Service + Route
     │   ├── 05-monitoring.yaml       # ServiceMonitor + PrometheusRule + PDB + NetworkPolicy
     │   └── kustomization.yaml
+    ├── dev-only/
+    │   ├── 06-vllm-monitoring.yaml
+    │   ├── kustomization.yaml
+    │   ├── vllm-config.yaml
+    │   ├── vllm-inferenceservice.yaml
+    │   ├── vllm-networkpolicy.yaml
+    │   ├── vllm-rbac.yaml
+    │   └── vllm-runtime.yaml
     ├── overlays/
     │   ├── dev/kustomization.yaml   # Dev: 리소스 축소, 1 레플리카
     │   └── prod/kustomization.yaml  # Prod: 3 레플리카, 리소스 확대

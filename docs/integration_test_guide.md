@@ -12,21 +12,24 @@ This guide outlines the steps to deploy the vLLM service and verify its integrat
 
 The `vllm-optimizer` client is designed to interact with an *already deployed* vLLM service. The AI Agent will now deploy the vLLM ServingRuntime and InferenceService resources into the `vllm` namespace.
 
-**Important:** Ensure you have a `PersistentVolumeClaim` named `model-pvc` in the `vllm` namespace, which contains the Qwen2.5-Coder-3B-Instruct-int4-ov model.
+
 
 The AI Agent will apply the Kustomize manifest from the root of your `vllm-optimizer-vllm-integration` project clone:
 
 ```bash
-oc apply -k openshift/base
+oc apply -k openshift/overlays/dev
 ```
 
 This command will deploy the following resources to the `vllm` namespace:
 
-- **Service Account, Role, RoleBinding**: Defined in `openshift/base/vllm-rbac.yaml` to allow the `vllm-optimizer-backend` to interact with vLLM resources.
-- **ServingRuntime**: Defined in `openshift/base/vllm-runtime.yaml` for the OpenVINO-based vLLM.
-- **InferenceService**: Defined in `openshift/base/vllm-inferenceservice.yaml` for the Qwen2.5-Coder-3B-Instruct-int4-ov model.
-- **ServiceMonitor & PrometheusRule**: Defined in `openshift/base/06-vllm-monitoring.yaml` for monitoring vLLM metrics.
-- **NetworkPolicy**: Defined in `openshift/base/vllm-networkpolicy.yaml` to allow communication between `vllm-optimizer-dev` and `vllm` namespaces, and with `openshift-monitoring`.
+- **Namespace**: The `vllm` namespace itself (defined in `openshift/base/00-vllm-namespace.yaml`).
+- **PersistentVolumeClaim**: `vllm-model-pvc` (defined in `openshift/base/07-model-pvc.yaml`).
+- **Model Downloader Job**: `vllm-model-downloader` (defined in `openshift/base/08-model-download-job.yaml`).
+- **Service Account, Role, RoleBinding**: Defined in `openshift/dev-only/vllm-rbac.yaml`.
+- **ServingRuntime**: Defined in `openshift/dev-only/vllm-runtime.yaml` for the OpenVINO-based vLLM.
+- **InferenceService**: Defined in `openshift/dev-only/vllm-inferenceservice.yaml` for the Qwen2.5-Coder-3B-Instruct-int4-ov model.
+- **ServiceMonitor & PrometheusRule**: Defined in `openshift/dev-only/06-vllm-monitoring.yaml` for monitoring vLLM metrics.
+- **NetworkPolicy**: Defined in `openshift/dev-only/vllm-networkpolicy.yaml` to allow communication between `vllm-optimizer-dev` and `vllm` namespaces, and with `openshift-monitoring`.
 
 The AI Agent will verify the deployment status using:
 

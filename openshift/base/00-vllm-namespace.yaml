@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vllm
+  labels:
+    openshift.io/cluster-monitoring: "true"
+  annotations:
+    openshift.io/display-name: "vLLM Service Namespace"
