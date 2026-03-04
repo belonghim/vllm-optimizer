@@ -59,6 +59,85 @@ log() { echo "[$(date +%H:%M:%S)] $*"; }
 ok()  { echo "[OK] $*"; }
 warn() { echo "[WARN] $*"; }
 
+get_image_digest() {
+  local image_ref="$1"
+  if [ -z "$image_ref" ]; then
+    echo "" 2>/dev/null
+    return 0
+  fi
+  local digest
+  # Use registry-confirmed digest from oc image info (works with remote registries)
+  digest=$(oc image info "$image_ref" --filter-by-os=linux/amd64 -o jsonpath='{.config.digest}' 2>/dev/null)
+  if [ -n "$digest" ]; then
+    # strip sha256: prefix if present
+    echo "${digest#sha256:}"
+    return 0
+  fi
+  echo "" 2>/dev/null
+  return 0
+}
+
+get_deployment_image_id() {
+  local deployment_name="$1"
+  if [ -z "$deployment_name" ]; then
+    echo "" 2>/dev/null
+    return 0
+  fi
+  local image
+  image=$(oc get deployment "$deployment_name" -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)
+  if [ -n "$image" ]; then
+    echo "$image"
+    return 0
+  fi
+  echo "" 2>/dev/null
+  return 0
+}
+
+compare_and_rollout() {
+  local deployment_name="$1"
+  local new_image_ref="$2"
+  local _namespace="$3"
+  if [ -z "$deployment_name" ] || [ -z "$new_image_ref" ]; then
+    log "[WARN] compare_and_rollout called with missing arguments"; return 0
+  fi
+
+  # get new digest from provided image reference
+  local new_digest
+  new_digest=$(get_image_digest "$new_image_ref" 2>/dev/null || true)
+
+  
+  local current_imageID current_digest
+  current_imageID=$(oc get pod -l app="$deployment_name" -n "$_namespace" -o jsonpath='{.items[0].status.containerStatuses[0].imageID}' 2>/dev/null || true)
+  if [ -n "$current_imageID" ]; then
+  
+    local tmp
+    tmp=${current_imageID#docker://}
+    current_digest=${tmp#sha256:}
+  else
+    current_digest=""
+  fi
+
+  if [ -z "$new_digest" ]; then
+    log "[WARN] Could not extract new digest for $deployment_name; skipping rollout";
+    return 0
+  fi
+
+  if [ -z "$current_digest" ]; then
+    log "[INFO] Current digest not found for $deployment_name; triggering rollout";
+    oc rollout restart deployment/$deployment_name -n "$_namespace" || true
+    oc rollout status deployment/$deployment_name -n "$_namespace" --timeout=5m
+    return 0
+  fi
+
+  if [ "$new_digest" != "$current_digest" ]; then
+    log "[INFO] Image changed for $deployment_name: ${current_digest} -> ${new_digest}; triggering rollout"
+    oc rollout restart deployment/$deployment_name -n "$_namespace" || true
+    oc rollout status deployment/$deployment_name -n "$_namespace" --timeout=5m
+  else
+    log "[INFO] Image unchanged for $deployment_name, skipping rollout"
+  fi
+}
+
 info_dry_run() {
   if [[ "$DRY_RUN" == "true" ]]; then
     echo ""
@@ -95,7 +174,10 @@ log "Starting container image build (backend) -> ${REGISTRY}/vllm-optimizer-back
      --platform linux/amd64 \
      -t "${REGISTRY}/vllm-optimizer-frontend:${IMAGE_TAG}" \
      "${PROJECT_ROOT}/frontend"
-  ok "Frontend image built: ${REGISTRY}/vllm-optimizer-frontend:${IMAGE_TAG}"
+   ok "Frontend image built: ${REGISTRY}/vllm-optimizer-frontend:${IMAGE_TAG}"
+
+    
+    
 
 ## Push phase (non-dry-run)
 if [[ "$DRY_RUN" != "true" && "$SKIP_BUILD" != "true" ]]; then
@@ -108,6 +190,9 @@ if [[ "$DRY_RUN" != "true" && "$SKIP_BUILD" != "true" ]]; then
   log "Pushing frontend image..."
   podman push "${REGISTRY}/vllm-optimizer-frontend:${IMAGE_TAG}"
   ok "Images pushed to ${REGISTRY}"
+  # After push: perform digest-based rollout checks
+  compare_and_rollout "vllm-optimizer-backend" "${REGISTRY}/vllm-optimizer-backend:${IMAGE_TAG}" "${NAMESPACE}"
+  compare_and_rollout "vllm-optimizer-frontend" "${REGISTRY}/vllm-optimizer-frontend:${IMAGE_TAG}" "${NAMESPACE}"
 else
   warn "[DRY-RUN] Skipping image push"
 fi
@@ -126,18 +211,10 @@ else
     kustomize build "${OVERLAY_PATH}" | oc apply -n "${NAMESPACE}" -f -
   else
     oc kustomize "${OVERLAY_PATH}" | oc apply -n "${NAMESPACE}" -f -
-  fi
-fi
+   fi
+ fi
 
-echo "⏳ Start rollout restart"
-oc rollout restart deployment/vllm-optimizer-backend -n "${NAMESPACE}"
-oc rollout restart deployment/vllm-optimizer-frontend -n "${NAMESPACE}"
-
-echo "⏳ Waiting for rollout to complete..."
-oc rollout status deployment/vllm-optimizer-backend -n "${NAMESPACE}" --timeout=5m
-oc rollout status deployment/vllm-optimizer-frontend -n "${NAMESPACE}" --timeout=5m
-
-echo "⏳ Waiting for pods to be ready..."
+ echo "⏳ Waiting for pods to be ready..."
 oc wait --for=condition=Ready pod -l app=vllm-optimizer-backend -n "${NAMESPACE}" --timeout=300s
 oc wait --for=condition=Ready pod -l app=vllm-optimizer-frontend -n "${NAMESPACE}" --timeout=300s
 
@@ -160,13 +237,7 @@ if [[ "$ENV" == "dev" ]]; then
     fi
   fi
 
-  echo "⏳ Start rollout restart"
-  oc rollout restart deployment/vllm-optimizer-backend -n "${NAMESPACE}"
-  oc rollout restart deployment/vllm-optimizer-frontend -n "${NAMESPACE}"
-
-  echo "⏳ Waiting for rollout to complete..."
-  oc rollout status deployment/vllm-optimizer-backend -n "${NAMESPACE}" --timeout=5m
-  oc rollout status deployment/vllm-optimizer-frontend -n "${NAMESPACE}" --timeout=5m
+ 
 
   echo "⏳ Waiting for pods to be ready..."
   oc wait --for=condition=Ready pod -l app=vllm-optimizer-backend -n "${NAMESPACE}" --timeout=300s
