@@ -9,10 +9,10 @@ import asyncio
 import httpx
 import os
 from dataclasses import dataclass
-from typing import Optional, cast
-from kubernetes import client as k8s_client, config as k8s_config
+from typing import Any, cast
+from kubernetes import client, config
 from kubernetes.client import V1Deployment
-from metrics.prometheus_metrics import update_metrics
+from ..metrics.prometheus_metrics import update_metrics
 
 PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091")
 K8S_NAMESPACE = os.getenv("K8S_NAMESPACE", "default")
@@ -46,7 +46,7 @@ class VLLMMetrics:
 
 
 # vLLM Prometheus 메트릭 쿼리 매핑
-VLLM_QUERIES_BY_VERSION = {
+VLLM_QUERIES_BY_VERSION: dict[str, dict[str, str]] = {
     "0.11.x": {
         # Throughput
         "tokens_per_second": 'rate(vllm:generation_tokens_total[1m])',
@@ -93,22 +93,36 @@ VLLM_QUERIES_BY_VERSION = {
 
 
 class MetricsCollector:
+    _latest: VLLMMetrics | None
+    _history: list[VLLMMetrics]
+    _max_history: int = 300  # 5분 @ 1초 간격
+    _running: bool = False
+    _k8s_available: bool = False
+    _token: str | None
+    _current_queries: dict[str, str] | None # Will be set after version detection
+    _version: str = "unknown"
+    _missing_metrics: list[str] = []
+    _k8s_apps: client.AppsV1Api
+    _k8s_core: client.CoreV1Api
+
     def __init__(self):
-        self._latest: Optional[VLLMMetrics] = None
-        self._history: list[VLLMMetrics] = []
-        self._max_history = 300  # 5분 @ 1초 간격
+        self._latest = None
+        self._history = []
         self._running = False
         self._k8s_available = False
         self._token = self._load_token()
         self._init_k8s()
         self._current_queries = None # Will be set after version detection
+        self._version = "unknown"
+        self._missing_metrics = []
 
     async def _post_init(self):
         # This needs to be async, so we call it after __init__
         version = await self._detect_version()
+        self._version = version
         self._current_queries = VLLM_QUERIES_BY_VERSION.get(version, VLLM_QUERIES_BY_VERSION["0.11.x"])
 
-    def _load_token(self) -> Optional[str]:
+    def _load_token(self) -> str | None:
         # Read Kubernetes serviceaccount token if available
         token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
         try:
@@ -122,11 +136,11 @@ class MetricsCollector:
     def _init_k8s(self):
         try:
             try:
-                k8s_config.load_incluster_config()  # Pod 내부에서 실행 시
+                config.load_incluster_config()
             except Exception:
-                k8s_config.load_kube_config()  # 로컬 개발 시
-            self._k8s_apps = k8s_client.AppsV1Api()
-            self._k8s_core = k8s_client.CoreV1Api()
+                config.load_kube_config()
+            self._k8s_apps = client.AppsV1Api()
+            self._k8s_core = client.CoreV1Api()
             self._k8s_available = True
         except Exception as e:
             logging.error(f"[MetricsCollector] K8s 초기화 실패 (모의 데이터 사용): {e}")
@@ -136,11 +150,7 @@ class MetricsCollector:
         self._running = True
         while self._running:
             try:
-                metrics = await self._collect()
-                self._latest = metrics
-                self._history.append(metrics)
-                if len(self._history) > self._max_history:
-                    self._history.pop(0)
+                _ = await self._collect()
             except Exception as e:
                 logging.error(f"[MetricsCollector] 수집 오류: {e}")
             await asyncio.sleep(interval)
@@ -149,7 +159,7 @@ class MetricsCollector:
         self._running = False
 
     @property
-    def latest(self) -> Optional[VLLMMetrics]:
+    def latest(self) -> VLLMMetrics | None:
         return self._latest
 
     @property
@@ -177,7 +187,21 @@ class MetricsCollector:
 
         return metrics
 
-    async def _query_prometheus(self) -> dict:
+    async def _fetch_prometheus_metric(self, client: httpx.AsyncClient, metric_name: str, query: str) -> tuple[str, float | None]:
+        try:
+            resp = await client.get(
+                f"{PROMETHEUS_URL}/api/v1/query",
+                params={"query": query},
+            )
+            data = await resp.json()
+            if data["status"] == "success" and data["data"]["result"]:
+                value = float(data["data"]["result"][0]["value"][1])
+                return metric_name, round(value, 3)
+        except Exception:
+            pass
+        return metric_name, None
+
+    async def _query_prometheus(self) -> dict[str, float]:
         headers = {}
         if getattr(self, "_token", None):
             headers["Authorization"] = f"Bearer {self._token}"
@@ -187,25 +211,13 @@ class MetricsCollector:
         verify = ca_path if os.path.exists(ca_path) else True
 
         async with httpx.AsyncClient(timeout=5, verify=verify, headers=headers) as client:
-            async def fetch(metric_name: str, query: str) -> tuple[str, Optional[float]]:
-                try:
-                    resp = await client.get(
-                        f"{PROMETHEUS_URL}/api/v1/query",
-                        params={"query": query},
-                    )
-                    data = resp.json()
-                    if data["status"] == "success" and data["data"]["result"]:
-                        value = float(data["data"]["result"][0]["value"][1])
-                        return metric_name, round(value, 3)
-                except Exception:
-                    pass
-                return metric_name, None
-
-            tasks = [fetch(name, query) for name, query in self._current_queries.items()]
+            tasks = []
+            if self._current_queries is not None: # Added check
+                tasks = [self._fetch_prometheus_metric(client, name, query) for name, query in self._current_queries.items()]
             responses = await asyncio.gather(*tasks)
 
-        result = {}
-        missing_metrics = []
+        result: dict[str, float] = {}
+        missing_metrics: list[str] = []
         for name, value in responses:
             if value is not None:
                 result[name] = value
@@ -215,6 +227,7 @@ class MetricsCollector:
         if missing_metrics:
             logging.warning(f"[MetricsCollector] Metrics not available: {', '.join(missing_metrics)}")
         
+        self._missing_metrics = missing_metrics
         return result
 
     async def _detect_version(self) -> str:
@@ -231,7 +244,7 @@ class MetricsCollector:
                     f"{PROMETHEUS_URL}/api/v1/query",
                     params={"query": "vllm:kv_cache_usage_perc"},
                 )
-                data = resp.json()
+                data = await resp.json()
                 if data["status"] == "success" and data["data"]["result"]:
                     logging.info("[MetricsCollector] Detected vLLM version: 0.13.x")
                     return "0.13.x"
@@ -240,7 +253,7 @@ class MetricsCollector:
         logging.info("[MetricsCollector] Detected vLLM version: 0.11.x (fallback)")
         return "0.11.x"
 
-    def _query_kubernetes(self) -> dict:
+    def _query_kubernetes(self) -> dict[str, int]:
         try:
             deployment = cast(V1Deployment, self._k8s_apps.read_namespaced_deployment(
                 name=K8S_DEPLOYMENT,
@@ -266,7 +279,15 @@ class MetricsCollector:
         except Exception:
             return {}
 
-    def get_history_dict(self, last_n: int = 60) -> list[dict]:
+    @property
+    def version(self) -> str:
+        return self._version
+
+    @property
+    def missing_metrics(self) -> list[str]:
+        return self._missing_metrics
+
+    def get_history_dict(self, last_n: int = 60, include_metadata: bool = True) -> list[dict[str, Any]]:
         history = self._history[-last_n:]
         return [
             {
@@ -286,6 +307,10 @@ class MetricsCollector:
                 "gpu_util": m.gpu_utilization_pct,
                 "pods": m.pod_count,
                 "pods_ready": m.pod_ready,
+                "_metadata": {
+                    "vllm_version": self._version,
+                    "missing_metrics": self._missing_metrics,
+                } if include_metadata else None,
             }
             for m in history
         ]
