@@ -46,25 +46,49 @@ class VLLMMetrics:
 
 
 # vLLM Prometheus 메트릭 쿼리 매핑
-VLLM_QUERIES = {
-    # Throughput
-    "tokens_per_second": 'rate(vllm:generation_tokens_total[1m])',
-    "requests_per_second": 'rate(vllm:request_success_total[1m])',
-    # Latency
-    "mean_ttft_ms": 'histogram_quantile(0.5, rate(vllm:time_to_first_token_seconds_bucket[1m])) * 1000',
-    "p99_ttft_ms": 'histogram_quantile(0.99, rate(vllm:time_to_first_token_seconds_bucket[1m])) * 1000',
-    "mean_e2e_latency_ms": 'histogram_quantile(0.5, rate(vllm:e2e_request_latency_seconds_bucket[1m])) * 1000',
-    "p99_e2e_latency_ms": 'histogram_quantile(0.99, rate(vllm:e2e_request_latency_seconds_bucket[1m])) * 1000',
-    # KV Cache
-    "kv_cache_usage_pct": 'vllm:gpu_cache_usage_perc * 100',
-    "kv_cache_hit_rate": 'vllm:cache_config_info',
-    # Queue
-    "running_requests": 'vllm:num_requests_running',
-    "waiting_requests": 'vllm:num_requests_waiting',
-    # GPU Memory
-    "gpu_memory_used_gb": 'vllm:gpu_cache_usage_perc * vllm:gpu_memory_total_bytes / 1024^3',
-    # GPU Utilization (new)
-    "gpu_utilization_pct": 'vllm:gpu_utilization',
+VLLM_QUERIES_BY_VERSION = {
+    "0.11.x": {
+        # Throughput
+        "tokens_per_second": 'rate(vllm:generation_tokens_total[1m])',
+        "requests_per_second": 'rate(vllm:request_success_total[1m])',
+        # Latency
+        "mean_ttft_ms": 'histogram_quantile(0.5, rate(vllm:time_to_first_token_seconds_bucket[1m])) * 1000',
+        "p99_ttft_ms": 'histogram_quantile(0.99, rate(vllm:time_to_first_token_seconds_bucket[1m])) * 1000',
+        "mean_e2e_latency_ms": 'histogram_quantile(0.5, rate(vllm:e2e_request_latency_seconds_bucket[1m])) * 1000',
+        "p99_e2e_latency_ms": 'histogram_quantile(0.99, rate(vllm:e2e_request_latency_seconds_bucket[1m])) * 1000',
+        # KV Cache
+        "kv_cache_usage_pct": 'vllm:gpu_cache_usage_perc * 100',
+        "kv_cache_hit_rate": 'vllm:cache_config_info', # This might be missing in 0.11.x, will be handled by logging
+        # Queue
+        "running_requests": 'vllm:num_requests_running',
+        "waiting_requests": 'vllm:num_requests_waiting',
+        # GPU Memory
+        "gpu_memory_used_gb": 'vllm:gpu_cache_usage_perc * vllm:gpu_memory_total_bytes / 1024^3',
+        "gpu_memory_total_gb": 'vllm:gpu_memory_total_bytes / 1024^3',
+        # GPU Utilization
+        "gpu_utilization_pct": 'vllm:gpu_utilization',
+    },
+    "0.13.x": {
+        # Throughput
+        "tokens_per_second": 'sum(rate(vllm:num_generated_tokens[1m]))',
+        "requests_per_second": 'sum(rate(vllm:num_requests_finished[1m]))',
+        # Latency
+        "mean_ttft_ms": 'histogram_quantile(0.5, sum by (le) (rate(vllm:time_to_first_token_seconds_bucket[1m]))) * 1000',
+        "p99_ttft_ms": 'histogram_quantile(0.99, sum by (le) (rate(vllm:time_to_first_token_seconds_bucket[1m]))) * 1000',
+        "mean_e2e_latency_ms": 'histogram_quantile(0.5, sum by (le) (rate(vllm:e2e_request_latency_seconds_bucket[1m]))) * 1000',
+        "p99_e2e_latency_ms": 'histogram_quantile(0.99, sum by (le) (rate(vllm:e2e_request_latency_seconds_bucket[1m]))) * 1000',
+        # KV Cache
+        "kv_cache_usage_pct": 'vllm:kv_cache_usage_perc * 100',
+        "kv_cache_hit_rate": 'vllm:kv_cache_hit_rate',
+        # Queue
+        "running_requests": 'vllm:num_requests_running',
+        "waiting_requests": 'vllm:num_requests_waiting',
+        # GPU Memory
+        "gpu_memory_used_gb": 'vllm:gpu_memory_usage_bytes / 1024^3',
+        "gpu_memory_total_gb": 'vllm:gpu_memory_total_bytes / 1024^3',
+        # GPU Utilization
+        "gpu_utilization_pct": 'vllm:gpu_utilization_perc * 100',
+    }
 }
 
 
@@ -77,6 +101,12 @@ class MetricsCollector:
         self._k8s_available = False
         self._token = self._load_token()
         self._init_k8s()
+        self._current_queries = None # Will be set after version detection
+
+    async def _post_init(self):
+        # This needs to be async, so we call it after __init__
+        version = await self._detect_version()
+        self._current_queries = VLLM_QUERIES_BY_VERSION.get(version, VLLM_QUERIES_BY_VERSION["0.11.x"])
 
     def _load_token(self) -> Optional[str]:
         # Read Kubernetes serviceaccount token if available
@@ -102,6 +132,7 @@ class MetricsCollector:
             logging.error(f"[MetricsCollector] K8s 초기화 실패 (모의 데이터 사용): {e}")
 
     async def start_collection(self, interval: float = 2.0):
+        await self._post_init() # Initialize current_queries after version detection
         self._running = True
         while self._running:
             try:
@@ -170,10 +201,44 @@ class MetricsCollector:
                     pass
                 return metric_name, None
 
-            tasks = [fetch(name, query) for name, query in VLLM_QUERIES.items()]
+            tasks = [fetch(name, query) for name, query in self._current_queries.items()]
             responses = await asyncio.gather(*tasks)
 
-        return {name: value for name, value in responses if value is not None}
+        result = {}
+        missing_metrics = []
+        for name, value in responses:
+            if value is not None:
+                result[name] = value
+            else:
+                missing_metrics.append(name)
+        
+        if missing_metrics:
+            logging.warning(f"[MetricsCollector] Metrics not available: {', '.join(missing_metrics)}")
+        
+        return result
+
+    async def _detect_version(self) -> str:
+        headers = {}
+        if getattr(self, "_token", None):
+            headers["Authorization"] = f"Bearer {self._token}"
+
+        ca_path = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+        verify = ca_path if os.path.exists(ca_path) else True
+
+        async with httpx.AsyncClient(timeout=5, verify=verify, headers=headers) as client:
+            try:
+                resp = await client.get(
+                    f"{PROMETHEUS_URL}/api/v1/query",
+                    params={"query": "vllm:kv_cache_usage_perc"},
+                )
+                data = resp.json()
+                if data["status"] == "success" and data["data"]["result"]:
+                    logging.info("[MetricsCollector] Detected vLLM version: 0.13.x")
+                    return "0.13.x"
+            except Exception as e:
+                logging.warning(f"[MetricsCollector] Failed to query for vLLM 0.13.x specific metric, falling back to 0.11.x: {e}")
+        logging.info("[MetricsCollector] Detected vLLM version: 0.11.x (fallback)")
+        return "0.11.x"
 
     def _query_kubernetes(self) -> dict:
         try:
