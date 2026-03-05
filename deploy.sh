@@ -250,7 +250,7 @@ fi
 
 # Post-deployment: assign SCC to backend/frontend service accounts
 oc adm policy add-scc-to-user vllm-optimizer-scc -z vllm-optimizer-backend -n "${NAMESPACE}" || warn "SCC assignment failed. Backend"
-oc adm policy add-scc-to-user vllm-optimizer-frontend -n "${NAMESPACE}" || warn "SCC assignment failed. Frontend"
+oc adm policy add-scc-to-user vllm-optimizer-scc -z vllm-optimizer-frontend -n "${NAMESPACE}" || warn "SCC assignment failed. Frontend"
 if [[ "$ENV" == "dev" ]]; then
   oc adm policy add-scc-to-user vllm-optimizer-scc -z vllm-optimizer-backend -n "${VLLM_NAMESPACE}" || warn "SCC assignment failed for vLLM namespace. Backend"
 fi
