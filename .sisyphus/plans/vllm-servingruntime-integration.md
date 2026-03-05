@@ -293,7 +293,7 @@ oc exec $BACKEND_POD -n vllm-optimizer-dev -- curl -s http://llm-ov-predictor.vl
 
 #### 운영 요구사항
 - [x] vLLM 관련 리소스는 `prod` 환경에 배포되지 않음
-- [ ] All acceptance criteria passed in test environment
+- [x] All acceptance criteria passed in test environment
 
 #### 범위 외 (사용자 책임)
 - [x] vLLM 모델은 사용자가 사전 배포 (PVC 생성, 모델 복사) — **범위外, 사용자 책임**
