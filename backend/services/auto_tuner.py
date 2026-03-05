@@ -42,9 +42,39 @@ class AutoTuner:
                 k8s_config.load_kube_config()
             self._k8s_apps = k8s_client.AppsV1Api()
             self._k8s_core = k8s_client.CoreV1Api()
+            self._k8s_custom = k8s_client.CustomObjectsApi()
             self._k8s_available = True
         except Exception:
             pass
+
+    async def _wait_for_ready(self, timeout: int = 300, interval: int = 5) -> bool:
+        """InferenceService가 준비될 때까지 폴링합니다."""
+        logging.info(f"[AutoTuner] InferenceService '{K8S_DEPLOYMENT}' 준비 대기 중...")
+        start_time = asyncio.get_event_loop().time()
+        while asyncio.get_event_loop().time() - start_time < timeout:
+            try:
+                inferenceservice = await self._k8s_custom.get_namespaced_custom_object(
+                    group="serving.kserve.io",
+                    version="v1beta1",
+                    name=K8S_DEPLOYMENT,
+                    namespace=K8S_NAMESPACE,
+                    plural="inferenceservices",
+                )
+                
+                # Check for Ready condition
+                if inferenceservice and "status" in inferenceservice and "conditions" in inferenceservice["status"]:
+                    for condition in inferenceservice["status"]["conditions"]:
+                        if condition.get("type") == "Ready" and condition.get("status") == "True":
+                            logging.info(f"[AutoTuner] InferenceService '{K8S_DEPLOYMENT}' 준비 완료.")
+                            return True
+                
+            except Exception as e:
+                logging.warning(f"[AutoTuner] InferenceService 상태 확인 중 오류 발생: {e}")
+            
+            await asyncio.sleep(interval)
+        
+        logging.error(f"[AutoTuner] InferenceService '{K8S_DEPLOYMENT}' 시간 초과: {timeout}초 내에 준비되지 않음.")
+        return False
 
     @property
     def trials(self) -> List[TuningTrial]:
@@ -90,7 +120,7 @@ class AutoTuner:
                     continue
 
                 # vLLM 재시작 대기
-                await asyncio.sleep(30)
+                await self._wait_for_ready()
 
                 # 성능 측정
                 score, tps, p99_lat = await self._evaluate(vllm_endpoint, config)
@@ -109,6 +139,11 @@ class AutoTuner:
                     self._trials.append(t)
                     if self._best_trial is None or (direction == "maximize" and score > self._best_trial.score) or (direction == "minimize" and score < self._best_trial.score):
                         self._best_trial = t
+
+            if self._best_trial:
+                logging.info(f"[AutoTuner] 튜닝 완료. 최적 파라미터로 InferenceService 재설정: {self._best_trial.params}")
+                await self._apply_params(self._best_trial.params, restart_only=True)
+                await self._wait_for_ready()
 
             return {
                 "completed": True,
@@ -146,7 +181,7 @@ class AutoTuner:
             ),
         }
 
-    async def _apply_params(self, params: dict) -> dict:
+    async def _apply_params(self, params: dict, restart_only: bool = False) -> dict:
         """ConfigMap 업데이트 → Deployment 재시작"""
         if not self._k8s_available:
             logging.info(f"[AutoTuner] K8s 없음 — 파라미터 적용 시뮬레이션: {params}")
@@ -154,25 +189,26 @@ class AutoTuner:
 
         try:
             async with self._k8s_lock:
-                # ConfigMap 업데이트
-                logging.info(f"[AutoTuner] ConfigMap '{K8S_CONFIGMAP}' in namespace '{K8S_NAMESPACE}'")
-                current_cm = self._k8s_core.read_namespaced_config_map(
-                    name=K8S_CONFIGMAP, namespace=K8S_NAMESPACE
-                )
-                
-                patch_body = {
-                    "data": {
-                        "MAX_NUM_SEQS": str(params["max_num_seqs"]),
-                        "GPU_MEMORY_UTILIZATION": str(params["gpu_memory_utilization"]),
-                        "MAX_MODEL_LEN": str(params["max_model_len"]),
-                        "ENABLE_CHUNKED_PREFILL": str(params["enable_chunked_prefill"]).lower(),
+                if not restart_only:
+                    # ConfigMap 업데이트
+                    logging.info(f"[AutoTuner] ConfigMap '{K8S_CONFIGMAP}' in namespace '{K8S_NAMESPACE}'")
+                    current_cm = self._k8s_core.read_namespaced_config_map(
+                        name=K8S_CONFIGMAP, namespace=K8S_NAMESPACE
+                    )
+                    
+                    patch_body = {
+                        "data": {
+                            "MAX_NUM_SEQS": str(params["max_num_seqs"]),
+                            "GPU_MEMORY_UTILIZATION": str(params["gpu_memory_utilization"]),
+                            "MAX_MODEL_LEN": str(params["max_model_len"]),
+                            "ENABLE_CHUNKED_PREFILL": str(params["enable_chunked_prefill"]).lower(),
+                        }
                     }
-                }
-                
-                self._k8s_core.patch_namespaced_config_map(
-                    name=K8S_CONFIGMAP, namespace=K8S_NAMESPACE, body=patch_body
-                )
-                logging.info(f"[AutoTuner] ConfigMap '{K8S_CONFIGMAP}' patched successfully.")
+                    
+                    self._k8s_core.patch_namespaced_config_map(
+                        name=K8S_CONFIGMAP, namespace=K8S_NAMESPACE, body=patch_body
+                    )
+                    logging.info(f"[AutoTuner] ConfigMap '{K8S_CONFIGMAP}' patched successfully.")
 
                 # InferenceService 재시작 트리거
                 try:
@@ -183,9 +219,11 @@ class AutoTuner:
                     name = K8S_DEPLOYMENT # Use K8S_DEPLOYMENT for InferenceService name
                     
                     restart_body = {
-                        "metadata": {
-                            "annotations": {
-                                "serving.kserve.io/restartedAt": datetime.datetime.utcnow().isoformat() + "Z"
+                        "spec": {
+                            "predictor": {
+                                "annotations": {
+                                    "serving.kserve.io/restartedAt": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+                                }
                             }
                         }
                     }
