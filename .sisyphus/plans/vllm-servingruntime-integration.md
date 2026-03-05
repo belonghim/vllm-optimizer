@@ -230,7 +230,7 @@ Wave FINAL (Independent Review):
 ### Wave 4: Integration + Validation
 - [x] 10. Verify Backend → vLLM connectivity
 - [x] 11. Verify Optimizer API returns vLLM metrics
-- [ ] 12. Verify Auto Tuner ConfigMap patch (end-to-end)
+- [x] 12. Verify Auto Tuner ConfigMap patch (end-to-end)
 - [x] 13. Write integration test guide
 
 ### Final Verification
