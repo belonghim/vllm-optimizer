@@ -1,7 +1,3 @@
-# opencode / sisyphus
-.sisyphus/*
-!.sisyphus/plans/
-
 # env
 .env
 .env.*
