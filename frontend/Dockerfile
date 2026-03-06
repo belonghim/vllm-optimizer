@@ -13,7 +13,7 @@ RUN npm run build
 # Red Hat UBI9 nginx-124 runtime for enterprise support and security
 FROM registry.access.redhat.com/ubi9/nginx-124 AS runtime
 LABEL app="vllm-optimizer-frontend" version="1.0.0"
-COPY ../nginx.conf /etc/nginx/nginx.conf
+COPY nginx.conf /etc/nginx/nginx.conf
 USER root
 RUN chmod 644 /etc/nginx/nginx.conf
 COPY --from=builder /build/dist /usr/share/nginx/html
