@@ -5,6 +5,12 @@ This module provides minimal fixtures to enable test discovery without
 requiring heavy dependencies or external services.
 """
 
+import sys
+import os
+
+# Add the 'backend' directory to sys.path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import pytest
 
 

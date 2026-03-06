@@ -2,8 +2,7 @@
 실시간 메트릭 수집기 — Prometheus + Kubernetes API
 vLLM 전용 메트릭: TPS, TTFT, KV Cache, GPU Memory
 """
-import sys
-print(f"[DEBUG] Loading services/metrics_collector: __name__={__name__}, __file__={__file__}", file=sys.stderr)
+
 import logging
 import asyncio
 import httpx
@@ -12,7 +11,7 @@ from dataclasses import dataclass
 from typing import Any, cast
 from kubernetes import client, config
 from kubernetes.client import V1Deployment
-from ..metrics.prometheus_metrics import update_metrics
+from metrics.prometheus_metrics import update_metrics
 
 PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091")
 K8S_NAMESPACE = os.getenv("K8S_NAMESPACE", "default")

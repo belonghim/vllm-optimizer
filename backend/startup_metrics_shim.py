@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 def register(app):
     try:
@@ -12,7 +13,7 @@ def register(app):
     @app.on_event("startup")
     async def _start_metrics_collector():
         task_holder["task"] = asyncio.create_task(collector.start_collection(interval=2.0))
-        print("[StartupShim] MetricsCollector started (background)")
+        logging.info("[StartupShim] MetricsCollector started (background)")
 
     @app.on_event("shutdown")
     async def _shutdown_metrics_collector():
