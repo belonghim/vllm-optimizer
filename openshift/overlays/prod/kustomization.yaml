@@ -24,13 +24,7 @@ patches:
       - op: replace
         path: /subjects/0/namespace
         value: vllm-optimizer-prod
-  - target:
-      kind: HorizontalPodAutoscaler
-      name: vllm-optimizer-backend-hpa
-    patch: |-
-      - op: replace
-        path: /spec/minReplicas
-        value: 2
+
   - target:
       kind: Deployment
       name: vllm-optimizer-backend
@@ -51,10 +45,4 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/image
         value: quay.io/joopark/vllm-optimizer-frontend:1.0.0
-  - target:
-      kind: HorizontalPodAutoscaler
-      name: vllm-optimizer-frontend
-    patch: |-
-      - op: replace
-        path: /spec/minReplicas
-        value: 1
+
