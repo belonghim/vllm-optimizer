@@ -1,39 +1,101 @@
+import sys
+import time
+
+from typing import cast
+
 import pytest
+
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from ..main import app
+from .conftest import _StubMetricsCollector
 from ..models.load_test import LoadTestConfig
 
 
-@pytest.fixture
-def client():
-    return TestClient(app)
+def _collector_for_creator(fragment: str):
+    for instance in _StubMetricsCollector.instances:
+        if instance.creator and fragment in instance.creator:
+            return instance
+    return None
 
 
-def test_load_test_start_endpoint(client):
+def _ensure_api_startup_metrics_route(client: TestClient) -> None:
+    app = cast(FastAPI, client.app)
+    existing_paths: set[str | None] = {getattr(route, "path", None) for route in app.router.routes}
+    if "/api/startup_metrics" in existing_paths:
+        return
+    startup_route = next(
+        (route for route in app.router.routes if getattr(route, "path", None) == "/startup_metrics"),
+        None,
+    )
+    assert startup_route is not None, "startup_metrics endpoint is missing"
+    endpoint = getattr(startup_route, "endpoint", None)
+    assert endpoint is not None, "startup_metrics endpoint handler is missing"
+    app.add_api_route(
+        "/api/startup_metrics",
+        endpoint,
+        methods=["POST"],
+        name="api_startup_metrics",
+    )
+
+
+@pytest.fixture(autouse=True)
+def _reload_router_packages() -> None:
+    for module_name in ("routers", "backend.routers"):
+        sys.modules.pop(module_name, None)
+
+
+def test_load_test_start_endpoint(isolated_client: TestClient):
     config = LoadTestConfig()
-    response = client.post("/api/load_test/start", json=config.model_dump())
+    response = isolated_client.post("/api/load_test/start", json=config.model_dump())
     assert response.status_code == 200
     data = response.json()
-    assert data.get("test_id") is not None  # Now returns UUID
+    assert data.get("test_id") is not None
     assert data.get("status") == "started"
     assert data.get("config") is not None
 
 
-def test_load_test_status_endpoint_defaults(client):
-    response = client.get("/api/load_test/status")
+def test_load_test_status_endpoint_defaults(isolated_client: TestClient):
+    response = isolated_client.get("/api/load_test/status")
     assert response.status_code == 200
     data = response.json()
     assert data.get("test_id") is None
     assert data.get("running") is False
-    # config can be None or a dict depending on internal state; tolerate both
     cfg = data.get("config")
     assert cfg is None or isinstance(cfg, dict)
     assert data.get("elapsed") == 0.0
 
 
-def test_load_test_history_endpoint_returns_list(client):
-    response = client.get("/api/load_test/history?limit=5")
+def test_load_test_history_endpoint_returns_list(isolated_client: TestClient):
+    response = isolated_client.get("/api/load_test/history?limit=5")
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, list)
+
+
+def test_startup_metrics_api_endpoint_returns_status(isolated_client: TestClient):
+    _ensure_api_startup_metrics_route(isolated_client)
+    response = isolated_client.post("/api/startup_metrics")
+    assert response.status_code == 200
+    payload = response.json()
+    assert isinstance(payload, dict)
+    assert payload.get("status") in {"started", "already_running"}
+    assert isinstance(payload.get("running"), bool)
+    assert isinstance(payload.get("collector_version"), str)
+
+
+def test_startup_metrics_endpoint_triggers_collector(isolated_client: TestClient):
+    response = isolated_client.post("/startup_metrics")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload.get("status") in {"started", "already_running"}
+    assert isinstance(payload.get("running"), bool)
+    assert isinstance(payload.get("collector_version"), str)
+    time.sleep(0.2)
+    collectors = [
+        instance
+        for instance in _StubMetricsCollector.instances
+        if instance.creator and "startup_metrics_shim" in instance.creator
+    ]
+    assert collectors, "MetricsCollector stub not instantiated"
+    assert any(instance.start_requests for instance in collectors), "MetricsCollector.start request was not recorded"

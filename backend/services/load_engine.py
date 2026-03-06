@@ -43,6 +43,13 @@ class LoadTestEngine:
     def status(self) -> LoadTestStatus:
         return self._state.status
 
+    @property
+    def elapsed(self) -> float:
+        """Return elapsed seconds if running, else 0.0"""
+        if self._state.status == LoadTestStatus.RUNNING:
+            return time.time() - self._state.start_time
+        return 0.0
+
     async def subscribe(self) -> asyncio.Queue:
         q: asyncio.Queue = asyncio.Queue()
         async with self._subscribers_lock:

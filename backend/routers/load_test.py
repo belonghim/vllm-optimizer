@@ -10,6 +10,8 @@ import json
 import asyncio
 import uuid
 import logging
+from collections import deque
+import time as time_module
 
 from models.load_test import (
     LoadTestConfig,
@@ -26,6 +28,9 @@ router = APIRouter()
 # In-memory state for active test (in production, use proper state management)
 _active_test_task: Optional[asyncio.Task] = None
 _current_config: Optional[LoadTestConfig] = None
+
+# In-memory history store (max 100 entries, no persistence)
+_test_history: deque = deque(maxlen=100)
 
 
 # Simple response models for start/stop
@@ -70,7 +75,13 @@ async def start_load_test(config: LoadTestConfig):
     async def run_test():
         global _active_test_task
         try:
-            await load_engine.run(config)
+            result = await load_engine.run(config)
+            _test_history.appendleft({
+                "test_id": test_id,
+                "config": config.model_dump(),
+                "result": result,
+                "timestamp": time_module.time(),
+            })
         except Exception as e:
             logging.error("[LoadTest] Error: %s", e)
         finally:
@@ -136,7 +147,7 @@ async def get_load_test_status(test_id: Optional[str] = None):
         "running": is_running,
         "config": _current_config,
         "current_result": None,
-        "elapsed": 0.0,  # Could compute from engine state if needed
+        "elapsed": load_engine.elapsed,
     }
 
 
@@ -175,5 +186,4 @@ async def get_load_test_history(limit: int = 10):
     - Sorted by most recent first
     - Limit parameter controls number of results returned
     """
-    # TODO: Implement history retrieval from storage in T7-T9
-    return []
+    return list(_test_history)[:limit]
