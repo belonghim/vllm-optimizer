@@ -11,18 +11,22 @@ spec:
   - Ingress
   ingress:
   - from:
+    - podSelector: {}
+    - namespaceSelector:
+        matchLabels:
+          network.openshift.io/policy-group: ingress
+    - namespaceSelector:
+        matchLabels:
+          network.openshift.io/policy-group: monitoring
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openshift-kube-apiserver
     - namespaceSelector:
         matchLabels:
           kubernetes.io/metadata.name: vllm-optimizer-dev
       podSelector:
         matchLabels:
           app: vllm-optimizer-backend
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: openshift-monitoring
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: openshift-kube-apiserver-operator
     ports:
     - protocol: TCP
       port: 8000

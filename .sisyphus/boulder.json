@@ -1,7 +1,1 @@
-{
-  "active_plan": "/home/user/project/vllm-optimizer/.sisyphus/plans/fix-backend-tests.md",
-  "started_at": "2026-03-06T07:00:49.563Z",
-  "session_ids": ["ses_33e4a506cffeXv153JuP0H2PtN"],
-  "plan_name": "fix-backend-tests",
-  "worktree_path": "/home/user/project/vllm-optimizer"
-}
+{}
