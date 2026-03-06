@@ -4,7 +4,6 @@ from fastapi.testclient import TestClient
 
 def test_metrics_endpoint_plaintext(monkeypatch):
     """Test /api/metrics endpoint returns correct Prometheus format"""
-    from ..metrics import prometheus_metrics as prom
     
     # Generate realistic Prometheus output for all 8 metrics
     fake_metrics_output = b"""# HELP vllm:request_success_total Total number of successful vLLM requests
@@ -53,7 +52,9 @@ vllm:e2e_request_latency_seconds_count{model="default"} 150.0
     def fake_generate_metrics():
         return fake_metrics_output
     
-    monkeypatch.setattr(prom, 'generate_metrics', fake_generate_metrics)
+    # Patch where it's used (main module), not where it lives (prometheus_metrics module)
+    import backend.main
+    monkeypatch.setattr(backend.main, 'generate_metrics', fake_generate_metrics)
 
     from ..main import app
     client = TestClient(app)
@@ -128,13 +129,14 @@ vllm:e2e_request_latency_seconds_count{model="default"} 150.0
 
 def test_metrics_endpoint_no_server_required(monkeypatch):
     """Test that endpoint works without requiring external server or backend services"""
-    import backend.metrics.prometheus_metrics as prom
     
     # Minimal valid Prometheus output
     def fake_generate_metrics():
         return b"# HELP test_metric Test metric\n# TYPE test_metric gauge\ntest_metric 1.0\n"
     
-    monkeypatch.setattr(prom, 'generate_metrics', fake_generate_metrics)
+    # Patch where it's used (main module), not where it lives (prometheus_metrics module)
+    import backend.main
+    monkeypatch.setattr(backend.main, 'generate_metrics', fake_generate_metrics)
 
     from backend.main import app
     client = TestClient(app)
