@@ -5,7 +5,7 @@ import asyncio
 import time
 import httpx
 import statistics
-from typing import AsyncGenerator
+
 from dataclasses import dataclass, field
 from enum import Enum
 import json
@@ -59,7 +59,7 @@ class LoadTestEngine:
         for q in targets:
             await q.put(data)
 
-    async def run(self, config: LoadTestConfig) -> AsyncGenerator[dict, None]:
+    async def run(self, config: LoadTestConfig) -> dict:
         """부하 테스트 실행 — 실시간 결과 yield"""
         self._state = LoadTestState(
             status=LoadTestStatus.RUNNING,

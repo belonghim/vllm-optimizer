@@ -5,10 +5,11 @@ Provides endpoints for starting, stopping, and monitoring load tests.
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Optional, Dict, Any, AsyncGenerator
+from typing import Optional, Dict, Any
 import json
 import asyncio
 import uuid
+import logging
 
 from models.load_test import (
     LoadTestConfig,
@@ -69,11 +70,9 @@ async def start_load_test(config: LoadTestConfig):
     async def run_test():
         global _active_test_task
         try:
-            async for result in await load_engine.run(config):
-                # Results are broadcasted via subscribe()
-                pass
+            await load_engine.run(config)
         except Exception as e:
-            print(f"[LoadTest] Error: {e}")
+            logging.error("[LoadTest] Error: %s", e)
         finally:
             _active_test_task = None
     
@@ -101,7 +100,7 @@ async def stop_load_test(test_id: str):
     global _active_test_task
     
     # Stop the engine
-    load_engine.stop()
+    await load_engine.stop()
     
     # Cancel the active task if exists
     if _active_test_task and not _active_test_task.done():
@@ -151,7 +150,7 @@ async def stream_load_test_results(test_id: str):
     - Connection stays open until test completes or client disconnects
     - Use EventSource in frontend to consume this stream
     """
-    queue = load_engine.subscribe()
+    queue = await load_engine.subscribe()
     
     async def event_generator():
         try:
@@ -162,7 +161,7 @@ async def stream_load_test_results(test_id: str):
         except asyncio.CancelledError:
             pass
         finally:
-            load_engine.unsubscribe(queue)
+            await load_engine.unsubscribe(queue)
     
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
