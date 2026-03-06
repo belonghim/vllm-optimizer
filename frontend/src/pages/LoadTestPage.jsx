@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import { useMockData } from "../contexts/MockDataContext";
 import { API, COLORS, font } from "../constants";
 import MetricCard from "../components/MetricCard";
 import Chart from "../components/Chart";
@@ -21,43 +22,83 @@ function LoadTestPage() {
   const [result, setResult] = useState(null);
   const [progress, setProgress] = useState(0);
   const [latencyData, setLatencyData] = useState([]);
+  const { isMockEnabled } = useMockData();
+  const [error, setError] = useState(null);
+  const esRef = useRef(null);
+  const mockTimerRef = useRef(null);
 
   const start = async () => {
-    setStatus("running"); setResult(null); setLatencyData([]); setProgress(0);
+    setStatus("running"); 
+    setResult(null); 
+    setLatencyData([]); 
+    setProgress(0); 
+    setError(null);
 
+    if (isMockEnabled) {
+      // Mock mode: simulate locally
+      simulateLoadTest(config, setProgress, setResult, setStatus, setLatencyData);
+      return;
+    }
+
+    // Real API mode
     try {
-      await fetch(`${API}/load-test/start`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+      const resp = await fetch(`${API}/load-test/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(config),
       });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
       const es = new EventSource(`${API}/load-test/stream`);
+      esRef.current = es;
       es.onmessage = (e) => {
         const data = JSON.parse(e.data);
         if (data.type === "progress" && data.data) {
           const d = data.data;
           setProgress(Math.round((d.total / config.total_requests) * 100));
           setLatencyData(prev => [...prev.slice(-60), {
-            t: prev.length, lat: d.latency?.mean * 1000 | 0, tps: d.tps?.mean | 0
+            t: prev.length, 
+            lat: d.latency?.mean * 1000 | 0, 
+            tps: d.tps?.mean | 0
           }]);
           setResult(d);
         }
         if (data.type === "completed") {
-          setStatus("completed"); es.close();
+          setStatus("completed");
+          es.close();
+          esRef.current = null;
           setResult(data.data);
         }
       };
-      es.onerror = () => { setStatus("failed"); es.close(); };
-    } catch {
-      // 모의 실행
-      simulateLoadTest(config, setProgress, setResult, setStatus, setLatencyData);
+      es.onerror = () => {
+        setError("SSE 연결 실패: 부하 테스트 스트림에 연결할 수 없습니다.");
+        setStatus("error");
+        es.close();
+        esRef.current = null;
+      };
+    } catch (err) {
+      setError(`부하 테스트 시작 실패: ${err.message}`);
+      setStatus("error");
     }
   };
 
   const stop = async () => {
+    if (esRef.current) {
+      esRef.current.close();
+      esRef.current = null;
+    }
     await fetch(`${API}/load-test/stop`, { method: "POST" });
     setStatus("stopped");
   };
+
+  useEffect(() => {
+    return () => {
+      if (esRef.current) {
+        esRef.current.close();
+        esRef.current = null;
+      }
+    };
+  }, [isMockEnabled]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -80,26 +121,40 @@ function LoadTestPage() {
                   onChange={e => setConfig(c => ({ ...c, [key]: type === "number" ? +e.target.value : e.target.value }))} />
               </div>
             ))}
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16 }}>
+            <input type="checkbox" id="stream" checked={config.stream}
+              onChange={e => setConfig(c => ({ ...c, stream: e.target.checked }))} />
+            <label htmlFor="stream" className="label" style={{ marginBottom: 0 }}>
+              Streaming Mode (TTFT 측정 활성화)
+            </label>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+            <button className="btn btn-primary" onClick={start} disabled={status === "running"}>
+              ▶ Run Load Test
+            </button>
+            <button className="btn btn-danger" onClick={stop} disabled={status !== "running"}>
+              ■ Stop
+            </button>
+            <span className={`tag tag-${status}`}>{status.toUpperCase()}</span>
+          </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16 }}>
-          <input type="checkbox" id="stream" checked={config.stream}
-            onChange={e => setConfig(c => ({ ...c, stream: e.target.checked }))} />
-          <label htmlFor="stream" className="label" style={{ marginBottom: 0 }}>
-            Streaming Mode (TTFT 측정 활성화)
-          </label>
+      {error && (
+        <div style={{
+          border: `1px solid ${COLORS.red}`,
+          color: COLORS.red,
+          padding: "10px 16px",
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 11,
+          marginBottom: 8,
+          background: "rgba(255,59,107,0.05)",
+        }}>
+          ⚠ {error}
         </div>
-
-        <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-          <button className="btn btn-primary" onClick={start} disabled={status === "running"}>
-            ▶ Run Load Test
-          </button>
-          <button className="btn btn-danger" onClick={stop} disabled={status !== "running"}>
-            ■ Stop
-          </button>
-          <span className={`tag tag-${status}`}>{status.toUpperCase()}</span>
-        </div>
-      </div>
+      )}
 
       {/* 진행률 */}
       {status === "running" && (
@@ -135,26 +190,27 @@ function LoadTestPage() {
                 </tr>
               </thead>
               <tbody>
-                {[
-                  ["Total Requests", result.total],
-                  ["Success", result.success],
-                  ["Failed", result.failed],
-                  ["Actual RPS", fmt(result.rps_actual, 2)],
-                  ["Mean Latency", `${fmt((result.latency?.mean || 0) * 1000, 0)} ms`],
-                  ["P50 Latency", `${fmt((result.latency?.p50 || 0) * 1000, 0)} ms`],
-                  ["P95 Latency", `${fmt((result.latency?.p95 || 0) * 1000, 0)} ms`],
-                  ["P99 Latency", `${fmt((result.latency?.p99 || 0) * 1000, 0)} ms`],
-                  ["TTFT Mean", `${fmt((result.ttft?.mean || 0) * 1000, 0)} ms`],
-                  ["TTFT P95", `${fmt((result.ttft?.p95 || 0) * 1000, 0)} ms`],
-                  ["Total TPS", `${fmt(result.tps?.total, 1)} tok/s`],
-                ].map(([k, v]) => (
-                  <tr key={k}>
-                    <td style={{ color: COLORS.muted }}>{k}</td>
-                    <td style={{ color: COLORS.accent, fontFamily: font.mono }}>{v}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                {
+                  [
+                    ["Total Requests", result.total],
+                    ["Success", result.success],
+                    ["Failed", result.failed],
+                    ["Actual RPS", fmt(result.rps_actual, 2)],
+                    ["Mean Latency", `${fmt((result.latency?.mean || 0) * 1000, 0)} ms`],
+                    ["P50 Latency", `${fmt((result.latency?.p50 || 0) * 1000, 0)} ms`],
+                    ["P95 Latency", `${fmt((result.latency?.p95 || 0) * 1000, 0)} ms`],
+                    ["P99 Latency", `${fmt((result.latency?.p99 || 0) * 1000, 0)} ms`],
+                    ["TTFT Mean", `${fmt((result.ttft?.mean || 0) * 1000, 0)} ms`],
+                    ["TTFT P95", `${fmt((result.ttft?.p95 || 0) * 1000, 0)} ms`],
+                    ["Total TPS", `${fmt(result.tps?.total, 1)} tok/s`],
+                  ].map(([k, v]) => (
+                    <tr key={k}>
+                      <td style={{ color: COLORS.muted }}>{k}</td>
+                      <td style={{ color: COLORS.accent, fontFamily: font.mono }}>{v}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
           </div>
 
           {latencyData.length > 0 && (

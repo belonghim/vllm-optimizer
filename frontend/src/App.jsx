@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { mockMetrics, mockHistory, mockBenchmarks, mockTrials, simulateLoadTest } from "./mockData";
 import { API, COLORS, font } from "./constants";
 import MetricCard from "./components/MetricCard";
 import Chart from "./components/Chart";
@@ -7,6 +6,7 @@ import MonitorPage from "./pages/MonitorPage";
 import LoadTestPage from "./pages/LoadTestPage";
 import BenchmarkPage from "./pages/BenchmarkPage";
 import TunerPage from "./pages/TunerPage";
+import MockDataSwitch from "./components/MockDataSwitch";
 
 // ──────────────────────────────────────────────
 // DESIGN: Industrial / Terminal aesthetic
@@ -62,10 +62,12 @@ export default function App() {
           ))}
         </nav>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 6, height: 6, borderRadius: "50%", background: COLORS.green, boxShadow: `0 0 8px ${COLORS.green}` }} />
-          <span style={{ fontSize: 10, color: COLORS.muted, letterSpacing: "0.1em" }}>CONNECTED</span>
-        </div>
+<div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+  <MockDataSwitch />
+  <div style={{ width: 1, height: 16, background: COLORS.border }} />
+  <div style={{ width: 6, height: 6, borderRadius: "50%", background: COLORS.green, boxShadow: `0 0 8px ${COLORS.green}` }} />
+  <span style={{ fontSize: 10, color: COLORS.muted, letterSpacing: "0.1em" }}>CONNECTED</span>
+</div>
       </header>
 
       {/* MAIN */}

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { API, COLORS, font } from "../constants";
+import { useMockData } from "../contexts/MockDataContext";
 import MetricCard from "../components/MetricCard";
 import { mockTrials } from "../mockData";
 import { ScatterChart, Scatter, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
@@ -7,6 +8,8 @@ import { ScatterChart, Scatter, CartesianGrid, XAxis, YAxis, Tooltip, Responsive
 const fmt = (n, d = 1) => (n == null ? "—" : Number(n).toFixed(d));
 
 function TunerPage() {
+  const { isMockEnabled } = useMockData();
+  const [error, setError] = useState(null);
   const [status, setStatus] = useState({ running: false, trials_completed: 0 });
   const [trials, setTrials] = useState([]);
   const [importance, setImportance] = useState({});
@@ -19,6 +22,11 @@ function TunerPage() {
   });
 
   const fetchStatus = useCallback(async () => {
+    if (isMockEnabled) {
+      setTrials(mockTrials());
+      setError(null);
+      return;
+    }
     try {
       const [s, t, imp] = await Promise.all([
         fetch(`${API}/tuner/status`).then(r => r.json()),
@@ -26,8 +34,11 @@ function TunerPage() {
         fetch(`${API}/tuner/importance`).then(r => r.json()),
       ]);
       setStatus(s); setTrials(t); setImportance(imp);
-    } catch { setTrials(mockTrials()); }
-  }, []);
+      setError(null);
+    } catch (err) {
+      setError(`튜너 조회 실패: ${err.message}`);
+    }
+  }, [isMockEnabled]);
 
   useEffect(() => {
     fetchStatus();
@@ -60,6 +71,19 @@ function TunerPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {error && (
+        <div style={{
+          border: `1px solid ${COLORS.red}`,
+          color: COLORS.red,
+          padding: "10px 16px",
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 11,
+          marginBottom: 16,
+          background: "rgba(255,59,107,0.05)",
+        }}>
+          ⚠ {error}
+        </div>
+      )}
       <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, padding: 20 }}>
         <div className="section-title">Bayesian Optimization 설정</div>
         <div className="grid-form" style={{ gap: 12 }}>

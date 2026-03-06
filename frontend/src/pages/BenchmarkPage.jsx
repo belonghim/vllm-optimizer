@@ -2,19 +2,36 @@ import { useState, useEffect } from "react";
 import { API, COLORS } from "../constants";
 import { mockBenchmarks } from "../mockData";
 import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { useMockData } from "../contexts/MockDataContext";
 
 const fmt = (n, d = 1) => (n == null ? "—" : Number(n).toFixed(d));
 
 function BenchmarkPage() {
   const [benchmarks, setBenchmarks] = useState([]);
   const [selected, setSelected] = useState([]);
+  const [error, setError] = useState(null);
+  const { isMockEnabled } = useMockData();
 
   useEffect(() => {
+    if (isMockEnabled) {
+      setBenchmarks(mockBenchmarks());
+      setError(null);
+      return;
+    }
+    // Real API mode
     fetch(`${API}/benchmark/list`)
-      .then(r => r.json())
-      .then(setBenchmarks)
-      .catch(() => setBenchmarks(mockBenchmarks()));
-  }, []);
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then(data => {
+        setBenchmarks(data);
+        setError(null);
+      })
+      .catch(err => {
+        setError(`벤치마크 조회 실패: ${err.message}`);
+      });
+  }, [isMockEnabled]);
 
   const toggle = (id) => setSelected(s =>
     s.includes(id) ? s.filter(x => x !== id) : [...s, id]
@@ -32,6 +49,19 @@ function BenchmarkPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {error && (
+        <div style={{
+          border: `1px solid ${COLORS.red}`,
+          color: COLORS.red,
+          padding: "10px 16px",
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 11,
+          marginBottom: 8,
+          background: "rgba(255,59,107,0.05)",
+        }}>
+          ⚠ {error}
+        </div>
+      )}
       <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, padding: 20 }}>
         <div className="section-title">저장된 벤치마크</div>
         <table className="table">
@@ -95,5 +125,4 @@ function BenchmarkPage() {
     </div>
   );
 }
-
 export default BenchmarkPage;
