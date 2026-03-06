@@ -192,7 +192,7 @@ class MetricsCollector:
                 f"{PROMETHEUS_URL}/api/v1/query",
                 params={"query": query},
             )
-            data = await resp.json()
+            data = resp.json()
             if data["status"] == "success" and data["data"]["result"]:
                 value = float(data["data"]["result"][0]["value"][1])
                 return metric_name, round(value, 3)
@@ -243,7 +243,7 @@ class MetricsCollector:
                     f"{PROMETHEUS_URL}/api/v1/query",
                     params={"query": "vllm:kv_cache_usage_perc"},
                 )
-                data = await resp.json()
+                data = resp.json()
                 if data["status"] == "success" and data["data"]["result"]:
                     logging.info("[MetricsCollector] Detected vLLM version: 0.13.x")
                     return "0.13.x"
