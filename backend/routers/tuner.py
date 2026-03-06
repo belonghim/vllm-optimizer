@@ -3,15 +3,15 @@ Auto Tuner Router
 Provides endpoints for viewing tuning status, trials, and applying best parameters.
 """
 import uuid
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+from typing import Any
 from datetime import datetime
 
-from models.load_test import TuningConfig, TuningTrial
-from services.load_engine import load_engine
-from services.metrics_collector import MetricsCollector
-from services.auto_tuner import AutoTuner
+from backend.models.load_test import TuningConfig
+from backend.services.load_engine import load_engine
+from backend.services.metrics_collector import MetricsCollector
+from backend.services.auto_tuner import AutoTuner
 
 router = APIRouter()
 
@@ -23,41 +23,46 @@ auto_tuner = AutoTuner(metrics_collector=metrics_collector, load_engine=load_eng
 class TunerStatusResponse(BaseModel):
     """Response for tuner status"""
     status: str = "idle"  # "idle", "running", "completed", "error"
-    current_trial: Optional[int] = None
-    total_trials: Optional[int] = None
-    best_metric: Optional[float] = None
-    elapsed_seconds: Optional[float] = None
-    message: Optional[str] = None
+    current_trial: int | None = None
+    total_trials: int | None = None
+    best_metric: float | None = None
+    elapsed_seconds: float | None = None
+    message: str | None = None
 
 
 class TrialInfo(BaseModel):
     """Information about a single tuning trial"""
     trial_number: int
-    parameters: Dict[str, Any]
-    metrics: Dict[str, float]
+    parameters: dict[str, Any]
+    metrics: dict[str, float]
     status: str  # "running", "completed", "failed"
-    timestamp: Optional[datetime] = None
+    timestamp: datetime | None = None
 
 
 class ApplyBestResponse(BaseModel):
     """Response when applying best parameters"""
     success: bool
     message: str
-    applied_parameters: Optional[Dict[str, Any]] = None
-    deployment_name: Optional[str] = None
+    applied_parameters: dict[str, Any] | None = None
+    deployment_name: str | None = None
 
 
 class TuningStartRequest(BaseModel):
-    """Request to start auto-tuning"""
-    config: TuningConfig
-    vllm_endpoint: str = "http://localhost:8000"
+    """Request to start auto-tuning (flat schema matching frontend)"""
+    objective: str = "balanced"
+    n_trials: int = 20
+    vllm_endpoint: str = ""
+    max_num_seqs_min: int = 64
+    max_num_seqs_max: int = 512
+    gpu_memory_min: float = 0.80
+    gpu_memory_max: float = 0.95
 
 
 class TuningStartResponse(BaseModel):
     """Response when starting auto-tuning"""
     success: bool
     message: str
-    tuning_id: Optional[str] = None
+    tuning_id: str | None = None
 
 
 @router.post("/start", response_model=TuningStartResponse)
@@ -69,12 +74,21 @@ async def start_tuning(request: TuningStartRequest):
             "message": "Tuning is already running. Wait for it to complete or stop it first.",
             "tuning_id": None,
         }
+    # Convert flat request to TuningConfig
+    config = TuningConfig(
+        max_num_seqs_range=(request.max_num_seqs_min, request.max_num_seqs_max),
+        gpu_memory_utilization_range=(request.gpu_memory_min, request.gpu_memory_max),
+        objective=request.objective,
+        n_trials=request.n_trials,
+    )
+    import os
+    vllm_endpoint = request.vllm_endpoint or os.getenv("VLLM_ENDPOINT", "http://localhost:8000")
     tuning_id = str(uuid.uuid4())
     import asyncio
-    asyncio.create_task(auto_tuner.start(request.config, request.vllm_endpoint))
+    _ = asyncio.create_task(auto_tuner.start(config, vllm_endpoint))
     return {
         "success": True,
-        "message": f"Tuning started with {request.config.n_trials} trials",
+        "message": f"Tuning started with {request.n_trials} trials",
         "tuning_id": tuning_id,
     }
 
@@ -94,7 +108,7 @@ async def get_tuner_status():
     }
 
 
-@router.get("/trials", response_model=List[TrialInfo])
+@router.get("/trials", response_model=list[TrialInfo])
 async def get_tuning_trials(limit: int = 20):
     """Get list of tuning trials."""
     trials = auto_tuner.trials[-limit:]
@@ -107,6 +121,27 @@ async def get_tuning_trials(limit: int = 20):
         )
         for t in trials
     ]
+
+
+@router.post("/stop")
+async def stop_tuning():
+    """Stop the running auto-tuning process."""
+    if not auto_tuner.is_running:
+        return {"success": False, "message": "No tuning is currently running."}
+    await auto_tuner.stop()
+    return {"success": True, "message": "Tuning stopped."}
+
+
+@router.get("/importance")
+async def get_parameter_importance():
+    """Get parameter importance from tuning trials (stub)."""
+    if not auto_tuner.trials:
+        return {}
+    return {
+        "max_num_seqs": 0.4,
+        "gpu_memory_utilization": 0.35,
+        "max_model_len": 0.25,
+    }
 
 
 @router.post("/apply-best", response_model=ApplyBestResponse)

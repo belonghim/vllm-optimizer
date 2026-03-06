@@ -8,12 +8,12 @@ and internal data structures. Models are divided into:
 - Auto-tuning configuration and trial results
 """
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
+from typing import Any
 
 
 class LoadTestConfig(BaseModel):
     """Load test configuration"""
-    endpoint: str = Field(default="http://localhost:8000", description="vLLM endpoint URL")
+    endpoint: str = Field(default="", description="vLLM endpoint URL (empty = use server default from VLLM_ENDPOINT env)")
     model: str = Field(default="auto", description="Model name")
     prompt_template: str = Field(default="Hello, how are you?", description="Prompt for generation")
     total_requests: int = Field(default=100, ge=1, description="Total number of requests")
@@ -29,10 +29,10 @@ class RequestResult(BaseModel):
     req_id: int
     success: bool
     latency: float = Field(description="Total latency in seconds")
-    ttft: Optional[float] = Field(default=None, description="Time to first token in seconds")
+    ttft: float | None = Field(default=None, description="Time to first token in seconds")
     output_tokens: int = Field(default=0, description="Number of output tokens")
     tps: float = Field(default=0.0, description="Tokens per second")
-    error: Optional[str] = Field(default=None, description="Error message if failed")
+    error: str | None = Field(default=None, description="Error message if failed")
 
 
 class LatencyStats(BaseModel):
@@ -84,7 +84,7 @@ class TuningConfig(BaseModel):
 class TuningTrial(BaseModel):
     """Individual tuning trial result"""
     trial_id: int = Field(description="Trial number")
-    params: Dict[str, Any] = Field(default_factory=dict, description="Trial parameters")
+    params: dict[str, Any] = Field(default_factory=dict, description="Trial parameters")
     tps: float = Field(description="Tokens per second achieved")
     p99_latency: float = Field(description="P99 latency in seconds")
     score: float = Field(description="Optimization score")
@@ -113,8 +113,8 @@ class MetricsSnapshot(BaseModel):
 
 class Benchmark(BaseModel):
     """Saved benchmark result for comparison"""
-    id: Optional[int] = Field(default=None, description="Unique benchmark identifier")
+    id: int | None = Field(default=None, description="Unique benchmark identifier")
     name: str = Field(description="User-provided benchmark name")
-    timestamp: Optional[float] = Field(default=None, description="Unix timestamp when benchmark was saved")
+    timestamp: float | None = Field(default=None, description="Unix timestamp when benchmark was saved")
     config: LoadTestConfig = Field(description="Load test configuration used")
     result: LoadTestResult = Field(description="Final load test results")
