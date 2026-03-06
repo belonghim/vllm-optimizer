@@ -1,0 +1,1182 @@
+apiVersion: v1
+items:
+- apiVersion: v1
+  kind: Namespace
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"Namespace","metadata":{"annotations":{"openshift.io/display-name":"vLLM Optimizer"},"labels":{"app.kubernetes.io/component":"development","app.kubernetes.io/name":"vllm-optimizer-dev","app.kubernetes.io/part-of":"vllm-optimizer","app.kubernetes.io/version":"dev","openshift.io/cluster-monitoring":"true"},"name":"vllm-optimizer-dev"}}
+      openshift.io/display-name: vLLM Optimizer
+      openshift.io/sa.scc.mcs: s0:c21,c0
+      openshift.io/sa.scc.supplemental-groups: 1000420000/10000
+      openshift.io/sa.scc.uid-range: 1000420000/10000
+      security.openshift.io/MinimallySufficientPodSecurityStandard: restricted
+    creationTimestamp: "2026-03-02T17:46:17Z"
+    labels:
+      app.kubernetes.io/component: development
+      app.kubernetes.io/name: vllm-optimizer-dev
+      app.kubernetes.io/part-of: vllm-optimizer
+      app.kubernetes.io/version: dev
+      kubernetes.io/metadata.name: vllm-optimizer-dev
+      olm.operatorgroup.uid/3046c046-2b7b-409f-af4d-be879e019d9a: ""
+      openshift.io/cluster-monitoring: "true"
+      pod-security.kubernetes.io/audit: restricted
+      pod-security.kubernetes.io/audit-version: latest
+      pod-security.kubernetes.io/warn: restricted
+      pod-security.kubernetes.io/warn-version: latest
+    name: vllm-optimizer-dev
+    resourceVersion: "244273697"
+    uid: 3aca7dd4-2175-4405-9c6a-863b7d89f23c
+  spec:
+    finalizers:
+    - kubernetes
+  status:
+    phase: Active
+- apiVersion: v1
+  imagePullSecrets:
+  - name: vllm-optimizer-backend-dockercfg-vwk6l
+  kind: ServiceAccount
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"ServiceAccount","metadata":{"annotations":{},"labels":{"app.kubernetes.io/component":"development","app.kubernetes.io/name":"vllm-optimizer-dev","app.kubernetes.io/part-of":"vllm-optimizer","app.kubernetes.io/version":"dev"},"name":"vllm-optimizer-backend","namespace":"vllm-optimizer-dev"}}
+      openshift.io/internal-registry-pull-secret-ref: vllm-optimizer-backend-dockercfg-vwk6l
+    creationTimestamp: "2026-03-02T17:46:17Z"
+    labels:
+      app.kubernetes.io/component: development
+      app.kubernetes.io/name: vllm-optimizer-dev
+      app.kubernetes.io/part-of: vllm-optimizer
+      app.kubernetes.io/version: dev
+    name: vllm-optimizer-backend
+    namespace: vllm-optimizer-dev
+    resourceVersion: "244273698"
+    uid: 3574c0bc-4876-4db9-a2db-273437b8b0f7
+  secrets:
+  - name: vllm-optimizer-backend-dockercfg-vwk6l
+  - name: vllm-optimizer-backend-token
+- apiVersion: v1
+  imagePullSecrets:
+  - name: vllm-optimizer-frontend-dockercfg-j2pps
+  kind: ServiceAccount
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"ServiceAccount","metadata":{"annotations":{},"labels":{"app.kubernetes.io/component":"development","app.kubernetes.io/name":"vllm-optimizer-dev","app.kubernetes.io/part-of":"vllm-optimizer","app.kubernetes.io/version":"dev"},"name":"vllm-optimizer-frontend","namespace":"vllm-optimizer-dev"}}
+      openshift.io/internal-registry-pull-secret-ref: vllm-optimizer-frontend-dockercfg-j2pps
+    creationTimestamp: "2026-03-02T17:46:17Z"
+    labels:
+      app.kubernetes.io/component: development
+      app.kubernetes.io/name: vllm-optimizer-dev
+      app.kubernetes.io/part-of: vllm-optimizer
+      app.kubernetes.io/version: dev
+    name: vllm-optimizer-frontend
+    namespace: vllm-optimizer-dev
+    resourceVersion: "244273699"
+    uid: 0cbc7a66-b59b-4e5d-80b7-8caf67bdd835
+  secrets:
+  - name: vllm-optimizer-frontend-dockercfg-j2pps
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRole
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"rbac.authorization.k8s.io/v1","kind":"ClusterRole","metadata":{"annotations":{},"labels":{"app.kubernetes.io/component":"development","app.kubernetes.io/name":"vllm-optimizer-dev","app.kubernetes.io/part-of":"vllm-optimizer","app.kubernetes.io/version":"dev"},"name":"vllm-optimizer-controller"},"rules":[{"apiGroups":["apps"],"resources":["deployments","replicasets"],"verbs":["get","list","watch","patch","update"]},{"apiGroups":[""],"resources":["configmaps","pods","pods/log","services","endpoints"],"verbs":["get","list","watch","patch","update"]},{"apiGroups":["autoscaling"],"resources":["horizontalpodautoscalers"],"verbs":["get","list","watch","patch","update"]},{"apiGroups":["route.openshift.io"],"resources":["routes"],"verbs":["get","list","watch"]}]}
+    creationTimestamp: "2026-03-02T17:46:17Z"
+    labels:
+      app.kubernetes.io/component: development
+      app.kubernetes.io/name: vllm-optimizer-dev
+      app.kubernetes.io/part-of: vllm-optimizer
+      app.kubernetes.io/version: dev
+    name: vllm-optimizer-controller
+    resourceVersion: "244273701"
+    uid: 0995b8f0-e9c5-4b05-bb8b-fddb27e9a3ff
+  rules:
+  - apiGroups:
+    - apps
+    resources:
+    - deployments
+    - replicasets
+    verbs:
+    - get
+    - list
+    - watch
+    - patch
+    - update
+  - apiGroups:
+    - ""
+    resources:
+    - configmaps
+    - pods
+    - pods/log
+    - services
+    - endpoints
+    verbs:
+    - get
+    - list
+    - watch
+    - patch
+    - update
+  - apiGroups:
+    - autoscaling
+    resources:
+    - horizontalpodautoscalers
+    verbs:
+    - get
+    - list
+    - watch
+    - patch
+    - update
+  - apiGroups:
+    - route.openshift.io
+    resources:
+    - routes
+    verbs:
+    - get
+    - list
+    - watch
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRoleBinding
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"rbac.authorization.k8s.io/v1","kind":"ClusterRoleBinding","metadata":{"annotations":{},"labels":{"app.kubernetes.io/component":"development","app.kubernetes.io/name":"vllm-optimizer-dev","app.kubernetes.io/part-of":"vllm-optimizer","app.kubernetes.io/version":"dev"},"name":"vllm-optimizer-controller"},"roleRef":{"apiGroup":"rbac.authorization.k8s.io","kind":"ClusterRole","name":"vllm-optimizer-controller"},"subjects":[{"kind":"ServiceAccount","name":"vllm-optimizer-backend","namespace":"vllm-optimizer-dev"}]}
+    creationTimestamp: "2026-03-02T17:46:17Z"
+    labels:
+      app.kubernetes.io/component: development
+      app.kubernetes.io/name: vllm-optimizer-dev
+      app.kubernetes.io/part-of: vllm-optimizer
+      app.kubernetes.io/version: dev
+    name: vllm-optimizer-controller
+    resourceVersion: "244273702"
+    uid: fd0ada00-7de8-42f2-9810-21d2a70c68ce
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: vllm-optimizer-controller
+  subjects:
+  - kind: ServiceAccount
+    name: vllm-optimizer-backend
+    namespace: vllm-optimizer-dev
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRoleBinding
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"rbac.authorization.k8s.io/v1","kind":"ClusterRoleBinding","metadata":{"annotations":{},"labels":{"app.kubernetes.io/component":"development","app.kubernetes.io/name":"vllm-optimizer-dev","app.kubernetes.io/part-of":"vllm-optimizer","app.kubernetes.io/version":"dev"},"name":"vllm-optimizer-monitoring-view"},"roleRef":{"apiGroup":"rbac.authorization.k8s.io","kind":"ClusterRole","name":"cluster-monitoring-view"},"subjects":[{"kind":"ServiceAccount","name":"vllm-optimizer-backend","namespace":"vllm-optimizer"}]}
+    labels:
+      app.kubernetes.io/component: development
+      app.kubernetes.io/name: vllm-optimizer-dev
+      app.kubernetes.io/part-of: vllm-optimizer
+      app.kubernetes.io/version: dev
+    name: vllm-optimizer-monitoring-view
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: cluster-monitoring-view
+  subjects:
+  - kind: ServiceAccount
+    name: vllm-optimizer-backend
+    namespace: vllm-optimizer
+- apiVersion: v1
+  data:
+    ALLOWED_ORIGINS: https://vllm-optimizer-dev.apps.compact.jooan.local
+    APP_ENV: production
+    LOG_LEVEL: info
+    METRICS_INTERVAL_SEC: "2"
+    PROMETHEUS_CA_PATH: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    PROMETHEUS_TOKEN_PATH: /var/run/secrets/kubernetes.io/serviceaccount/token
+    PROMETHEUS_URL: https://thanos-querier.openshift-monitoring.svc.cluster.local:9091
+    PROMETHEUS_USE_TLS: "true"
+    VLLM_CONFIGMAP_NAME: vllm-config
+    VLLM_DEPLOYMENT_NAME: llm-ov
+    VLLM_ENDPOINT: http://llm-ov-predictor.vllm.svc.cluster.local:8080
+    VLLM_NAMESPACE: vllm
+  kind: ConfigMap
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","data":{"ALLOWED_ORIGINS":"https://vllm-optimizer-dev.apps.compact.jooan.local","APP_ENV":"production","LOG_LEVEL":"info","METRICS_INTERVAL_SEC":"2","PROMETHEUS_CA_PATH":"/var/run/secrets/kubernetes.io/serviceaccount/ca.crt","PROMETHEUS_TOKEN_PATH":"/var/run/secrets/kubernetes.io/serviceaccount/token","PROMETHEUS_URL":"https://thanos-querier.openshift-monitoring.svc.cluster.local:9091","PROMETHEUS_USE_TLS":"true","VLLM_CONFIGMAP_NAME":"vllm-config","VLLM_DEPLOYMENT_NAME":"llm-ov","VLLM_ENDPOINT":"http://llm-ov-predictor.vllm.svc.cluster.local:8080","VLLM_NAMESPACE":"vllm"},"kind":"ConfigMap","metadata":{"annotations":{},"labels":{"app.kubernetes.io/component":"development","app.kubernetes.io/name":"vllm-optimizer-dev","app.kubernetes.io/part-of":"vllm-optimizer","app.kubernetes.io/version":"dev"},"name":"vllm-optimizer-config","namespace":"vllm-optimizer-dev"}}
+    creationTimestamp: "2026-03-02T17:46:17Z"
+    labels:
+      app.kubernetes.io/component: development
+      app.kubernetes.io/name: vllm-optimizer-dev
+      app.kubernetes.io/part-of: vllm-optimizer
+      app.kubernetes.io/version: dev
+    name: vllm-optimizer-config
+    namespace: vllm-optimizer-dev
+    resourceVersion: "244273705"
+    uid: d71344d4-d5b5-44a1-aa82-ad1daf3f8ae0
+- apiVersion: v1
+  data:
+    .dockerconfigjson: eyJhdXRocyI6eyJxdWF5LmlvIjp7InVzZXJuYW1lIjoiUExBQ0VIT0xERVIiLCJwYXNzd29yZCI6IlBMQUNFSE9MREVSIn19fQ==
+  kind: Secret
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","data":{".dockerconfigjson":"eyJhdXRocyI6eyJxdWF5LmlvIjp7InVzZXJuYW1lIjoiUExBQ0VIT0xERVIiLCJwYXNzd29yZCI6IlBMQUNFSE9MREVSIn19fQ=="},"kind":"Secret","metadata":{"annotations":{},"labels":{"app.kubernetes.io/component":"development","app.kubernetes.io/name":"vllm-optimizer-dev","app.kubernetes.io/part-of":"vllm-optimizer","app.kubernetes.io/version":"dev"},"name":"quay-pull-secret","namespace":"vllm-optimizer-dev"},"type":"kubernetes.io/dockerconfigjson"}
+    creationTimestamp: "2026-03-02T17:46:17Z"
+    labels:
+      app.kubernetes.io/component: development
+      app.kubernetes.io/name: vllm-optimizer-dev
+      app.kubernetes.io/part-of: vllm-optimizer
+      app.kubernetes.io/version: dev
+    name: quay-pull-secret
+    namespace: vllm-optimizer-dev
+    resourceVersion: "244273709"
+    uid: 09a0b241-c6e0-4dba-8a0f-ae4316d598c9
+  type: kubernetes.io/dockerconfigjson
+- apiVersion: v1
+  data:
+    SECRET_KEY: Q0hBTkdFX01FX0lOX1BST0RVQ1RJT04=
+    VLLM_API_KEY: ""
+  kind: Secret
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"Secret","metadata":{"annotations":{},"labels":{"app.kubernetes.io/component":"development","app.kubernetes.io/name":"vllm-optimizer-dev","app.kubernetes.io/part-of":"vllm-optimizer","app.kubernetes.io/version":"dev"},"name":"vllm-optimizer-secret","namespace":"vllm-optimizer-dev"},"stringData":{"SECRET_KEY":"CHANGE_ME_IN_PRODUCTION","VLLM_API_KEY":""},"type":"Opaque"}
+    creationTimestamp: "2026-03-02T17:46:17Z"
+    labels:
+      app.kubernetes.io/component: development
+      app.kubernetes.io/name: vllm-optimizer-dev
+      app.kubernetes.io/part-of: vllm-optimizer
+      app.kubernetes.io/version: dev
+    name: vllm-optimizer-secret
+    namespace: vllm-optimizer-dev
+    resourceVersion: "244273711"
+    uid: 53c1843c-69a5-451d-96bf-8890a393e2fd
+  type: Opaque
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{"service.beta.openshift.io/serving-cert-secret-name":"backend-tls-cert"},"labels":{"app":"vllm-optimizer-backend","app.kubernetes.io/component":"development","app.kubernetes.io/name":"vllm-optimizer-dev","app.kubernetes.io/part-of":"vllm-optimizer","app.kubernetes.io/version":"dev"},"name":"vllm-optimizer-backend","namespace":"vllm-optimizer-dev"},"spec":{"ports":[{"name":"http","port":8000,"targetPort":8000}],"selector":{"app":"vllm-optimizer-backend"},"type":"ClusterIP"}}
+      service.alpha.openshift.io/serving-cert-signed-by: openshift-service-serving-signer@1752702835
+      service.beta.openshift.io/serving-cert-secret-name: backend-tls-cert
+      service.beta.openshift.io/serving-cert-signed-by: openshift-service-serving-signer@1752702835
+    creationTimestamp: "2026-03-02T17:46:17Z"
+    labels:
+      app: vllm-optimizer-backend
+      app.kubernetes.io/component: development
+      app.kubernetes.io/name: vllm-optimizer-dev
+      app.kubernetes.io/part-of: vllm-optimizer
+      app.kubernetes.io/version: dev
+    name: vllm-optimizer-backend
+    namespace: vllm-optimizer-dev
+    resourceVersion: "244273713"
+    uid: 44d9f586-672a-4099-bf71-2cbb22aad185
+  spec:
+    clusterIP: 10.1.75.41
+    clusterIPs:
+    - 10.1.75.41
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http
+      port: 8000
+      protocol: TCP
+      targetPort: 8000
+    selector:
+      app: vllm-optimizer-backend
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"labels":{"app":"vllm-optimizer-frontend","app.kubernetes.io/component":"development","app.kubernetes.io/name":"vllm-optimizer-dev","app.kubernetes.io/part-of":"vllm-optimizer","app.kubernetes.io/version":"dev"},"name":"vllm-optimizer-frontend","namespace":"vllm-optimizer-dev"},"spec":{"ports":[{"name":"http","port":8080,"targetPort":8080}],"selector":{"app":"vllm-optimizer-frontend"},"type":"ClusterIP"}}
+    creationTimestamp: "2026-03-02T17:46:18Z"
+    labels:
+      app: vllm-optimizer-frontend
+      app.kubernetes.io/component: development
+      app.kubernetes.io/name: vllm-optimizer-dev
+      app.kubernetes.io/part-of: vllm-optimizer
+      app.kubernetes.io/version: dev
+    name: vllm-optimizer-frontend
+    namespace: vllm-optimizer-dev
+    resourceVersion: "244037778"
+    uid: 1a5e4b71-a322-4242-a612-068ed6348a25
+  spec:
+    clusterIP: 10.1.13.170
+    clusterIPs:
+    - 10.1.13.170
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    selector:
+      app: vllm-optimizer-frontend
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "22"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"labels":{"app":"vllm-optimizer-backend","app.kubernetes.io/component":"development","app.kubernetes.io/name":"vllm-optimizer-dev","app.kubernetes.io/part-of":"vllm-optimizer","app.kubernetes.io/version":"dev"},"name":"vllm-optimizer-backend","namespace":"vllm-optimizer-dev"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"vllm-optimizer-backend"}},"strategy":{"rollingUpdate":{"maxSurge":1,"maxUnavailable":0},"type":"RollingUpdate"},"template":{"metadata":{"annotations":{"prometheus.io/path":"/api/metrics","prometheus.io/port":"8000","prometheus.io/scrape":"true"},"labels":{"app":"vllm-optimizer-backend","app.kubernetes.io/part-of":"vllm-optimizer"}},"spec":{"affinity":{"podAntiAffinity":{"preferredDuringSchedulingIgnoredDuringExecution":[{"podAffinityTerm":{"labelSelector":{"matchLabels":{"app":"vllm-optimizer-backend"}},"topologyKey":"kubernetes.io/hostname"},"weight":100}]}},"containers":[{"env":[{"name":"K8S_NAMESPACE","value":"vllm"},{"name":"K8S_DEPLOYMENT_NAME","value":"llm-ov"},{"name":"K8S_CONFIGMAP_NAME","value":"vllm-config"},{"name":"POD_NAME","valueFrom":{"fieldRef":{"fieldPath":"metadata.name"}}},{"name":"POD_NAMESPACE","valueFrom":{"fieldRef":{"fieldPath":"metadata.namespace"}}}],"envFrom":[{"configMapRef":{"name":"vllm-optimizer-config"}},{"secretRef":{"name":"vllm-optimizer-secret"}}],"image":"quay.io/joopark/vllm-optimizer-backend:dev","imagePullPolicy":"Always","livenessProbe":{"failureThreshold":3,"httpGet":{"path":"/health","port":8000},"initialDelaySeconds":30,"periodSeconds":30},"name":"backend","ports":[{"containerPort":8000,"name":"http"}],"readinessProbe":{"failureThreshold":3,"httpGet":{"path":"/health","port":8000},"initialDelaySeconds":15,"periodSeconds":10},"resources":{"limits":{"cpu":"1000m","memory":"1Gi"},"requests":{"cpu":"200m","memory":"256Mi"}},"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"runAsNonRoot":true,"seccompProfile":{"type":"RuntimeDefault"}},"startupProbe":{"failureThreshold":12,"httpGet":{"path":"/health","port":8000},"initialDelaySeconds":10,"periodSeconds":10},"volumeMounts":[{"mountPath":"/tmp","name":"tmp-dir"}]}],"imagePullSecrets":[{"name":"quay-pull-secret"}],"securityContext":{"runAsNonRoot":true,"seccompProfile":{"type":"RuntimeDefault"}},"serviceAccountName":"vllm-optimizer-backend","terminationGracePeriodSeconds":30,"volumes":[{"emptyDir":{"sizeLimit":"100Mi"},"name":"tmp-dir"}]}}}}
+    creationTimestamp: "2026-03-02T17:46:18Z"
+    generation: 25
+    labels:
+      app: vllm-optimizer-backend
+      app.kubernetes.io/component: development
+      app.kubernetes.io/name: vllm-optimizer-dev
+      app.kubernetes.io/part-of: vllm-optimizer
+      app.kubernetes.io/version: dev
+    name: vllm-optimizer-backend
+    namespace: vllm-optimizer-dev
+    resourceVersion: "245478324"
+    uid: 697eafc4-be28-4912-8588-2898ef40fb71
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: vllm-optimizer-backend
+    strategy:
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 0
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-03-04T08:32:17+09:00"
+          prometheus.io/path: /api/metrics
+          prometheus.io/port: "8000"
+          prometheus.io/scrape: "true"
+        creationTimestamp: null
+        labels:
+          app: vllm-optimizer-backend
+          app.kubernetes.io/part-of: vllm-optimizer
+      spec:
+        affinity:
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: vllm-optimizer-backend
+                topologyKey: kubernetes.io/hostname
+              weight: 100
+        containers:
+        - env:
+          - name: K8S_NAMESPACE
+            value: vllm
+          - name: K8S_DEPLOYMENT_NAME
+            value: llm-ov
+          - name: K8S_CONFIGMAP_NAME
+            value: vllm-config
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.name
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+          envFrom:
+          - configMapRef:
+              name: vllm-optimizer-config
+          - secretRef:
+              name: vllm-optimizer-secret
+          image: quay.io/joopark/vllm-optimizer-backend:dev
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 8000
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: backend
+          ports:
+          - containerPort: 8000
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 8000
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: "1"
+              memory: 1Gi
+            requests:
+              cpu: 200m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          startupProbe:
+            failureThreshold: 12
+            httpGet:
+              path: /health
+              port: 8000
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /tmp
+            name: tmp-dir
+        dnsPolicy: ClusterFirst
+        imagePullSecrets:
+        - name: quay-pull-secret
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext:
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        serviceAccount: vllm-optimizer-backend
+        serviceAccountName: vllm-optimizer-backend
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - emptyDir:
+            sizeLimit: 100Mi
+          name: tmp-dir
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-03-02T17:46:18Z"
+      lastUpdateTime: "2026-03-03T23:32:37Z"
+      message: ReplicaSet "vllm-optimizer-backend-674d778875" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2026-03-05T03:06:59Z"
+      lastUpdateTime: "2026-03-05T03:06:59Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 25
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "9"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"labels":{"app":"vllm-optimizer-frontend","app.kubernetes.io/component":"development","app.kubernetes.io/name":"vllm-optimizer-dev","app.kubernetes.io/part-of":"vllm-optimizer","app.kubernetes.io/version":"dev"},"name":"vllm-optimizer-frontend","namespace":"vllm-optimizer-dev"},"spec":{"affinity":{"podAntiAffinity":{"preferredDuringSchedulingIgnoredDuringExecution":[{"podAffinityTerm":{"labelSelector":{"matchLabels":{"app":"vllm-optimizer-frontend"}},"topologyKey":"kubernetes.io/hostname"},"weight":100}]}},"replicas":1,"selector":{"matchLabels":{"app":"vllm-optimizer-frontend"}},"strategy":{"rollingUpdate":{"maxSurge":1,"maxUnavailable":0},"type":"RollingUpdate"},"template":{"metadata":{"labels":{"app":"vllm-optimizer-frontend","app.kubernetes.io/name":"vllm-optimizer-frontend","app.kubernetes.io/part-of":"vllm-optimizer"}},"spec":{"containers":[{"image":"quay.io/joopark/vllm-optimizer-frontend:dev","imagePullPolicy":"Always","livenessProbe":{"failureThreshold":3,"httpGet":{"path":"/health","port":8080},"initialDelaySeconds":20,"periodSeconds":30},"name":"frontend","ports":[{"containerPort":8080,"name":"http","protocol":"TCP"}],"readinessProbe":{"failureThreshold":3,"httpGet":{"path":"/health","port":8080},"initialDelaySeconds":10,"periodSeconds":5},"resources":{"limits":{"cpu":"200m","memory":"128Mi"},"requests":{"cpu":"50m","memory":"64Mi"}},"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"runAsNonRoot":true,"seccompProfile":{"type":"RuntimeDefault"}},"volumeMounts":[{"mountPath":"/tmp","name":"tmp-nginx"},{"mountPath":"/var/cache/nginx","name":"nginx-cache"},{"mountPath":"/var/run","name":"nginx-run"}]}],"imagePullSecrets":[{"name":"quay-pull-secret"}],"securityContext":{"runAsNonRoot":true,"seccompProfile":{"type":"RuntimeDefault"}},"serviceAccountName":"vllm-optimizer-frontend","volumes":[{"emptyDir":{"sizeLimit":"50Mi"},"name":"tmp-nginx"},{"emptyDir":{"sizeLimit":"100Mi"},"name":"nginx-cache"},{"emptyDir":{"sizeLimit":"10Mi"},"name":"nginx-run"}]}}}}
+    creationTimestamp: "2026-03-02T17:46:18Z"
+    generation: 10
+    labels:
+      app: vllm-optimizer-frontend
+      app.kubernetes.io/component: development
+      app.kubernetes.io/name: vllm-optimizer-dev
+      app.kubernetes.io/part-of: vllm-optimizer
+      app.kubernetes.io/version: dev
+    name: vllm-optimizer-frontend
+    namespace: vllm-optimizer-dev
+    resourceVersion: "245478301"
+    uid: 6fe1f442-7acd-4661-af83-d6209f748fdb
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: vllm-optimizer-frontend
+    strategy:
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 0
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-03-04T08:32:38+09:00"
+        creationTimestamp: null
+        labels:
+          app: vllm-optimizer-frontend
+          app.kubernetes.io/name: vllm-optimizer-frontend
+          app.kubernetes.io/part-of: vllm-optimizer
+      spec:
+        containers:
+        - image: quay.io/joopark/vllm-optimizer-frontend:dev
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: frontend
+          ports:
+          - containerPort: 8080
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: 200m
+              memory: 128Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /tmp
+            name: tmp-nginx
+          - mountPath: /var/cache/nginx
+            name: nginx-cache
+          - mountPath: /var/run
+            name: nginx-run
+        dnsPolicy: ClusterFirst
+        imagePullSecrets:
+        - name: quay-pull-secret
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext:
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        serviceAccount: vllm-optimizer-frontend
+        serviceAccountName: vllm-optimizer-frontend
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - emptyDir:
+            sizeLimit: 50Mi
+          name: tmp-nginx
+        - emptyDir:
+            sizeLimit: 100Mi
+          name: nginx-cache
+        - emptyDir:
+            sizeLimit: 10Mi
+          name: nginx-run
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-03-02T17:46:18Z"
+      lastUpdateTime: "2026-03-03T23:32:51Z"
+      message: ReplicaSet "vllm-optimizer-frontend-775b8786c9" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2026-03-05T03:06:59Z"
+      lastUpdateTime: "2026-03-05T03:06:59Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 10
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: policy/v1
+  kind: PodDisruptionBudget
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"policy/v1","kind":"PodDisruptionBudget","metadata":{"annotations":{},"labels":{"app.kubernetes.io/component":"development","app.kubernetes.io/name":"vllm-optimizer-dev","app.kubernetes.io/part-of":"vllm-optimizer","app.kubernetes.io/version":"dev"},"name":"vllm-optimizer-backend-pdb","namespace":"vllm-optimizer-dev"},"spec":{"minAvailable":1,"selector":{"matchLabels":{"app":"vllm-optimizer-backend"}}}}
+    creationTimestamp: "2026-03-03T08:40:16Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/component: development
+      app.kubernetes.io/name: vllm-optimizer-dev
+      app.kubernetes.io/part-of: vllm-optimizer
+      app.kubernetes.io/version: dev
+    name: vllm-optimizer-backend-pdb
+    namespace: vllm-optimizer-dev
+    resourceVersion: "245478314"
+    uid: 6f288299-5aa2-4757-b376-58a15f0aafc2
+  spec:
+    minAvailable: 1
+    selector:
+      matchLabels:
+        app: vllm-optimizer-backend
+  status:
+    conditions:
+    - lastTransitionTime: "2026-03-03T23:32:37Z"
+      message: ""
+      observedGeneration: 1
+      reason: InsufficientPods
+      status: "False"
+      type: DisruptionAllowed
+    currentHealthy: 1
+    desiredHealthy: 1
+    disruptionsAllowed: 0
+    expectedPods: 1
+    observedGeneration: 1
+- apiVersion: policy/v1
+  kind: PodDisruptionBudget
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"policy/v1","kind":"PodDisruptionBudget","metadata":{"annotations":{},"labels":{"app.kubernetes.io/component":"development","app.kubernetes.io/name":"vllm-optimizer-dev","app.kubernetes.io/part-of":"vllm-optimizer","app.kubernetes.io/version":"dev"},"name":"vllm-optimizer-frontend-pdb","namespace":"vllm-optimizer-dev"},"spec":{"minAvailable":1,"selector":{"matchLabels":{"app":"vllm-optimizer-frontend"}}}}
+    creationTimestamp: "2026-03-03T08:40:17Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/component: development
+      app.kubernetes.io/name: vllm-optimizer-dev
+      app.kubernetes.io/part-of: vllm-optimizer
+      app.kubernetes.io/version: dev
+    name: vllm-optimizer-frontend-pdb
+    namespace: vllm-optimizer-dev
+    resourceVersion: "245478298"
+    uid: fe42a8fd-7f13-465e-83a4-8aea8b43871f
+  spec:
+    minAvailable: 1
+    selector:
+      matchLabels:
+        app: vllm-optimizer-frontend
+  status:
+    conditions:
+    - lastTransitionTime: "2026-03-03T23:32:51Z"
+      message: ""
+      observedGeneration: 1
+      reason: InsufficientPods
+      status: "False"
+      type: DisruptionAllowed
+    currentHealthy: 1
+    desiredHealthy: 1
+    disruptionsAllowed: 0
+    expectedPods: 1
+    observedGeneration: 1
+- apiVersion: autoscaling/v2
+  kind: HorizontalPodAutoscaler
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"autoscaling/v2","kind":"HorizontalPodAutoscaler","metadata":{"annotations":{},"labels":{"app.kubernetes.io/component":"development","app.kubernetes.io/name":"vllm-optimizer-dev","app.kubernetes.io/part-of":"vllm-optimizer","app.kubernetes.io/version":"dev"},"name":"vllm-optimizer-backend-hpa","namespace":"vllm-optimizer-dev"},"spec":{"behavior":{"scaleDown":{"policies":[{"periodSeconds":60,"type":"Pods","value":1}],"stabilizationWindowSeconds":300},"scaleUp":{"policies":[{"periodSeconds":60,"type":"Pods","value":2}],"stabilizationWindowSeconds":60}},"maxReplicas":5,"metrics":[{"resource":{"name":"cpu","target":{"averageUtilization":70,"type":"Utilization"}},"type":"Resource"}],"minReplicas":1,"scaleTargetRef":{"apiVersion":"apps/v1","kind":"Deployment","name":"vllm-optimizer-backend"}}}
+    creationTimestamp: "2026-03-02T17:46:18Z"
+    labels:
+      app.kubernetes.io/component: development
+      app.kubernetes.io/name: vllm-optimizer-dev
+      app.kubernetes.io/part-of: vllm-optimizer
+      app.kubernetes.io/version: dev
+    name: vllm-optimizer-backend-hpa
+    namespace: vllm-optimizer-dev
+    resourceVersion: "246352446"
+    uid: 0a98203f-623f-4dd2-97ff-5699995b4288
+  spec:
+    behavior:
+      scaleDown:
+        policies:
+        - periodSeconds: 60
+          type: Pods
+          value: 1
+        selectPolicy: Max
+        stabilizationWindowSeconds: 300
+      scaleUp:
+        policies:
+        - periodSeconds: 60
+          type: Pods
+          value: 2
+        selectPolicy: Max
+        stabilizationWindowSeconds: 60
+    maxReplicas: 5
+    metrics:
+    - resource:
+        name: cpu
+        target:
+          averageUtilization: 70
+          type: Utilization
+      type: Resource
+    minReplicas: 1
+    scaleTargetRef:
+      apiVersion: apps/v1
+      kind: Deployment
+      name: vllm-optimizer-backend
+  status:
+    conditions:
+    - lastTransitionTime: "2026-03-02T17:46:33Z"
+      message: recommended size matches current size
+      reason: ReadyForNewScale
+      status: "True"
+      type: AbleToScale
+    - lastTransitionTime: "2026-03-05T03:07:04Z"
+      message: the HPA was able to successfully calculate a replica count from cpu
+        resource utilization (percentage of request)
+      reason: ValidMetricFound
+      status: "True"
+      type: ScalingActive
+    - lastTransitionTime: "2026-03-03T08:40:28Z"
+      message: the desired count is within the acceptable range
+      reason: DesiredWithinRange
+      status: "False"
+      type: ScalingLimited
+    currentMetrics:
+    - resource:
+        current:
+          averageUtilization: 5
+          averageValue: 11m
+        name: cpu
+      type: Resource
+    currentReplicas: 1
+    desiredReplicas: 1
+    lastScaleTime: "2026-03-02T18:54:21Z"
+- apiVersion: autoscaling/v2
+  kind: HorizontalPodAutoscaler
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"autoscaling/v2","kind":"HorizontalPodAutoscaler","metadata":{"annotations":{},"labels":{"app.kubernetes.io/component":"development","app.kubernetes.io/name":"vllm-optimizer-dev","app.kubernetes.io/part-of":"vllm-optimizer","app.kubernetes.io/version":"dev"},"name":"vllm-optimizer-frontend","namespace":"vllm-optimizer-dev"},"spec":{"maxReplicas":3,"metrics":[{"resource":{"name":"cpu","target":{"averageUtilization":80,"type":"Utilization"}},"type":"Resource"},{"resource":{"name":"memory","target":{"averageUtilization":85,"type":"Utilization"}},"type":"Resource"}],"minReplicas":1,"scaleTargetRef":{"apiVersion":"apps/v1","kind":"Deployment","name":"vllm-optimizer-frontend"}}}
+    creationTimestamp: "2026-03-03T08:40:19Z"
+    labels:
+      app.kubernetes.io/component: development
+      app.kubernetes.io/name: vllm-optimizer-dev
+      app.kubernetes.io/part-of: vllm-optimizer
+      app.kubernetes.io/version: dev
+    name: vllm-optimizer-frontend
+    namespace: vllm-optimizer-dev
+    resourceVersion: "245943041"
+    uid: c945c773-1b8b-4247-bcdc-f50b7e65b129
+  spec:
+    maxReplicas: 3
+    metrics:
+    - resource:
+        name: cpu
+        target:
+          averageUtilization: 80
+          type: Utilization
+      type: Resource
+    - resource:
+        name: memory
+        target:
+          averageUtilization: 85
+          type: Utilization
+      type: Resource
+    minReplicas: 1
+    scaleTargetRef:
+      apiVersion: apps/v1
+      kind: Deployment
+      name: vllm-optimizer-frontend
+  status:
+    conditions:
+    - lastTransitionTime: "2026-03-03T08:40:34Z"
+      message: recommended size matches current size
+      reason: ReadyForNewScale
+      status: "True"
+      type: AbleToScale
+    - lastTransitionTime: "2026-03-05T03:07:04Z"
+      message: the HPA was able to successfully calculate a replica count from cpu
+        resource utilization (percentage of request)
+      reason: ValidMetricFound
+      status: "True"
+      type: ScalingActive
+    - lastTransitionTime: "2026-03-03T08:40:34Z"
+      message: the desired count is within the acceptable range
+      reason: DesiredWithinRange
+      status: "False"
+      type: ScalingLimited
+    currentMetrics:
+    - resource:
+        current:
+          averageUtilization: 2
+          averageValue: 1m
+        name: cpu
+      type: Resource
+    - resource:
+        current:
+          averageUtilization: 29
+          averageValue: "19730432"
+        name: memory
+      type: Resource
+    currentReplicas: 1
+    desiredReplicas: 1
+- apiVersion: monitoring.coreos.com/v1
+  kind: PrometheusRule
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"monitoring.coreos.com/v1","kind":"PrometheusRule","metadata":{"annotations":{},"labels":{"app.kubernetes.io/component":"development","app.kubernetes.io/name":"vllm-optimizer-dev","app.kubernetes.io/part-of":"vllm-optimizer","app.kubernetes.io/version":"dev","openshift.io/cluster-monitoring":"true","role":"alert-rules"},"name":"vllm-optimizer-alerts","namespace":"vllm-optimizer-dev"},"spec":{"groups":[{"interval":"30s","name":"vllm.performance","rules":[{"alert":"VLLMHighP99Latency","annotations":{"description":"vLLM P99 레이턴시가 {{ $value | humanizeDuration }}으로\n2초 임계치를 초과했습니다. (namespace: {{ $labels.namespace }})\n","runbook_url":"https://wiki.example.com/runbooks/vllm-high-latency","summary":"vLLM P99 레이턴시 임계치 초과"},"expr":"histogram_quantile(0.99,\n  rate(vllm:e2e_request_latency_seconds_bucket[5m])\n) \u003e 2.0\n","for":"5m","labels":{"severity":"warning","team":"mlops"}},{"alert":"VLLMHighQueueDepth","annotations":{"description":"대기 중인 요청이 {{ $value }}개로 50개 임계치를 초과했습니다.\nHPA 스케일아웃 또는 파라미터 튜닝을 고려하세요.\n","summary":"vLLM 대기 요청 큐 증가"},"expr":"vllm:num_requests_waiting \u003e 50","for":"2m","labels":{"severity":"warning","team":"mlops"}},{"alert":"VLLMKVCacheSaturation","annotations":{"description":"KV Cache 사용률이 {{ $value | humanizePercentage }}로\n95% 임계치를 초과했습니다. OOM 위험이 있습니다.\n","summary":"vLLM KV Cache 포화 상태"},"expr":"vllm:gpu_cache_usage_perc \u003e 0.95","for":"3m","labels":{"severity":"critical","team":"mlops"}},{"alert":"VLLMLowThroughput","annotations":{"description":"TPS가 {{ $value | humanize }}로 10 이하로 떨어졌습니다.","summary":"vLLM 처리량 비정상적으로 낮음"},"expr":"rate(vllm:generation_tokens_total[5m]) \u003c 10\n","for":"10m","labels":{"severity":"warning","team":"mlops"}}]},{"name":"vllm-optimizer.app","rules":[{"alert":"OptimizerBackendDown","annotations":{"description":"Optimizer Backend Pod가 응답하지 않습니다.","summary":"vLLM Optimizer Backend 다운"},"expr":"up{job=\"vllm-optimizer-backend\"} == 0\n","for":"1m","labels":{"severity":"critical","team":"mlops"}},{"alert":"OptimizerBackendHighErrorRate","annotations":{"description":"에러율: {{ $value | humanizePercentage }}","summary":"Optimizer Backend 에러율 5% 초과"},"expr":"rate(http_requests_total{job=\"vllm-optimizer-backend\",status=~\"5..\"}[5m])\n/\nrate(http_requests_total{job=\"vllm-optimizer-backend\"}[5m]) \u003e 0.05\n","for":"5m","labels":{"severity":"warning","team":"mlops"}}]},{"name":"vllm.availability","rules":[{"alert":"VLLMPodNotReady","annotations":{"description":"전체 {{ $labels.deployment }} 레플리카 중 절반 이상이 비가용입니다.\n","summary":"vLLM Pod 50% 이상 비가용 상태"},"expr":"kube_deployment_status_replicas_available{deployment=\"vllm-deployment\"}\n\u003c\nkube_deployment_spec_replicas{deployment=\"vllm-deployment\"} * 0.5\n","for":"5m","labels":{"severity":"critical","team":"mlops"}}]}]}}
+    creationTimestamp: "2026-03-03T08:40:21Z"
+    generation: 2
+    labels:
+      app.kubernetes.io/component: development
+      app.kubernetes.io/name: vllm-optimizer-dev
+      app.kubernetes.io/part-of: vllm-optimizer
+      app.kubernetes.io/version: dev
+      openshift.io/cluster-monitoring: "true"
+      role: alert-rules
+    name: vllm-optimizer-alerts
+    namespace: vllm-optimizer-dev
+    resourceVersion: "244273757"
+    uid: 090ed7bb-8d20-4dc6-aa37-971699703f9f
+  spec:
+    groups:
+    - interval: 30s
+      name: vllm.performance
+      rules:
+      - alert: VLLMHighP99Latency
+        annotations:
+          description: |
+            vLLM P99 레이턴시가 {{ $value | humanizeDuration }}으로
+            2초 임계치를 초과했습니다. (namespace: {{ $labels.namespace }})
+          runbook_url: https://wiki.example.com/runbooks/vllm-high-latency
+          summary: vLLM P99 레이턴시 임계치 초과
+        expr: |
+          histogram_quantile(0.99,
+            rate(vllm:e2e_request_latency_seconds_bucket[5m])
+          ) > 2.0
+        for: 5m
+        labels:
+          severity: warning
+          team: mlops
+      - alert: VLLMHighQueueDepth
+        annotations:
+          description: |
+            대기 중인 요청이 {{ $value }}개로 50개 임계치를 초과했습니다.
+            HPA 스케일아웃 또는 파라미터 튜닝을 고려하세요.
+          summary: vLLM 대기 요청 큐 증가
+        expr: vllm:num_requests_waiting > 50
+        for: 2m
+        labels:
+          severity: warning
+          team: mlops
+      - alert: VLLMKVCacheSaturation
+        annotations:
+          description: |
+            KV Cache 사용률이 {{ $value | humanizePercentage }}로
+            95% 임계치를 초과했습니다. OOM 위험이 있습니다.
+          summary: vLLM KV Cache 포화 상태
+        expr: vllm:gpu_cache_usage_perc > 0.95
+        for: 3m
+        labels:
+          severity: critical
+          team: mlops
+      - alert: VLLMLowThroughput
+        annotations:
+          description: TPS가 {{ $value | humanize }}로 10 이하로 떨어졌습니다.
+          summary: vLLM 처리량 비정상적으로 낮음
+        expr: |
+          rate(vllm:generation_tokens_total[5m]) < 10
+        for: 10m
+        labels:
+          severity: warning
+          team: mlops
+    - name: vllm-optimizer.app
+      rules:
+      - alert: OptimizerBackendDown
+        annotations:
+          description: Optimizer Backend Pod가 응답하지 않습니다.
+          summary: vLLM Optimizer Backend 다운
+        expr: |
+          up{job="vllm-optimizer-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: mlops
+      - alert: OptimizerBackendHighErrorRate
+        annotations:
+          description: '에러율: {{ $value | humanizePercentage }}'
+          summary: Optimizer Backend 에러율 5% 초과
+        expr: |
+          rate(http_requests_total{job="vllm-optimizer-backend",status=~"5.."}[5m])
+          /
+          rate(http_requests_total{job="vllm-optimizer-backend"}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          team: mlops
+    - name: vllm.availability
+      rules:
+      - alert: VLLMPodNotReady
+        annotations:
+          description: |
+            전체 {{ $labels.deployment }} 레플리카 중 절반 이상이 비가용입니다.
+          summary: vLLM Pod 50% 이상 비가용 상태
+        expr: |
+          kube_deployment_status_replicas_available{deployment="vllm-deployment"}
+          <
+          kube_deployment_spec_replicas{deployment="vllm-deployment"} * 0.5
+        for: 5m
+        labels:
+          severity: critical
+          team: mlops
+- apiVersion: monitoring.coreos.com/v1
+  kind: ServiceMonitor
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"monitoring.coreos.com/v1","kind":"ServiceMonitor","metadata":{"annotations":{},"labels":{"app.kubernetes.io/component":"development","app.kubernetes.io/name":"vllm-optimizer-dev","app.kubernetes.io/part-of":"vllm-optimizer","app.kubernetes.io/version":"dev","openshift.io/cluster-monitoring":"true"},"name":"vllm-optimizer-backend","namespace":"vllm-optimizer-dev"},"spec":{"endpoints":[{"interval":"15s","path":"/api/metrics","port":"http","scheme":"http","scrapeTimeout":"10s"}],"selector":{"matchLabels":{"app":"vllm-optimizer-backend"}}}}
+    creationTimestamp: "2026-03-03T08:40:25Z"
+    generation: 2
+    labels:
+      app.kubernetes.io/component: development
+      app.kubernetes.io/name: vllm-optimizer-dev
+      app.kubernetes.io/part-of: vllm-optimizer
+      app.kubernetes.io/version: dev
+      openshift.io/cluster-monitoring: "true"
+    name: vllm-optimizer-backend
+    namespace: vllm-optimizer-dev
+    resourceVersion: "244273761"
+    uid: 0a0c4752-3c5f-4cb8-8543-711e9a45c104
+  spec:
+    endpoints:
+    - interval: 15s
+      path: /api/metrics
+      port: http
+      scheme: http
+      scrapeTimeout: 10s
+    selector:
+      matchLabels:
+        app: vllm-optimizer-backend
+- apiVersion: networking.k8s.io/v1
+  kind: NetworkPolicy
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"networking.k8s.io/v1","kind":"NetworkPolicy","metadata":{"annotations":{},"labels":{"app.kubernetes.io/component":"development","app.kubernetes.io/name":"vllm-optimizer-dev","app.kubernetes.io/part-of":"vllm-optimizer","app.kubernetes.io/version":"dev"},"name":"vllm-optimizer-backend-netpol","namespace":"vllm-optimizer-dev"},"spec":{"ingress":[{"from":[{"podSelector":{}}],"ports":[{"port":8000}]},{"from":[{"namespaceSelector":{"matchLabels":{"network.openshift.io/policy-group":"ingress"}}}],"ports":[{"port":8000}]},{"from":[{"namespaceSelector":{"matchLabels":{"network.openshift.io/policy-group":"monitoring"}}}],"ports":[{"port":8000}]},{"from":[{"namespaceSelector":{"matchExpressions":[{"key":"kubernetes.io/metadata.name","operator":"In","values":["openshift-kube-apiserver-operator","kube-apiserver-operator"]}]}}],"ports":[{"port":8000}]}],"podSelector":{"matchLabels":{"app":"vllm-optimizer-backend"}},"policyTypes":["Ingress"]}}
+    creationTimestamp: "2026-03-03T08:40:27Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/component: development
+      app.kubernetes.io/name: vllm-optimizer-dev
+      app.kubernetes.io/part-of: vllm-optimizer
+      app.kubernetes.io/version: dev
+    name: vllm-optimizer-backend-netpol
+    namespace: vllm-optimizer-dev
+    resourceVersion: "244273767"
+    uid: c40a63d6-b3de-42ca-ade6-390e6184d80a
+  spec:
+    ingress:
+    - from:
+      - podSelector: {}
+      ports:
+      - port: 8000
+        protocol: TCP
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            network.openshift.io/policy-group: ingress
+      ports:
+      - port: 8000
+        protocol: TCP
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            network.openshift.io/policy-group: monitoring
+      ports:
+      - port: 8000
+        protocol: TCP
+    - from:
+      - namespaceSelector:
+          matchExpressions:
+          - key: kubernetes.io/metadata.name
+            operator: In
+            values:
+            - openshift-kube-apiserver-operator
+            - kube-apiserver-operator
+      ports:
+      - port: 8000
+        protocol: TCP
+    podSelector:
+      matchLabels:
+        app: vllm-optimizer-backend
+    policyTypes:
+    - Ingress
+- apiVersion: networking.k8s.io/v1
+  kind: NetworkPolicy
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"networking.k8s.io/v1","kind":"NetworkPolicy","metadata":{"annotations":{},"labels":{"app.kubernetes.io/component":"development","app.kubernetes.io/name":"vllm-optimizer-dev","app.kubernetes.io/part-of":"vllm-optimizer","app.kubernetes.io/version":"dev"},"name":"vllm-optimizer-frontend-netpol","namespace":"vllm-optimizer-dev"},"spec":{"ingress":[{"from":[{"podSelector":{}}],"ports":[{"port":8080}]},{"from":[{"namespaceSelector":{"matchLabels":{"network.openshift.io/policy-group":"ingress"}}}],"ports":[{"port":8080}]},{"from":[{"namespaceSelector":{"matchLabels":{"network.openshift.io/policy-group":"monitoring"}}}],"ports":[{"port":8080}]},{"from":[{"namespaceSelector":{"matchExpressions":[{"key":"kubernetes.io/metadata.name","operator":"In","values":["openshift-kube-apiserver-operator","kube-apiserver-operator"]}]}}],"ports":[{"port":8080}]}],"podSelector":{"matchLabels":{"app":"vllm-optimizer-frontend"}},"policyTypes":["Ingress"]}}
+    creationTimestamp: "2026-03-03T08:40:28Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/component: development
+      app.kubernetes.io/name: vllm-optimizer-dev
+      app.kubernetes.io/part-of: vllm-optimizer
+      app.kubernetes.io/version: dev
+    name: vllm-optimizer-frontend-netpol
+    namespace: vllm-optimizer-dev
+    resourceVersion: "244273769"
+    uid: 025a0ce5-39f5-426f-bff7-a9568339c0eb
+  spec:
+    ingress:
+    - from:
+      - podSelector: {}
+      ports:
+      - port: 8080
+        protocol: TCP
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            network.openshift.io/policy-group: ingress
+      ports:
+      - port: 8080
+        protocol: TCP
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            network.openshift.io/policy-group: monitoring
+      ports:
+      - port: 8080
+        protocol: TCP
+    - from:
+      - namespaceSelector:
+          matchExpressions:
+          - key: kubernetes.io/metadata.name
+            operator: In
+            values:
+            - openshift-kube-apiserver-operator
+            - kube-apiserver-operator
+      ports:
+      - port: 8080
+        protocol: TCP
+    podSelector:
+      matchLabels:
+        app: vllm-optimizer-frontend
+    policyTypes:
+    - Ingress
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    annotations:
+      haproxy.router.openshift.io/hsts_header: max-age=31536000;includeSubDomains;preload
+      haproxy.router.openshift.io/response-buffering: "false"
+      haproxy.router.openshift.io/timeout: 3600s
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"route.openshift.io/v1","kind":"Route","metadata":{"annotations":{"haproxy.router.openshift.io/hsts_header":"max-age=31536000;includeSubDomains;preload","haproxy.router.openshift.io/response-buffering":"false","haproxy.router.openshift.io/timeout":"3600s","router.openshift.io/cookie_name":"vllm-optimizer-sticky"},"labels":{"app.kubernetes.io/component":"development","app.kubernetes.io/name":"vllm-optimizer-dev","app.kubernetes.io/part-of":"vllm-optimizer","app.kubernetes.io/version":"dev"},"name":"vllm-optimizer","namespace":"vllm-optimizer-dev"},"spec":{"port":{"targetPort":"http"},"tls":{"insecureEdgeTerminationPolicy":"Redirect","termination":"edge"},"to":{"kind":"Service","name":"vllm-optimizer-frontend","weight":100}}}
+      openshift.io/host.generated: "true"
+      router.openshift.io/cookie_name: vllm-optimizer-sticky
+    creationTimestamp: "2026-03-02T17:46:18Z"
+    labels:
+      app.kubernetes.io/component: development
+      app.kubernetes.io/name: vllm-optimizer-dev
+      app.kubernetes.io/part-of: vllm-optimizer
+      app.kubernetes.io/version: dev
+    name: vllm-optimizer
+    namespace: vllm-optimizer-dev
+    resourceVersion: "244038009"
+    uid: 253faa55-ed23-43c5-b451-91f324602de2
+  spec:
+    host: vllm-optimizer-vllm-optimizer-dev.apps.compact.jooan.local
+    port:
+      targetPort: http
+    tls:
+      insecureEdgeTerminationPolicy: Redirect
+      termination: edge
+    to:
+      kind: Service
+      name: vllm-optimizer-frontend
+      weight: 100
+    wildcardPolicy: None
+  status:
+    ingress:
+    - conditions:
+      - lastTransitionTime: "2026-03-02T17:46:19Z"
+        status: "True"
+        type: Admitted
+      host: vllm-optimizer-vllm-optimizer-dev.apps.compact.jooan.local
+      routerCanonicalHostname: router-default.apps.compact.jooan.local
+      routerName: default
+      wildcardPolicy: None
+- allowHostDirVolumePlugin: false
+  allowHostIPC: false
+  allowHostNetwork: false
+  allowHostPID: false
+  allowHostPorts: false
+  allowPrivilegeEscalation: false
+  allowPrivilegedContainer: false
+  allowedCapabilities: []
+  apiVersion: security.openshift.io/v1
+  defaultAddCapabilities: []
+  fsGroup:
+    ranges:
+    - max: 65535
+      min: 1
+    type: MustRunAs
+  groups: []
+  kind: SecurityContextConstraints
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"allowHostIPC":false,"allowHostNetwork":false,"allowHostPID":false,"allowHostPorts":false,"allowPrivilegeEscalation":false,"allowPrivilegedContainer":false,"allowedCapabilities":[],"apiVersion":"security.openshift.io/v1","defaultAddCapabilities":[],"fsGroup":{"ranges":[{"max":65535,"min":1}],"type":"MustRunAs"},"groups":[],"kind":"SecurityContextConstraints","metadata":{"annotations":{},"labels":{"app.kubernetes.io/component":"development","app.kubernetes.io/name":"vllm-optimizer-dev","app.kubernetes.io/part-of":"vllm-optimizer","app.kubernetes.io/version":"dev"},"name":"vllm-optimizer-scc"},"readOnlyRootFilesystem":false,"requiredDropCapabilities":["ALL"],"runAsUser":{"type":"MustRunAsNonRoot"},"seLinuxContext":{"type":"MustRunAs"},"seccompProfiles":["runtime/default"],"supplementalGroups":{"ranges":[{"max":65535,"min":1}],"type":"MustRunAs"},"users":["system:serviceaccount:vllm-optimizer-${DEPLOY_ENV}:vllm-optimizer-backend","system:serviceaccount:vllm-optimizer-${DEPLOY_ENV}:vllm-optimizer-frontend"],"volumes":["configMap","emptyDir","secret","projected","persistentVolumeClaim"]}
+    creationTimestamp: "2026-03-02T17:46:19Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/component: development
+      app.kubernetes.io/name: vllm-optimizer-dev
+      app.kubernetes.io/part-of: vllm-optimizer
+      app.kubernetes.io/version: dev
+    name: vllm-optimizer-scc
+    resourceVersion: "244273776"
+    uid: 3d687ee0-e765-445b-9a18-25b221a30e89
+  priority: null
+  readOnlyRootFilesystem: false
+  requiredDropCapabilities:
+  - ALL
+  runAsUser:
+    type: MustRunAsNonRoot
+  seLinuxContext:
+    type: MustRunAs
+  seccompProfiles:
+  - runtime/default
+  supplementalGroups:
+    ranges:
+    - max: 65535
+      min: 1
+    type: MustRunAs
+  userNamespaceLevel: AllowHostLevel
+  users:
+  - system:serviceaccount:vllm-optimizer-${DEPLOY_ENV}:vllm-optimizer-backend
+  - system:serviceaccount:vllm-optimizer-${DEPLOY_ENV}:vllm-optimizer-frontend
+  volumes:
+  - configMap
+  - emptyDir
+  - persistentVolumeClaim
+  - projected
+  - secret
+kind: List
+metadata: {}

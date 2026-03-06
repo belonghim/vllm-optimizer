@@ -1,0 +1,1 @@
+  VLLM_DEPLOYMENT_NAME: "llm-ov"

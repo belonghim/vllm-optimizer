@@ -1,0 +1,11 @@
+  name: vllm-optimizer-monitoring-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-monitoring-view
+subjects:
+  - kind: ServiceAccount
+    name: vllm-optimizer-backend
+    namespace: "vllm-optimizer"
+---
+# OpenShift SCC: non-root + arbitrary UID

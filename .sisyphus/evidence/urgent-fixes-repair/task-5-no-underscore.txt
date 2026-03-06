@@ -1,0 +1,1 @@
+backend/services/metrics_collector.py:                    "vllm_version": self._version,

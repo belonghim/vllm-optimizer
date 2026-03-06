@@ -1,0 +1,34 @@
+
+In deploy.sh line 127:
+    oc rollout restart deployment/$deployment_name -n "$_namespace" || true
+                                  ^--------------^ SC2086 (info): Double quote to prevent globbing and word splitting.
+
+Did you mean:
+    oc rollout restart deployment/"$deployment_name" -n "$_namespace" || true
+
+
+In deploy.sh line 128:
+    oc rollout status deployment/$deployment_name -n "$_namespace" --timeout=5m
+                                 ^--------------^ SC2086 (info): Double quote to prevent globbing and word splitting.
+
+Did you mean:
+    oc rollout status deployment/"$deployment_name" -n "$_namespace" --timeout=5m
+
+
+In deploy.sh line 134:
+    oc rollout restart deployment/$deployment_name -n "$_namespace" || true
+                                  ^--------------^ SC2086 (info): Double quote to prevent globbing and word splitting.
+
+Did you mean:
+    oc rollout restart deployment/"$deployment_name" -n "$_namespace" || true
+
+
+In deploy.sh line 135:
+    oc rollout status deployment/$deployment_name -n "$_namespace" --timeout=5m
+                                 ^--------------^ SC2086 (info): Double quote to prevent globbing and word splitting.
+
+Did you mean:
+    oc rollout status deployment/"$deployment_name" -n "$_namespace" --timeout=5m
+
+For more information:
+  https://www.shellcheck.net/wiki/SC2086 -- Double quote to prevent globbing ...

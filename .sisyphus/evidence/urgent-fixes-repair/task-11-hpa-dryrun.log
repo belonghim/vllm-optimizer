@@ -1,0 +1,4 @@
+deployment.apps/vllm-optimizer-frontend created (dry run)
+horizontalpodautoscaler.autoscaling/vllm-optimizer-frontend created (dry run)
+service/vllm-optimizer-frontend created (dry run)
+route.route.openshift.io/vllm-optimizer created (dry run)

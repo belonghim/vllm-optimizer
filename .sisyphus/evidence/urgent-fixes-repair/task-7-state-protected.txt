@@ -1,0 +1,11 @@
+                result = await t
+                async with self._state_lock:
+                    self._state.results.append(result)
+                    if result.success:
+                        self._state.completed_requests += 1
+--
+                if isinstance(result, RequestResult):
+                    async with self._state_lock:
+                        self._state.results.append(result)
+
+        async with self._state_lock:

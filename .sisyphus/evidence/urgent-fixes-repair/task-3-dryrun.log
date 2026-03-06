@@ -1,0 +1,7 @@
+namespace/vllm-optimizer created (dry run)
+serviceaccount/vllm-optimizer-backend created (dry run)
+serviceaccount/vllm-optimizer-frontend created (dry run)
+clusterrole.rbac.authorization.k8s.io/vllm-optimizer-controller configured (dry run)
+clusterrolebinding.rbac.authorization.k8s.io/vllm-optimizer-controller configured (dry run)
+clusterrolebinding.rbac.authorization.k8s.io/vllm-optimizer-monitoring-view created (dry run)
+securitycontextconstraints.security.openshift.io/vllm-optimizer-scc configured (dry run)

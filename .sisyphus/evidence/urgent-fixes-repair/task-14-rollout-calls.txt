@@ -1,0 +1,4 @@
+217:    oc rollout status deployment/vllm-optimizer-backend -n "${NAMESPACE}" --timeout=5m
+240:    oc rollout status deployment/vllm-optimizer-backend -n "${NAMESPACE}" --timeout=5m
+219:    oc rollout status deployment/vllm-optimizer-frontend -n "${NAMESPACE}" --timeout=5m
+242:    oc rollout status deployment/vllm-optimizer-frontend -n "${NAMESPACE}" --timeout=5m

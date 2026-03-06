@@ -1,0 +1,4 @@
+NAME                             POD-SELECTOR                                AGE
+vllm-networkpolicy               serving.kserve.io/inferenceservice=llm-ov   2d19h
+vllm-optimizer-backend-netpol    app=vllm-optimizer-backend                  2d19h
+vllm-optimizer-frontend-netpol   app=vllm-optimizer-frontend                 2d19h

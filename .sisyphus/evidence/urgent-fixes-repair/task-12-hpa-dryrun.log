@@ -1,0 +1,3 @@
+deployment.apps/vllm-optimizer-backend created (dry run)
+service/vllm-optimizer-backend created (dry run)
+horizontalpodautoscaler.autoscaling/vllm-optimizer-backend-hpa created (dry run)
