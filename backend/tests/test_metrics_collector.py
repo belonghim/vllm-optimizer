@@ -27,7 +27,7 @@ class TestMetricsCollectorVersionDetection:
         # Mock _load_token and _init_k8s to prevent actual K8s interaction
         with patch('backend.services.metrics_collector.MetricsCollector._load_token', return_value=None), \
              patch('backend.services.metrics_collector.MetricsCollector._init_k8s', return_value=None), \
-             patch('backend.services.metrics_collector.PROMETHEUS_URL', "http://mock-prometheus"): # Patch PROMETHEUS_URL
+             patch.dict(MetricsCollector._detect_version.__globals__, {'PROMETHEUS_URL': "http://mock-prometheus"}):
             collector = MetricsCollector()
             yield collector
 
@@ -49,7 +49,7 @@ class TestMetricsCollectorVersionDetection:
         version = await mock_metrics_collector._detect_version()
         assert version == "0.13.x"
         mock_httpx_client.get.assert_called_once_with(
-            f"{backend.services.metrics_collector.PROMETHEUS_URL}/api/v1/query",
+            "http://mock-prometheus/api/v1/query",
             params={"query": "vllm:kv_cache_usage_perc"},
         )
 

@@ -1,5 +1,16 @@
+import importlib
+
 import pytest
 from fastapi.testclient import TestClient
+
+
+def _patch_generate_metrics(monkeypatch, fake_fn):
+    for mod_name in ("metrics.prometheus_metrics", "backend.metrics.prometheus_metrics"):
+        try:
+            mod = importlib.import_module(mod_name)
+            monkeypatch.setattr(mod, "generate_metrics", fake_fn, raising=False)
+        except ModuleNotFoundError:
+            pass
 
 
 def test_metrics_endpoint_plaintext(monkeypatch):
@@ -52,11 +63,9 @@ vllm:e2e_request_latency_seconds_count{model="default"} 150.0
     def fake_generate_metrics():
         return fake_metrics_output
     
-    # Patch where it's used (main module), not where it lives (prometheus_metrics module)
-    import backend.main
-    monkeypatch.setattr(backend.main, 'generate_metrics', fake_generate_metrics)
+    _patch_generate_metrics(monkeypatch, fake_generate_metrics)
 
-    from ..main import app
+    from backend.main import app
     client = TestClient(app)
     resp = client.get("/api/metrics")
     
@@ -134,9 +143,7 @@ def test_metrics_endpoint_no_server_required(monkeypatch):
     def fake_generate_metrics():
         return b"# HELP test_metric Test metric\n# TYPE test_metric gauge\ntest_metric 1.0\n"
     
-    # Patch where it's used (main module), not where it lives (prometheus_metrics module)
-    import backend.main
-    monkeypatch.setattr(backend.main, 'generate_metrics', fake_generate_metrics)
+    _patch_generate_metrics(monkeypatch, fake_generate_metrics)
 
     from backend.main import app
     client = TestClient(app)
