@@ -114,6 +114,7 @@ class MetricsCollector:
         self._current_queries = None # Will be set after version detection
         self._version = "unknown"
         self._missing_metrics = []
+        self._last_collection_duration: float = 0.0
 
     async def _post_init(self):
         # This needs to be async, so we call it after __init__
@@ -165,8 +166,13 @@ class MetricsCollector:
     def history(self) -> list[VLLMMetrics]:
         return self._history
 
+    @property
+    def last_collection_duration(self) -> float:
+        return self._last_collection_duration
+
     async def _collect(self) -> VLLMMetrics:
         import time
+        start = time.monotonic()
         metrics = VLLMMetrics(timestamp=time.time())
 
         # Prometheus 쿼리
@@ -183,6 +189,15 @@ class MetricsCollector:
 
         # Update Prometheus metrics
         update_metrics(metrics)
+        
+        # Record collection duration
+        duration = time.monotonic() - start
+        self._last_collection_duration = duration
+        try:
+            from metrics.prometheus_metrics import metrics_collection_duration_metric
+            metrics_collection_duration_metric.observe(duration)
+        except Exception:
+            pass
 
         return metrics
 

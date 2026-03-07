@@ -1,6 +1,6 @@
 import pytest_asyncio
 import httpx 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, patch, MagicMock
 from collections.abc import AsyncGenerator
 
 import backend.services.metrics_collector 
@@ -17,8 +17,8 @@ class TestMetricsCollectorVersionDetection:
             mock_client_instance.__aenter__.return_value = mock_client_instance
             mock_client_instance.__aexit__.return_value = None
 
-            mock_response = AsyncMock()
-            mock_response.json = AsyncMock()
+            mock_response = MagicMock()
+            mock_response.json = MagicMock()
             mock_client_instance.get.return_value = mock_response
             yield mock_client_instance
 

@@ -72,6 +72,12 @@ e2e_request_latency_seconds_metric = Histogram(
     registry=_registry
 )
 
+metrics_collection_duration_metric = Histogram(
+    'vllm_optimizer:metrics_collection_duration_seconds',
+    'Time spent collecting metrics from Prometheus/K8s',
+    registry=_registry
+)
+
 
 # ── API Surface ─────────────────────────────────────────────────────────────
 
