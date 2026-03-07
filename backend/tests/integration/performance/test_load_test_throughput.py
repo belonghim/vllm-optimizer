@@ -28,6 +28,9 @@ class TestLoadTestThroughput:
         data = resp.json()
         assert data.get("test_id") or data.get("id") or data.get("status")
 
+        # CPU 추론 시작까지 대기
+        time.sleep(3)
+
         for _ in range(60):
             time.sleep(5)
             status_resp = http_client.get("/api/load_test/status")
@@ -37,6 +40,9 @@ class TestLoadTestThroughput:
                     break
         else:
             pytest.fail("Load test did not complete within 300 seconds")
+
+        # history 저장 여유
+        time.sleep(2)
 
         history_resp = http_client.get("/api/load_test/history")
         assert history_resp.status_code == 200

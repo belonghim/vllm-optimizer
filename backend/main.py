@@ -49,9 +49,7 @@ async def check_prometheus_health() -> bool:
         headers = {"Authorization": f"Bearer {token}"} if token else {}
         
         query = "1"
-        _ca_path = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
-        _verify = _ca_path if os.path.exists(_ca_path) else False
-        async with httpx.AsyncClient(timeout=3, verify=_verify) as client:
+        async with httpx.AsyncClient(timeout=3, verify=False) as client:
             resp = await client.get(
                 f"{thanos_url}/api/v1/query",
                 headers=headers,
