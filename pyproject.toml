@@ -1,3 +1,9 @@
 [tool.pytest.ini_options]
 pythonpath = ["backend"]
 asyncio_mode = "auto"
+addopts = "--strict-markers"
+markers = [
+    "integration: Integration tests requiring OpenShift cluster",
+    "performance: Performance measurement tests",
+    "slow: Tests that take >30 seconds",
+]

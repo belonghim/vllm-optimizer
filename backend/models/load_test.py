@@ -61,6 +61,15 @@ class LoadTestResult(BaseModel):
     latency: LatencyStats = Field(default_factory=LatencyStats)
     ttft: LatencyStats = Field(default_factory=LatencyStats)
     tps: TpsStats = Field(default_factory=TpsStats)
+    # Performance sampling fields — populated during load test
+    backend_cpu_avg: float = 0.0
+    gpu_utilization_avg: float = 0.0
+    tokens_per_sec: float = 0.0
+
+
+
+
+
 
 
 

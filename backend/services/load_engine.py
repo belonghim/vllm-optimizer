@@ -3,8 +3,10 @@
 """
 import asyncio
 import time
+import os
 import httpx
 import statistics
+import psutil
 
 from dataclasses import dataclass, field
 from enum import Enum
@@ -66,6 +68,25 @@ class LoadTestEngine:
         for q in targets:
             await q.put(data)
 
+    async def _sample_metrics(self, samples: list[dict[str, float]], stop_event: asyncio.Event):
+        """Background task: sample CPU and GPU metrics every 30 seconds."""
+        proc = psutil.Process(os.getpid())
+        while not stop_event.is_set():
+            cpu = proc.cpu_percent()
+            gpu = 0.0
+            try:
+                async with httpx.AsyncClient(timeout=5) as client:
+                    resp = await client.get("http://localhost:8000/api/metrics/latest")
+                    if resp.status_code == 200:
+                        gpu = resp.json().get("gpu_util", 0.0)
+            except Exception:
+                pass
+            samples.append({"cpu": cpu, "gpu": gpu})
+            for _ in range(30):
+                if stop_event.is_set():
+                    return
+                await asyncio.sleep(1)
+
     async def run(self, config: LoadTestConfig) -> dict:
         """부하 테스트 실행 — 실시간 결과 yield"""
         self._state = LoadTestState(
@@ -76,6 +97,11 @@ class LoadTestEngine:
 
         semaphore = asyncio.Semaphore(config.concurrency)
         tasks = []
+
+        # CPU/GPU metric sampling
+        _metric_samples: list[dict[str, float]] = []
+        _sample_stop = asyncio.Event()
+        _sampling_task = asyncio.create_task(self._sample_metrics(_metric_samples, _sample_stop))
 
         # RPS 제어를 위한 토큰 버킷
         interval = 1.0 / config.rps if config.rps > 0 else 0
@@ -179,7 +205,28 @@ class LoadTestEngine:
 
         async with self._state_lock:
             self._state.status = LoadTestStatus.COMPLETED
+
+        # Stop sampling task
+        _sample_stop.set()
+        _sampling_task.cancel()
+        try:
+            await _sampling_task
+        except asyncio.CancelledError:
+            pass
+
         final_stats = self._compute_stats()
+
+        if _metric_samples:
+            cpu_values: list[float] = [s["cpu"] for s in _metric_samples]
+            gpu_values: list[float] = [s["gpu"] for s in _metric_samples]
+            final_stats["backend_cpu_avg"] = round(sum(cpu_values) / len(cpu_values), 2)
+            final_stats["gpu_utilization_avg"] = round(sum(gpu_values) / len(gpu_values), 2)
+        else:
+            final_stats["backend_cpu_avg"] = 0.0
+            final_stats["gpu_utilization_avg"] = 0.0
+
+        final_stats["tokens_per_sec"] = final_stats.get("tps", {}).get("mean", 0.0)
+
         await self._broadcast({"type": "completed", "data": final_stats})
         return final_stats
 

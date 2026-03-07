@@ -25,6 +25,7 @@ class TunerStatusResponse(BaseModel):
     best_metric: float | None = None
     elapsed_seconds: float | None = None
     message: str | None = None
+    wait_metrics: dict[str, Any] | None = None
 
 
 class TrialInfo(BaseModel):
@@ -101,7 +102,8 @@ async def get_tuner_status():
         "total_trials": None,
         "best_metric": best_metric,
         "elapsed_seconds": None,
-        "message": None
+        "message": None,
+        "wait_metrics": auto_tuner.wait_metrics,
     }
 
 

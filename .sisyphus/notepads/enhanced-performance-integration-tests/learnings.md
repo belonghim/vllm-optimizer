@@ -1,0 +1,1 @@
+- 2026-03-07: Added integration/performance fixtures (warm-up, config backup, overload guard, baseline loader) and registered pytest markers so integration/performance tests can run without unknown-mark warnings.

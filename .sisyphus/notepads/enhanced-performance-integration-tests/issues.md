@@ -1,0 +1,1 @@
+- 2026-03-07: LSP diagnostics skipped for pyproject.toml because no TOML server is configured; manual verification pending.

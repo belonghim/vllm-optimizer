@@ -1,0 +1,1 @@
+- 2026-03-07: Pytest runs produce DeprecationWarnings from FastAPI/on_event hooks and datetime.utcnow() calls; existing upstream issues outside this task.

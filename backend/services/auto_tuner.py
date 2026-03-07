@@ -32,6 +32,9 @@ class AutoTuner:
         self._lock = asyncio.Lock()
         self._study_lock = asyncio.Lock()
         self._k8s_lock = asyncio.Lock()
+        self._wait_durations: list[float] = []
+        self._total_wait_seconds: float = 0.0
+        self._poll_count: int = 0
         self._init_k8s()
 
     def _init_k8s(self):
@@ -49,9 +52,13 @@ class AutoTuner:
 
     async def _wait_for_ready(self, timeout: int = 300, interval: int = 5) -> bool:
         """InferenceService가 준비될 때까지 폴링합니다."""
+        import time as _time
         logging.info(f"[AutoTuner] InferenceService '{K8S_DEPLOYMENT}' 준비 대기 중...")
+        wait_start = _time.monotonic()
         start_time = asyncio.get_event_loop().time()
+        result = False
         while asyncio.get_event_loop().time() - start_time < timeout:
+            self._poll_count += 1
             try:
                 inferenceservice = await self._k8s_custom.get_namespaced_custom_object(
                     group="serving.kserve.io",
@@ -61,20 +68,26 @@ class AutoTuner:
                     plural="inferenceservices",
                 )
                 
-                # Check for Ready condition
                 if inferenceservice and "status" in inferenceservice and "conditions" in inferenceservice["status"]:
                     for condition in inferenceservice["status"]["conditions"]:
                         if condition.get("type") == "Ready" and condition.get("status") == "True":
                             logging.info(f"[AutoTuner] InferenceService '{K8S_DEPLOYMENT}' 준비 완료.")
-                            return True
-                
+                            result = True
+                            break
+                if result:
+                    break
             except Exception as e:
                 logging.warning(f"[AutoTuner] InferenceService 상태 확인 중 오류 발생: {e}")
             
             await asyncio.sleep(interval)
         
-        logging.error(f"[AutoTuner] InferenceService '{K8S_DEPLOYMENT}' 시간 초과: {timeout}초 내에 준비되지 않음.")
-        return False
+        wait_duration = _time.monotonic() - wait_start
+        self._wait_durations.append(round(wait_duration, 2))
+        self._total_wait_seconds += wait_duration
+
+        if not result:
+            logging.error(f"[AutoTuner] InferenceService '{K8S_DEPLOYMENT}' 시간 초과: {timeout}초 내에 준비되지 않음.")
+        return result
 
     @property
     def trials(self) -> List[TuningTrial]:
@@ -87,6 +100,14 @@ class AutoTuner:
     @property
     def is_running(self) -> bool:
         return self._running
+
+    @property
+    def wait_metrics(self) -> dict:
+        return {
+            "total_wait_seconds": round(self._total_wait_seconds, 2),
+            "poll_count": self._poll_count,
+            "per_trial_waits": [round(d, 2) for d in self._wait_durations],
+        }
 
     async def start(self, config: TuningConfig, vllm_endpoint: str) -> dict:
         async with self._lock:
