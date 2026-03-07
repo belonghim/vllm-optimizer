@@ -11,14 +11,15 @@ class TestAutoTuner:
 
 
         start_resp = http_client.post("/api/tuner/start", json={
-            "config": {
-                "n_trials": 2,
-                "eval_requests": 3,
-                "objective": "tps",
-                "max_num_seqs_range": [64, 256],
-                "gpu_memory_utilization_range": [0.80, 0.95],
-                "max_model_len_range": [2048, 4096],
-            },
+            "n_trials": 2,
+            "eval_requests": 3,
+            "objective": "tps",
+            "max_num_seqs_min": 64,
+            "max_num_seqs_max": 256,
+            "gpu_memory_min": 0.80,
+            "gpu_memory_max": 0.95,
+            "max_model_len_min": 2048,
+            "max_model_len_max": 4096,
             "vllm_endpoint": vllm_endpoint,
         }, timeout=30)
         assert start_resp.status_code == 200
