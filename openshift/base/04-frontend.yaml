@@ -99,7 +99,7 @@ spec:
           emptyDir:
             sizeLimit: 10Mi
 
-  affinity:
+      affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
             - weight: 100
