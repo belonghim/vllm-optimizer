@@ -1,1 +1,2 @@
 - 2026-03-07: Pytest runs produce DeprecationWarnings from FastAPI/on_event hooks and datetime.utcnow() calls; existing upstream issues outside this task.
+- 2026-03-07: The new perf integration tests rely on reachable backend services and SSE endpoints, so they risk timing out if the cluster is down; skip_if_overloaded helps but anything beyond that requires a live environment.
