@@ -92,10 +92,9 @@ def test_startup_metrics_endpoint_triggers_collector(isolated_client: TestClient
     assert isinstance(payload.get("running"), bool)
     assert isinstance(payload.get("collector_version"), str)
     time.sleep(0.2)
-    collectors = [
-        instance
-        for instance in _StubMetricsCollector.instances
-        if instance.creator and "startup_metrics_shim" in instance.creator
-    ]
-    assert collectors, "MetricsCollector stub not instantiated"
-    assert any(instance.start_requests for instance in collectors), "MetricsCollector.start request was not recorded"
+    # With shared singleton, the collector is created in services/shared.py (not in the shim).
+    # We verify that ANY stub instance had start_collection triggered.
+    assert _StubMetricsCollector.instances, "No MetricsCollector stub was instantiated"
+    assert any(
+        instance.start_requests for instance in _StubMetricsCollector.instances
+    ), "MetricsCollector.start_collection was not triggered by the shim"

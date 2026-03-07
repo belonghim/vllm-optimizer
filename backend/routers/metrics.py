@@ -8,12 +8,9 @@ from datetime import datetime
 from typing import List, Optional
 
 from models.load_test import MetricsSnapshot
-from services.metrics_collector import MetricsCollector
+from services.shared import metrics_collector
 
 router = APIRouter()
-
-# Create singleton instance
-metrics_collector = MetricsCollector()
 
 
 def _convert_to_snapshot(vllm_metrics) -> MetricsSnapshot:

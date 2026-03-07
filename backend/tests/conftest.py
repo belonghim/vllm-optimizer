@@ -41,6 +41,8 @@ _MODULES_TO_CLEAR = [
     "routers.tuner",
     "startup_metrics_shim",
     "backend.startup_metrics_shim",
+    "services.shared",
+    "backend.services.shared",
 ]
 
 
@@ -159,6 +161,7 @@ def _clear_modules() -> None:
 
 def _install_stub_metrics_collector_modules() -> list[str]:
     injected_names: list[str] = []
+    # Stub the MetricsCollector class source
     for module_name in ("services.metrics_collector", "backend.services.metrics_collector"):
         stub_module = types.ModuleType(module_name)
         stub_any = cast(Any, stub_module)
@@ -166,6 +169,24 @@ def _install_stub_metrics_collector_modules() -> list[str]:
         stub_any.__all__ = ["MetricsCollector"]
         sys.modules[module_name] = stub_module
         injected_names.append(module_name)
+
+    # Stub services.shared — provides the singleton MetricsCollector instance
+    # Must be injected AFTER the MetricsCollector class stub above
+    stub_collector_instance = _StubMetricsCollector()
+    load_engine_module = importlib.import_module("services.load_engine")
+    backend_load_engine_module = importlib.import_module("backend.services.load_engine")
+    for module_name, load_engine_target in (
+        ("services.shared", load_engine_module),
+        ("backend.services.shared", backend_load_engine_module),
+    ):
+        stub_module = types.ModuleType(module_name)
+        stub_any = cast(Any, stub_module)
+        stub_any.metrics_collector = stub_collector_instance
+        stub_any.MetricsCollector = _StubMetricsCollector
+        stub_any.load_engine = load_engine_target
+        sys.modules[module_name] = stub_module
+        injected_names.append(module_name)
+
     return injected_names
 
 
