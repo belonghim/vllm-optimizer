@@ -56,7 +56,7 @@ spec:
             - name: K8S_NAMESPACE
               value: "vllm"
             - name: K8S_DEPLOYMENT_NAME
-              value: "llm-ov"
+              value: "llm-ov-predictor"
             - name: K8S_CONFIGMAP_NAME
               value: "vllm-config"
             - name: POD_NAME

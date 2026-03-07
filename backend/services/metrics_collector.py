@@ -308,9 +308,11 @@ class MetricsCollector:
                 name=K8S_DEPLOYMENT,
                 namespace=K8S_NAMESPACE,
             ))
+            match_labels = deployment.spec.selector.match_labels or {}
+            label_selector = ",".join(f"{k}={v}" for k, v in match_labels.items())
             pods = self._k8s_core.list_namespaced_pod(
                 namespace=K8S_NAMESPACE,
-                label_selector=f"app={K8S_DEPLOYMENT}",
+                label_selector=label_selector,
             )
             ready = sum(
                 1 for p in pods.items
