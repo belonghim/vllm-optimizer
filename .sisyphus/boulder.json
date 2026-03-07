@@ -1,7 +1,10 @@
 {
-  "active_plan": "/home/user/project/vllm-optimizer/.sisyphus/plans/deployment-bug-fixes.md",
-  "started_at": "2026-03-07T03:33:55.585Z",
-  "session_ids": ["ses_33bc2a80affebk4hqb0W6dd7it"],
-  "plan_name": "deployment-bug-fixes",
-  "worktree_path": "/home/user/project/vllm-optimizer-bugfix"
+  "active_plan": "/home/user/project/vllm-optimizer/.sisyphus/plans/enhanced-perf-tests-v2.md",
+  "started_at": "2026-03-07T04:52:51.179Z",
+  "session_ids": [
+    "ses_3395bdedaffe2CeuD0guO8P23T"
+  ],
+  "plan_name": "enhanced-perf-tests-v2",
+  "agent": "atlas",
+  "worktree_path": "/home/user/project/vllm-optimizer-perf-tests"
 }

@@ -27,6 +27,9 @@ spec:
       podSelector:
         matchLabels:
           app: vllm-optimizer-backend
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openshift-lightspeed
     ports:
     - protocol: TCP
       port: 8000
