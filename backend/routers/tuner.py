@@ -8,10 +8,9 @@ from pydantic import BaseModel
 from typing import Any
 from datetime import datetime
 
-from backend.models.load_test import TuningConfig
-from backend.services.shared import metrics_collector
-from backend.services.load_engine import load_engine
-from backend.services.auto_tuner import AutoTuner
+from models.load_test import TuningConfig
+from services.shared import metrics_collector, load_engine
+from services.auto_tuner import AutoTuner
 
 router = APIRouter()
 
