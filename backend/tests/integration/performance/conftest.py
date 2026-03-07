@@ -82,16 +82,22 @@ def backup_restore_vllm_config() -> Iterator[dict[str, object] | None]:
 
 @pytest.fixture(scope="function")
 def skip_if_overloaded(http_client: httpx.Client) -> None:
-    """vLLM이 과부하 상태이면 테스트 skip."""
-    try:
-        resp = http_client.get("/api/metrics/latest")
-        if resp.status_code == 200:
-            data = cast(dict[str, object], resp.json())
-            latency = data.get("latency_p99", 0)
-            if isinstance(latency, (int, float)) and latency > 2000:
-                pytest.skip("vLLM overloaded: p99 latency > 2s")
-    except Exception:
-        pass
+    """vLLM이 과부하 상태이면 최대 60초 대기 후 skip."""
+    for attempt in range(12):  # 12 * 5s = 60s max wait
+        try:
+            resp = http_client.get("/api/metrics/latest")
+            if resp.status_code == 200:
+                data = cast(dict[str, object], resp.json())
+                latency = data.get("latency_p99", 0)
+                if isinstance(latency, (int, float)) and latency > 2000:
+                    if attempt < 11:
+                        time.sleep(5)
+                        continue
+                    else:
+                        pytest.skip(f"vLLM overloaded after 60s wait: p99 latency > 2s ({latency:.0f}ms)")
+        except Exception:
+            pass
+        break  # Not overloaded (or metrics unavailable) — proceed
 
 
 @pytest.fixture(scope="session")
