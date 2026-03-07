@@ -1,0 +1,2 @@
+- 2026-03-07: Added integration/performance fixtures (warm-up, config backup, overload guard, baseline loader) and registered pytest markers so integration/performance tests can run without unknown-mark warnings.
+- 2026-03-07: Created five new performance-focused integration scenarios (cluster health, load-test throughput, metrics, AutoTuner, SSE streaming) that reuse the shared fixtures and hit the real `/api/load_test`/`/api/tuner` prefixes.

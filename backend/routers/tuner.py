@@ -25,6 +25,7 @@ class TunerStatusResponse(BaseModel):
     best_metric: float | None = None
     elapsed_seconds: float | None = None
     message: str | None = None
+    wait_metrics: dict[str, Any] | None = None
 
 
 class TrialInfo(BaseModel):
@@ -48,11 +49,14 @@ class TuningStartRequest(BaseModel):
     """Request to start auto-tuning (flat schema matching frontend)"""
     objective: str = "balanced"
     n_trials: int = 20
+    eval_requests: int = 10
     vllm_endpoint: str = ""
     max_num_seqs_min: int = 64
     max_num_seqs_max: int = 512
     gpu_memory_min: float = 0.80
     gpu_memory_max: float = 0.95
+    max_model_len_min: int = 2048
+    max_model_len_max: int = 8192
 
 
 class TuningStartResponse(BaseModel):
@@ -75,8 +79,10 @@ async def start_tuning(request: TuningStartRequest):
     config = TuningConfig(
         max_num_seqs_range=(request.max_num_seqs_min, request.max_num_seqs_max),
         gpu_memory_utilization_range=(request.gpu_memory_min, request.gpu_memory_max),
+        max_model_len_range=(request.max_model_len_min, request.max_model_len_max),
         objective=request.objective,
         n_trials=request.n_trials,
+        eval_requests=request.eval_requests,
     )
     import os
     vllm_endpoint = request.vllm_endpoint or os.getenv("VLLM_ENDPOINT", "http://localhost:8000")
@@ -101,7 +107,8 @@ async def get_tuner_status():
         "total_trials": None,
         "best_metric": best_metric,
         "elapsed_seconds": None,
-        "message": None
+        "message": None,
+        "wait_metrics": auto_tuner.wait_metrics,
     }
 
 
