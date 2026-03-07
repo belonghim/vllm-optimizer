@@ -31,14 +31,19 @@ vllm-optimizer/
 ├── deploy.sh                    # OpenShift 배포 스크립트
 ├── nginx.conf                   # 루트 레벨 nginx 설정 (프론트엔드용)
 ├── kustomize                    # 로컬 kustomize 바이너리
-├── debug_routes.py              # 디버그용 라우트
+├── baseline.dev.json            # 성능 테스트 기준값
+├── pyproject.toml               # pytest 설정 (markers, asyncio)
+│
+├── scripts/
+│   ├── run_performance_tests.sh # 통합 테스트 실행 스크립트
+│   └── collect_baseline.sh      # 기준값 수집 스크립트
 │
 ├── backend/
 │   ├── __init__.py
 │   ├── Dockerfile              # UBI9 Python 기반, non-root, arbitrary UID
 │   ├── main.py                 # FastAPI 엔트리포인트
 │   ├── requirements.txt
-│   ├── startup_metrics_shim.py #/startup_metrics 엔드포인트
+│   ├── startup_metrics_shim.py # MetricsCollector 백그라운드 시작
 │   ├── routers/
 │   │   ├── __init__.py
 │   │   ├── load_test.py        # 부하 테스트 API + SSE 스트림
@@ -47,6 +52,7 @@ vllm-optimizer/
 │   │   └── tuner.py            # Bayesian Optimization 튜너 API
 │   ├── services/
 │   │   ├── __init__.py
+│   │   ├── shared.py           # 싱글톤 인스턴스 (MetricsCollector, load_engine)
 │   │   ├── load_engine.py      # 비동기 부하 생성 엔진
 │   │   ├── metrics_collector.py # Prometheus + K8s API 수집기
 │   │   └── auto_tuner.py       # Optuna + K8s ConfigMap 업데이트
@@ -56,18 +62,25 @@ vllm-optimizer/
 │   ├── metrics/
 │   │   ├── __init__.py
 │   │   └── prometheus_metrics.py # Prometheus 메트릭 정의
-│   └── tests/                   # 테스트 디렉토리
+│   └── tests/
 │       ├── __init__.py
-│       ├── conftest.py
+│       ├── conftest.py          # 단위 테스트 픽스처
 │       ├── test_load_test.py
 │       ├── test_benchmark.py
 │       ├── test_tuner.py
 │       ├── test_metrics.py
+│       ├── test_metrics_collector.py
 │       ├── test_prometheus_metrics.py
-│       ├── test_integration_metrics_e2e.py
-│       ├── test_dev_metrics_endpoint.py
-│       ├── test_service_monitor_config.py
-│       └── test_stub.py
+│       └── integration/
+│           └── performance/     # OpenShift 클러스터 통합 테스트
+│               ├── conftest.py  # 클러스터 연결 픽스처
+│               ├── test_cluster_health.py
+│               ├── test_load_test_throughput.py
+│               ├── test_sse_streaming.py
+│               ├── test_metrics_collection.py
+│               ├── test_auto_tuner.py
+│               └── utils/
+│                   └── baseline.py
 │
 ├── frontend/
 │   ├── Dockerfile              # UBI9 nginx-124, 8080 포트, non-root
@@ -92,7 +105,6 @@ vllm-optimizer/
 │
 └── openshift/
     ├── base/
-    │   ├── 00-vllm-namespace.yaml  # vLLM 네임스페이스
     │   ├── 01-namespace-rbac.yaml  # Namespace + ServiceAccount + ClusterRole + SCC
     │   ├── 02-config.yaml          # ConfigMap + Secret
     │   ├── 03-backend.yaml        # Deployment + Service + HPA
@@ -111,7 +123,8 @@ vllm-optimizer/
     │   ├── dev/kustomization.yaml   # Dev: 리소스 축소, 1 레플리카
     │   └── prod/kustomization.yaml  # Prod: 3 레플리카, 리소스 확대
     └── tekton/
-        └── pipeline.yaml           # CI/CD Pipeline + EventListener
+        ├── pipeline.yaml           # CI/CD Pipeline + EventListener
+        └── performance-pipeline.yaml # 성능 테스트 전용 파이프라인
 ```
 
 ---
@@ -175,7 +188,12 @@ spec:
 | `REGISTRY` | 컨테이너 레지스트리 | `quay.io/joopark` |
 | `IMAGE_TAG` | 이미지 태그 | `1.0.0` |
 | `VLLM_NAMESPACE` | vLLM 서비스 네임스페이스 | `vllm` |
-| `THANOS_URL` | Thanos Querier URL | `https://thanos-querier.openshift-monitoring.svc.cluster.local:9091` |
+| `PROMETHEUS_URL` | Thanos Querier URL | `https://thanos-querier.openshift-monitoring.svc.cluster.local:9091` |
+| `K8S_NAMESPACE` | K8s Pod 조회 대상 네임스페이스 | `vllm` |
+| `K8S_DEPLOYMENT_NAME` | vLLM Deployment 이름 (KServe: `{isvc}-predictor`) | `llm-ov-predictor` |
+| `K8S_CONFIGMAP_NAME` | vLLM ConfigMap 이름 | `vllm-config` |
+| `VLLM_ENDPOINT` | vLLM 추론 엔드포인트 (테스트용) | `http://llm-ov-predictor.vllm.svc.cluster.local:8080` |
+| `VLLM_MODEL` | vLLM 모델명 (테스트용) | `Qwen2.5-Coder-3B-Instruct-int4-ov` |
 
 ---
 
@@ -230,6 +248,11 @@ oc apply -k openshift/overlays/prod
 - **SSE 스트림**: 부하 테스트 실시간 결과는 Server-Sent Events로 전달
 - **K8s API 호출**: `kubernetes` Python 클라이언트 사용, ServiceAccount 토큰 인증
 - **Prometheus 쿼리**: Bearer 토큰으로 Thanos Querier API 호출
+- **MetricsCollector 싱글톤**: 반드시 `from services.shared import metrics_collector` 사용. 직접 인스턴스 생성 금지
+- **Import 규칙**: `backend.` 접두사 없이 bare import 사용 (`from services.xxx`, `from models.xxx`)
+- **K8s API (async)**: 동기 K8s 클라이언트를 async 코드에서 사용 시 반드시 `asyncio.to_thread()` 래핑
+- **Thanos TLS**: self-signed 인증서 사용 → `httpx.AsyncClient(verify=False)` 필수
+- **auto_tuner 모델명**: `model="auto"` 사용 금지. `/v1/models` 엔드포인트에서 동적 해석 필수
 
 ```python
 # Thanos Querier 호출 예시
@@ -277,6 +300,65 @@ securityContext:
     drop: ["ALL"]
   seccompProfile:
     type: RuntimeDefault
+```
+
+---
+
+## vLLM 클러스터 아키텍처 (Dev 환경)
+
+현재 Dev 환경의 vLLM은 **KServe InferenceService**로 배포됩니다.
+
+- **InferenceService**: `llm-ov` (namespace: `vllm`)
+- **KServe가 생성하는 Deployment**: `llm-ov-predictor`
+- **Pod label**: `app=isvc.llm-ov-predictor` (KServe 자동 생성 패턴)
+- **모델**: `Qwen2.5-Coder-3B-Instruct-int4-ov` (CPU/OpenVINO)
+- **추론 엔드포인트**: `http://llm-ov-predictor.vllm.svc.cluster.local:8080`
+- **API**: `/v1/completions`, `/v1/models` (OpenAI 호환)
+
+### KServe 이름 규칙
+| 리소스 | 이름 패턴 | 예시 |
+|--------|-----------|------|
+| InferenceService | `{name}` | `llm-ov` |
+| Deployment | `{name}-predictor` | `llm-ov-predictor` |
+| Pod label | `app=isvc.{name}-predictor` | `app=isvc.llm-ov-predictor` |
+| Service | `{name}-predictor` | `llm-ov-predictor` |
+
+`K8S_DEPLOYMENT_NAME` 환경변수는 반드시 KServe가 생성한 Deployment 이름(`{name}-predictor`)으로 설정해야 합니다.
+
+---
+
+## 통합 테스트 (Integration Tests)
+
+실제 OpenShift 클러스터에서 실행하는 8개 통합 테스트가 있습니다.
+
+### 테스트 목록
+| 테스트 | 설명 |
+|--------|------|
+| `test_backend_health_deep` | Backend /health 엔드포인트 (deep check 포함) |
+| `test_metrics_endpoint_accessible` | /api/metrics/latest 응답 확인 |
+| `test_prometheus_metrics_plaintext` | Prometheus 텍스트 포맷 검증 |
+| `test_metrics_response_time` | 메트릭 수집 응답 시간 |
+| `test_prometheus_scrape_format_valid` | Prometheus scrape 형식 유효성 |
+| `test_load_test_completes_successfully` | 부하 테스트 실행 + 결과 검증 |
+| `test_load_test_sse_events` | SSE 스트리밍 이벤트 수신 확인 |
+| `test_auto_tuner_completes_with_results` | Auto Tuner 2-trial 실행 + 결과 검증 |
+
+### 클러스터에서 실행
+```bash
+NS=vllm-optimizer-dev
+BACKEND_POD=$(oc get pod -n $NS -l app=vllm-optimizer-backend -o name | head -1)
+oc exec -n $NS $BACKEND_POD -- env \
+  PERF_TEST_BACKEND_URL=http://localhost:8000 \
+  VLLM_ENDPOINT=http://llm-ov-predictor.vllm.svc.cluster.local:8080 \
+  VLLM_MODEL=Qwen2.5-Coder-3B-Instruct-int4-ov \
+  VLLM_NAMESPACE=vllm \
+  OPTIMIZER_NAMESPACE=vllm-optimizer-dev \
+  python3 -m pytest /app/tests/integration/performance/ -v --tb=short -m "integration"
+```
+
+### 단위 테스트 (로컬)
+```bash
+cd backend && python3 -m pytest tests/ -x -q -m "not integration"
 ```
 
 ---
@@ -355,6 +437,16 @@ oc import-image vllm-optimizer-backend:latest \
 ### Thanos 접근 불가 시
 - ServiceAccount에 `cluster-monitoring-view` ClusterRole 바인딩 확인
 - `05-monitoring.yaml`의 ClusterRoleBinding 재적용
+
+### MetricsCollector 올-제로 메트릭
+- `curl -X POST localhost:8000/startup_metrics`로 수집기 상태 확인
+- `collector_version`이 `unknown`이면 Thanos 연결 실패 → 토큰/URL 확인
+- `pods=0`이면 `K8S_DEPLOYMENT_NAME`이 실제 Deployment 이름과 불일치 → KServe 패턴 확인
+
+### auto_tuner 실행 후 다른 테스트 skip
+- auto_tuner가 vLLM에 추론 요청 → p99 latency 상승 → `skip_if_overloaded` 트리거
+- `skip_if_overloaded`는 최대 120초 대기 후 skip (Thanos 1분 rate window 롤오버 대기)
+- 지속 skip 시: vLLM pod 상태 확인 (`oc get pods -n vllm`)
 
 ---
 
