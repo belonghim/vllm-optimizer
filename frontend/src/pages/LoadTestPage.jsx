@@ -9,7 +9,7 @@ const fmt = (n, d = 1) => (n == null ? "—" : Number(n).toFixed(d));
 
 function LoadTestPage() {
   const [config, setConfig] = useState({
-    endpoint: "http://localhost:8000",
+    endpoint: "",
     model: "auto",
     total_requests: 200,
     concurrency: 20,
@@ -42,14 +42,14 @@ function LoadTestPage() {
 
     // Real API mode
     try {
-      const resp = await fetch(`${API}/load-test/start`, {
+      const resp = await fetch(`${API}/load_test/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(config),
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
-      const es = new EventSource(`${API}/load-test/stream`);
+      const es = new EventSource(`${API}/load_test/stream`);
       esRef.current = es;
       es.onmessage = (e) => {
         const data = JSON.parse(e.data);
@@ -87,7 +87,7 @@ function LoadTestPage() {
       esRef.current.close();
       esRef.current = null;
     }
-    await fetch(`${API}/load-test/stop`, { method: "POST" });
+    await fetch(`${API}/load_test/stop`, { method: "POST" });
     setStatus("stopped");
   };
 
@@ -99,6 +99,17 @@ function LoadTestPage() {
       }
     };
   }, [isMockEnabled]);
+
+  useEffect(() => {
+    fetch(`${API}/config`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.vllm_endpoint) {
+          setConfig(c => ({ ...c, endpoint: c.endpoint || data.vllm_endpoint }));
+        }
+      })
+      .catch(() => {}); // silently fail — user can type manually
+  }, []);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>

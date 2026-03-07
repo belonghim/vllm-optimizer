@@ -16,7 +16,7 @@ function TunerPage() {
   const [config, setConfig] = useState({
     objective: "balanced",
     n_trials: 20,
-    vllm_endpoint: "http://localhost:8000",
+    vllm_endpoint: "",
     max_num_seqs_min: 64, max_num_seqs_max: 512,
     gpu_memory_min: 0.80, gpu_memory_max: 0.95,
   });
@@ -45,6 +45,17 @@ function TunerPage() {
     const id = setInterval(fetchStatus, 3000);
     return () => clearInterval(id);
   }, [fetchStatus]);
+
+  useEffect(() => {
+    fetch(`${API}/config`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.vllm_endpoint) {
+          setConfig(c => ({ ...c, vllm_endpoint: c.vllm_endpoint || data.vllm_endpoint }));
+        }
+      })
+      .catch(() => {}); // silently fail — user can type manually
+  }, []);
 
   const start = async () => {
     await fetch(`${API}/tuner/start`, {

@@ -1,5 +1,5 @@
 // Export constants for use in other components
-export const API = "http://localhost:8000/api";
+export const API = "/api";
 
 export const COLORS = {
   bg: "#0a0b0d",
