@@ -83,7 +83,7 @@ def backup_restore_vllm_config() -> Iterator[dict[str, object] | None]:
 @pytest.fixture(scope="function")
 def skip_if_overloaded(http_client: httpx.Client) -> None:
     """vLLM이 과부하 상태이면 최대 60초 대기 후 skip."""
-    for attempt in range(12):  # 12 * 5s = 60s max wait
+    for attempt in range(24):  # 24 * 5s = 120s max wait
         try:
             resp = http_client.get("/api/metrics/latest")
             if resp.status_code == 200:
