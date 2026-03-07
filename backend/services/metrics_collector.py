@@ -255,11 +255,9 @@ class MetricsCollector:
         if getattr(self, "_token", None):
             headers["Authorization"] = f"Bearer {self._token}"
 
-        # CA certificate path for in-cluster TLS verification
-        ca_path = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
-        verify = ca_path if os.path.exists(ca_path) else True
-
-        async with httpx.AsyncClient(timeout=5, verify=verify, headers=headers) as client:
+        # Thanos Querier uses a self-signed certificate chain that the in-cluster
+        # CA cert cannot verify. Disable TLS verification (auth is via Bearer token).
+        async with httpx.AsyncClient(timeout=5, verify=False, headers=headers) as client:
             tasks = []
             if self._current_queries is not None: # Added check
                 tasks = [self._fetch_prometheus_metric(client, name, query) for name, query in self._current_queries.items()]
@@ -284,10 +282,7 @@ class MetricsCollector:
         if getattr(self, "_token", None):
             headers["Authorization"] = f"Bearer {self._token}"
 
-        ca_path = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
-        verify = ca_path if os.path.exists(ca_path) else True
-
-        async with httpx.AsyncClient(timeout=5, verify=verify, headers=headers) as client:
+        async with httpx.AsyncClient(timeout=5, verify=False, headers=headers) as client:
             try:
                 resp = await client.get(
                     f"{PROMETHEUS_URL}/api/v1/query",
