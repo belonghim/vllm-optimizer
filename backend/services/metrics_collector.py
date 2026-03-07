@@ -7,6 +7,7 @@ import logging
 import asyncio
 import httpx
 import os
+from collections import deque
 from dataclasses import dataclass
 from typing import Any, cast
 from kubernetes import client, config
@@ -93,8 +94,8 @@ VLLM_QUERIES_BY_VERSION: dict[str, dict[str, str]] = {
 
 class MetricsCollector:
     _latest: VLLMMetrics | None
-    _history: list[VLLMMetrics]
-    _max_history: int = 300  # 5분 @ 1초 간격
+    _history: deque[VLLMMetrics]
+    _max_history: int = 3600  # 1시간 @ 1초 간격
     _running: bool = False
     _k8s_available: bool = False
     _token: str | None
@@ -106,7 +107,7 @@ class MetricsCollector:
 
     def __init__(self):
         self._latest = None
-        self._history = []
+        self._history = deque(maxlen=self._max_history)
         self._running = False
         self._k8s_available = False
         self._token = self._load_token()
@@ -150,7 +151,7 @@ class MetricsCollector:
         self._running = True
         while self._running:
             try:
-                _ = await self._collect()
+                await self._collect()
             except Exception as e:
                 logging.error(f"[MetricsCollector] 수집 오류: {e}")
             await asyncio.sleep(interval)
@@ -164,7 +165,7 @@ class MetricsCollector:
 
     @property
     def history(self) -> list[VLLMMetrics]:
-        return self._history
+        return list(self._history)
 
     @property
     def last_collection_duration(self) -> float:
@@ -199,6 +200,8 @@ class MetricsCollector:
         except Exception:
             pass
 
+        self._latest = metrics
+        self._history.append(metrics)
         return metrics
 
     async def _fetch_prometheus_metric(self, client: httpx.AsyncClient, metric_name: str, query: str) -> tuple[str, float | None]:
@@ -302,7 +305,7 @@ class MetricsCollector:
         return self._missing_metrics
 
     def get_history_dict(self, last_n: int = 60, include_metadata: bool = True) -> list[dict[str, Any]]:
-        history = self._history[-last_n:]
+        history = list(self._history)[-last_n:]
         return [
             {
                 "timestamp": m.timestamp,
