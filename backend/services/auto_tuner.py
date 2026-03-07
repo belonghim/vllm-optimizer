@@ -201,7 +201,7 @@ class AutoTuner:
                             "MAX_NUM_SEQS": str(params["max_num_seqs"]),
                             "GPU_MEMORY_UTILIZATION": str(params["gpu_memory_utilization"]),
                             "MAX_MODEL_LEN": str(params["max_model_len"]),
-                            "ENABLE_CHUNKED_PREFILL": str(params["enable_chunked_prefill"]).lower(),
+                            "ENABLE_ENFORCE_EAGER": str(params["enable_chunked_prefill"]).lower(),
                         }
                     }
                     
