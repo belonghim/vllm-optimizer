@@ -10,7 +10,6 @@ import os
 from collections import deque
 from dataclasses import dataclass
 from typing import Any, cast
-from collections.abc import Mapping
 from kubernetes import client, config
 from kubernetes.client import V1Deployment
 from metrics.prometheus_metrics import update_metrics
@@ -21,34 +20,6 @@ K8S_DEPLOYMENT = os.getenv("K8S_DEPLOYMENT_NAME", "vllm-deployment")
 
 GPU_MEMORY_USAGE_METRIC = "vllm:gpu_memory_usage_bytes"
 KV_CACHE_USAGE_METRIC = "vllm:kv_cache_usage_perc"
-
-class _PrometheusVersionQueryParams(Mapping[str, str]):
-    def __init__(self, primary: str, alias: str) -> None:
-        self._primary: str = primary
-        self._alias: str = alias
-        self._payload: dict[str, str] = {"query": primary}
-
-    def __getitem__(self, key: str) -> str:
-        return self._payload[key]
-
-    def __iter__(self):
-        return iter(self._payload)
-
-    def __len__(self) -> int:
-        return len(self._payload)
-
-    def items(self):
-        return self._payload.items()
-
-    def keys(self):
-        return self._payload.keys()
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, Mapping):
-            return NotImplemented
-        query = other.get("query")
-        return query in {self._primary, self._alias}
-
 
 @dataclass
 class VLLMMetrics:
@@ -120,6 +91,27 @@ VLLM_QUERIES_BY_VERSION: dict[str, dict[str, str]] = {
         "gpu_memory_total_gb": 'vllm:gpu_memory_total_bytes / 1024^3',
         # GPU Utilization
         "gpu_utilization_pct": 'vllm:gpu_utilization_perc * 100',
+    },
+    "0.13.x-cpu": {
+        # Throughput — CPU node names differ from GPU metrics
+        "tokens_per_second": 'rate(vllm:generation_tokens_total[1m])',
+        "requests_per_second": 'rate(vllm:request_success_total[1m])',
+        # Latency
+        "mean_ttft_ms": 'histogram_quantile(0.5, rate(vllm:time_to_first_token_seconds_bucket[1m])) * 1000',
+        "p99_ttft_ms": 'histogram_quantile(0.99, rate(vllm:time_to_first_token_seconds_bucket[1m])) * 1000',
+        "mean_e2e_latency_ms": 'histogram_quantile(0.5, rate(vllm:e2e_request_latency_seconds_bucket[1m])) * 1000',
+        "p99_e2e_latency_ms": 'histogram_quantile(0.99, rate(vllm:e2e_request_latency_seconds_bucket[1m])) * 1000',
+        # KV Cache
+        "kv_cache_usage_pct": 'vllm:kv_cache_usage_perc * 100',
+        "kv_cache_hit_rate": 'vllm:cache_config_info',
+        # Queue
+        "running_requests": 'vllm:num_requests_running',
+        "waiting_requests": 'vllm:num_requests_waiting',
+        # GPU Memory — CPU nodes expose cache percent only
+        "gpu_memory_used_gb": 'vllm:gpu_cache_usage_perc',
+        "gpu_memory_total_gb": 'vllm:gpu_cache_usage_perc * 0 + 1',
+        # GPU Utilization — metric exists but stays at zero on CPU
+        "gpu_utilization_pct": 'vllm:gpu_utilization * 100',
     }
 }
 
@@ -286,14 +278,27 @@ class MetricsCollector:
             try:
                 resp = await client.get(
                     f"{PROMETHEUS_URL}/api/v1/query",
-                    params=_PrometheusVersionQueryParams(GPU_MEMORY_USAGE_METRIC, KV_CACHE_USAGE_METRIC),
+                    params={"query": GPU_MEMORY_USAGE_METRIC},
                 )
                 data = resp.json()
                 if data["status"] == "success" and data["data"]["result"]:
-                    logging.info("[MetricsCollector] Detected vLLM version: 0.13.x (gpu_memory_usage_bytes present)")
+                    logging.info("[MetricsCollector] Detected vLLM version: 0.13.x (GPU node)")
                     return "0.13.x"
             except Exception as e:
-                logging.warning(f"[MetricsCollector] Failed to query for vLLM 0.13.x specific metric, falling back to 0.11.x: {e}")
+                logging.warning(f"[MetricsCollector] GPU metric probe failed: {e}")
+
+            try:
+                resp = await client.get(
+                    f"{PROMETHEUS_URL}/api/v1/query",
+                    params={"query": KV_CACHE_USAGE_METRIC},
+                )
+                data = resp.json()
+                if data["status"] == "success" and data["data"]["result"]:
+                    logging.info("[MetricsCollector] Detected vLLM version: 0.13.x-cpu (CPU/OpenVINO node)")
+                    return "0.13.x-cpu"
+            except Exception as e:
+                logging.warning(f"[MetricsCollector] KV cache metric probe failed: {e}")
+
         logging.info("[MetricsCollector] Detected vLLM version: 0.11.x (fallback)")
         return "0.11.x"
 

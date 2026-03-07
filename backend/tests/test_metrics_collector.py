@@ -31,8 +31,8 @@ class TestMetricsCollectorVersionDetection:
             collector = MetricsCollector()
             yield collector
 
-    async def test_detect_version_013x(self, mock_httpx_client: AsyncMock, mock_metrics_collector: MetricsCollector):
-        # Mock Prometheus response for 0.13.x
+    async def test_detect_version_013x_gpu(self, mock_httpx_client: AsyncMock, mock_metrics_collector: MetricsCollector):
+        # GPU metric present -> vLLM 0.13.x
         mock_httpx_client.get.return_value.json.return_value = {
             "status": "success",
             "data": {
@@ -40,7 +40,7 @@ class TestMetricsCollectorVersionDetection:
                 "result": [
                     {
                         "metric": {},
-                        "value": [1678886400, "0.5"]
+                        "value": [1678886400, "1073741824"]
                     }
                 ]
             }
@@ -50,22 +50,33 @@ class TestMetricsCollectorVersionDetection:
         assert version == "0.13.x"
         mock_httpx_client.get.assert_called_once_with(
             "http://mock-prometheus/api/v1/query",
-            params={"query": "vllm:kv_cache_usage_perc"},
+            params={"query": "vllm:gpu_memory_usage_bytes"},
         )
 
+    async def test_detect_version_013x_cpu(self, mock_httpx_client: AsyncMock, mock_metrics_collector: MetricsCollector):
+        # GPU metric missing but KV cache metric present -> vLLM 0.13.x-cpu
+        mock_httpx_client.get.return_value.json.side_effect = [
+            {"status": "success", "data": {"resultType": "vector", "result": []}},
+            {"status": "success", "data": {"resultType": "vector", "result": [{"metric": {}, "value": [1678886400, "0.5"]}]}}
+        ]
+
+        version = await mock_metrics_collector._detect_version()
+        assert version == "0.13.x-cpu"
+        assert mock_httpx_client.get.call_count == 2
+        assert mock_httpx_client.get.call_args_list[0][0][0] == "http://mock-prometheus/api/v1/query"
+        assert mock_httpx_client.get.call_args_list[0][1]["params"] == {"query": "vllm:gpu_memory_usage_bytes"}
+        assert mock_httpx_client.get.call_args_list[1][1]["params"] == {"query": "vllm:kv_cache_usage_perc"}
+
     async def test_detect_version_fallback_to_011x_on_empty_result(self, mock_httpx_client: AsyncMock, mock_metrics_collector: MetricsCollector):
-        # Mock Prometheus response with empty result
-        mock_httpx_client.get.return_value.json.return_value = {
-            "status": "success",
-            "data": {
-                "resultType": "vector",
-                "result": []
-            }
-        }
+        # Both probes return empty -> fallback to 0.11.x
+        mock_httpx_client.get.return_value.json.side_effect = [
+            {"status": "success", "data": {"resultType": "vector", "result": []}},
+            {"status": "success", "data": {"resultType": "vector", "result": []}},
+        ]
 
         version = await mock_metrics_collector._detect_version()
         assert version == "0.11.x"
-        mock_httpx_client.get.assert_called_once()
+        assert mock_httpx_client.get.call_count == 2
 
     async def test_detect_version_fallback_to_011x_on_exception(self, mock_httpx_client: AsyncMock, mock_metrics_collector: MetricsCollector):
         # Mock httpx.get to raise an exception
@@ -73,7 +84,9 @@ class TestMetricsCollectorVersionDetection:
 
         version = await mock_metrics_collector._detect_version()
         assert version == "0.11.x"
-        mock_httpx_client.get.assert_called_once()
+        assert mock_httpx_client.get.call_count == 2
+        assert mock_httpx_client.get.call_args_list[0][1]["params"] == {"query": "vllm:gpu_memory_usage_bytes"}
+        assert mock_httpx_client.get.call_args_list[1][1]["params"] == {"query": "vllm:kv_cache_usage_perc"}
 
 class TestMetricsCollectorQuerySelection:
     @pytest_asyncio.fixture
