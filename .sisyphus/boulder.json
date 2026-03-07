@@ -1,1 +1,7 @@
-{}
+{
+  "active_plan": "/home/user/project/vllm-optimizer/.sisyphus/plans/deployment-bug-fixes.md",
+  "started_at": "2026-03-07T03:33:55.585Z",
+  "session_ids": ["ses_33bc2a80affebk4hqb0W6dd7it"],
+  "plan_name": "deployment-bug-fixes",
+  "worktree_path": "/home/user/project/vllm-optimizer-bugfix"
+}

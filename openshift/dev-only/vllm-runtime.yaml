@@ -14,33 +14,22 @@ spec:
       command: ["/bin/sh", "-c"]
       args:
          - |
-           exec python3 -m vllm.entrypoints.api_server \
-            --host=0.0.0.0 \
-            --port=8080 \
+           exec python3 -m vllm.entrypoints.openai.api_server \
             --model=/models/Qwen2.5-Coder-3B-Instruct-int4-ov \
             --served-model-name=Qwen2.5-Coder-3B-Instruct-int4-ov \
+            --port=8080 \
             --max-num-seqs=${MAX_NUM_SEQS:-256} \
             --max-model-len=${MAX_MODEL_LEN:-8192} \
             --gpu-memory-utilization=${GPU_MEMORY_UTILIZATION:-0.90} \
-            ${ENABLE_CHUNKED_PREFILL:+"--enforce-eager"}
+            ${ENABLE_ENFORCE_EAGER:+"--enforce-eager"}
       envFrom:
         - configMapRef:
             name: vllm-config
       env:
-        - name: VLLM_TARGET_DEVICE
-          value: "cpu"
-        - name: CUDA_VISIBLE_DEVICES
-          value: ""
-        - name: VLLM_USE_V1
-          value: "0"
         - name: HF_HUB_OFFLINE
           value: "1"
         - name: TRANSFORMERS_OFFLINE
           value: "1"
-        - name: VLLM_OPENVINO_ENABLE_QUANTIZED_WEIGHTS
-          value: "ON"
-        - name: VLLM_OPENVINO_KV_CACHE_PRECISION
-          value: "u8"
         - name: VLLM_OPENVINO_DEVICE
           value: "CPU"
       ports:
