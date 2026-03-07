@@ -100,7 +100,7 @@ async def start_load_test(config: LoadTestConfig):
 
 
 @router.post("/stop", response_model=StopResponse)
-async def stop_load_test(test_id: str):
+async def stop_load_test(test_id: Optional[str] = None):
     """
     Stop a running load test.
 
@@ -152,7 +152,7 @@ async def get_load_test_status(test_id: Optional[str] = None):
 
 
 @router.get("/stream")
-async def stream_load_test_results(test_id: str):
+async def stream_load_test_results(test_id: Optional[str] = None):
     """
     Server-Sent Events (SSE) endpoint for real-time load test results.
 

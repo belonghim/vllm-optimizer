@@ -38,7 +38,7 @@ async def check_prometheus_health() -> bool:
     try:
         import httpx
         
-        thanos_url = os.getenv("PROMETHEUS_URL", "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091")
+        thanos_url = os.getenv("THANOS_URL", "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091")
         
         token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
         token = None
@@ -49,9 +49,7 @@ async def check_prometheus_health() -> bool:
         headers = {"Authorization": f"Bearer {token}"} if token else {}
         
         query = "1"
-        _ca_path = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
-        _verify = _ca_path if os.path.exists(_ca_path) else False
-        async with httpx.AsyncClient(timeout=3, verify=_verify) as client:
+        async with httpx.AsyncClient(timeout=3, verify=False) as client:
             resp = await client.get(
                 f"{thanos_url}/api/v1/query",
                 headers=headers,
@@ -72,18 +70,14 @@ except Exception as e:
     logging.debug("Startup shim not loaded: %s", e)
 
 # Configure CORS to allow frontend origins
-_default_origins = [
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:3000",
-]
-_raw = os.getenv("ALLOWED_ORIGINS", "")
-_origins = [o.strip() for o in _raw.split(",") if o.strip()] if _raw else _default_origins
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_origins,
+    allow_origins=[
+        "http://localhost:5173",  # Vite dev server
+        "http://localhost:3000",  # Create React App
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -137,6 +131,16 @@ async def plaintext_metrics_root():
     if generate_metrics is None:
         return PlainTextResponse("# ERROR: metrics generator unavailable", media_type="text/plain; version=0.0.4")
     return PlainTextResponse(generate_metrics(), media_type="text/plain; version=0.0.4")
+
+
+@app.get("/api/config", tags=["config"])
+async def get_frontend_config():
+    """Return server-side configuration for frontend defaults."""
+    return {
+        "vllm_endpoint": os.getenv("VLLM_ENDPOINT", "http://localhost:8000"),
+        "vllm_namespace": os.getenv("VLLM_NAMESPACE", "vllm"),
+        "vllm_model_name": os.getenv("K8S_DEPLOYMENT_NAME", ""),
+    }
 
 
 @app.get("/", tags=["root"])
