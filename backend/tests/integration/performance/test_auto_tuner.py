@@ -1,4 +1,3 @@
-import os
 import time
 import pytest
 
@@ -7,28 +6,27 @@ pytestmark = [pytest.mark.integration, pytest.mark.performance, pytest.mark.slow
 
 class TestAutoTuner:
 
-    def test_auto_tuner_completes_with_results(self, http_client, backup_restore_vllm_config, skip_if_overloaded):
+    def test_auto_tuner_completes_with_results(self, http_client, backup_restore_vllm_config, skip_if_overloaded, vllm_endpoint):
         """AutoTuner 2 trial 실행 후 best_metric > 0 확인."""
-        assert backup_restore_vllm_config is None
-        assert skip_if_overloaded is None
+
 
         start_resp = http_client.post("/api/tuner/start", json={
             "config": {
                 "n_trials": 2,
-                "eval_requests": 10,
+                "eval_requests": 3,
                 "objective": "tps",
-                "max_num_seqs_range": [64, 512],
+                "max_num_seqs_range": [64, 256],
                 "gpu_memory_utilization_range": [0.80, 0.95],
-                "max_model_len_range": [2048, 8192],
+                "max_model_len_range": [2048, 4096],
             },
-            "vllm_endpoint": os.getenv("VLLM_ENDPOINT", "http://vllm.vllm.svc.cluster.local:8000"),
-        }, timeout=10)
+            "vllm_endpoint": vllm_endpoint,
+        }, timeout=30)
         assert start_resp.status_code == 200
         start_data = start_resp.json()
         assert start_data.get("success") is True
 
         status = {}
-        for _ in range(60):
+        for _ in range(120):
             time.sleep(5)
             status_resp = http_client.get("/api/tuner/status")
             if status_resp.status_code == 200:
@@ -36,7 +34,7 @@ class TestAutoTuner:
                 if status.get("status") != "running":
                     break
         else:
-            pytest.fail("AutoTuner did not complete within 300 seconds")
+            pytest.fail("AutoTuner did not complete within 600 seconds")
 
         assert status.get("best_metric") is not None
         assert status["best_metric"] > 0

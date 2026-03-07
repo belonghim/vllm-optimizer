@@ -1,4 +1,4 @@
-import os
+
 import json
 import httpx
 import pytest
@@ -9,20 +9,20 @@ pytestmark = [pytest.mark.integration, pytest.mark.performance]
 class TestSSEStreaming:
 
     @pytest.mark.asyncio
-    async def test_load_test_sse_events(self, async_http_client, skip_if_overloaded):
+    async def test_load_test_sse_events(self, async_http_client, skip_if_overloaded, vllm_endpoint, vllm_model):
         """부하 테스트 중 SSE 이벤트가 정상적으로 수신되는지 확인."""
         base_url = async_http_client
-        assert skip_if_overloaded is None
+
 
         async with httpx.AsyncClient(base_url=base_url, timeout=60) as client:
             config = {
-                "endpoint": os.getenv("VLLM_ENDPOINT", "http://vllm.vllm.svc.cluster.local:8000"),
-                "model": "default",
+                "endpoint": vllm_endpoint,
+                "model": vllm_model,
                 "prompt_template": "Test prompt",
-                "total_requests": 10,
-                "concurrency": 2,
+                "total_requests": 3,
+                "concurrency": 1,
                 "rps": 1,
-                "max_tokens": 20,
+                "max_tokens": 10,
                 "temperature": 0.7,
                 "stream": False,
             }

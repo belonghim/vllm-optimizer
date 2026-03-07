@@ -4,6 +4,7 @@
 """
 import logging
 import asyncio
+import inspect
 import os
 import json
 import datetime
@@ -60,13 +61,17 @@ class AutoTuner:
         while asyncio.get_event_loop().time() - start_time < timeout:
             self._poll_count += 1
             try:
-                inferenceservice = await self._k8s_custom.get_namespaced_custom_object(
+                inferenceservice = await asyncio.to_thread(
+                    self._k8s_custom.get_namespaced_custom_object,
                     group="serving.kserve.io",
                     version="v1beta1",
                     name=K8S_DEPLOYMENT,
                     namespace=K8S_NAMESPACE,
                     plural="inferenceservices",
                 )
+
+                if inspect.isawaitable(inferenceservice):
+                    inferenceservice = await inferenceservice
                 
                 if inferenceservice and "status" in inferenceservice and "conditions" in inferenceservice["status"]:
                     for condition in inferenceservice["status"]["conditions"]:
@@ -213,9 +218,9 @@ class AutoTuner:
                 if not restart_only:
                     # ConfigMap 업데이트
                     logging.info(f"[AutoTuner] ConfigMap '{K8S_CONFIGMAP}' in namespace '{K8S_NAMESPACE}'")
-                    current_cm = self._k8s_core.read_namespaced_config_map(
-                        name=K8S_CONFIGMAP, namespace=K8S_NAMESPACE
-                    )
+                    current_cm = await asyncio.to_thread(self._k8s_core.read_namespaced_config_map,
+                                                         name=K8S_CONFIGMAP,
+                                                         namespace=K8S_NAMESPACE)
                     
                     patch_body = {
                         "data": {
@@ -226,9 +231,10 @@ class AutoTuner:
                         }
                     }
                     
-                    self._k8s_core.patch_namespaced_config_map(
-                        name=K8S_CONFIGMAP, namespace=K8S_NAMESPACE, body=patch_body
-                    )
+                    await asyncio.to_thread(self._k8s_core.patch_namespaced_config_map,
+                                             name=K8S_CONFIGMAP,
+                                             namespace=K8S_NAMESPACE,
+                                             body=patch_body)
                     logging.info(f"[AutoTuner] ConfigMap '{K8S_CONFIGMAP}' patched successfully.")
 
                 # InferenceService 재시작 트리거
@@ -249,14 +255,13 @@ class AutoTuner:
                         }
                     }
                     
-                    k8s_custom_api.patch_namespaced_custom_object(
-                        group=group,
-                        version=version,
-                        namespace=K8S_NAMESPACE,
-                        plural=plural,
-                        name=name,
-                        body=restart_body
-                    )
+                    await asyncio.to_thread(k8s_custom_api.patch_namespaced_custom_object,
+                                             group=group,
+                                             version=version,
+                                             namespace=K8S_NAMESPACE,
+                                             plural=plural,
+                                             name=name,
+                                             body=restart_body)
                     logging.info(f"[AutoTuner] InferenceService '{name}' in namespace '{K8S_NAMESPACE}' restarted successfully.")
                 except Exception as e:
                     logging.error(f"[AutoTuner] InferenceService 재시작 실패: {e}")

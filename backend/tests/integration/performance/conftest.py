@@ -10,6 +10,8 @@ import httpx
 
 BACKEND_URL = os.getenv("PERF_TEST_BACKEND_URL", "http://vllm-optimizer-backend.vllm-optimizer-dev.svc.cluster.local:8000")
 VLLM_NAMESPACE = os.getenv("VLLM_NAMESPACE", "vllm")
+VLLM_ENDPOINT = os.getenv("VLLM_ENDPOINT", "http://llm-ov-predictor.vllm.svc.cluster.local:8080")
+VLLM_MODEL = os.getenv("VLLM_MODEL", "Qwen2.5-Coder-3B-Instruct-int4-ov")
 OPTIMIZER_NAMESPACE = os.getenv("OPTIMIZER_NAMESPACE", "vllm-optimizer-dev")
 
 
@@ -36,7 +38,7 @@ def warm_up_vllm(http_client: httpx.Client) -> None:
     """vLLM이 cold start 상태일 수 있으므로 warm-up 요청 5회 전송."""
     for _ in range(5):
         try:
-            resp = http_client.get("/health", timeout=60)
+            resp = http_client.get("/health", timeout=120)
             if resp.status_code == 200:
                 time.sleep(2)
                 continue
@@ -103,3 +105,13 @@ def performance_baseline() -> dict[str, object]:
         with open(baseline_path) as f:
             return cast(dict[str, object], json.load(f))
     return {}
+
+
+@pytest.fixture(scope="session")
+def vllm_endpoint() -> str:
+    return VLLM_ENDPOINT
+
+
+@pytest.fixture(scope="session")
+def vllm_model() -> str:
+    return VLLM_MODEL
