@@ -7,6 +7,7 @@ import LoadTestPage from "./pages/LoadTestPage";
 import BenchmarkPage from "./pages/BenchmarkPage";
 import TunerPage from "./pages/TunerPage";
 import MockDataSwitch from "./components/MockDataSwitch";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 // ──────────────────────────────────────────────
 // DESIGN: Industrial / Terminal aesthetic
@@ -72,7 +73,9 @@ export default function App() {
 
       {/* MAIN */}
       <main style={{ padding: 1, minHeight: "calc(100vh - 57px)", background: COLORS.bg }}>
-        <ActivePage />
+        <ErrorBoundary>
+          <ActivePage />
+        </ErrorBoundary>
       </main>
     </>
   );

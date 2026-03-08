@@ -52,7 +52,13 @@ function LoadTestPage() {
       const es = new EventSource(`${API}/load_test/stream`);
       esRef.current = es;
       es.onmessage = (e) => {
-        const data = JSON.parse(e.data);
+        let data;
+        try {
+          data = JSON.parse(e.data);
+        } catch (parseErr) {
+          console.warn("[SSE] Failed to parse message:", parseErr);
+          return;
+        }
         if (data.type === "progress" && data.data) {
           const d = data.data;
           setProgress(Math.round((d.total / config.total_requests) * 100));
