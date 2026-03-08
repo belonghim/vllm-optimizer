@@ -49,10 +49,12 @@ def register(app):
     async def _shutdown_metrics_collector():
         try:
             collector.stop()
-        except Exception:
-            pass
+        except Exception as e:
+            # intentional: shutdown cleanup
+            logger.debug("[StartupShim] Ignoring exception during shutdown: %s", e)
         if task_holder["task"] is not None:
             try:
                 await task_holder["task"]
-            except Exception:
-                pass
+            except Exception as e:
+                # intentional: ignore exceptions while awaiting task completion
+                logger.debug("[StartupShim] Ignoring exception while awaiting task: %s", e)

@@ -224,6 +224,7 @@ class MetricsCollector:
             from metrics.prometheus_metrics import metrics_collection_duration_metric
             metrics_collection_duration_metric.observe(duration)
         except Exception:
+            # non-critical: metrics collection duration histogram failed to record
             pass
 
         self._latest = metrics

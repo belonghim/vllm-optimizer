@@ -51,8 +51,8 @@ class AutoTuner:
             self._k8s_core = k8s_client.CoreV1Api()
             self._k8s_custom = k8s_client.CustomObjectsApi()
             self._k8s_available = True
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("K8s client unavailable: %s", e)
 
     async def _wait_for_ready(self, timeout: int = 300, interval: int = 5) -> bool:
         """InferenceService가 준비될 때까지 폴링합니다."""
@@ -318,5 +318,4 @@ class AutoTuner:
         try:
             importance = optuna.importance.get_param_importances(self._study)
             return dict(importance)
-        except Exception:
-            return {}
+        except Exception: return {}

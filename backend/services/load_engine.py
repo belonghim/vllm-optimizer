@@ -80,6 +80,7 @@ class LoadTestEngine:
                     if resp.status_code == 200:
                         gpu = resp.json().get("gpu_util", 0.0)
             except Exception:
+                # GPU metrics fetch, non-critical
                 pass
             samples.append({"cpu": cpu, "gpu": gpu})
             for _ in range(30):
