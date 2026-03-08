@@ -32,6 +32,19 @@ export const mockTrials = () => Array.from({ length: 12 }, (_, i) => ({
   status: "completed",
 }));
 
+export const mockHistoryWithGaps = () => Array.from({ length: 60 }, (_, i) => {
+  const isGap = (i >= 10 && i < 25) || (i >= 35 && i < 45);
+  return {
+    t: `${String(Math.floor(i / 4)).padStart(2, "0")}:${String((i % 4) * 15).padStart(2, "0")}`,
+    tps: 220 + Math.random() * 80,
+    ttft: isGap ? null : 80 + Math.random() * 40,
+    lat_p99: isGap ? null : 380 + Math.random() * 120,
+    kv: 60 + Math.random() * 20,
+    running: 10 + Math.random() * 15,
+    waiting: Math.random() * 8,
+  };
+});
+
 export const simulateLoadTest = (config, setProgress, setResult, setStatus, setLatencyData) => {
   let done = 0;
   const id = setInterval(() => {
