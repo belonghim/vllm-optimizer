@@ -14,7 +14,12 @@ router = APIRouter()
 
 
 def _convert_to_snapshot(vllm_metrics) -> MetricsSnapshot:
-    """Convert VLLMMetrics to MetricsSnapshot"""
+    """Convert VLLMMetrics to MetricsSnapshot
+    
+    Known limitation: /latest returns 0.0 for idle latency fields;
+    /history returns null. This is intentional — /latest shows "last known"
+    while /history provides chart-friendly nullable time series.
+    """
     if vllm_metrics is None:
         return MetricsSnapshot(
             timestamp=datetime.now(timezone.utc).timestamp(),

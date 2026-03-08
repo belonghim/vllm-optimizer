@@ -8,7 +8,7 @@ and internal data structures. Models are divided into:
 - Auto-tuning configuration and trial results
 """
 from pydantic import BaseModel, Field
-from typing import Any
+from typing import Any, Optional
 
 
 class LoadTestConfig(BaseModel):
@@ -105,10 +105,10 @@ class MetricsSnapshot(BaseModel):
     timestamp: float = Field(description="Unix timestamp of the snapshot")
     tps: float = Field(default=0.0, description="Tokens per second")
     rps: float = Field(default=0.0, description="Requests per second")
-    ttft_mean: float = Field(default=0.0, description="Time to first token (mean) in seconds")
-    ttft_p99: float = Field(default=0.0, description="Time to first token (P99) in seconds")
-    latency_mean: float = Field(default=0.0, description="End-to-end latency (mean) in seconds")
-    latency_p99: float = Field(default=0.0, description="End-to-end latency (P99) in seconds")
+    ttft_mean: Optional[float] = Field(default=None, description="Time to first token (mean) in ms")
+    ttft_p99: Optional[float] = Field(default=None, description="Time to first token (P99) in ms")
+    latency_mean: Optional[float] = Field(default=None, description="End-to-end latency (mean) in ms")
+    latency_p99: Optional[float] = Field(default=None, description="End-to-end latency (P99) in ms")
     kv_cache: float = Field(default=0.0, description="KV cache usage percentage")
     kv_hit_rate: float = Field(default=0.0, description="KV cache hit rate")
     running: int = Field(default=0, description="Number of currently running requests")
