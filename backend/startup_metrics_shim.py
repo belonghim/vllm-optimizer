@@ -1,6 +1,8 @@
 import asyncio
 import logging
 
+logger = logging.getLogger(__name__)
+
 
 def register(app):
     try:
@@ -13,7 +15,7 @@ def register(app):
     def _on_task_done(task: asyncio.Task) -> None:
         """Log if the metrics collection task dies unexpectedly."""
         if not task.cancelled() and task.exception():
-            logging.error("[StartupShim] Metrics collection task died: %s", task.exception())
+            logger.error("[StartupShim] Metrics collection task died: %s", task.exception())
 
     def _ensure_metrics_task() -> bool:
         task = task_holder["task"]
@@ -24,7 +26,7 @@ def register(app):
             new_task = asyncio.create_task(collector.start_collection(interval=2.0))
             new_task.add_done_callback(_on_task_done)
             task_holder["task"] = new_task
-            logging.info("[StartupShim] MetricsCollector started (background)")
+            logger.info("[StartupShim] MetricsCollector started (background)")
             return True
         return False
 

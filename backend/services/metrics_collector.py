@@ -14,6 +14,8 @@ from kubernetes import client, config
 from kubernetes.client import V1Deployment
 from metrics.prometheus_metrics import update_metrics
 
+logger = logging.getLogger(__name__)
+
 PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091")
 K8S_NAMESPACE = os.getenv("K8S_NAMESPACE", "default")
 K8S_DEPLOYMENT = os.getenv("K8S_DEPLOYMENT_NAME", "vllm-deployment")
@@ -168,7 +170,7 @@ class MetricsCollector:
             self._k8s_core = client.CoreV1Api()
             self._k8s_available = True
         except Exception as e:
-            logging.error(f"[MetricsCollector] K8s 초기화 실패 (모의 데이터 사용): {e}")
+            logger.error(f"[MetricsCollector] K8s 초기화 실패 (모의 데이터 사용): {e}")
 
     async def start_collection(self, interval: float = 2.0):
         await self._post_init() # Initialize current_queries after version detection
@@ -177,7 +179,7 @@ class MetricsCollector:
             try:
                 await self._collect()
             except Exception as e:
-                logging.error(f"[MetricsCollector] 수집 오류: {e}")
+                logger.error(f"[MetricsCollector] 수집 오류: {e}")
             await asyncio.sleep(interval)
 
     def stop(self):
@@ -264,7 +266,7 @@ class MetricsCollector:
                 missing_metrics.append(name)
         
         if missing_metrics:
-            logging.warning(f"[MetricsCollector] Metrics not available: {', '.join(missing_metrics)}")
+            logger.warning(f"[MetricsCollector] Metrics not available: {', '.join(missing_metrics)}")
         
         self._missing_metrics = missing_metrics
         return result
@@ -282,10 +284,10 @@ class MetricsCollector:
                 )
                 data = resp.json()
                 if data["status"] == "success" and data["data"]["result"]:
-                    logging.info("[MetricsCollector] Detected vLLM version: 0.13.x (GPU node)")
+                    logger.info("[MetricsCollector] Detected vLLM version: 0.13.x (GPU node)")
                     return "0.13.x"
             except Exception as e:
-                logging.warning(f"[MetricsCollector] GPU metric probe failed: {e}")
+                logger.warning(f"[MetricsCollector] GPU metric probe failed: {e}")
 
             try:
                 resp = await client.get(
@@ -294,12 +296,12 @@ class MetricsCollector:
                 )
                 data = resp.json()
                 if data["status"] == "success" and data["data"]["result"]:
-                    logging.info("[MetricsCollector] Detected vLLM version: 0.13.x-cpu (CPU/OpenVINO node)")
+                    logger.info("[MetricsCollector] Detected vLLM version: 0.13.x-cpu (CPU/OpenVINO node)")
                     return "0.13.x-cpu"
             except Exception as e:
-                logging.warning(f"[MetricsCollector] KV cache metric probe failed: {e}")
+                logger.warning(f"[MetricsCollector] KV cache metric probe failed: {e}")
 
-        logging.info("[MetricsCollector] Detected vLLM version: 0.11.x (fallback)")
+        logger.info("[MetricsCollector] Detected vLLM version: 0.11.x (fallback)")
         return "0.11.x"
 
     def _query_kubernetes(self) -> dict[str, int]:

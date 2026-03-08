@@ -24,6 +24,7 @@ from models.load_test import (
 from services.load_engine import load_engine, LoadTestStatus
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # In-memory state for active test (in production, use proper state management)
 _active_test_task: Optional[asyncio.Task] = None
@@ -83,7 +84,7 @@ async def start_load_test(config: LoadTestConfig):
                 "timestamp": time_module.time(),
             })
         except Exception as e:
-            logging.error("[LoadTest] Error: %s", e)
+            logger.error("[LoadTest] Error: %s", e)
         finally:
             _active_test_task = None
     

@@ -6,22 +6,25 @@ and mounts placeholder routers for the vLLM optimizer backend.
 """
 
 import logging
+import os
+import time
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, PlainTextResponse
-
-
-import time
-import os
+from fastapi.responses import JSONResponse
 
 from kubernetes import config, client
 
-try:
-    from metrics.prometheus_metrics import generate_metrics
-except Exception:
-    generate_metrics = None
 
 
+# ── Logging Configuration ──
+logging.basicConfig(
+    level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO),
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="vLLM Optimizer API",
@@ -67,7 +70,7 @@ try:
     from startup_metrics_shim import register
     register(app)
 except Exception as e:
-    logging.debug("Startup shim not loaded: %s", e)
+    logger.debug("Startup shim not loaded: %s", e)
 
 # Configure CORS — read from ALLOWED_ORIGINS env var (comma-separated), fall back to localhost defaults
 _default_origins = [
@@ -129,12 +132,7 @@ async def health_check(request: Request):
     return health
 
 
-@app.get("/api/metrics", response_class=PlainTextResponse, include_in_schema=False)
-async def plaintext_metrics_root():
-    """Plaintext Prometheus metrics exposed at a stable path independent of router wiring."""
-    if generate_metrics is None:
-        return PlainTextResponse("# ERROR: metrics generator unavailable", media_type="text/plain; version=0.0.4")
-    return PlainTextResponse(generate_metrics(), media_type="text/plain; version=0.0.4")
+
 
 
 @app.get("/api/config", tags=["config"])

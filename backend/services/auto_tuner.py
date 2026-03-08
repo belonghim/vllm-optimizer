@@ -17,6 +17,8 @@ import optuna
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 OPTUNA_AVAILABLE = True
 
+logger = logging.getLogger(__name__)
+
 K8S_NAMESPACE = os.getenv("K8S_NAMESPACE", "default")
 K8S_DEPLOYMENT = os.getenv("K8S_DEPLOYMENT_NAME", "vllm-deployment")
 K8S_CONFIGMAP = os.getenv("K8S_CONFIGMAP_NAME", "vllm-config")
@@ -55,7 +57,7 @@ class AutoTuner:
     async def _wait_for_ready(self, timeout: int = 300, interval: int = 5) -> bool:
         """InferenceService가 준비될 때까지 폴링합니다."""
         import time as _time
-        logging.info(f"[AutoTuner] InferenceService '{K8S_DEPLOYMENT}' 준비 대기 중...")
+        logger.info(f"[AutoTuner] InferenceService '{K8S_DEPLOYMENT}' 준비 대기 중...")
         wait_start = _time.monotonic()
         start_time = asyncio.get_event_loop().time()
         result = False
@@ -77,13 +79,13 @@ class AutoTuner:
                 if inferenceservice and "status" in inferenceservice and "conditions" in inferenceservice["status"]:
                     for condition in inferenceservice["status"]["conditions"]:
                         if condition.get("type") == "Ready" and condition.get("status") == "True":
-                            logging.info(f"[AutoTuner] InferenceService '{K8S_DEPLOYMENT}' 준비 완료.")
+                            logger.info(f"[AutoTuner] InferenceService '{K8S_DEPLOYMENT}' 준비 완료.")
                             result = True
                             break
                 if result:
                     break
             except Exception as e:
-                logging.warning(f"[AutoTuner] InferenceService 상태 확인 중 오류 발생: {e}")
+                logger.warning(f"[AutoTuner] InferenceService 상태 확인 중 오류 발생: {e}")
             
             await asyncio.sleep(interval)
         
@@ -92,7 +94,7 @@ class AutoTuner:
         self._total_wait_seconds += wait_duration
 
         if not result:
-            logging.error(f"[AutoTuner] InferenceService '{K8S_DEPLOYMENT}' 시간 초과: {timeout}초 내에 준비되지 않음.")
+            logger.error(f"[AutoTuner] InferenceService '{K8S_DEPLOYMENT}' 시간 초과: {timeout}초 내에 준비되지 않음.")
         return result
 
     @property
@@ -168,7 +170,7 @@ class AutoTuner:
                         self._best_trial = t
 
             if self._best_trial:
-                logging.info(f"[AutoTuner] 튜닝 완료. 최적 파라미터로 InferenceService 재설정: {self._best_trial.params}")
+                logger.info(f"[AutoTuner] 튜닝 완료. 최적 파라미터로 InferenceService 재설정: {self._best_trial.params}")
                 await self._apply_params(self._best_trial.params, restart_only=True)
                 await self._wait_for_ready()
 
@@ -211,14 +213,14 @@ class AutoTuner:
     async def _apply_params(self, params: dict, restart_only: bool = False) -> dict:
         """ConfigMap 업데이트 → Deployment 재시작"""
         if not self._k8s_available:
-            logging.info(f"[AutoTuner] K8s 없음 — 파라미터 적용 시뮬레이션: {params}")
+            logger.info(f"[AutoTuner] K8s 없음 — 파라미터 적용 시뮬레이션: {params}")
             return {"success": True}
 
         try:
             async with self._k8s_lock:
                 if not restart_only:
                     # ConfigMap 업데이트
-                    logging.info(f"[AutoTuner] ConfigMap '{K8S_CONFIGMAP}' in namespace '{K8S_NAMESPACE}'")
+                    logger.info(f"[AutoTuner] ConfigMap '{K8S_CONFIGMAP}' in namespace '{K8S_NAMESPACE}'")
                     current_cm = await asyncio.to_thread(self._k8s_core.read_namespaced_config_map,
                                                          name=K8S_CONFIGMAP,
                                                          namespace=K8S_NAMESPACE)
@@ -236,7 +238,7 @@ class AutoTuner:
                                              name=K8S_CONFIGMAP,
                                              namespace=K8S_NAMESPACE,
                                              body=patch_body)
-                    logging.info(f"[AutoTuner] ConfigMap '{K8S_CONFIGMAP}' patched successfully.")
+                    logger.info(f"[AutoTuner] ConfigMap '{K8S_CONFIGMAP}' patched successfully.")
 
                 # InferenceService 재시작 트리거
                 try:
@@ -263,13 +265,13 @@ class AutoTuner:
                                              plural=plural,
                                              name=name,
                                              body=restart_body)
-                    logging.info(f"[AutoTuner] InferenceService '{name}' in namespace '{K8S_NAMESPACE}' restarted successfully.")
+                    logger.info(f"[AutoTuner] InferenceService '{name}' in namespace '{K8S_NAMESPACE}' restarted successfully.")
                 except Exception as e:
-                    logging.error(f"[AutoTuner] InferenceService 재시작 실패: {e}")
+                    logger.error(f"[AutoTuner] InferenceService 재시작 실패: {e}")
 
             return {"success": True}
         except Exception as e:
-            logging.error(f"[AutoTuner] 파라미터 적용 실패: {e}")
+            logger.error(f"[AutoTuner] 파라미터 적용 실패: {e}")
             return {"success": False, "error": str(e)}
 
     async def _evaluate(self, endpoint: str, config: TuningConfig) -> tuple[float, float, float]:
@@ -283,9 +285,9 @@ class AutoTuner:
                     models_data = resp.json().get("data", [])
                     if models_data:
                         model_name = models_data[0]["id"]
-                        logging.info(f"[AutoTuner] Resolved model name: {model_name}")
+                        logger.info(f"[AutoTuner] Resolved model name: {model_name}")
         except Exception as e:
-            logging.warning(f"[AutoTuner] Failed to resolve model name, using 'auto': {e}")
+            logger.warning(f"[AutoTuner] Failed to resolve model name, using 'auto': {e}")
 
         test_config = LoadTestConfig(
             endpoint=endpoint,
