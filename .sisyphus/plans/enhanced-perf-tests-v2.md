@@ -1061,13 +1061,13 @@ python3 -m pytest backend/tests/integration/performance/ --co -q
 
 ## Definition of Done
 
-- [ ] `backend/tests/integration/performance/` 디렉토리 및 conftest 생성
-- [ ] pytest 마커 (`integration`, `performance`, `slow`) 등록 + `--strict-markers`
-- [ ] LoadTestEngine에 CPU/GPU 샘플링 추가
-- [ ] AutoTuner에 wait_metrics 노출
-- [ ] metrics collection timing 추가
-- [ ] 5개 테스트 시나리오 구현
-- [ ] `scripts/run_performance_tests.sh` 생성
-- [ ] `openshift/tekton/performance-pipeline.yaml` 생성
-- [ ] `docs/integration_test_guide.md` Performance Testing 섹션 추가
-- [ ] 기존 39개 테스트 회귀 없음
+- [x] `backend/tests/integration/performance/` 디렉토리 및 conftest 생성
+- [x] pytest 마커 (`integration`, `performance`, `slow`) 등록 + `--strict-markers`
+- [x] LoadTestEngine에 CPU/GPU 샘플링 추가
+- [x] AutoTuner에 wait_metrics 노출
+- [x] metrics collection timing 추가
+- [x] 5개 테스트 시나리오 구현
+- [x] `scripts/run_performance_tests.sh` 생성
+- [x] `openshift/tekton/performance-pipeline.yaml` 생성
+- [x] `docs/integration_test_guide.md` Performance Testing 섹션 추가
+- [x] 기존 39개 테스트 회귀 없음 (40 passed)
