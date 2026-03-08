@@ -4,7 +4,7 @@ Provides endpoints for saving, retrieving, and managing benchmark results.
 """
 from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from models.load_test import Benchmark
 
 router = APIRouter()
@@ -23,7 +23,7 @@ async def list_benchmarks() -> List[Benchmark]:
 async def save_benchmark(benchmark: Benchmark) -> Benchmark:
     """Save a benchmark result for later comparison."""
     benchmark.id = len(benchmark_storage) + 1
-    benchmark.timestamp = datetime.utcnow().timestamp()
+    benchmark.timestamp = datetime.now(timezone.utc).timestamp()
     benchmark_storage.append(benchmark)
     return benchmark
 

@@ -19,4 +19,16 @@ node_modules/
 dist/
 build/
 .pytest_cache/
+# sisyphus planning
+.sisyphus/
 
+# test coverage
+coverage/
+.nyc_output/
+htmlcov/
+
+# logs
+*.log
+
+# frontend build artifacts
+frontend/dist/

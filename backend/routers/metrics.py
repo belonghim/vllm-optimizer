@@ -4,7 +4,7 @@ Metrics Router - vLLM Optimizer API
 Provides endpoints for retrieving real-time and historical metrics.
 """
 from fastapi import APIRouter
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from models.load_test import MetricsSnapshot
@@ -17,7 +17,7 @@ def _convert_to_snapshot(vllm_metrics) -> MetricsSnapshot:
     """Convert VLLMMetrics to MetricsSnapshot"""
     if vllm_metrics is None:
         return MetricsSnapshot(
-            timestamp=datetime.utcnow().timestamp(),
+            timestamp=datetime.now(timezone.utc).timestamp(),
             tps=0.0,
             rps=0.0,
             ttft_mean=0.0,

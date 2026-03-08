@@ -162,19 +162,23 @@ command -v podman >/dev/null 2>&1 || { warn "Podman not found; deploy steps requ
 ## Show dry-run info before any actions
 info_dry_run
 
-log "Starting container image build (backend) -> ${REGISTRY}/vllm-optimizer-backend:${IMAGE_TAG}"
-   podman build \
-     --platform linux/amd64 \
-     -t "${REGISTRY}/vllm-optimizer-backend:${IMAGE_TAG}" \
-     "${PROJECT_ROOT}/backend"
+if [[ "$SKIP_BUILD" != "true" && "$DRY_RUN" != "true" ]]; then
+  log "Starting container image build (backend) -> ${REGISTRY}/vllm-optimizer-backend:${IMAGE_TAG}"
+  podman build \
+    --platform linux/amd64 \
+    -t "${REGISTRY}/vllm-optimizer-backend:${IMAGE_TAG}" \
+    "${PROJECT_ROOT}/backend"
   ok "Backend image built: ${REGISTRY}/vllm-optimizer-backend:${IMAGE_TAG}"
 
   log "Starting container image build (frontend) -> ${REGISTRY}/vllm-optimizer-frontend:${IMAGE_TAG}"
-   podman build \
-     --platform linux/amd64 \
-     -t "${REGISTRY}/vllm-optimizer-frontend:${IMAGE_TAG}" \
-     "${PROJECT_ROOT}/frontend"
-   ok "Frontend image built: ${REGISTRY}/vllm-optimizer-frontend:${IMAGE_TAG}"
+  podman build \
+    --platform linux/amd64 \
+    -t "${REGISTRY}/vllm-optimizer-frontend:${IMAGE_TAG}" \
+    "${PROJECT_ROOT}/frontend"
+  ok "Frontend image built: ${REGISTRY}/vllm-optimizer-frontend:${IMAGE_TAG}"
+else
+  warn "Skipping container image build (--skip-build or --dry-run)"
+fi
 
     
     
