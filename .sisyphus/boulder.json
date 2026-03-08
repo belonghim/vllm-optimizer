@@ -1,10 +1,11 @@
 {
-  "active_plan": "/home/user/project/vllm-optimizer/.sisyphus/plans/fix-latency-graph-gaps.md",
-  "started_at": "2026-03-08T13:26:13.293Z",
-  "session_ids": [
-    "ses_3327260d4ffep1Gg3Lt53Qs0qZ"
-  ],
-  "plan_name": "fix-latency-graph-gaps",
+  "active_plan": null,
+  "started_at": null,
+  "session_ids": [],
+  "plan_name": null,
   "worktree_path": "/home/user/project/vllm-optimizer",
-  "agent": "atlas"
+  "agent": "atlas",
+  "last_completed_plan": "fix-latency-graph-gaps",
+  "last_completed_at": "2026-03-08T23:45:00Z",
+  "status": "ready_for_next_plan"
 }

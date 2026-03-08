@@ -66,10 +66,8 @@ get_image_digest() {
     return 0
   fi
   local digest
-  # Use registry-confirmed digest from oc image info (works with remote registries)
-  digest=$(oc image info "$image_ref" --filter-by-os=linux/amd64 -o jsonpath='{.config.digest}' 2>/dev/null)
+  digest=$(oc image info "$image_ref" --filter-by-os=linux/amd64 -o json 2>/dev/null | jq -r '.digest // empty' || true)
   if [ -n "$digest" ]; then
-    # strip sha256: prefix if present
     echo "${digest#sha256:}"
     return 0
   fi
@@ -105,25 +103,21 @@ compare_and_rollout() {
   local new_digest
   new_digest=$(get_image_digest "$new_image_ref" 2>/dev/null || true)
 
-  
   local current_imageID current_digest
   current_imageID=$(oc get pod -l app="$deployment_name" -n "$_namespace" -o jsonpath='{.items[0].status.containerStatuses[0].imageID}' 2>/dev/null || true)
   if [ -n "$current_imageID" ]; then
-  
-    local tmp
-    tmp=${current_imageID#docker://}
-    current_digest=${tmp#sha256:}
+    current_digest=$(echo "$current_imageID" | grep -oE '[0-9a-f]{64}' | head -1 || true)
   else
     current_digest=""
   fi
 
   if [ -z "$new_digest" ]; then
-    log "[WARN] Could not extract new digest for $deployment_name; skipping rollout";
+    log "[WARN] Could not extract new digest for $deployment_name; skipping rollout"
     return 0
   fi
 
   if [ -z "$current_digest" ]; then
-    log "[INFO] Current digest not found for $deployment_name; triggering rollout";
+    log "[INFO] Current digest not found for $deployment_name; triggering rollout"
     oc rollout restart deployment/$deployment_name -n "$_namespace" || true
     oc rollout status deployment/$deployment_name -n "$_namespace" --timeout=5m
     return 0
@@ -180,20 +174,23 @@ else
   warn "Skipping container image build (--skip-build or --dry-run)"
 fi
 
-    
-    
-
 ## Push phase (non-dry-run)
 if [[ "$DRY_RUN" != "true" && "$SKIP_BUILD" != "true" ]]; then
   log "Logging in to registry..."
   podman login "${REGISTRY}" || true
 
   log "Pushing backend image..."
-  podman push "${REGISTRY}/vllm-optimizer-backend:${IMAGE_TAG}"
+  PUSH_OUTPUT=$(podman push "${REGISTRY}/vllm-optimizer-backend:${IMAGE_TAG}" 2>&1)
+  echo "$PUSH_OUTPUT"
 
   log "Pushing frontend image..."
-  podman push "${REGISTRY}/vllm-optimizer-frontend:${IMAGE_TAG}"
+  PUSH_OUTPUT=$(podman push "${REGISTRY}/vllm-optimizer-frontend:${IMAGE_TAG}" 2>&1)
+  echo "$PUSH_OUTPUT"
   ok "Images pushed to ${REGISTRY}"
+  
+  # Wait a moment for registry to index the new blobs
+  sleep 2
+  
   # After push: perform digest-based rollout checks
   compare_and_rollout "vllm-optimizer-backend" "${REGISTRY}/vllm-optimizer-backend:${IMAGE_TAG}" "${NAMESPACE}"
   compare_and_rollout "vllm-optimizer-frontend" "${REGISTRY}/vllm-optimizer-frontend:${IMAGE_TAG}" "${NAMESPACE}"
@@ -215,14 +212,12 @@ else
     kustomize build "${OVERLAY_PATH}" | oc apply -n "${NAMESPACE}" -f -
   else
     oc kustomize "${OVERLAY_PATH}" | oc apply -n "${NAMESPACE}" -f -
-   fi
- fi
-    log "Waiting for vllm-optimizer-backend deployment to be ready..."
-    oc rollout status deployment/vllm-optimizer-backend -n "${NAMESPACE}" --timeout=5m
-    log "Waiting for vllm-optimizer-frontend deployment to be ready..."
-    oc rollout status deployment/vllm-optimizer-frontend -n "${NAMESPACE}" --timeout=5m
-
-
+  fi
+fi
+log "Waiting for vllm-optimizer-backend deployment to be ready..."
+oc rollout status deployment/vllm-optimizer-backend -n "${NAMESPACE}" --timeout=5m
+log "Waiting for vllm-optimizer-frontend deployment to be ready..."
+oc rollout status deployment/vllm-optimizer-frontend -n "${NAMESPACE}" --timeout=5m
 
 if [[ "$ENV" == "dev" ]]; then
   log "Applying OpenShift overlays for vLLM resources (environment: ${ENV}) to namespace ${VLLM_NAMESPACE}..."
@@ -240,14 +235,10 @@ if [[ "$ENV" == "dev" ]]; then
       oc kustomize "${OVERLAY_PATH}" | oc apply -n "${VLLM_NAMESPACE}" -f -
     fi
   fi
-    log "Waiting for vllm-optimizer-backend deployment to be ready..."
-    oc rollout status deployment/vllm-optimizer-backend -n "${NAMESPACE}" --timeout=5m
-    log "Waiting for vllm-optimizer-frontend deployment to be ready..."
-    oc rollout status deployment/vllm-optimizer-frontend -n "${NAMESPACE}" --timeout=5m
-
- 
-
-  
+  log "Waiting for vllm-optimizer-backend deployment to be ready..."
+  oc rollout status deployment/vllm-optimizer-backend -n "${NAMESPACE}" --timeout=5m
+  log "Waiting for vllm-optimizer-frontend deployment to be ready..."
+  oc rollout status deployment/vllm-optimizer-frontend -n "${NAMESPACE}" --timeout=5m
   ok "vLLM Overlay applied: ${ENV} -> namespace ${VLLM_NAMESPACE}"
 fi
 

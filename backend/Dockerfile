@@ -6,8 +6,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 USER root
 
 # Stage 2: Runtime
-# OpenShift SCC restricted-v2 준수:
-#   USER 1001, PORT 8000, g+rwX for arbitrary UID
 FROM registry.access.redhat.com/ubi9/python-311 AS runtime
 LABEL app="vllm-optimizer-backend" version="1.0.0"
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/app PORT=8000 PATH="/usr/local/bin:$PATH"

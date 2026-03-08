@@ -9,8 +9,7 @@ RUN npm install
 COPY . /build
 RUN npm run build
 
-# Stage 2: nginx-unprivileged (OpenShift 준수: non-root, port 8080)
-# Red Hat UBI9 nginx-124 runtime for enterprise support and security
+# Stage 2: Runtime
 FROM registry.access.redhat.com/ubi9/nginx-124 AS runtime
 LABEL app="vllm-optimizer-frontend" version="1.0.0"
 COPY nginx.conf /etc/nginx/nginx.conf
