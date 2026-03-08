@@ -6,6 +6,7 @@ vLLM 전용 메트릭: TPS, TTFT, KV Cache, GPU Memory
 import logging
 import asyncio
 import httpx
+import math
 import os
 from collections import deque
 from dataclasses import dataclass
@@ -240,6 +241,8 @@ class MetricsCollector:
             data = resp.json()
             if data["status"] == "success" and data["data"]["result"]:
                 value = float(data["data"]["result"][0]["value"][1])
+                if math.isnan(value) or math.isinf(value):
+                    return metric_name, None
                 return metric_name, round(value, 3)
         except Exception:
             pass
@@ -348,10 +351,10 @@ class MetricsCollector:
                 "timestamp": m.timestamp,
                 "tps": m.tokens_per_second,
                 "rps": m.requests_per_second,
-                "ttft_mean": m.mean_ttft_ms,
-                "ttft_p99": m.p99_ttft_ms,
-                "latency_mean": m.mean_e2e_latency_ms,
-                "latency_p99": m.p99_e2e_latency_ms,
+                "ttft_mean": m.mean_ttft_ms or None,
+                "ttft_p99": m.p99_ttft_ms or None,
+                "latency_mean": m.mean_e2e_latency_ms or None,
+                "latency_p99": m.p99_e2e_latency_ms or None,
                 "kv_cache": m.kv_cache_usage_pct,
                 "kv_hit_rate": m.kv_cache_hit_rate,
                 "running": m.running_requests,
