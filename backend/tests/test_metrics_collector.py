@@ -117,3 +117,71 @@ class TestMetricsCollectorQuerySelection:
             await mock_metrics_collector._post_init()
             assert mock_metrics_collector._version == "99.99.x" # The version itself is stored
             assert mock_metrics_collector._current_queries == VLLM_QUERIES_BY_VERSION["0.11.x"] # But queries fall back
+
+class TestMetricsCollectorNaNFiltering:
+    @pytest_asyncio.fixture
+    async def mock_httpx_client(self) -> AsyncGenerator[AsyncMock, None]:
+        with patch('httpx.AsyncClient') as mock_client_cls:
+            mock_client_instance = AsyncMock()
+            mock_client_cls.return_value = mock_client_instance
+            mock_client_instance.__aenter__.return_value = mock_client_instance
+            mock_client_instance.__aexit__.return_value = None
+            mock_response = MagicMock()
+            mock_response.json = MagicMock()
+            mock_client_instance.get.return_value = mock_response
+            yield mock_client_instance
+
+    @pytest_asyncio.fixture
+    async def mock_metrics_collector(self, mock_httpx_client: AsyncMock) -> AsyncGenerator[MetricsCollector, None]:
+        with patch('backend.services.metrics_collector.MetricsCollector._load_token', return_value=None), \
+             patch('backend.services.metrics_collector.MetricsCollector._init_k8s', return_value=None):
+            collector = MetricsCollector()
+            yield collector
+
+    async def test_fetch_prometheus_metric_filters_nan(self, mock_httpx_client: AsyncMock, mock_metrics_collector: MetricsCollector):
+        # Prometheus returns "NaN" string
+        mock_httpx_client.get.return_value.json.return_value = {
+            "status": "success",
+            "data": {"resultType": "vector", "result": [{"metric": {}, "value": [1678886400, "NaN"]}]}
+        }
+        name, value = await mock_metrics_collector._fetch_prometheus_metric(
+            client=mock_httpx_client, metric_name="mean_ttft_ms", query="test_query"
+        )
+        assert name == "mean_ttft_ms"
+        assert value is None  # NaN must be filtered to None
+
+    async def test_fetch_prometheus_metric_filters_positive_inf(self, mock_httpx_client: AsyncMock, mock_metrics_collector: MetricsCollector):
+        # Prometheus returns "+Inf" string
+        mock_httpx_client.get.return_value.json.return_value = {
+            "status": "success",
+            "data": {"resultType": "vector", "result": [{"metric": {}, "value": [1678886400, "+Inf"]}]}
+        }
+        name, value = await mock_metrics_collector._fetch_prometheus_metric(
+            client=mock_httpx_client, metric_name="p99_latency", query="test_query"
+        )
+        assert name == "p99_latency"
+        assert value is None  # +Inf must be filtered to None
+
+    async def test_fetch_prometheus_metric_filters_negative_inf(self, mock_httpx_client: AsyncMock, mock_metrics_collector: MetricsCollector):
+        # Prometheus returns "-Inf" string
+        mock_httpx_client.get.return_value.json.return_value = {
+            "status": "success",
+            "data": {"resultType": "vector", "result": [{"metric": {}, "value": [1678886400, "-Inf"]}]}
+        }
+        name, value = await mock_metrics_collector._fetch_prometheus_metric(
+            client=mock_httpx_client, metric_name="latency_mean", query="test_query"
+        )
+        assert name == "latency_mean"
+        assert value is None  # -Inf must be filtered to None
+
+    async def test_fetch_prometheus_metric_accepts_valid_values(self, mock_httpx_client: AsyncMock, mock_metrics_collector: MetricsCollector):
+        # Prometheus returns valid numeric value
+        mock_httpx_client.get.return_value.json.return_value = {
+            "status": "success",
+            "data": {"resultType": "vector", "result": [{"metric": {}, "value": [1678886400, "500.123"]}]}
+        }
+        name, value = await mock_metrics_collector._fetch_prometheus_metric(
+            client=mock_httpx_client, metric_name="mean_ttft_ms", query="test_query"
+        )
+        assert name == "mean_ttft_ms"
+        assert value == 500.123  # Valid value should pass through

@@ -18,10 +18,10 @@ function Chart({ data, lines, title, height = 180 }) {
             contentStyle={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, fontSize: 11 }}
             labelStyle={{ color: COLORS.muted }}
           />
-          {lines.map(l => (
-            <Line key={l.key} type="monotone" dataKey={l.key} stroke={l.color}
-              dot={false} strokeWidth={1.5} name={l.label} />
-          ))}
+           {lines.map(l => (
+             <Line key={l.key} type="monotone" dataKey={l.key} stroke={l.color}
+               dot={false} strokeWidth={1.5} name={l.label} connectNulls={true} />
+           ))}
         </LineChart>
       </ResponsiveContainer>
     </div>

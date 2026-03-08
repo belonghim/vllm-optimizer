@@ -1,7 +1,9 @@
 import pytest
+import time
 from fastapi.testclient import TestClient
 
 from ..main import app
+from ..services.metrics_collector import VLLMMetrics
 
 
 @pytest.fixture
@@ -22,5 +24,45 @@ def test_metrics_latest_endpoint(client):
 def test_metrics_history_endpoint_returns_list(client):
     response = client.get("/api/metrics/history?last_n=5")
     assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+
+
+def test_metrics_history_endpoint_handles_nan_gracefully(client):
+    # Inject a VLLMMetrics with NaN values into the collector's history
+    from ..services.shared import metrics_collector
+    
+    # Create a metrics object with NaN latency values
+    nan_metrics = VLLMMetrics(
+        timestamp=time.time(),
+        tokens_per_second=100.0,
+        requests_per_second=10.0,
+        mean_ttft_ms=float('nan'),
+        p99_ttft_ms=float('nan'),
+        mean_e2e_latency_ms=float('nan'),
+        p99_e2e_latency_ms=float('nan'),
+        kv_cache_usage_pct=50.0,
+        kv_cache_hit_rate=0.8,
+        running_requests=5,
+        waiting_requests=2,
+        gpu_memory_used_gb=10.0,
+        gpu_memory_total_gb=40.0,
+        gpu_utilization_pct=75.0,
+        pod_count=3,
+        pod_ready=3,
+    )
+    
+    # Inject into history deque
+    metrics_collector._history.append(nan_metrics)
+    
+    # Call /api/metrics/history — should return 200, not 500
+    response = client.get("/api/metrics/history?last_n=5")
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    
+    # Verify response body does NOT contain literal "NaN" string
+    response_text = response.text
+    assert "NaN" not in response_text, "Response should not contain literal NaN string"
+    
+    # Verify response is valid JSON
     data = response.json()
     assert isinstance(data, list)
