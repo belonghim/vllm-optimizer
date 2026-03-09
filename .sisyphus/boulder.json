@@ -1,7 +1,9 @@
 {
   "active_plan": null,
   "started_at": null,
-  "session_ids": [],
+  "session_ids": [
+    "ses_331da1df6ffe9OOwk9YtYrLpbc"
+  ],
   "plan_name": null,
   "worktree_path": "/home/user/project/vllm-optimizer",
   "agent": "atlas",
