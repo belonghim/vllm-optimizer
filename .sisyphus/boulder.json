@@ -1,13 +1,11 @@
 {
   "active_plan": null,
   "started_at": null,
-  "session_ids": [
-    "ses_331da1df6ffe9OOwk9YtYrLpbc"
-  ],
+  "session_ids": [],
   "plan_name": null,
-  "worktree_path": "/home/user/project/vllm-optimizer",
+  "worktree_path": null,
   "agent": "atlas",
-  "last_completed_plan": "fix-latency-graph-gaps",
-  "last_completed_at": "2026-03-08T23:45:00Z",
+  "last_completed_plan": "fix-latency-display",
+  "last_completed_at": "2026-03-09T08:35:00Z",
   "status": "ready_for_next_plan"
 }
