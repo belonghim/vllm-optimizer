@@ -8,7 +8,7 @@ import inspect
 import os
 import json
 import datetime
-import httpx
+from .model_resolver import resolve_model_name
 from typing import Optional, List
 from kubernetes import client as k8s_client, config as k8s_config
 from models.load_test import TuningConfig, TuningTrial, LoadTestConfig
@@ -276,18 +276,7 @@ class AutoTuner:
 
     async def _evaluate(self, endpoint: str, config: TuningConfig) -> tuple[float, float, float]:
         """부하 테스트 실행 후 점수 반환"""
-        # Resolve actual model name from vLLM endpoint
-        model_name = "auto"
-        try:
-            async with httpx.AsyncClient(timeout=10, verify=False) as client:
-                resp = await client.get(f"{endpoint}/v1/models")
-                if resp.status_code == 200:
-                    models_data = resp.json().get("data", [])
-                    if models_data:
-                        model_name = models_data[0]["id"]
-                        logger.info(f"[AutoTuner] Resolved model name: {model_name}")
-        except Exception as e:
-            logger.warning(f"[AutoTuner] Failed to resolve model name, using 'auto': {e}")
+        model_name = await resolve_model_name(endpoint)
 
         test_config = LoadTestConfig(
             endpoint=endpoint,
