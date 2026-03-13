@@ -22,6 +22,7 @@ from models.load_test import (
 )
 
 from services.load_engine import load_engine, LoadTestStatus
+from services.model_resolver import resolve_model_name
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -71,7 +72,10 @@ async def start_load_test(config: LoadTestConfig):
     global _active_test_task, _current_config
     
     test_id = str(uuid.uuid4())
-    
+
+    if config.model == "auto":
+        config.model = await resolve_model_name(config.endpoint)
+
     # Run test in background task
     async def run_test():
         global _active_test_task

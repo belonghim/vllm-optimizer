@@ -45,6 +45,9 @@ function BenchmarkPage() {
       ttft: (b.result?.ttft?.mean || 0) * 1000,
       p99: (b.result?.latency?.p99 || 0) * 1000,
       rps: b.result?.rps_actual || 0,
+      gpuEff: b.result?.gpu_utilization_avg > 0
+        ? b.result.tps.mean / b.result.gpu_utilization_avg
+        : 0,
     }));
 
   return (
@@ -66,7 +69,7 @@ function BenchmarkPage() {
         <div className="section-title">저장된 벤치마크</div>
         <table className="table">
           <thead>
-            <tr><th></th><th>Name</th><th>Date</th><th>TPS</th><th>P99 ms</th><th>RPS</th></tr>
+            <tr><th></th><th>Name</th><th>Model</th><th>Date</th><th>TPS</th><th>P99 ms</th><th>RPS</th><th>GPU Eff.</th></tr>
           </thead>
           <tbody>
             {benchmarks.map(b => (
@@ -76,14 +79,20 @@ function BenchmarkPage() {
                   <input type="checkbox" checked={selected.includes(b.id)} readOnly />
                 </td>
                 <td style={{ color: COLORS.text }}>{b.name}</td>
+                <td style={{ color: COLORS.cyan }}>{b.config?.model || "—"}</td>
                 <td style={{ color: COLORS.muted }}>{new Date(b.timestamp * 1000).toLocaleDateString()}</td>
                 <td style={{ color: COLORS.accent }}>{fmt(b.result?.tps?.mean, 1)}</td>
                 <td style={{ color: COLORS.red }}>{fmt((b.result?.latency?.p99 || 0) * 1000, 0)}</td>
                 <td>{fmt(b.result?.rps_actual, 1)}</td>
+                <td style={{ color: COLORS.green }}>
+                  {b.result?.gpu_utilization_avg > 0
+                    ? (b.result.tps.mean / b.result.gpu_utilization_avg).toFixed(1)
+                    : "—"}
+                </td>
               </tr>
             ))}
             {benchmarks.length === 0 && (
-              <tr><td colSpan={6} style={{ color: COLORS.muted, textAlign: "center", padding: 32 }}>
+              <tr><td colSpan={8} style={{ color: COLORS.muted, textAlign: "center", padding: 32 }}>
                 부하 테스트 결과를 저장하면 여기 나타납니다.
               </td></tr>
             )}
@@ -94,7 +103,7 @@ function BenchmarkPage() {
       {compareData.length >= 2 && (
         <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, padding: 20 }}>
           <div className="section-title">비교 차트</div>
-          <div className="grid-2" style={{ gap: 1 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
             <div>
               <div className="label">TPS 비교</div>
               <ResponsiveContainer width="100%" height={200}>
@@ -116,6 +125,18 @@ function BenchmarkPage() {
                   <YAxis tick={{ fontSize: 9, fill: COLORS.muted }} />
                   <Tooltip contentStyle={{ background: COLORS.surface, border: `1px solid ${COLORS.border}` }} />
                   <Bar dataKey="p99" fill={COLORS.red} name="P99 ms" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div>
+              <div className="label">GPU 효율 비교 (TPS/GPU%)</div>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={compareData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
+                  <XAxis dataKey="name" tick={{ fontSize: 9, fill: COLORS.muted }} />
+                  <YAxis tick={{ fontSize: 9, fill: COLORS.muted }} />
+                  <Tooltip contentStyle={{ background: COLORS.surface, border: `1px solid ${COLORS.border}` }} />
+                  <Bar dataKey="gpuEff" fill={COLORS.green} name="GPU Eff." />
                 </BarChart>
               </ResponsiveContainer>
             </div>
