@@ -28,6 +28,23 @@ async def save_benchmark(benchmark: Benchmark) -> Benchmark:
     return benchmark
 
 
+@router.get("/by-model", response_model=Dict[str, Any])
+async def benchmarks_by_model() -> Dict[str, Any]:
+    """Get benchmarks grouped by model name, with GPU efficiency calculated."""
+    groups: Dict[str, list] = {}
+    for b in benchmark_storage:
+        model_key = (b.config.model if b.config else None) or "unknown"
+        gpu_efficiency = None
+        if b.result and b.result.gpu_utilization_avg and b.result.gpu_utilization_avg > 0:
+            gpu_efficiency = b.result.tps.mean / b.result.gpu_utilization_avg
+        entry = {
+            **b.model_dump(),
+            "gpu_efficiency": gpu_efficiency,
+        }
+        groups.setdefault(model_key, []).append(entry)
+    return {"models": groups}
+
+
 @router.get("/{benchmark_id}", response_model=Benchmark)
 async def get_benchmark(benchmark_id: int) -> Benchmark:
     """Retrieve a specific benchmark by ID."""
