@@ -17,12 +17,42 @@ export const mockHistory = () => Array.from({ length: 60 }, (_, i) => ({
 }));
 
 export const mockBenchmarks = () => [
-  { id: 1, name: "Baseline (default)", timestamp: Date.now() / 1000 - 86400,
-    result: { tps: { mean: 180 }, latency: { p99: 0.52 }, rps_actual: 12, ttft: { mean: 0.095 } }},
-  { id: 2, name: "max_num_seqs=256", timestamp: Date.now() / 1000 - 3600,
-    result: { tps: { mean: 247 }, latency: { p99: 0.41 }, rps_actual: 18, ttft: { mean: 0.078 } }},
-  { id: 3, name: "chunked_prefill=on", timestamp: Date.now() / 1000 - 1800,
-    result: { tps: { mean: 265 }, latency: { p99: 0.38 }, rps_actual: 20, ttft: { mean: 0.072 } }},
+  {
+    id: 1,
+    name: "Baseline (default)",
+    timestamp: Date.now() / 1000 - 86400,
+    config: {
+      model: "Qwen2.5-3B",
+      endpoint: "http://llm-ov-predictor.vllm.svc.cluster.local:8080",
+      total_requests: 200,
+      concurrency: 20
+    },
+    result: { tps: { mean: 180 }, latency: { p99: 0.52 }, rps_actual: 12, ttft: { mean: 0.095 }, gpu_utilization_avg: 45 }
+  },
+  {
+    id: 2,
+    name: "max_num_seqs=256",
+    timestamp: Date.now() / 1000 - 3600,
+    config: {
+      model: "Llama-3.1-8B",
+      endpoint: "http://llm-ov-predictor.vllm.svc.cluster.local:8080",
+      total_requests: 200,
+      concurrency: 20
+    },
+    result: { tps: { mean: 247 }, latency: { p99: 0.41 }, rps_actual: 18, ttft: { mean: 0.078 }, gpu_utilization_avg: 62 }
+  },
+  {
+    id: 3,
+    name: "chunked_prefill=on",
+    timestamp: Date.now() / 1000 - 1800,
+    config: {
+      model: "Mistral-7B",
+      endpoint: "http://llm-ov-predictor.vllm.svc.cluster.local:8080",
+      total_requests: 200,
+      concurrency: 20
+    },
+    result: { tps: { mean: 265 }, latency: { p99: 0.38 }, rps_actual: 20, ttft: { mean: 0.072 }, gpu_utilization_avg: 38 }
+  },
 ];
 
 export const mockTrials = () => Array.from({ length: 12 }, (_, i) => ({
