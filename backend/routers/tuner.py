@@ -2,8 +2,11 @@
 Auto Tuner Router
 Provides endpoints for viewing tuning status, trials, and applying best parameters.
 """
+import asyncio
+import json
 import uuid
 from fastapi import APIRouter
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Any, Optional
 from datetime import datetime
@@ -160,7 +163,7 @@ async def get_tuner_status():
         status=status_value,
         best_score_history=[],
         pareto_front_size=None,
-        last_rollback_trial=None,
+        last_rollback_trial=auto_tuner._last_rollback_trial,
     )
 
 
@@ -190,6 +193,42 @@ async def stop_tuning():
         return {"success": False, "message": "No tuning is currently running."}
     await auto_tuner.stop()
     return {"success": True, "message": "Tuning stopped."}
+
+@router.get("/stream")
+async def stream_tuner_events():
+    """Stream tuning events via Server-Sent Events (SSE)."""
+    async def event_generator():
+        q = await auto_tuner.subscribe()
+        try:
+            yield f"data: {json.dumps({'type': 'connected', 'data': {'running': auto_tuner.is_running}})}\n\n"
+            
+            keepalive_count = 0
+            while True:
+                try:
+                    event = await asyncio.wait_for(q.get(), timeout=30.0)
+                    yield f"data: {json.dumps(event)}\n\n"
+                    
+                    if event.get("type") == "tuning_complete":
+                        break
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"
+                    keepalive_count += 1
+                    if keepalive_count > 20:  # Max 10 minutes of keepalive
+                        break
+        except asyncio.CancelledError:
+            pass
+        finally:
+            await auto_tuner.unsubscribe(q)
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/importance")

@@ -7,6 +7,39 @@ import datetime
 from ..main import app
 from ..services.auto_tuner import AutoTuner, K8S_NAMESPACE, K8S_DEPLOYMENT
 from ..models.load_test import TuningConfig, TuningTrial, LoadTestConfig
+ 
+
+def test_stream_endpoint_exists(client):
+    routes = [route.path for route in client.app.routes]
+    assert "/api/tuner/stream" in routes
+
+
+def test_stream_endpoint_returns_sse_content_type(client):
+    from unittest.mock import patch
+    import asyncio
+    class DummyAutoTuner:
+        is_running = False
+        async def subscribe(self):
+            q = asyncio.Queue()
+            async def pump():
+                await asyncio.sleep(0.05)
+                await q.put({"type": "test_event", "data": {"value": 42}})
+                await asyncio.sleep(0.2)
+                await q.put({"type": "tuning_complete"})
+            asyncio.create_task(pump())
+            return q
+        async def unsubscribe(self, q):
+            pass
+    handler_globals = None
+    for route in client.app.routes:
+        if getattr(route, "path", None) == "/api/tuner/stream":
+            handler_globals = route.endpoint.__globals__
+            break
+    assert handler_globals is not None
+    with patch.dict(handler_globals, {"auto_tuner": DummyAutoTuner()}):
+        with client.stream("GET", "/api/tuner/stream") as response:
+            assert response.status_code == 200
+            assert "text/event-stream" in response.headers.get("content-type", "")
 
 
 @pytest.fixture
@@ -28,6 +61,7 @@ def mock_k8s_clients():
                 ]
             }
         })
+        mock_custom_api.return_value.patch_namespaced_custom_object = MagicMock()
         yield mock_apps_api, mock_core_api, mock_custom_api
 
 @pytest.fixture
@@ -52,6 +86,14 @@ def test_tuner_status_endpoint(client):
     assert "trials_completed" in data
     assert isinstance(data["trials_completed"], int)
     assert "best" in data
+
+
+def test_rollback_trial_exposed_in_status(client):
+    resp = client.get("/api/tuner/status")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "last_rollback_trial" in data
+    assert data["last_rollback_trial"] is None
 
 
 def test_tuner_trials_endpoint_returns_list(client):
@@ -153,6 +195,29 @@ async def test_wait_for_ready_times_out(auto_tuner_instance, mock_k8s_clients):
         assert not ready
         assert mock_custom_api.get_namespaced_custom_object.call_count > 1
         assert mock_sleep.call_count >= 2
+
+
+@pytest.mark.asyncio
+async def test_rollback_on_wait_for_ready_timeout(auto_tuner_instance, mock_k8s_clients):
+    tuner = auto_tuner_instance
+    mock_core_api = mock_k8s_clients[1].return_value
+    mock_custom_api = mock_k8s_clients[2].return_value
+
+    mock_cm = MagicMock()
+    mock_cm.data = {"MAX_NUM_SEQS": "64", "GPU_MEMORY_UTILIZATION": "0.8"}
+    mock_core_api.read_namespaced_config_map.return_value = mock_cm
+
+    tuner._wait_for_ready = AsyncMock(return_value=False)
+    tuner._evaluate = AsyncMock(return_value=(10.0, 10.0, 0.1))
+
+    config = TuningConfig(n_trials=1, eval_requests=5, warmup_requests=0)
+
+    await tuner.start(config, "http://mock:8080")
+
+    patch_calls = mock_core_api.patch_namespaced_config_map.call_args_list
+    assert len(patch_calls) >= 2, "Expected at least 2 ConfigMap patches (apply + rollback)"
+
+    assert tuner._last_rollback_trial == 0
 
 
 @pytest.mark.asyncio
@@ -504,3 +569,39 @@ async def test_no_warmup_when_zero(auto_tuner_instance, mock_k8s_clients):
         score, tps, p99 = await tuner._evaluate("http://mock:8080", config)
 
     assert call_count == 1
+
+
+def test_start_uses_inmemory_when_no_storage_url(auto_tuner_instance, mock_k8s_clients):
+    import os
+
+    with patch.dict(os.environ, {}, clear=False):
+        os.environ.pop("OPTUNA_STORAGE_URL", None)
+        assert auto_tuner_instance is not None
+
+
+@pytest.mark.asyncio
+async def test_warmstart_enqueues_previous_best(auto_tuner_instance, mock_k8s_clients):
+    import optuna
+
+    tuner = auto_tuner_instance
+
+    mock_study = MagicMock()
+    mock_study.best_trials = [MagicMock()]
+    mock_study.best_trial = MagicMock()
+    mock_study.best_trial.params = {"max_num_seqs": 256, "gpu_memory_utilization": 0.9}
+    mock_study.ask = MagicMock(side_effect=StopIteration)
+
+    with patch.dict("os.environ", {"OPTUNA_STORAGE_URL": "sqlite:////tmp/test_optuna_warmstart.db"}):
+        with patch("optuna.storages.RDBStorage"), \
+             patch("optuna.create_study", return_value=mock_study):
+
+            config = TuningConfig(n_trials=1, eval_requests=5, warmup_requests=0)
+
+            try:
+                await tuner.start(config, "http://mock:8080")
+            except StopIteration:
+                pass
+
+            mock_study.enqueue_trial.assert_called_once_with(
+                params={"max_num_seqs": 256, "gpu_memory_utilization": 0.9}
+            )

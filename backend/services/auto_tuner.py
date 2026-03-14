@@ -35,6 +35,8 @@ class AutoTuner:
         self._study = None
         self._config: Optional[TuningConfig] = None  # Set in start()
         self._k8s_available = False
+        self._cm_snapshot: dict | None = None
+        self._last_rollback_trial: int | None = None
         # SSE broadcasting primitives
         self._subscribers: list[asyncio.Queue] = []
         self._subscribers_lock: asyncio.Lock = asyncio.Lock()
@@ -155,10 +157,41 @@ class AutoTuner:
             self._trials = []
             self._best_trial = None
             direction = "maximize" if config.objective == "tps" else "minimize"
-            self._study = optuna.create_study(
-                direction=direction,
-                sampler=optuna.samplers.TPESampler(seed=42),
-            )
+            storage_url = os.getenv("OPTUNA_STORAGE_URL")  # e.g., "sqlite:////tmp/optuna.db"
+            _study_name = f"vllm-tuner-{config.objective}"
+
+            if storage_url:
+                try:
+                    storage = await asyncio.to_thread(
+                        optuna.storages.RDBStorage,
+                        storage_url,
+                        engine_kwargs={"connect_args": {"check_same_thread": False}},
+                    )
+                    self._study = await asyncio.to_thread(
+                        optuna.create_study,
+                        direction=direction,
+                        sampler=optuna.samplers.TPESampler(seed=42),
+                        storage=storage,
+                        study_name=_study_name,
+                        load_if_exists=True,
+                    )
+                    logger.info("[AutoTuner] Using SQLite storage: %s (study: %s)", storage_url, _study_name)
+                    # Warm-start: enqueue best trial from previous run
+                    if self._study.best_trials:
+                        best_params = self._study.best_trial.params
+                        self._study.enqueue_trial(params=best_params)
+                        logger.info("[AutoTuner] Warm-start: enqueued previous best params: %s", best_params)
+                except Exception as e:
+                    logger.warning("[AutoTuner] SQLite storage failed, falling back to in-memory: %s", e)
+                    self._study = optuna.create_study(
+                        direction=direction,
+                        sampler=optuna.samplers.TPESampler(seed=42),
+                    )
+            else:
+                self._study = optuna.create_study(
+                    direction=direction,
+                    sampler=optuna.samplers.TPESampler(seed=42),
+                )
 
         try:
             for trial_num in range(config.n_trials):
@@ -183,7 +216,13 @@ class AutoTuner:
                     continue
 
                 # vLLM 재시작 대기
-                await self._wait_for_ready()
+                ready = await self._wait_for_ready()
+                if not ready:
+                    logger.warning("[AutoTuner] Trial %d: InferenceService not ready, rolling back", trial_num)
+                    await self._rollback_to_snapshot(trial_num)
+                    async with self._study_lock:
+                        self._study.tell(trial, state=optuna.trial.TrialState.FAIL)
+                    continue
 
                 # 성능 측정
                 score, tps, p99_lat = await self._evaluate(vllm_endpoint, config)
@@ -323,6 +362,7 @@ class AutoTuner:
                     current_cm = await asyncio.to_thread(self._k8s_core.read_namespaced_config_map,
                                                          name=K8S_CONFIGMAP,
                                                          namespace=K8S_NAMESPACE)
+                    self._cm_snapshot = dict(current_cm.data or {})
                     
                     config_data = {
                         "MAX_NUM_SEQS": str(params["max_num_seqs"]),
@@ -385,6 +425,46 @@ class AutoTuner:
         except Exception as e:
             logger.error(f"[AutoTuner] 파라미터 적용 실패: {e}")
             return {"success": False, "error": str(e)}
+
+    async def _rollback_to_snapshot(self, trial_num: int) -> bool:
+        if not self._k8s_available or self._cm_snapshot is None:
+            logger.warning("[AutoTuner] Rollback requested but no snapshot available (trial %d)", trial_num)
+            return False
+        try:
+            async with self._k8s_lock:
+                await asyncio.to_thread(
+                    self._k8s_core.patch_namespaced_config_map,
+                    name=K8S_CONFIGMAP,
+                    namespace=K8S_NAMESPACE,
+                    body={"data": self._cm_snapshot},
+                )
+                k8s_custom_api = k8s_client.CustomObjectsApi()
+                restart_body = {
+                    "spec": {
+                        "predictor": {
+                            "annotations": {
+                                "serving.kserve.io/restartedAt": datetime.datetime.now(
+                                    datetime.timezone.utc
+                                ).isoformat().replace("+00:00", "Z")
+                            }
+                        }
+                    }
+                }
+                await asyncio.to_thread(
+                    k8s_custom_api.patch_namespaced_custom_object,
+                    group="serving.kserve.io",
+                    version="v1beta1",
+                    namespace=K8S_NAMESPACE,
+                    plural="inferenceservices",
+                    name=K8S_DEPLOYMENT,
+                    body=restart_body,
+                )
+            self._last_rollback_trial = trial_num
+            logger.info("[AutoTuner] Rollback to snapshot completed for trial %d", trial_num)
+            return True
+        except Exception as e:
+            logger.error("[AutoTuner] Rollback failed for trial %d: %s", trial_num, e)
+            return False
 
     async def _evaluate(self, endpoint: str, config: TuningConfig) -> tuple[float, float, float]:
         """부하 테스트 실행 후 점수 반환"""
