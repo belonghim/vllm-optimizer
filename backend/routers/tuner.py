@@ -5,7 +5,7 @@ Provides endpoints for viewing tuning status, trials, and applying best paramete
 import uuid
 from fastapi import APIRouter
 from pydantic import BaseModel
-from typing import Any
+from typing import Any, Optional
 from datetime import datetime
 
 from models.load_test import TuningConfig
@@ -66,6 +66,31 @@ class TuningStartResponse(BaseModel):
     tuning_id: str | None = None
 
 
+class BestTrialInfo(BaseModel):
+    """Best trial info for frontend"""
+    params: dict[str, Any]
+    tps: float
+    p99_latency: float
+
+
+class TunerStatusFrontendResponse(BaseModel):
+    """Frontend-compatible tuner status response"""
+    running: bool
+    trials_completed: int = 0
+    best: Optional[BestTrialInfo] = None
+    status: str | None = None
+
+
+class TrialFrontendInfo(BaseModel):
+    """Frontend-compatible trial info"""
+    id: int
+    tps: float
+    p99_latency: float  # milliseconds
+    params: dict[str, Any]
+    score: float
+    status: str
+
+
 @router.post("/start", response_model=TuningStartResponse)
 async def start_tuning(request: TuningStartRequest):
     """Start auto-tuning process."""
@@ -96,31 +121,37 @@ async def start_tuning(request: TuningStartRequest):
     }
 
 
-@router.get("/status", response_model=TunerStatusResponse)
+@router.get("/status", response_model=TunerStatusFrontendResponse)
 async def get_tuner_status():
     """Get current auto-tuning status."""
+    # Frontend-friendly status payload
+    best_info = None
+    if auto_tuner.best is not None:
+        best_info = BestTrialInfo(
+            params=auto_tuner.best.params,
+            tps=auto_tuner.best.tps,
+            p99_latency=auto_tuner.best.p99_latency * 1000,
+        )
     status_value = "running" if auto_tuner.is_running else "idle"
-    best_metric = auto_tuner.best.score if auto_tuner.best else None
-    return {
-        "status": status_value,
-        "current_trial": len(auto_tuner.trials) if auto_tuner.trials else None,
-        "total_trials": None,
-        "best_metric": best_metric,
-        "elapsed_seconds": None,
-        "message": None,
-        "wait_metrics": auto_tuner.wait_metrics,
-    }
+    return TunerStatusFrontendResponse(
+        running=auto_tuner.is_running,
+        trials_completed=len(auto_tuner.trials),
+        best=best_info,
+        status=status_value,
+    )
 
 
-@router.get("/trials", response_model=list[TrialInfo])
+@router.get("/trials", response_model=list[TrialFrontendInfo])
 async def get_tuning_trials(limit: int = 20):
     """Get list of tuning trials."""
     trials = auto_tuner.trials[-limit:]
     return [
-        TrialInfo(
-            trial_number=t.trial_id,
-            parameters=t.params,
-            metrics={"tps": t.tps, "p99_latency": t.p99_latency, "score": t.score},
+        TrialFrontendInfo(
+            id=t.trial_id,
+            tps=t.tps,
+            p99_latency=t.p99_latency * 1000,
+            params=t.params,
+            score=t.score,
             status=t.status,
         )
         for t in trials

@@ -47,6 +47,11 @@ def test_tuner_status_endpoint(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data.get("status") in {"idle", "running", "completed", "error"}
+    assert "running" in data
+    assert isinstance(data["running"], bool)
+    assert "trials_completed" in data
+    assert isinstance(data["trials_completed"], int)
+    assert "best" in data
 
 
 def test_tuner_trials_endpoint_returns_list(client):
@@ -64,19 +69,23 @@ def test_tuner_apply_best_response(client):
 
 
 def test_tuner_start_endpoint(client):
-    """Test starting auto-tuning"""
-    from ..models.load_test import TuningConfig
-    
-    config = TuningConfig(n_trials=2, eval_requests=10)
+    """Test starting auto-tuning with flat schema"""
     request_data = {
-        "config": config.model_dump(),
-        "vllm_endpoint": "http://localhost:8000"
+        "objective": "balanced",
+        "n_trials": 2,
+        "eval_requests": 10,
+        "vllm_endpoint": "http://localhost:8000",
+        "max_num_seqs_min": 64,
+        "max_num_seqs_max": 512,
+        "gpu_memory_min": 0.80,
+        "gpu_memory_max": 0.95,
     }
     resp = client.post("/api/tuner/start", json=request_data)
     assert resp.status_code == 200
     data = resp.json()
     assert "success" in data
     assert "message" in data
+    assert data["success"] is True
 
 
 @pytest.mark.asyncio
@@ -184,3 +193,75 @@ async def test_start_reapplies_best_params_at_end(auto_tuner_instance, mock_k8s_
     
     # The number of custom object patches (InferenceService restart) should be n_trials + 1 (for final reapplication)
     assert mock_custom_api.patch_namespaced_custom_object.call_count == config.n_trials + 1
+
+
+def test_tuner_status_has_running_field(client):
+    resp = client.get("/api/tuner/status")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "running" in data
+    assert isinstance(data["running"], bool)
+    assert data["running"] is False
+
+
+def test_tuner_status_has_trials_completed(client):
+    resp = client.get("/api/tuner/status")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "trials_completed" in data
+    assert isinstance(data["trials_completed"], int)
+    assert data["trials_completed"] == 0
+
+
+def test_tuner_status_best_is_null_when_idle(client):
+    resp = client.get("/api/tuner/status")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "best" in data
+    assert data["best"] is None
+
+
+def test_tuner_trials_item_shape_with_data(client):
+    from unittest.mock import patch, MagicMock
+
+    trial = TuningTrial(
+        trial_id=0,
+        params={"max_num_seqs": 128, "gpu_memory_utilization": 0.85},
+        tps=42.5,
+        p99_latency=0.5,
+        score=100.0,
+        status="completed",
+    )
+
+    mock_tuner = MagicMock()
+    mock_tuner.trials = [trial]
+
+    handler_globals = None
+    for route in client.app.routes:
+        if getattr(route, "path", None) == "/api/tuner/trials":
+            handler_globals = route.endpoint.__globals__
+            break
+    assert handler_globals is not None, "Could not find /api/tuner/trials route"
+
+    with patch.dict(handler_globals, {"auto_tuner": mock_tuner}):
+        resp = client.get("/api/tuner/trials")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) > 0
+        item = data[-1]
+
+        assert "id" in item
+        assert "tps" in item
+        assert "p99_latency" in item
+        assert "params" in item
+        assert "score" in item
+        assert "status" in item
+
+        assert "trial_number" not in item
+        assert "parameters" not in item
+        assert "metrics" not in item
+
+        assert item["id"] == 0
+        assert item["tps"] == 42.5
+        assert item["p99_latency"] == pytest.approx(500.0)
+        assert item["status"] == "completed"

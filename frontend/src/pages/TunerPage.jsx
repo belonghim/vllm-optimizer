@@ -58,11 +58,22 @@ function TunerPage() {
   }, []);
 
   const start = async () => {
-    await fetch(`${API}/tuner/start`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(config),
-    });
-    fetchStatus();
+    setError(null);
+    try {
+      const res = await fetch(`${API}/tuner/start`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(config),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!data.success) {
+        setError(data.message || "튜닝 시작 실패");
+        return;
+      }
+      fetchStatus();
+    } catch (err) {
+      setError(`튜닝 시작 실패: ${err.message}`);
+    }
   };
 
   const stop = async () => {
