@@ -490,7 +490,7 @@ class AutoTuner:
 
                 # InferenceService 재시작 트리거
                 try:
-                    k8s_custom_api = k8s_client.CustomObjectsApi()
+                    k8s_custom_api = self._k8s_custom
                     group = "serving.kserve.io"
                     version = "v1beta1"
                     plural = "inferenceservices"
@@ -507,12 +507,12 @@ class AutoTuner:
                     }
                     
                     await asyncio.to_thread(k8s_custom_api.patch_namespaced_custom_object,
-                                             group=group,
-                                             version=version,
-                                             namespace=K8S_NAMESPACE,
-                                             plural=plural,
-                                             name=name,
-                                             body=restart_body)
+                                              group=group,
+                                              version=version,
+                                              namespace=K8S_NAMESPACE,
+                                              plural=plural,
+                                              name=name,
+                                              body=restart_body)
                     logger.info(f"[AutoTuner] InferenceService '{name}' in namespace '{K8S_NAMESPACE}' restarted successfully.")
                 except Exception as e:
                     logger.error(f"[AutoTuner] InferenceService 재시작 실패: {e}")
@@ -534,7 +534,7 @@ class AutoTuner:
                     namespace=K8S_NAMESPACE,
                     body={"data": self._cm_snapshot},
                 )
-                k8s_custom_api = k8s_client.CustomObjectsApi()
+                k8s_custom_api = self._k8s_custom
                 restart_body = {
                     "spec": {
                         "predictor": {

@@ -52,6 +52,22 @@ function TunerPage() {
     return () => clearInterval(id);
   }, [fetchStatus]);
 
+// SSE connection when tuning is active
+useEffect(() => {
+    if (!status.running || isMockEnabled) return;
+    const es = new EventSource(`${API}/tuner/stream`);
+    es.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            if (data.type === "trial_complete" || data.type === "tuning_complete") {
+                fetchStatus();
+            }
+        } catch (e) {}
+    };
+    es.onerror = () => { es.close(); };
+    return () => { es.close(); };
+}, [status.running, isMockEnabled, fetchStatus]);
+
   // SSE connection when tuning is active — real-time trial events
   useEffect(() => {
     if (!status.running || isMockEnabled) return;
@@ -104,12 +120,16 @@ function TunerPage() {
   };
 
   const applyBest = async () => {
-    const res = await fetch(`${API}/tuner/apply-best`, { method: "POST" });
-    const data = await res.json();
-    if (data && data.success) {
-      alert("최적 파라미터를 Kubernetes ConfigMap에 적용했습니다.");
-    } else {
-      alert(`파라미터 적용 실패: ${data?.message || "Unknown error"}`);
+    try {
+      const res = await fetch(`${API}/tuner/apply-best`, { method: "POST" });
+      const data = await res.json();
+      if (data && data.success) {
+        alert("최적 파라미터를 Kubernetes ConfigMap에 적용했습니다.");
+      } else {
+        alert(`파라미터 적용 실패: ${data?.message || "Unknown error"}`);
+      }
+    } catch (err) {
+      alert(`파라미터 적용 실패: ${err.message}`);
     }
   };
 

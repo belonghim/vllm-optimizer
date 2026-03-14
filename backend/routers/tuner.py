@@ -3,6 +3,7 @@ Auto Tuner Router
 Provides endpoints for viewing tuning status, trials, and applying best parameters.
 """
 import asyncio
+import logging
 import json
 import uuid
 from fastapi import APIRouter
@@ -15,6 +16,7 @@ from models.load_test import TuningConfig
 from services.shared import metrics_collector, load_engine
 from services.auto_tuner import AutoTuner
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 auto_tuner = AutoTuner(metrics_collector=metrics_collector, load_engine=load_engine)
@@ -136,7 +138,8 @@ async def start_tuning(request: TuningStartRequest):
     vllm_endpoint = request.vllm_endpoint or os.getenv("VLLM_ENDPOINT", "http://localhost:8000")
     tuning_id = str(uuid.uuid4())
     import asyncio
-    _ = asyncio.create_task(auto_tuner.start(config, vllm_endpoint))
+    task = asyncio.create_task(auto_tuner.start(config, vllm_endpoint))
+    task.add_done_callback(lambda t: logger.error("[AutoTuner] Task failed: %s", t.exception()) if t.exception() else None)
     return {
         "success": True,
         "message": f"Tuning started with {request.n_trials} trials",
