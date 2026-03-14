@@ -265,3 +265,28 @@ def test_tuner_trials_item_shape_with_data(client):
         assert item["tps"] == 42.5
         assert item["p99_latency"] == pytest.approx(500.0)
         assert item["status"] == "completed"
+
+@pytest.mark.asyncio
+async def test_apply_params_uses_correct_configmap_keys(auto_tuner_instance, mock_k8s_clients):
+    tuner = auto_tuner_instance
+    mock_core_api = mock_k8s_clients[1].return_value
+
+    params = {
+        "max_num_seqs": 128,
+        "gpu_memory_utilization": 0.8,
+        "max_model_len": 4096,
+        "enable_chunked_prefill": True,
+    }
+
+    await tuner._apply_params(params)
+
+    mock_core_api.patch_namespaced_config_map.assert_called_once()
+    call_args = mock_core_api.patch_namespaced_config_map.call_args
+    patch_data = call_args.kwargs["body"]["data"]
+
+    # enable_chunked_prefill should map to ENABLE_CHUNKED_PREFILL
+    assert "ENABLE_CHUNKED_PREFILL" in patch_data
+    assert patch_data["ENABLE_CHUNKED_PREFILL"] == "true"
+
+    # ENABLE_ENFORCE_EAGER should not be touched by _apply_params
+    assert "ENABLE_ENFORCE_EAGER" not in patch_data

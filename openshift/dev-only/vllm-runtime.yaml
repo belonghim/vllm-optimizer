@@ -21,7 +21,8 @@ spec:
             --max-num-seqs=${MAX_NUM_SEQS:-64} \
             --max-model-len=${MAX_MODEL_LEN:-8192} \
             --gpu-memory-utilization=${GPU_MEMORY_UTILIZATION:-0.90} \
-            ${ENABLE_ENFORCE_EAGER:+"--enforce-eager"}
+            ${ENABLE_ENFORCE_EAGER:+"--enforce-eager"} \
+            ${ENABLE_CHUNKED_PREFILL:+"--enable-chunked-prefill"}
       envFrom:
         - configMapRef:
             name: vllm-config
