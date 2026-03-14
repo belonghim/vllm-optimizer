@@ -691,3 +691,231 @@ def test_start_accepts_pareto_objective(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["success"] is True, f"Expected success=true, got: {data}"
+
+
+
+@pytest.mark.asyncio
+async def test_suggest_params_new_params_included(auto_tuner_instance, mock_k8s_clients):
+    """New params (block_size, max_num_batched_tokens) should appear in suggested params"""
+    import optuna
+
+    tuner = auto_tuner_instance
+    config = TuningConfig(block_size_options=[16], eval_concurrency=8, eval_rps=0)
+    study = optuna.create_study()
+    trial = study.ask()
+    params = tuner._suggest_params(trial, config)
+
+    assert "block_size" in params
+    assert params["block_size"] == 16
+    assert "max_num_batched_tokens" in params
+
+
+def test_status_response_includes_new_fields(client):
+    """Status response should include best_score_history, pareto_front_size, last_rollback_trial"""
+    resp = client.get("/api/tuner/status")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "best_score_history" in data
+    assert isinstance(data["best_score_history"], list)
+    assert "pareto_front_size" in data
+    assert "last_rollback_trial" in data
+
+
+@pytest.mark.asyncio
+async def test_best_score_history_monotonically_nondecreasing_for_tps(auto_tuner_instance, mock_k8s_clients):
+    """For tps objective (maximize), best_score_history should be non-decreasing"""
+    tuner = auto_tuner_instance
+    scores = [10.0, 30.0, 20.0, 50.0, 40.0]
+    call_idx = [0]
+
+    async def mock_eval(endpoint, config, trial=None):
+        idx = call_idx[0]
+        call_idx[0] += 1
+        score = scores[idx % len(scores)]
+        if trial and config.objective != "pareto":
+            trial.report(score, step=0)
+        return score, score, 0.1
+
+    tuner._evaluate = mock_eval
+    tuner._wait_for_ready = AsyncMock(return_value=True)
+    tuner._apply_params = AsyncMock(return_value={"success": True})
+
+    config = TuningConfig(n_trials=5, eval_requests=5, warmup_requests=0, objective="tps")
+    await tuner.start(config, "http://mock:8080")
+
+    history = tuner._best_score_history
+    assert len(history) == 5
+    for i in range(1, len(history)):
+        assert history[i] >= history[i - 1], f"History not monotone at {i}: {history}"
+
+
+def test_apply_best_returns_error_when_tuning_running(client):
+    """If tuning is running, /apply-best should return failure"""
+    best_trial = TuningTrial(
+        trial_id=0,
+        params={"max_num_seqs": 128},
+        tps=50.0,
+        p99_latency=0.3,
+        score=50.0,
+        status="completed",
+    )
+
+    mock_tuner = MagicMock()
+    mock_tuner.best = best_trial
+    mock_tuner.is_running = True
+
+    handler_globals = None
+    for route in client.app.routes:
+        if getattr(route, "path", None) == "/api/tuner/apply-best":
+            handler_globals = route.endpoint.__globals__
+            break
+
+    assert handler_globals is not None
+    with patch.dict(handler_globals, {"auto_tuner": mock_tuner}):
+        resp = client.post("/api/tuner/apply-best")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is False
+        assert "progress" in data["message"].lower() or "running" in data["message"].lower()
+
+
+def test_stop_endpoint_returns_failure_when_not_running(client):
+    """POST /stop when not running should return success=false"""
+    resp = client.post("/api/tuner/stop")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is False
+
+
+@pytest.mark.asyncio
+async def test_rollback_to_snapshot_no_snapshot_returns_false(auto_tuner_instance):
+    """_rollback_to_snapshot should return False when no CM snapshot is available"""
+    tuner = auto_tuner_instance
+    tuner._cm_snapshot = None
+    result = await tuner._rollback_to_snapshot(trial_num=0)
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_multiple_subscribers_all_receive_broadcast(auto_tuner_instance):
+    """All active subscribers should receive the same broadcast event"""
+    tuner = auto_tuner_instance
+    q1 = await tuner.subscribe()
+    q2 = await tuner.subscribe()
+
+    event = {"type": "trial_complete", "data": {"trial_id": 0, "score": 42.0}}
+    await tuner._broadcast(event)
+
+    result1 = await q1.get()
+    result2 = await q2.get()
+
+    assert result1 == event
+    assert result2 == event
+
+    await tuner.unsubscribe(q1)
+    await tuner.unsubscribe(q2)
+
+
+@pytest.mark.asyncio
+async def test_suggest_params_swap_space_enabled_by_flag(auto_tuner_instance, mock_k8s_clients):
+    """swap_space should appear in suggested params when include_swap_space=True"""
+    import optuna
+
+    config = TuningConfig(include_swap_space=True, swap_space_range=(1.0, 8.0))
+    study = optuna.create_study()
+    trial = study.ask()
+    params = auto_tuner_instance._suggest_params(trial, config)
+    assert "swap_space" in params, f"Expected swap_space in params: {params}"
+    assert 1.0 <= params["swap_space"] <= 8.0
+
+
+@pytest.mark.asyncio
+async def test_pareto_front_size_set_after_pareto_trials(auto_tuner_instance, mock_k8s_clients):
+    """After running pareto trials, _pareto_front_size should be set and >= 1"""
+    tuner = auto_tuner_instance
+    tuner._evaluate = AsyncMock(return_value=(50.0, 50.0, 0.5))
+    tuner._wait_for_ready = AsyncMock(return_value=True)
+    tuner._apply_params = AsyncMock(return_value={"success": True})
+
+    config = TuningConfig(n_trials=3, eval_requests=5, warmup_requests=0, objective="pareto")
+    await tuner.start(config, "http://mock:8080")
+
+    assert tuner._pareto_front_size is not None
+    assert tuner._pareto_front_size >= 1
+
+
+@pytest.mark.asyncio
+async def test_broadcast_trial_start_event_for_each_trial(auto_tuner_instance, mock_k8s_clients):
+    """Each trial in start() should broadcast a trial_start event"""
+    tuner = auto_tuner_instance
+    tuner._evaluate = AsyncMock(return_value=(50.0, 50.0, 0.2))
+    tuner._wait_for_ready = AsyncMock(return_value=True)
+    tuner._apply_params = AsyncMock(return_value={"success": True})
+
+    q = await tuner.subscribe()
+
+    n_trials = 2
+    config = TuningConfig(n_trials=n_trials, eval_requests=5, warmup_requests=0, objective="tps")
+    await tuner.start(config, "http://mock:8080")
+
+    # Drain all events queued during start()
+    events = []
+    while not q.empty():
+        events.append(q.get_nowait())
+
+    await tuner.unsubscribe(q)
+
+    trial_start_events = [e for e in events if e.get("type") == "trial_start"]
+    assert len(trial_start_events) == n_trials
+
+
+@pytest.mark.asyncio
+async def test_apply_params_swap_space_configmap_key(auto_tuner_instance, mock_k8s_clients):
+    """swap_space param should map to SWAP_SPACE ConfigMap key"""
+    tuner = auto_tuner_instance
+    mock_core_api = mock_k8s_clients[1].return_value
+
+    params = {
+        "max_num_seqs": 64,
+        "gpu_memory_utilization": 0.8,
+        "max_model_len": 4096,
+        "enable_chunked_prefill": False,
+        "swap_space": 4.0,
+    }
+
+    await tuner._apply_params(params)
+
+    call_args = mock_core_api.patch_namespaced_config_map.call_args
+    patch_data = call_args.kwargs["body"]["data"]
+    assert "SWAP_SPACE" in patch_data
+    assert patch_data["SWAP_SPACE"] == "4.0"
+
+
+@pytest.mark.asyncio
+async def test_pruned_trials_not_counted_as_best_trial(auto_tuner_instance, mock_k8s_clients):
+    """Pruned trials should never be set as the best_trial"""
+    tuner = auto_tuner_instance
+    call_count = 0
+
+    async def mock_evaluate(endpoint, config, trial=None):
+        nonlocal call_count
+        call_count += 1
+        if trial:
+            trial.report(100.0 if call_count <= 3 else 1.0, step=0)
+        if call_count <= 3:
+            return 100.0, 100.0, 0.1
+        return 1.0, 1.0, 5.0
+
+    tuner._evaluate = mock_evaluate
+    tuner._wait_for_ready = AsyncMock(return_value=True)
+    tuner._apply_params = AsyncMock(return_value={"success": True})
+
+    config = TuningConfig(n_trials=5, eval_requests=10, warmup_requests=0, objective="tps")
+    await tuner.start(config, "http://mock:8080")
+
+    pruned_trials = [t for t in tuner.trials if t.pruned]
+    assert len(pruned_trials) > 0, "Expected at least one pruned trial for this test to be meaningful"
+
+    if tuner._best_trial is not None:
+        assert not tuner._best_trial.pruned, "Best trial should not be marked as pruned"
+        assert tuner._best_trial.status != "pruned"
