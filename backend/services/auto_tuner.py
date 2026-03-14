@@ -46,6 +46,7 @@ class AutoTuner:
         self._wait_durations: list[float] = []
         self._total_wait_seconds: float = 0.0
         self._poll_count: int = 0
+        self._best_score_history: list[float] = []
         self._init_k8s()
 
     def _init_k8s(self):
@@ -155,10 +156,15 @@ class AutoTuner:
             self._running = True
             self._config = config
             self._trials = []
+            self._best_score_history = []
             self._best_trial = None
             direction = "maximize" if config.objective == "tps" else "minimize"
             storage_url = os.getenv("OPTUNA_STORAGE_URL")  # e.g., "sqlite:////tmp/optuna.db"
             _study_name = f"vllm-tuner-{config.objective}"
+            if config.objective != "pareto":
+                pruner = optuna.pruners.MedianPruner(n_startup_trials=3, n_warmup_steps=0)
+            else:
+                pruner = optuna.pruners.NopPruner()
 
             if storage_url:
                 try:
@@ -174,6 +180,7 @@ class AutoTuner:
                         storage=storage,
                         study_name=_study_name,
                         load_if_exists=True,
+                        pruner=pruner,
                     )
                     logger.info("[AutoTuner] Using SQLite storage: %s (study: %s)", storage_url, _study_name)
                     # Warm-start: enqueue best trial from previous run
@@ -186,11 +193,13 @@ class AutoTuner:
                     self._study = optuna.create_study(
                         direction=direction,
                         sampler=optuna.samplers.TPESampler(seed=42),
+                        pruner=pruner,
                     )
             else:
                 self._study = optuna.create_study(
                     direction=direction,
                     sampler=optuna.samplers.TPESampler(seed=42),
+                    pruner=pruner,
                 )
 
         try:
@@ -225,7 +234,36 @@ class AutoTuner:
                     continue
 
                 # 성능 측정
-                score, tps, p99_lat = await self._evaluate(vllm_endpoint, config)
+                score, tps, p99_lat = await self._evaluate(vllm_endpoint, config, trial=trial)
+
+                if config.objective != "pareto" and trial.should_prune():
+                    async with self._study_lock:
+                        self._study.tell(trial, state=optuna.trial.TrialState.PRUNED)
+                    t = TuningTrial(
+                        trial_id=trial_num,
+                        params=params,
+                        tps=tps,
+                        p99_latency=p99_lat,
+                        score=score,
+                        status="pruned",
+                        pruned=True,
+                    )
+                    async with self._lock:
+                        self._trials.append(t)
+                        current_best = self._best_trial.score if self._best_trial else 0
+                        self._best_score_history.append(current_best)
+                    await self._broadcast({
+                        "type": "trial_complete",
+                        "data": {
+                            "trial_id": trial_num,
+                            "score": score,
+                            "tps": tps,
+                            "p99_latency": p99_lat,
+                            "pruned": True,
+                        },
+                    })
+                    continue
+
                 async with self._study_lock:
                     self._study.tell(trial, score)
 
@@ -241,6 +279,9 @@ class AutoTuner:
                     self._trials.append(t)
                     if self._best_trial is None or (direction == "maximize" and score > self._best_trial.score) or (direction == "minimize" and score < self._best_trial.score):
                         self._best_trial = t
+                    self._best_score_history.append(
+                        self._best_trial.score if self._best_trial else score
+                    )
 
                 # Broadcast trial completion event
                 await self._broadcast({
@@ -466,8 +507,13 @@ class AutoTuner:
             logger.error("[AutoTuner] Rollback failed for trial %d: %s", trial_num, e)
             return False
 
-    async def _evaluate(self, endpoint: str, config: TuningConfig) -> tuple[float, float, float]:
-        """부하 테스트 실행 후 점수 반환"""
+    async def _evaluate(
+        self,
+        endpoint: str,
+        config: TuningConfig,
+        trial=None,
+    ) -> tuple[float, float, float]:
+        """부하 테스트 실행 후 점수 반환 (fast probe + full evaluation)"""
         model_name = await resolve_model_name(endpoint)
 
         if config.warmup_requests > 0:
@@ -485,25 +531,52 @@ class AutoTuner:
             except Exception as e:
                 logger.warning("[AutoTuner] Warmup failed (continuing): %s", e)
 
-        test_config = LoadTestConfig(
+        def _compute_score(result: dict) -> float:
+            tps = result.get("tps", {}).get("total", 0)
+            p99_lat = result.get("latency", {}).get("p99", 9999)
+            if config.objective == "tps":
+                return tps
+            if config.objective == "latency":
+                return -p99_lat
+            return tps / (p99_lat + 1) * 100
+
+        fast_requests = max(1, int(config.eval_requests * config.eval_fast_fraction))
+        fast_config = LoadTestConfig(
             endpoint=endpoint,
             model=model_name,
-            total_requests=config.eval_requests,
+            total_requests=fast_requests,
             concurrency=config.eval_concurrency,
             rps=config.eval_rps,
             stream=True,
         )
+        fast_result = await self._load_engine.run(fast_config)
+        fast_score = _compute_score(fast_result)
 
-        result = await self._load_engine.run(test_config)
-        tps = result.get("tps", {}).get("total", 0)
-        p99_lat = result.get("latency", {}).get("p99", 9999)
+        if trial is not None and config.objective != "pareto":
+            trial.report(fast_score, step=0)
+            if trial.should_prune():
+                tps = fast_result.get("tps", {}).get("total", 0)
+                p99_lat = fast_result.get("latency", {}).get("p99", 9999)
+                return fast_score, tps, p99_lat
 
-        if config.objective == "tps":
-            score = tps
-        elif config.objective == "latency":
-            score = -p99_lat
-        else:  # balanced
-            score = tps / (p99_lat + 1) * 100
+        remaining_requests = config.eval_requests - fast_requests
+        if remaining_requests > 0:
+            full_config = LoadTestConfig(
+                endpoint=endpoint,
+                model=model_name,
+                total_requests=remaining_requests,
+                concurrency=config.eval_concurrency,
+                rps=config.eval_rps,
+                stream=True,
+            )
+            full_result = await self._load_engine.run(full_config)
+            score = _compute_score(full_result)
+            tps = full_result.get("tps", {}).get("total", 0)
+            p99_lat = full_result.get("latency", {}).get("p99", 9999)
+        else:
+            score = fast_score
+            tps = fast_result.get("tps", {}).get("total", 0)
+            p99_lat = fast_result.get("latency", {}).get("p99", 9999)
 
         return score, tps, p99_lat
 

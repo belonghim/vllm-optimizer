@@ -161,7 +161,7 @@ async def get_tuner_status():
         trials_completed=len(auto_tuner.trials),
         best=best_info,
         status=status_value,
-        best_score_history=[],
+        best_score_history=getattr(auto_tuner, "_best_score_history", []),
         pareto_front_size=None,
         last_rollback_trial=auto_tuner._last_rollback_trial,
     )

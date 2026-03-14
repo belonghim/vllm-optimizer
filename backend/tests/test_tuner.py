@@ -261,6 +261,51 @@ async def test_start_reapplies_best_params_at_end(auto_tuner_instance, mock_k8s_
     assert mock_custom_api.patch_namespaced_custom_object.call_count == config.n_trials + 1
 
 
+@pytest.mark.asyncio
+async def test_median_pruner_marks_trial_as_pruned(auto_tuner_instance, mock_k8s_clients):
+    """Trials pruned by MedianPruner should have status='pruned' and pruned=True"""
+    tuner = auto_tuner_instance
+    call_count = 0
+
+    async def mock_evaluate(endpoint, config, trial=None):
+        nonlocal call_count
+        call_count += 1
+        if trial:
+            trial.report(100.0 if call_count <= 3 else 1.0, step=0)
+        if call_count <= 3:
+            return 100.0, 100.0, 0.1
+        return 1.0, 1.0, 5.0
+
+    tuner._evaluate = mock_evaluate
+    tuner._wait_for_ready = AsyncMock(return_value=True)
+    tuner._apply_params = AsyncMock(return_value={"success": True})
+
+    config = TuningConfig(n_trials=5, eval_requests=10, warmup_requests=0, objective="tps")
+
+    await tuner.start(config, "http://mock:8080")
+
+    pruned_trials = [t for t in tuner.trials if t.pruned]
+    assert len(tuner.trials) == 5
+    assert pruned_trials
+    assert all(t.status == "pruned" for t in pruned_trials)
+
+
+@pytest.mark.asyncio
+async def test_best_score_history_length_matches_trials(auto_tuner_instance, mock_k8s_clients):
+    """_best_score_history should have an entry for each trial"""
+    tuner = auto_tuner_instance
+    tuner._evaluate = AsyncMock(return_value=(50.0, 50.0, 0.2))
+    tuner._wait_for_ready = AsyncMock(return_value=True)
+    tuner._apply_params = AsyncMock(return_value={"success": True})
+
+    n_trials = 3
+    config = TuningConfig(n_trials=n_trials, eval_requests=5, warmup_requests=0)
+
+    await tuner.start(config, "http://mock:8080")
+
+    assert len(tuner._best_score_history) == n_trials
+
+
 def test_tuner_status_has_running_field(client):
     resp = client.get("/api/tuner/status")
     assert resp.status_code == 200
@@ -526,9 +571,13 @@ async def test_eval_uses_config_concurrency_and_rps(auto_tuner_instance, mock_k8
     with patch("services.auto_tuner.resolve_model_name", return_value="test-model"):
         score, tps, p99 = await tuner._evaluate("http://mock:8080", config)
 
-    assert len(captured_configs) == 1
+    assert len(captured_configs) == 2
     assert captured_configs[0].concurrency == 16
     assert captured_configs[0].rps == 5
+    assert captured_configs[0].total_requests == 5
+    assert captured_configs[1].concurrency == 16
+    assert captured_configs[1].rps == 5
+    assert captured_configs[1].total_requests == 5
 
 
 @pytest.mark.asyncio
@@ -536,9 +585,11 @@ async def test_warmup_runs_before_evaluation(auto_tuner_instance, mock_k8s_clien
     tuner = auto_tuner_instance
 
     call_count = 0
+    captured_total_requests: list[int] = []
     async def mock_run(load_config):
         nonlocal call_count
         call_count += 1
+        captured_total_requests.append(load_config.total_requests)
         return {"tps": {"total": 50.0}, "latency": {"p99": 0.2}}
 
     tuner._load_engine.run = mock_run
@@ -548,7 +599,8 @@ async def test_warmup_runs_before_evaluation(auto_tuner_instance, mock_k8s_clien
     with patch("services.auto_tuner.resolve_model_name", return_value="test-model"):
         score, tps, p99 = await tuner._evaluate("http://mock:8080", config)
 
-    assert call_count == 2
+    assert call_count == 3
+    assert captured_total_requests == [5, 5, 5]
 
 
 @pytest.mark.asyncio
@@ -556,9 +608,11 @@ async def test_no_warmup_when_zero(auto_tuner_instance, mock_k8s_clients):
     tuner = auto_tuner_instance
 
     call_count = 0
+    captured_total_requests: list[int] = []
     async def mock_run(load_config):
         nonlocal call_count
         call_count += 1
+        captured_total_requests.append(load_config.total_requests)
         return {"tps": {"total": 50.0}, "latency": {"p99": 0.2}}
 
     tuner._load_engine.run = mock_run
@@ -568,7 +622,8 @@ async def test_no_warmup_when_zero(auto_tuner_instance, mock_k8s_clients):
     with patch("services.auto_tuner.resolve_model_name", return_value="test-model"):
         score, tps, p99 = await tuner._evaluate("http://mock:8080", config)
 
-    assert call_count == 1
+    assert call_count == 2
+    assert captured_total_requests == [5, 5]
 
 
 def test_start_uses_inmemory_when_no_storage_url(auto_tuner_instance, mock_k8s_clients):
