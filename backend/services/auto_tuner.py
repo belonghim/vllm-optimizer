@@ -18,6 +18,17 @@ import optuna
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 OPTUNA_AVAILABLE = True
 
+# Prometheus metrics integration (optional)
+try:
+    from metrics.prometheus_metrics import (
+        tuner_trials_total,
+        tuner_best_score,
+        tuner_trial_duration_seconds,
+    )
+    _METRICS_AVAILABLE = True
+except ImportError:
+    _METRICS_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 K8S_NAMESPACE = os.getenv("K8S_NAMESPACE", "default")
@@ -218,6 +229,9 @@ class AutoTuner:
                 async with self._study_lock:
                     trial = self._study.ask()
                 params = self._suggest_params(trial, config)
+                # Start trial timer (emission will be non-fatal if metrics are unavailable)
+                import time as _time
+                _trial_start = _time.monotonic()
 
                 # Broadcast trial start event immediately after parameters are decided
                 await self._broadcast({
@@ -260,6 +274,14 @@ class AutoTuner:
                         self._trials.append(t)
                         current_best = self._best_trial.score if self._best_trial else 0
                         self._best_score_history.append(current_best)
+                    # Emit metrics for pruned trial
+                    try:
+                        if _METRICS_AVAILABLE:
+                            _trial_duration = _time.monotonic() - _trial_start
+                            tuner_trial_duration_seconds.observe(_trial_duration)
+                            tuner_trials_total.labels(status="pruned").inc()
+                    except Exception as _e:
+                        logger.debug("[AutoTuner] Metrics emit failed (non-critical): %s", _e)
                     await self._broadcast({
                         "type": "trial_complete",
                         "data": {
@@ -295,6 +317,16 @@ class AutoTuner:
                     self._best_score_history.append(
                         self._best_trial.score if self._best_trial else score
                     )
+                # Emit metrics for completed trial
+                try:
+                    if _METRICS_AVAILABLE:
+                        _trial_duration = _time.monotonic() - _trial_start
+                        tuner_trial_duration_seconds.observe(_trial_duration)
+                        tuner_trials_total.labels(status="completed").inc()
+                        if self._best_trial is not None:
+                            tuner_best_score.labels(objective=config.objective).set(self._best_trial.score)
+                except Exception as _e:
+                    logger.debug("[AutoTuner] Metrics emit failed (non-critical): %s", _e)
 
                 if config.objective == "pareto":
                     try:
