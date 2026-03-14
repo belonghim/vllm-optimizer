@@ -52,21 +52,20 @@ function TunerPage() {
     return () => clearInterval(id);
   }, [fetchStatus]);
 
-// SSE connection when tuning is active
-useEffect(() => {
+  useEffect(() => {
     if (!status.running || isMockEnabled) return;
     const es = new EventSource(`${API}/tuner/stream`);
     es.onmessage = (event) => {
-        try {
-            const data = JSON.parse(event.data);
-            if (data.type === "trial_complete" || data.type === "tuning_complete") {
-                fetchStatus();
-            }
-        } catch (e) {}
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === "trial_complete" || data.type === "tuning_complete") {
+          fetchStatus();
+        }
+      } catch (e) {}
     };
     es.onerror = () => { es.close(); };
     return () => { es.close(); };
-}, [status.running, isMockEnabled, fetchStatus]);
+  }, [status.running, isMockEnabled, fetchStatus]);
 
   useEffect(() => {
     fetch(`${API}/config`)
@@ -148,6 +147,7 @@ useEffect(() => {
               <option value="tps">최대 처리량 (TPS)</option>
               <option value="latency">최소 레이턴시</option>
               <option value="balanced">균형 (TPS / Latency)</option>
+              <option value="pareto">Pareto (TPS + Latency)</option>
             </select>
           </div>
           <div>
