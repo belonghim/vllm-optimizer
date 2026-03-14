@@ -131,6 +131,207 @@ describe("LoadTestPage", () => {
     });
 
     // COMPLETED 상태 태그 표시
-    expect(screen.getByText("COMPLETED")).toBeInTheDocument();
+     expect(screen.getByText("COMPLETED")).toBeInTheDocument();
+   });
+
+  describe("LoadTestPage — Save as Benchmark", () => {
+    it("Save as Benchmark button absent when status is idle", () => {
+      render(<LoadTestPage />);
+      expect(screen.queryByText("⬆ Save as Benchmark")).not.toBeInTheDocument();
+    });
+
+    it("Save as Benchmark button present when status is completed and result exists", async () => {
+      render(<LoadTestPage />);
+      await act(async () => { fireEvent.click(screen.getByText("▶ Run Load Test")); });
+      await waitFor(() => expect(mockEsInstance).not.toBeNull());
+      act(() => {
+        mockEsInstance.onmessage({
+          data: JSON.stringify({
+            type: "completed",
+            data: {
+              total: 200, total_requested: 200, success: 200, failed: 0,
+              elapsed: 20.0, rps_actual: 10.0,
+              latency: { mean: 0.1, p50: 0.1, p95: 0.15, p99: 0.2, min: 0.05, max: 0.3 },
+              ttft: { mean: 0.05, p95: 0.08 },
+              tps: { mean: 100, total: 2000 },
+            },
+          }),
+        });
+      });
+      expect(screen.getByText("⬆ Save as Benchmark")).toBeInTheDocument();
+    });
+
+    it("calls POST /api/benchmark/save on button click", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn()
+          .mockResolvedValueOnce({ ok: true, json: async () => ({}) })
+          .mockResolvedValueOnce({ ok: true, json: async () => ({ test_id: "t1", status: "started", config: { model: "m1" } }) })
+          .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 1, name: "m1 @ ..." }) })
+      );
+
+      render(<LoadTestPage />);
+      await act(async () => { fireEvent.click(screen.getByText("▶ Run Load Test")); });
+      await waitFor(() => expect(mockEsInstance).not.toBeNull());
+      act(() => {
+        mockEsInstance.onmessage({
+          data: JSON.stringify({
+            type: "completed",
+            data: {
+              total: 200, total_requested: 200, success: 200, failed: 0,
+              elapsed: 20.0, rps_actual: 10.0,
+              latency: { mean: 0.1, p50: 0.1, p95: 0.15, p99: 0.2, min: 0.05, max: 0.3 },
+              ttft: { mean: 0.05, p95: 0.08 },
+              tps: { mean: 100, total: 2000 },
+            },
+          }),
+        });
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByText("⬆ Save as Benchmark"));
+      });
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining("benchmark/save"),
+        expect.objectContaining({ method: "POST" })
+      );
+    });
+
+    it("shows success feedback after save", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn()
+          .mockResolvedValueOnce({ ok: true, json: async () => ({}) })
+          .mockResolvedValueOnce({ ok: true, json: async () => ({ test_id: "t1", status: "started", config: { model: "m1" } }) })
+          .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 1 }) })
+      );
+
+      render(<LoadTestPage />);
+      await act(async () => { fireEvent.click(screen.getByText("▶ Run Load Test")); });
+      await waitFor(() => expect(mockEsInstance).not.toBeNull());
+      act(() => {
+        mockEsInstance.onmessage({
+          data: JSON.stringify({
+            type: "completed",
+            data: {
+              total: 200, total_requested: 200, success: 200, failed: 0,
+              elapsed: 20.0, rps_actual: 10.0,
+              latency: { mean: 0.1, p50: 0.1, p95: 0.15, p99: 0.2, min: 0.05, max: 0.3 },
+              ttft: { mean: 0.05, p95: 0.08 },
+              tps: { mean: 100, total: 2000 },
+            },
+          }),
+        });
+      });
+      await act(async () => { fireEvent.click(screen.getByText("⬆ Save as Benchmark")); });
+      await waitFor(() => expect(screen.getByText("✓ Saved")).toBeInTheDocument());
+    });
+
+    it("shows error feedback after failed save", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn()
+          .mockResolvedValueOnce({ ok: true, json: async () => ({}) })
+          .mockResolvedValueOnce({ ok: true, json: async () => ({ test_id: "t1", status: "started", config: { model: "m1" } }) })
+          .mockResolvedValueOnce({ ok: false })
+      );
+
+      render(<LoadTestPage />);
+      await act(async () => { fireEvent.click(screen.getByText("▶ Run Load Test")); });
+      await waitFor(() => expect(mockEsInstance).not.toBeNull());
+      act(() => {
+        mockEsInstance.onmessage({
+          data: JSON.stringify({
+            type: "completed",
+            data: {
+              total: 200, total_requested: 200, success: 200, failed: 0,
+              elapsed: 20.0, rps_actual: 10.0,
+              latency: { mean: 0.1, p50: 0.1, p95: 0.15, p99: 0.2, min: 0.05, max: 0.3 },
+              ttft: { mean: 0.05, p95: 0.08 },
+              tps: { mean: 100, total: 2000 },
+            },
+          }),
+        });
+      });
+      await act(async () => { fireEvent.click(screen.getByText("⬆ Save as Benchmark")); });
+      await waitFor(() => expect(screen.getByText("✗ Save failed")).toBeInTheDocument());
+    });
+
+    it("hides Save as Benchmark button in initial render", () => {
+      render(<LoadTestPage />);
+      expect(screen.queryByText("⬆ Save as Benchmark")).not.toBeInTheDocument();
+    });
+
+    it("disables button during save", async () => {
+      let resolvePromise;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn()
+          .mockResolvedValueOnce({ ok: true, json: async () => ({}) })
+          .mockResolvedValueOnce({ ok: true, json: async () => ({ test_id: "t1", status: "started", config: { model: "m1" } }) })
+          .mockImplementationOnce(() => new Promise(resolve => { resolvePromise = resolve; }))
+      );
+
+      render(<LoadTestPage />);
+      await act(async () => { fireEvent.click(screen.getByText("▶ Run Load Test")); });
+      await waitFor(() => expect(mockEsInstance).not.toBeNull());
+      act(() => {
+        mockEsInstance.onmessage({
+          data: JSON.stringify({
+            type: "completed",
+            data: {
+              total: 200, total_requested: 200, success: 200, failed: 0,
+              elapsed: 20.0, rps_actual: 10.0,
+              latency: { mean: 0.1, p50: 0.1, p95: 0.15, p99: 0.2, min: 0.05, max: 0.3 },
+              ttft: { mean: 0.05, p95: 0.08 },
+              tps: { mean: 100, total: 2000 },
+            },
+          }),
+        });
+      });
+
+      await act(async () => { fireEvent.click(screen.getByText("⬆ Save as Benchmark")); });
+
+      const button = screen.getByText("Saving...");
+      expect(button).toBeDisabled();
+      expect(button).toHaveTextContent("Saving...");
+
+      resolvePromise({ ok: true, json: async () => ({ id: 1 }) });
+      await waitFor(() => expect(screen.getByText("✓ Saved")).toBeInTheDocument());
+    });
+
+    it("disables button after successful save", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn()
+          .mockResolvedValueOnce({ ok: true, json: async () => ({}) })
+          .mockResolvedValueOnce({ ok: true, json: async () => ({ test_id: "t1", status: "started", config: { model: "m1" } }) })
+          .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 1 }) })
+      );
+
+      render(<LoadTestPage />);
+      await act(async () => { fireEvent.click(screen.getByText("▶ Run Load Test")); });
+      await waitFor(() => expect(mockEsInstance).not.toBeNull());
+      act(() => {
+        mockEsInstance.onmessage({
+          data: JSON.stringify({
+            type: "completed",
+            data: {
+              total: 200, total_requested: 200, success: 200, failed: 0,
+              elapsed: 20.0, rps_actual: 10.0,
+              latency: { mean: 0.1, p50: 0.1, p95: 0.15, p99: 0.2, min: 0.05, max: 0.3 },
+              ttft: { mean: 0.05, p95: 0.08 },
+              tps: { mean: 100, total: 2000 },
+            },
+          }),
+        });
+      });
+      await act(async () => { fireEvent.click(screen.getByText("⬆ Save as Benchmark")); });
+      await waitFor(() => expect(screen.getByText("✓ Saved")).toBeInTheDocument());
+
+      const button = screen.getByText("✓ Saved");
+      expect(button).toBeDisabled();
+    });
   });
 });

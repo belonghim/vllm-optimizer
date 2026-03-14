@@ -23,16 +23,19 @@ function LoadTestPage() {
   const [progress, setProgress] = useState(0);
   const [latencyData, setLatencyData] = useState([]);
   const { isMockEnabled } = useMockData();
-  const [error, setError] = useState(null);
-  const esRef = useRef(null);
-  const mockTimerRef = useRef(null);
+   const [error, setError] = useState(null);
+   const [isSaving, setIsSaving] = useState(false);
+   const [saveStatus, setSaveStatus] = useState(null);
+   const esRef = useRef(null);
+   const mockTimerRef = useRef(null);
 
-  const start = async () => {
-    setStatus("running"); 
-    setResult(null); 
-    setLatencyData([]); 
-    setProgress(0); 
-    setError(null);
+   const start = async () => {
+     setStatus("running");
+     setResult(null);
+     setLatencyData([]);
+     setProgress(0);
+     setError(null);
+     setSaveStatus(null);
 
     if (isMockEnabled) {
       // Mock mode: simulate locally
@@ -95,14 +98,34 @@ function LoadTestPage() {
     }
   };
 
-  const stop = async () => {
-    if (esRef.current) {
-      esRef.current.close();
-      esRef.current = null;
-    }
-    await fetch(`${API}/load_test/stop`, { method: "POST" });
-    setStatus("stopped");
-  };
+   const stop = async () => {
+     if (esRef.current) {
+       esRef.current.close();
+       esRef.current = null;
+     }
+     await fetch(`${API}/load_test/stop`, { method: "POST" });
+     setStatus("stopped");
+   };
+
+   const saveAsBenchmark = async () => {
+     if (isSaving || !result) return;
+     setIsSaving(true);
+     setSaveStatus(null);
+     const name = `${config.model} @ ${new Date().toLocaleDateString()}`;
+     try {
+       const resp = await fetch(`${API}/benchmark/save`, {
+         method: "POST",
+         headers: { "Content-Type": "application/json" },
+         body: JSON.stringify({ name, config, result }),
+       });
+       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+       setSaveStatus("ok");
+     } catch {
+       setSaveStatus("error");
+     } finally {
+       setIsSaving(false);
+     }
+   };
 
   useEffect(() => {
     return () => {
@@ -237,14 +260,31 @@ function LoadTestPage() {
               </table>
           </div>
 
-          {latencyData.length > 0 && (
-            <Chart data={latencyData} title="실시간 레이턴시 (ms)" height={160} lines={[
-              { key: "lat", color: COLORS.red, label: "Latency ms" },
-              { key: "tps", color: COLORS.accent, label: "TPS" },
-            ]} />
-          )}
-        </>
-      )}
+           {latencyData.length > 0 && (
+             <Chart data={latencyData} title="실시간 레이턴시 (ms)" height={160} lines={[
+               { key: "lat", color: COLORS.red, label: "Latency ms" },
+               { key: "tps", color: COLORS.accent, label: "TPS" },
+             ]} />
+           )}
+
+           {status === "completed" && result && !isMockEnabled && (
+             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}>
+               <button
+                 className="btn btn-primary"
+                 onClick={saveAsBenchmark}
+                 disabled={isSaving || saveStatus === "ok"}
+               >
+                 {saveStatus === "ok" ? "✓ Saved" : isSaving ? "Saving..." : "⬆ Save as Benchmark"}
+               </button>
+               {saveStatus === "error" && (
+                 <span style={{ color: COLORS.red, fontSize: 11, fontFamily: font.mono }}>
+                   ✗ Save failed
+                 </span>
+               )}
+             </div>
+           )}
+         </>
+       )}
     </div>
   );
 }
