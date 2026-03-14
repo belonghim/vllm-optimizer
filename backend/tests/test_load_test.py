@@ -98,3 +98,42 @@ def test_startup_metrics_endpoint_triggers_collector(isolated_client: TestClient
     assert any(
         instance.start_requests for instance in _StubMetricsCollector.instances
     ), "MetricsCollector.start_collection was not triggered by the shim"
+
+
+def test_compute_stats_includes_total_requested():
+    import time
+    from services.load_engine import LoadTestEngine, LoadTestState, LoadTestStatus
+    from models.load_test import RequestResult
+
+    engine = LoadTestEngine()
+    engine._state = LoadTestState(
+        status=LoadTestStatus.RUNNING,
+        start_time=time.time(),
+        total_requests=200,
+        completed_requests=0,
+        failed_requests=0,
+        results=[],
+    )
+    engine._state.results.append(RequestResult(req_id=0, success=True, latency=0.1))
+    stats = engine._compute_stats()
+    assert stats.get("total_requested") == 200
+    assert stats.get("total") == 1
+
+
+def test_compute_stats_total_requested_defaults_to_zero():
+    import time
+    from services.load_engine import LoadTestEngine, LoadTestState, LoadTestStatus
+    from models.load_test import RequestResult
+
+    engine = LoadTestEngine()
+    engine._state = LoadTestState(
+        status=LoadTestStatus.RUNNING,
+        start_time=time.time(),
+        total_requests=0,
+        completed_requests=0,
+        failed_requests=0,
+        results=[],
+    )
+    engine._state.results.append(RequestResult(req_id=0, success=True, latency=0.1))
+    stats = engine._compute_stats()
+    assert stats.get("total_requested") == 0

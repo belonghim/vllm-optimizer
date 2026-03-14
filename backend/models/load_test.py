@@ -55,6 +55,7 @@ class LoadTestResult(BaseModel):
     """Aggregated load test result"""
     elapsed: float = 0.0
     total: int = 0
+    total_requested: int = 0
     success: int = 0
     failed: int = 0
     rps_actual: float = 0.0

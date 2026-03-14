@@ -10,9 +10,8 @@ import psutil
 
 from dataclasses import dataclass, field
 from enum import Enum
-import json
 
-from models.load_test import LoadTestConfig, LoadTestResult, RequestResult
+from models.load_test import LoadTestConfig, RequestResult
 
 
 class LoadTestStatus(str, Enum):
@@ -35,11 +34,11 @@ class LoadTestState:
 
 class LoadTestEngine:
     def __init__(self):
-        self._state = LoadTestState()
-        self._stop_event = asyncio.Event()
+        self._state: LoadTestState = LoadTestState()
+        self._stop_event: asyncio.Event = asyncio.Event()
         self._subscribers: list[asyncio.Queue] = []
-        self._state_lock = asyncio.Lock()
-        self._subscribers_lock = asyncio.Lock()
+        self._state_lock: asyncio.Lock = asyncio.Lock()
+        self._subscribers_lock: asyncio.Lock = asyncio.Lock()
 
     @property
     def status(self) -> LoadTestStatus:
@@ -93,6 +92,7 @@ class LoadTestEngine:
         self._state = LoadTestState(
             status=LoadTestStatus.RUNNING,
             start_time=time.time(),
+            total_requests=config.total_requests,
         )
         self._stop_event.clear()
 
@@ -251,6 +251,7 @@ class LoadTestEngine:
         return {
             "elapsed": round(elapsed, 2),
             "total": len(results),
+            "total_requested": self._state.total_requests,
             "success": len(successful),
             "failed": self._state.failed_requests,
             "rps_actual": round(len(results) / elapsed, 2) if elapsed > 0 else 0,
