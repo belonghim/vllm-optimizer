@@ -1,11 +1,10 @@
 {
-  "active_plan": null,
-  "started_at": null,
-  "session_ids": [],
-  "plan_name": null,
-  "worktree_path": null,
+  "active_plan": "/home/user/project/vllm-optimizer/.sisyphus/plans/fix-tuner-button.md",
+  "started_at": "2026-03-14T08:26:59.627Z",
+  "session_ids": [
+    "ses_3149d37deffeceqHrvhh2clzy8"
+  ],
+  "plan_name": "fix-tuner-button",
   "agent": "atlas",
-  "last_completed_plan": "fix-latency-display",
-  "last_completed_at": "2026-03-09T08:35:00Z",
-  "status": "ready_for_next_plan"
+  "worktree_path": "/home/user/project/vllm-optimizer"
 }

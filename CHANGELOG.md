@@ -21,6 +21,9 @@ All notable changes to this project will be documented in this file.
 - **Dev overlay**: Fixed namespace references from `vllm-optimizer-prod` to `vllm-optimizer-dev`
 - **Deploy script**: Added rollout status monitoring and pod readiness checks
 - **Health check**: Enhanced with optional `deep=1` query parameter for dependency validation
+- **Tuner API**: `GET /api/tuner/status` now returns `running` (bool), `trials_completed` (int), `best` (object|null) matching frontend contract
+- **Tuner API**: `GET /api/tuner/trials` now returns flat items with `id`, `tps`, `p99_latency` (ms), `params`, `score`, `status` fields
+- **Tuner API**: `p99_latency` converted from seconds to milliseconds in all tuner responses
 
 ### Fixed
 - Dev overlay namespace bug causing incorrect ClusterRoleBinding namespace
@@ -31,6 +34,8 @@ All notable changes to this project will be documented in this file.
 - ServiceMonitor path mismatch preventing metrics collection
 - Frontend missing HorizontalPodAutoscaler configuration
 - Backend HPA aggressive scaling behavior
+- **'Start Tuning' button non-functional** due to API contract mismatch between `TunerPage.jsx` and backend (`/tuner/status`, `/tuner/trials` response shapes did not match frontend expectations)
+- Frontend `start()` silently swallowing HTTP errors and backend `success: false` responses — now surfaces errors to the user via error banner
 
 ### Security
 - Removed insecure SSL verification bypass (`verify=False`)
