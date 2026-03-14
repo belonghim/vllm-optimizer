@@ -19,6 +19,12 @@ function TunerPage() {
     vllm_endpoint: "",
     max_num_seqs_min: 64, max_num_seqs_max: 512,
     gpu_memory_min: 0.80, gpu_memory_max: 0.95,
+    max_model_len_min: 2048, max_model_len_max: 8192,
+    max_num_batched_tokens_min: 256, max_num_batched_tokens_max: 2048,
+    block_size_options: [8, 16, 32],
+    eval_requests: 200,
+    eval_concurrency: 32,
+    eval_rps: 20,
   });
 
   const fetchStatus = useCallback(async () => {
