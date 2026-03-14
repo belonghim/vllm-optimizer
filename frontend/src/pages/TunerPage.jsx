@@ -68,22 +68,6 @@ useEffect(() => {
     return () => { es.close(); };
 }, [status.running, isMockEnabled, fetchStatus]);
 
-  // SSE connection when tuning is active — real-time trial events
-  useEffect(() => {
-    if (!status.running || isMockEnabled) return;
-    const es = new EventSource(`${API}/tuner/stream`);
-    es.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === "trial_complete" || data.type === "tuning_complete") {
-          fetchStatus();
-        }
-      } catch (e) {}
-    };
-    es.onerror = () => { es.close(); };
-    return () => { es.close(); };
-  }, [status.running, isMockEnabled, fetchStatus]);
-
   useEffect(() => {
     fetch(`${API}/config`)
       .then(r => r.json())
@@ -164,7 +148,6 @@ useEffect(() => {
               <option value="tps">최대 처리량 (TPS)</option>
               <option value="latency">최소 레이턴시</option>
               <option value="balanced">균형 (TPS / Latency)</option>
-              <option value="pareto">Pareto (TPS + Latency)</option>
             </select>
           </div>
           <div>
@@ -248,36 +231,49 @@ useEffect(() => {
               <YAxis dataKey="y" name="P99 ms" tick={{ fontSize: 9, fill: COLORS.muted }} />
               <Tooltip contentStyle={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, fontSize: 11 }}
                 formatter={(v, n) => [fmt(v, 2), n]} />
-              <Scatter data={scatterData.filter(d => !d.pareto_optimal)} fill={COLORS.cyan} opacity={0.7} />
-              <Scatter data={scatterData.filter(d => d.pareto_optimal)} fill={"#4caf50"} opacity={1.0} />
+              {/* Regular trials */}
+              <Scatter
+                  data={scatterData.filter(d => !d.pareto_optimal)}
+                  fill={COLORS.cyan}
+                  opacity={0.7}
+              />
+              {/* Pareto-optimal trials — highlighted */}
+              <Scatter
+                  data={scatterData.filter(d => d.pareto_optimal)}
+                  fill={"#4caf50"}
+                  opacity={1.0}
+              />
             </ScatterChart>
           </ResponsiveContainer>
           {scatterData.some(d => d.pareto_optimal) && (
-            <div style={{ fontSize: 10, color: COLORS.muted, marginTop: 4 }}>
-              <span style={{ color: "#4caf50" }}>●</span> Pareto-optimal &nbsp;
-              <span style={{ color: COLORS.cyan }}>●</span> Regular trial
-            </div>
+              <div style={{ fontSize: 10, color: COLORS.muted, marginTop: 4 }}>
+                  <span style={{ color: "#4caf50" }}>●</span> Pareto-optimal &nbsp;
+                  <span style={{ color: COLORS.cyan }}>●</span> Regular trial
+              </div>
           )}
         </div>
       )}
 
+      {/* Convergence Chart */}
       {status.best_score_history && status.best_score_history.length > 1 && (
-        <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, padding: 20 }}>
-          <div className="section-title">최적 점수 수렴</div>
-          <ResponsiveContainer width="100%" height={180}>
-            <LineChart
-              data={status.best_score_history.map((score, i) => ({ trial: i + 1, score: Number(score).toFixed(2) }))}
-              margin={{ top: 8, right: 8, bottom: 8, left: -8 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
-              <XAxis dataKey="trial" tick={{ fontSize: 9, fill: COLORS.muted }} />
-              <YAxis tick={{ fontSize: 9, fill: COLORS.muted }} />
-              <Tooltip contentStyle={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, fontSize: 11 }}
-                formatter={(v) => [v, "Best Score"]} />
-              <Line type="monotone" dataKey="score" stroke={COLORS.accent || COLORS.cyan} strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+          <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, padding: 20 }}>
+              <div className="section-title">최적 점수 수렴</div>
+              <ResponsiveContainer width="100%" height={180}>
+                  <LineChart
+                      data={status.best_score_history.map((score, i) => ({ trial: i + 1, score: Number(score).toFixed(2) }))}
+                      margin={{ top: 8, right: 8, bottom: 8, left: -8 }}
+                  >
+                      <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
+                      <XAxis dataKey="trial" tick={{ fontSize: 9, fill: COLORS.muted }} />
+                      <YAxis tick={{ fontSize: 9, fill: COLORS.muted }} />
+                      <Tooltip
+                          contentStyle={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, fontSize: 11 }}
+                          formatter={(v) => [v, "Best Score"]}
+                      />
+                      <Line type="monotone" dataKey="score" stroke={COLORS.accent} strokeWidth={2} dot={false} />
+                  </LineChart>
+              </ResponsiveContainer>
+          </div>
       )}
 
       {Object.keys(importance).length > 0 && (
