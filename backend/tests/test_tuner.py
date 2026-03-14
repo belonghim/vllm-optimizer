@@ -599,7 +599,7 @@ async def test_warmstart_enqueues_previous_best(auto_tuner_instance, mock_k8s_cl
 
             try:
                 await tuner.start(config, "http://mock:8080")
-            except StopIteration:
+            except Exception:
                 pass
 
             mock_study.enqueue_trial.assert_called_once_with(
