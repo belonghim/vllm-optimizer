@@ -48,6 +48,10 @@ function LoadTestPage() {
         body: JSON.stringify(config),
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const startData = await resp.json();
+      if (startData.config?.model) {
+        setConfig(c => ({ ...c, model: startData.config.model }));
+      }
 
       const es = new EventSource(`${API}/load_test/stream`);
       esRef.current = es;
@@ -61,16 +65,19 @@ function LoadTestPage() {
         }
         if (data.type === "progress" && data.data) {
           const d = data.data;
-          setProgress(Math.round((d.total / config.total_requests) * 100));
+          if (d.total != null) {
+            setProgress(Math.round((d.total / config.total_requests) * 100));
+          }
           setLatencyData(prev => [...prev.slice(-60), {
-            t: prev.length, 
-            lat: d.latency?.mean * 1000 | 0, 
+            t: prev.length,
+            lat: d.latency?.mean * 1000 | 0,
             tps: d.tps?.mean | 0
           }]);
           setResult(d);
         }
         if (data.type === "completed") {
           setStatus("completed");
+          setProgress(100);
           es.close();
           esRef.current = null;
           setResult(data.data);
@@ -207,10 +214,10 @@ function LoadTestPage() {
                 </tr>
               </thead>
               <tbody>
-                {
-                  [
-                    ["Total Requests", result.total],
-                    ["Success", result.success],
+                 {
+                   [
+                     ["Total Requests", result.total_requested ?? result.total],
+                     ["Success", result.success],
                     ["Failed", result.failed],
                     ["Actual RPS", fmt(result.rps_actual, 2)],
                     ["Mean Latency", `${fmt((result.latency?.mean || 0) * 1000, 0)} ms`],
