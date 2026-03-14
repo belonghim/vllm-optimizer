@@ -8,6 +8,7 @@ import inspect
 import os
 import json
 import datetime
+import math
 from .model_resolver import resolve_model_name
 from typing import Optional, List
 from kubernetes import client as k8s_client, config as k8s_config
@@ -32,7 +33,11 @@ class AutoTuner:
         self._best_trial: Optional[TuningTrial] = None
         self._running = False
         self._study = None
+        self._config: Optional[TuningConfig] = None  # Set in start()
         self._k8s_available = False
+        # SSE broadcasting primitives
+        self._subscribers: list[asyncio.Queue] = []
+        self._subscribers_lock: asyncio.Lock = asyncio.Lock()
         self._lock = asyncio.Lock()
         self._study_lock = asyncio.Lock()
         self._k8s_lock = asyncio.Lock()
@@ -97,6 +102,28 @@ class AutoTuner:
             logger.error(f"[AutoTuner] InferenceService '{K8S_DEPLOYMENT}' 시간 초과: {timeout}초 내에 준비되지 않음.")
         return result
 
+    async def subscribe(self) -> asyncio.Queue:
+        """Subscribe to tuning events. Returns a queue that will receive events."""
+        q: asyncio.Queue = asyncio.Queue()
+        async with self._subscribers_lock:
+            self._subscribers.append(q)
+        return q
+
+    async def unsubscribe(self, q: asyncio.Queue):
+        """Unsubscribe from tuning events."""
+        async with self._subscribers_lock:
+            try:
+                self._subscribers.remove(q)
+            except ValueError:
+                pass
+
+    async def _broadcast(self, data: dict):
+        """Broadcast an event to all subscribers."""
+        async with self._subscribers_lock:
+            targets = list(self._subscribers)
+        for q in targets:
+            await q.put(data)
+
     @property
     def trials(self) -> List[TuningTrial]:
         return self._trials
@@ -124,6 +151,7 @@ class AutoTuner:
             if not OPTUNA_AVAILABLE:
                 return {"error": "optuna 패키지가 필요합니다: pip install optuna"}
             self._running = True
+            self._config = config
             self._trials = []
             self._best_trial = None
             direction = "maximize" if config.objective == "tps" else "minimize"
@@ -140,6 +168,12 @@ class AutoTuner:
                 async with self._study_lock:
                     trial = self._study.ask()
                 params = self._suggest_params(trial, config)
+
+                # Broadcast trial start event immediately after parameters are decided
+                await self._broadcast({
+                    "type": "trial_start",
+                    "data": {"trial_id": trial_num, "params": params},
+                })
 
                 # 파라미터 적용 (Kubernetes ConfigMap 업데이트)
                 apply_result = await self._apply_params(params)
@@ -169,10 +203,31 @@ class AutoTuner:
                     if self._best_trial is None or (direction == "maximize" and score > self._best_trial.score) or (direction == "minimize" and score < self._best_trial.score):
                         self._best_trial = t
 
+                # Broadcast trial completion event
+                await self._broadcast({
+                    "type": "trial_complete",
+                    "data": {
+                        "trial_id": trial_num,
+                        "score": score,
+                        "tps": tps,
+                        "p99_latency": p99_lat,
+                        "pruned": False,
+                    },
+                })
+
             if self._best_trial:
                 logger.info(f"[AutoTuner] 튜닝 완료. 최적 파라미터로 InferenceService 재설정: {self._best_trial.params}")
                 await self._apply_params(self._best_trial.params, restart_only=True)
                 await self._wait_for_ready()
+
+            # Broadcast tuning completion after all trials finished
+            await self._broadcast({
+                "type": "tuning_complete",
+                "data": {
+                    "best_params": self._best_trial.params if self._best_trial else {},
+                    "total_trials": len(self._trials),
+                },
+            })
 
             return {
                 "completed": True,
@@ -188,27 +243,71 @@ class AutoTuner:
             self._running = False
 
     def _suggest_params(self, trial, config: TuningConfig) -> dict:
-        return {
-            "max_num_seqs": trial.suggest_int(
-                "max_num_seqs",
-                config.max_num_seqs_range[0],
-                config.max_num_seqs_range[1],
-                step=32,
-            ),
-            "gpu_memory_utilization": trial.suggest_float(
-                "gpu_memory_utilization",
-                config.gpu_memory_utilization_range[0],
-                config.gpu_memory_utilization_range[1],
-            ),
-            "max_model_len": trial.suggest_categorical(
-                "max_model_len",
-                [v for v in [2048, 4096, 8192] if
-                 config.max_model_len_range[0] <= v <= config.max_model_len_range[1]],
-            ),
-            "enable_chunked_prefill": trial.suggest_categorical(
-                "enable_chunked_prefill", [True, False]
-            ),
-        }
+        params: dict[str, object] = {}
+
+        params["max_num_seqs"] = trial.suggest_int(
+            "max_num_seqs",
+            config.max_num_seqs_range[0],
+            config.max_num_seqs_range[1],
+            step=32,
+        )
+
+        params["gpu_memory_utilization"] = trial.suggest_float(
+            "gpu_memory_utilization",
+            config.gpu_memory_utilization_range[0],
+            config.gpu_memory_utilization_range[1],
+        )
+
+        _model_len_choices = [
+            v for v in [2048, 4096, 8192]
+            if config.max_model_len_range[0] <= v <= config.max_model_len_range[1]
+        ]
+        if not _model_len_choices:
+            _mid = (
+                config.max_model_len_range[0] + config.max_model_len_range[1]
+            ) // 2
+            _model_len_choices = [_mid]
+
+        params["max_model_len"] = trial.suggest_categorical(
+            "max_model_len",
+            _model_len_choices,
+        )
+
+        params["enable_chunked_prefill"] = trial.suggest_categorical(
+            "enable_chunked_prefill", [True, False]
+        )
+
+        _step = 256
+        _batched_low = max(
+            config.max_num_batched_tokens_range[0], params["max_num_seqs"]
+        )
+        _batched_low = math.ceil(_batched_low / _step) * _step
+        _batched_high = max(
+            config.max_num_batched_tokens_range[1], _batched_low
+        )
+        _batched_high = math.floor(_batched_high / _step) * _step
+        if _batched_high < _batched_low:
+            _batched_high = _batched_low
+        params["max_num_batched_tokens"] = trial.suggest_int(
+            "max_num_batched_tokens",
+            _batched_low,
+            _batched_high,
+            step=256,
+        )
+
+        if config.block_size_options:
+            params["block_size"] = trial.suggest_categorical(
+                "block_size", config.block_size_options
+            )
+
+        if config.include_swap_space:
+            params["swap_space"] = trial.suggest_float(
+                "swap_space",
+                config.swap_space_range[0],
+                config.swap_space_range[1],
+            )
+
+        return params
 
     async def _apply_params(self, params: dict, restart_only: bool = False) -> dict:
         """ConfigMap 업데이트 → Deployment 재시작"""
@@ -225,14 +324,27 @@ class AutoTuner:
                                                          name=K8S_CONFIGMAP,
                                                          namespace=K8S_NAMESPACE)
                     
-                    patch_body = {
-                        "data": {
-                            "MAX_NUM_SEQS": str(params["max_num_seqs"]),
-                            "GPU_MEMORY_UTILIZATION": str(params["gpu_memory_utilization"]),
-                            "MAX_MODEL_LEN": str(params["max_model_len"]),
-                            "ENABLE_CHUNKED_PREFILL": str(params["enable_chunked_prefill"]).lower(),
-                        }
+                    config_data = {
+                        "MAX_NUM_SEQS": str(params["max_num_seqs"]),
+                        "GPU_MEMORY_UTILIZATION": str(
+                            params["gpu_memory_utilization"]
+                        ),
+                        "MAX_MODEL_LEN": str(params["max_model_len"]),
+                        "ENABLE_CHUNKED_PREFILL": str(
+                            params["enable_chunked_prefill"]
+                        ).lower(),
                     }
+
+                    if "max_num_batched_tokens" in params:
+                        config_data[
+                            "MAX_NUM_BATCHED_TOKENS"
+                        ] = str(params["max_num_batched_tokens"])
+                    if "block_size" in params:
+                        config_data["BLOCK_SIZE"] = str(params["block_size"])
+                    if "swap_space" in params:
+                        config_data["SWAP_SPACE"] = str(params["swap_space"])
+
+                    patch_body = {"data": config_data}
                     
                     await asyncio.to_thread(self._k8s_core.patch_namespaced_config_map,
                                              name=K8S_CONFIGMAP,
@@ -278,12 +390,27 @@ class AutoTuner:
         """부하 테스트 실행 후 점수 반환"""
         model_name = await resolve_model_name(endpoint)
 
+        if config.warmup_requests > 0:
+            warmup_config = LoadTestConfig(
+                endpoint=endpoint,
+                model=model_name,
+                total_requests=config.warmup_requests,
+                concurrency=min(config.eval_concurrency, config.warmup_requests),
+                rps=config.eval_rps,
+                stream=True,
+            )
+            try:
+                await self._load_engine.run(warmup_config)
+                logger.info("[AutoTuner] Warmup completed (%d requests)", config.warmup_requests)
+            except Exception as e:
+                logger.warning("[AutoTuner] Warmup failed (continuing): %s", e)
+
         test_config = LoadTestConfig(
             endpoint=endpoint,
             model=model_name,
             total_requests=config.eval_requests,
-            concurrency=32,
-            rps=20,
+            concurrency=config.eval_concurrency,
+            rps=config.eval_rps,
             stream=True,
         )
 

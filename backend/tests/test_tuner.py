@@ -205,6 +205,32 @@ def test_tuner_status_has_running_field(client):
     assert data["running"] is False
 
 
+@pytest.mark.asyncio
+async def test_subscribe_receives_broadcast_events(auto_tuner_instance):
+    """subscribe() then _broadcast() should deliver event to queue"""
+    tuner = auto_tuner_instance
+    q = await tuner.subscribe()
+    test_event = {"type": "test", "data": {"value": 42}}
+    await tuner._broadcast(test_event)
+    result = await q.get()
+    assert result == test_event
+
+
+@pytest.mark.asyncio
+async def test_unsubscribe_stops_events(auto_tuner_instance):
+    """After unsubscribe(), queue should not receive further events"""
+    tuner = auto_tuner_instance
+    q = await tuner.subscribe()
+    await tuner.unsubscribe(q)
+    await tuner._broadcast({"type": "should_not_arrive"})
+    import asyncio
+    try:
+        # If any event arrives, this will succeed and fail the test
+        await asyncio.wait_for(q.get(), timeout=0.2)
+        assert False, "Queue should be empty after unsubscribe"
+    except asyncio.TimeoutError:
+        pass
+
 def test_tuner_status_has_trials_completed(client):
     resp = client.get("/api/tuner/status")
     assert resp.status_code == 200
@@ -321,7 +347,6 @@ def test_apply_best_returns_no_best_message_when_idle(client):
 def test_apply_best_with_existing_trial(client):
     """When best trial exists, /apply-best should attempt to apply it"""
     from unittest.mock import patch, MagicMock, AsyncMock
-    from ..models.load_test import TuningTrial
 
     best_trial = TuningTrial(
         trial_id=0,
@@ -351,3 +376,131 @@ def test_apply_best_with_existing_trial(client):
         assert data["success"] is True
         assert data["applied_parameters"] == best_trial.params
         mock_tuner._apply_params.assert_called_once_with(best_trial.params)
+
+
+@pytest.mark.asyncio
+async def test_suggest_params_batched_tokens_constraint(auto_tuner_instance, mock_k8s_clients):
+    import optuna
+
+    config = TuningConfig()
+    study = optuna.create_study(sampler=optuna.samplers.TPESampler(seed=42))
+
+    for _ in range(10):
+        trial = study.ask()
+        params = auto_tuner_instance._suggest_params(trial, config)
+        assert params["max_num_batched_tokens"] >= params["max_num_seqs"], \
+            f"Constraint violated: batched={params['max_num_batched_tokens']} < seqs={params['max_num_seqs']}"
+        study.tell(trial, 0)
+
+
+@pytest.mark.asyncio
+async def test_suggest_params_swap_space_excluded_by_default(auto_tuner_instance, mock_k8s_clients):
+    import optuna
+
+    config = TuningConfig()
+    study = optuna.create_study()
+    trial = study.ask()
+    params = auto_tuner_instance._suggest_params(trial, config)
+    assert "swap_space" not in params, f"swap_space should not be in params: {params}"
+
+
+def test_suggest_params_empty_model_len_no_crash(auto_tuner_instance):
+    import optuna
+
+    config = TuningConfig(max_model_len_range=(10000, 16384))
+    study = optuna.create_study()
+    trial = study.ask()
+    try:
+        params = auto_tuner_instance._suggest_params(trial, config)
+        assert "max_model_len" in params
+    except ValueError as e:
+        pytest.fail(f"_suggest_params raised ValueError: {e}")
+
+
+@pytest.mark.asyncio
+async def test_apply_params_includes_new_configmap_keys(auto_tuner_instance, mock_k8s_clients):
+    tuner = auto_tuner_instance
+    mock_core_api = mock_k8s_clients[1].return_value
+
+    params = {
+        "max_num_seqs": 128,
+        "gpu_memory_utilization": 0.85,
+        "max_model_len": 4096,
+        "enable_chunked_prefill": False,
+        "max_num_batched_tokens": 512,
+        "block_size": 16,
+    }
+
+    await tuner._apply_params(params)
+    
+    mock_core_api.patch_namespaced_config_map.assert_called_once()
+    call_args = mock_core_api.patch_namespaced_config_map.call_args
+    patch_data = call_args.kwargs["body"]["data"]
+    
+    assert "MAX_NUM_BATCHED_TOKENS" in patch_data
+    assert patch_data["MAX_NUM_BATCHED_TOKENS"] == "512"
+    assert "BLOCK_SIZE" in patch_data
+    assert patch_data["BLOCK_SIZE"] == "16"
+    assert "SWAP_SPACE" not in patch_data
+
+
+@pytest.mark.asyncio
+async def test_eval_uses_config_concurrency_and_rps(auto_tuner_instance, mock_k8s_clients):
+    tuner = auto_tuner_instance
+
+    captured_configs = []
+    async def mock_run(load_config):
+        captured_configs.append(load_config)
+        return {"tps": {"total": 50.0}, "latency": {"p99": 0.2}}
+
+    tuner._load_engine.run = mock_run
+
+    config = TuningConfig(eval_concurrency=16, eval_rps=5, eval_requests=10, warmup_requests=0)
+    tuner._config = config
+
+    with patch("services.auto_tuner.resolve_model_name", return_value="test-model"):
+        score, tps, p99 = await tuner._evaluate("http://mock:8080", config)
+
+    assert len(captured_configs) == 1
+    assert captured_configs[0].concurrency == 16
+    assert captured_configs[0].rps == 5
+
+
+@pytest.mark.asyncio
+async def test_warmup_runs_before_evaluation(auto_tuner_instance, mock_k8s_clients):
+    tuner = auto_tuner_instance
+
+    call_count = 0
+    async def mock_run(load_config):
+        nonlocal call_count
+        call_count += 1
+        return {"tps": {"total": 50.0}, "latency": {"p99": 0.2}}
+
+    tuner._load_engine.run = mock_run
+
+    config = TuningConfig(warmup_requests=5, eval_requests=10, eval_concurrency=8, eval_rps=0)
+
+    with patch("services.auto_tuner.resolve_model_name", return_value="test-model"):
+        score, tps, p99 = await tuner._evaluate("http://mock:8080", config)
+
+    assert call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_no_warmup_when_zero(auto_tuner_instance, mock_k8s_clients):
+    tuner = auto_tuner_instance
+
+    call_count = 0
+    async def mock_run(load_config):
+        nonlocal call_count
+        call_count += 1
+        return {"tps": {"total": 50.0}, "latency": {"p99": 0.2}}
+
+    tuner._load_engine.run = mock_run
+
+    config = TuningConfig(warmup_requests=0, eval_requests=10)
+
+    with patch("services.auto_tuner.resolve_model_name", return_value="test-model"):
+        score, tps, p99 = await tuner._evaluate("http://mock:8080", config)
+
+    assert call_count == 1
