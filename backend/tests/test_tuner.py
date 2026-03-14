@@ -660,3 +660,34 @@ async def test_warmstart_enqueues_previous_best(auto_tuner_instance, mock_k8s_cl
             mock_study.enqueue_trial.assert_called_once_with(
                 params={"max_num_seqs": 256, "gpu_memory_utilization": 0.9}
             )
+
+
+def test_importance_returns_empty_for_pareto_mode(auto_tuner_instance):
+    """get_importance() should return {} for multi-objective study"""
+    import optuna
+
+    tuner = auto_tuner_instance
+    tuner._study = optuna.create_study(
+        directions=["maximize", "minimize"],
+        sampler=optuna.samplers.NSGAIISampler(seed=42),
+    )
+    tuner._trials = [object()] * 10
+
+    result = tuner.get_importance()
+    assert result == {}, f"Expected empty dict for Pareto mode, got: {result}"
+
+
+def test_start_accepts_pareto_objective(client):
+    """POST /api/tuner/start with objective='pareto' should return success=true"""
+    request_data = {
+        "objective": "pareto",
+        "n_trials": 2,
+        "eval_requests": 5,
+        "vllm_endpoint": "http://mock-vllm:8080",
+        "max_num_seqs_min": 64,
+        "max_num_seqs_max": 512,
+    }
+    resp = client.post("/api/tuner/start", json=request_data)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True, f"Expected success=true, got: {data}"

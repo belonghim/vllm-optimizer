@@ -37,6 +37,7 @@ class AutoTuner:
         self._k8s_available = False
         self._cm_snapshot: dict | None = None
         self._last_rollback_trial: int | None = None
+        self._pareto_front_size: int | None = None
         # SSE broadcasting primitives
         self._subscribers: list[asyncio.Queue] = []
         self._subscribers_lock: asyncio.Lock = asyncio.Lock()
@@ -158,13 +159,20 @@ class AutoTuner:
             self._trials = []
             self._best_score_history = []
             self._best_trial = None
-            direction = "maximize" if config.objective == "tps" else "minimize"
             storage_url = os.getenv("OPTUNA_STORAGE_URL")  # e.g., "sqlite:////tmp/optuna.db"
-            _study_name = f"vllm-tuner-{config.objective}"
-            if config.objective != "pareto":
-                pruner = optuna.pruners.MedianPruner(n_startup_trials=3, n_warmup_steps=0)
-            else:
+            self._pareto_front_size = None
+            direction = "maximize"
+            if config.objective == "pareto":
+                sampler = optuna.samplers.NSGAIISampler(seed=42)
                 pruner = optuna.pruners.NopPruner()
+                _study_name = "vllm-tuner-pareto"
+                direction_kwarg = {"directions": ["maximize", "minimize"]}
+            else:
+                direction = "maximize" if config.objective == "tps" else "minimize"
+                sampler = optuna.samplers.TPESampler(seed=42)
+                pruner = optuna.pruners.MedianPruner(n_startup_trials=3, n_warmup_steps=0)
+                _study_name = f"vllm-tuner-{config.objective}"
+                direction_kwarg = {"direction": direction}
 
             if storage_url:
                 try:
@@ -175,12 +183,12 @@ class AutoTuner:
                     )
                     self._study = await asyncio.to_thread(
                         optuna.create_study,
-                        direction=direction,
-                        sampler=optuna.samplers.TPESampler(seed=42),
+                        sampler=sampler,
+                        pruner=pruner,
                         storage=storage,
                         study_name=_study_name,
                         load_if_exists=True,
-                        pruner=pruner,
+                        **direction_kwarg,
                     )
                     logger.info("[AutoTuner] Using SQLite storage: %s (study: %s)", storage_url, _study_name)
                     # Warm-start: enqueue best trial from previous run
@@ -191,15 +199,15 @@ class AutoTuner:
                 except Exception as e:
                     logger.warning("[AutoTuner] SQLite storage failed, falling back to in-memory: %s", e)
                     self._study = optuna.create_study(
-                        direction=direction,
-                        sampler=optuna.samplers.TPESampler(seed=42),
+                        sampler=sampler,
                         pruner=pruner,
+                        **direction_kwarg,
                     )
             else:
                 self._study = optuna.create_study(
-                    direction=direction,
-                    sampler=optuna.samplers.TPESampler(seed=42),
+                    sampler=sampler,
                     pruner=pruner,
+                    **direction_kwarg,
                 )
 
         try:
@@ -264,8 +272,13 @@ class AutoTuner:
                     })
                     continue
 
-                async with self._study_lock:
-                    self._study.tell(trial, score)
+                if config.objective == "pareto":
+                    async with self._study_lock:
+                        self._study.tell(trial, [tps, p99_lat])
+                    score = tps / (p99_lat + 1) * 100  # balanced score for best_trial tracking
+                else:
+                    async with self._study_lock:
+                        self._study.tell(trial, score)
 
                 t = TuningTrial(
                     trial_id=trial_num,
@@ -282,6 +295,16 @@ class AutoTuner:
                     self._best_score_history.append(
                         self._best_trial.score if self._best_trial else score
                     )
+
+                if config.objective == "pareto":
+                    try:
+                        pareto_trial_numbers = {t.number for t in self._study.best_trials}
+                        async with self._lock:
+                            for recorded in self._trials:
+                                recorded.is_pareto_optimal = (recorded.trial_id in pareto_trial_numbers)
+                        self._pareto_front_size = len(pareto_trial_numbers)
+                    except Exception:
+                        pass
 
                 # Broadcast trial completion event
                 await self._broadcast({
@@ -584,7 +607,14 @@ class AutoTuner:
         """파라미터 중요도 반환 (Optuna FAnova)"""
         if not self._study or len(self._trials) < 5:
             return {}
+        # FAnova not supported for multi-objective
+        try:
+            if hasattr(self._study, "directions") and len(getattr(self._study, "directions", [])) > 1:
+                return {}
+        except Exception:
+            pass
         try:
             importance = optuna.importance.get_param_importances(self._study)
             return dict(importance)
-        except Exception: return {}
+        except Exception:
+            return {}

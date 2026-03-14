@@ -162,7 +162,7 @@ async def get_tuner_status():
         best=best_info,
         status=status_value,
         best_score_history=getattr(auto_tuner, "_best_score_history", []),
-        pareto_front_size=None,
+        pareto_front_size=getattr(auto_tuner, "_pareto_front_size", None),
         last_rollback_trial=auto_tuner._last_rollback_trial,
     )
 
