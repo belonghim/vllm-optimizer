@@ -66,6 +66,7 @@ def test_tuner_apply_best_response(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data.get("success") is False
+    assert "No best trial available" in data.get("message", "")
 
 
 def test_tuner_start_endpoint(client):
@@ -264,7 +265,7 @@ def test_tuner_trials_item_shape_with_data(client):
         assert item["id"] == 0
         assert item["tps"] == 42.5
         assert item["p99_latency"] == pytest.approx(500.0)
-        assert item["status"] == "completed"
+    assert item["status"] == "completed"
 
 @pytest.mark.asyncio
 async def test_apply_params_uses_correct_configmap_keys(auto_tuner_instance, mock_k8s_clients):
@@ -290,3 +291,63 @@ async def test_apply_params_uses_correct_configmap_keys(auto_tuner_instance, moc
 
     # ENABLE_ENFORCE_EAGER should not be touched by _apply_params
     assert "ENABLE_ENFORCE_EAGER" not in patch_data
+
+def test_importance_returns_empty_when_no_trials(client):
+    """When no trials have been run, /importance should return {}"""
+    resp = client.get("/api/tuner/importance")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data == {}
+
+
+def test_importance_not_hardcoded(client):
+    """Verify /importance does NOT return the old hardcoded values"""
+    resp = client.get("/api/tuner/importance")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data != {"max_num_seqs": 0.4, "gpu_memory_utilization": 0.35, "max_model_len": 0.25}
+
+
+def test_apply_best_returns_no_best_message_when_idle(client):
+    """When no tuning has run, /apply-best should return failure with proper message"""
+    resp = client.post("/api/tuner/apply-best")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is False
+    assert "No best trial available" in data["message"]
+    assert data["applied_parameters"] is None
+
+
+def test_apply_best_with_existing_trial(client):
+    """When best trial exists, /apply-best should attempt to apply it"""
+    from unittest.mock import patch, MagicMock, AsyncMock
+    from models.load_test import TuningTrial
+
+    best_trial = TuningTrial(
+        trial_id=0,
+        params={"max_num_seqs": 128, "gpu_memory_utilization": 0.85},
+        tps=50.0,
+        p99_latency=0.3,
+        score=150.0,
+        status="completed",
+    )
+
+    handler_globals = None
+    for route in client.app.routes:
+        if getattr(route, "path", None) == "/api/tuner/apply-best":
+            handler_globals = route.endpoint.__globals__
+            break
+    assert handler_globals is not None
+
+    mock_tuner = MagicMock()
+    mock_tuner.best = best_trial
+    mock_tuner.is_running = False
+    mock_tuner._apply_params = AsyncMock(return_value={"success": True})
+
+    with patch.dict(handler_globals, {"auto_tuner": mock_tuner}):
+        resp = client.post("/api/tuner/apply-best")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert data["applied_parameters"] == best_trial.params
+        mock_tuner._apply_params.assert_called_once_with(best_trial.params)

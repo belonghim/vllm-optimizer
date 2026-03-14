@@ -1,12 +1,9 @@
 {
-  "active_plan": null,
-  "started_at": "2026-03-14T10:24:02.187Z",
-  "completed_at": "2026-03-14T10:35:00.000Z",
+  "active_plan": "/home/user/project/vllm-optimizer/.sisyphus/plans/auto-tuner-improvement.md",
+  "started_at": "2026-03-14T11:21:11.502Z",
   "session_ids": [
-    "ses_3142d09f8ffeOW00OlkBvrj4QB"
+    "ses_31413fd25ffez4Z2qilp0KPVet"
   ],
-  "plan_name": "fix-chunked-prefill-mapping",
-  "agent": "atlas",
-  "worktree_path": "/home/user/project/vllm-optimizer",
-  "status": "completed"
+  "plan_name": "auto-tuner-improvement",
+  "agent": "atlas"
 }

@@ -49,7 +49,7 @@ class TuningStartRequest(BaseModel):
     """Request to start auto-tuning (flat schema matching frontend)"""
     objective: str = "balanced"
     n_trials: int = 20
-    eval_requests: int = 10
+    eval_requests: int = 200
     vllm_endpoint: str = ""
     max_num_seqs_min: int = 64
     max_num_seqs_max: int = 512
@@ -194,23 +194,44 @@ async def stop_tuning():
 
 @router.get("/importance")
 async def get_parameter_importance():
-    """Get parameter importance from tuning trials (stub)."""
-    if not auto_tuner.trials:
-        return {}
-    return {
-        "max_num_seqs": 0.4,
-        "gpu_memory_utilization": 0.35,
-        "max_model_len": 0.25,
-    }
+    """Get parameter importance from tuning trials (actual implementation)."""
+    # Use the AutoTuner's implementation which computes importances via Optuna
+    # FAnova if enough trials have been run. Returns {} when not enough data.
+    return auto_tuner.get_importance()
 
 
 @router.post("/apply-best", response_model=ApplyBestResponse)
 async def apply_best_parameters():
     """Apply the best parameters found by auto-tuning to vLLM deployment."""
-    # Placeholder for actual K8s implementation
-    return {
-        "success": False,
-        "message": "Auto-tuner integration not yet fully implemented",
-        "applied_parameters": None,
-        "deployment_name": None
-    }
+    import os
+    # If no best trial is available yet
+    if auto_tuner.best is None:
+        return ApplyBestResponse(
+            success=False,
+            message="No best trial available. Run tuning first.",
+            applied_parameters=None,
+            deployment_name=None,
+        )
+    # If tuning is currently running, do not apply
+    if auto_tuner.is_running:
+        return ApplyBestResponse(
+            success=False,
+            message="Tuning is in progress. Wait for completion or stop first.",
+            applied_parameters=None,
+            deployment_name=None,
+        )
+
+    result = await auto_tuner._apply_params(auto_tuner.best.params)
+    if isinstance(result, dict) and result.get("success"):
+        return ApplyBestResponse(
+            success=True,
+            message="Best parameters applied successfully.",
+            applied_parameters=auto_tuner.best.params,
+            deployment_name=os.getenv("K8S_DEPLOYMENT_NAME", "vllm-deployment"),
+        )
+    return ApplyBestResponse(
+        success=False,
+        message=result.get("error", "Failed to apply parameters."),
+        applied_parameters=None,
+        deployment_name=None,
+    )

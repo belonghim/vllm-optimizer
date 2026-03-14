@@ -78,8 +78,29 @@ metrics_collection_duration_metric = Histogram(
     registry=_registry
 )
 
+tuner_trials_total = Counter(
+    'vllm_optimizer_tuner_trials_total',
+    'Total number of auto-tuning trials by status',
+    ['status'],
+    registry=_registry
+)
 
-# ── API Surface ─────────────────────────────────────────────────────────────
+tuner_best_score = Gauge(
+    'vllm_optimizer_tuner_best_score',
+    'Best optimization score achieved by the auto-tuner',
+    ['objective'],
+    registry=_registry
+)
+
+tuner_trial_duration_seconds = Histogram(
+    'vllm_optimizer_tuner_trial_duration_seconds',
+    'Duration of each auto-tuning trial in seconds',
+    buckets=[10, 30, 60, 120, 300, 600],
+    registry=_registry
+)
+
+ 
+
 
 def update_metrics(data):
     """

@@ -88,8 +88,13 @@ function TunerPage() {
   };
 
   const applyBest = async () => {
-    await fetch(`${API}/tuner/apply-best`, { method: "POST" });
-    alert("최적 파라미터를 Kubernetes ConfigMap에 적용했습니다.");
+    const res = await fetch(`${API}/tuner/apply-best`, { method: "POST" });
+    const data = await res.json();
+    if (data && data.success) {
+      alert("최적 파라미터를 Kubernetes ConfigMap에 적용했습니다.");
+    } else {
+      alert(`파라미터 적용 실패: ${data?.message || "Unknown error"}`);
+    }
   };
 
   const scatterData = trials.map(t => ({
