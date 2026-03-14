@@ -98,6 +98,8 @@ class LoadTestEngine:
 
         semaphore = asyncio.Semaphore(config.concurrency)
         tasks = []
+        # Track which tasks have been processed to avoid dropping results finishing during sleep
+        processed_tasks: set[asyncio.Task] = set()
 
         # CPU/GPU metric sampling
         _metric_samples: list[dict[str, float]] = []
@@ -167,28 +169,30 @@ class LoadTestEngine:
 
             task = asyncio.create_task(single_request(i))
             tasks.append(task)
+            # Process any completed tasks without blocking future submissions
+            to_check = [t for t in tasks if t not in processed_tasks]
+            if to_check:
+                done, _ = await asyncio.wait(
+                    to_check,
+                    timeout=0,
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                for t in done:
+                    result = await t
+                    processed_tasks.add(t)
+                    async with self._state_lock:
+                        self._state.results.append(result)
+                        if result.success:
+                            self._state.completed_requests += 1
+                        else:
+                            self._state.failed_requests += 1
 
-            # 완료된 태스크 처리
-            done, _ = await asyncio.wait(
-                [t for t in tasks if not t.done()],
-                timeout=0,
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-            for t in done:
-                result = await t
-                async with self._state_lock:
-                    self._state.results.append(result)
-                    if result.success:
-                        self._state.completed_requests += 1
-                    else:
-                        self._state.failed_requests += 1
-
-                # 실시간 통계 계산
-                stats = self._compute_stats()
-                await self._broadcast({
-                    "type": "progress",
-                    "data": stats,
-                })
+                    # 실시간 통계 계산
+                    stats = self._compute_stats()
+                    await self._broadcast({
+                        "type": "progress",
+                        "data": stats,
+                    })
 
             if interval > 0:
                 await asyncio.sleep(interval)
@@ -196,13 +200,17 @@ class LoadTestEngine:
         # 남은 태스크 완료 대기
         if tasks:
             remaining = await asyncio.gather(
-                *[t for t in tasks if not t.done()],
+                *[t for t in tasks if t not in processed_tasks],
                 return_exceptions=True,
             )
             for result in remaining:
                 if isinstance(result, RequestResult):
                     async with self._state_lock:
                         self._state.results.append(result)
+                        if result.success:
+                            self._state.completed_requests += 1
+                        else:
+                            self._state.failed_requests += 1
 
         async with self._state_lock:
             self._state.status = LoadTestStatus.COMPLETED
