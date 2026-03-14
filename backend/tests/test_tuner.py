@@ -321,7 +321,7 @@ def test_apply_best_returns_no_best_message_when_idle(client):
 def test_apply_best_with_existing_trial(client):
     """When best trial exists, /apply-best should attempt to apply it"""
     from unittest.mock import patch, MagicMock, AsyncMock
-    from models.load_test import TuningTrial
+    from ..models.load_test import TuningTrial
 
     best_trial = TuningTrial(
         trial_id=0,
