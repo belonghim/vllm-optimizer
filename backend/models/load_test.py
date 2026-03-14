@@ -83,6 +83,14 @@ class TuningConfig(BaseModel):
     max_num_seqs_range: tuple[int, int] = Field(default=(64, 512), description="Range for max-num-seqs parameter")
     gpu_memory_utilization_range: tuple[float, float] = Field(default=(0.80, 0.95), description="Range for GPU memory utilization")
     max_model_len_range: tuple[int, int] = Field(default=(2048, 8192), description="Range for max-model-len parameter")
+    # Expanded search space and tuning controls
+    max_num_batched_tokens_range: tuple[int, int] = Field(default=(256, 2048), description="Range for max-num-batched-tokens parameter")
+    block_size_options: list[int] = Field(default=[8, 16, 32], description="KV cache block size options")
+    include_swap_space: bool = Field(default=False, description="Enable swap_space parameter search (disable on CPU/OpenVINO)")
+    swap_space_range: tuple[float, float] = Field(default=(1.0, 8.0), description="Range for swap-space parameter (GB)")
+    eval_concurrency: int = Field(default=32, ge=1, description="Concurrent requests during evaluation load test")
+    eval_rps: int = Field(default=20, ge=0, description="Requests per second during evaluation (0=unlimited)")
+    eval_fast_fraction: float = Field(default=0.5, ge=0.1, le=1.0, description="Fraction of eval_requests for MedianPruner fast probe")
     # Optimization objectives
     objective: str = Field(default="tps", description="Optimization objective: tps, latency, or balanced")
     n_trials: int = Field(default=20, ge=1, description="Number of optimization trials")
@@ -99,6 +107,8 @@ class TuningTrial(BaseModel):
     p99_latency: float = Field(description="P99 latency in seconds")
     score: float = Field(description="Optimization score")
     status: str = Field(default="pending", description="Trial status: pending, completed, failed")
+    is_pareto_optimal: bool = Field(default=False, description="Whether this trial is on the Pareto front")
+    pruned: bool = Field(default=False, description="Whether this trial was pruned by MedianPruner")
 
 
 class MetricsSnapshot(BaseModel):

@@ -57,6 +57,15 @@ class TuningStartRequest(BaseModel):
     gpu_memory_max: float = 0.95
     max_model_len_min: int = 2048
     max_model_len_max: int = 8192
+    # Expanded tuning controls
+    max_num_batched_tokens_min: int = 256
+    max_num_batched_tokens_max: int = 2048
+    block_size_options: list[int] = [8, 16, 32]
+    include_swap_space: bool = False
+    swap_space_min: float = 1.0
+    swap_space_max: float = 8.0
+    eval_concurrency: int = 32
+    eval_rps: int = 20
 
 
 class TuningStartResponse(BaseModel):
@@ -79,6 +88,9 @@ class TunerStatusFrontendResponse(BaseModel):
     trials_completed: int = 0
     best: Optional[BestTrialInfo] = None
     status: str | None = None
+    best_score_history: list[float] = []
+    pareto_front_size: int | None = None
+    last_rollback_trial: int | None = None
 
 
 class TrialFrontendInfo(BaseModel):
@@ -89,6 +101,8 @@ class TrialFrontendInfo(BaseModel):
     params: dict[str, Any]
     score: float
     status: str
+    is_pareto_optimal: bool = False
+    pruned: bool = False
 
 
 @router.post("/start", response_model=TuningStartResponse)
@@ -105,9 +119,15 @@ async def start_tuning(request: TuningStartRequest):
         max_num_seqs_range=(request.max_num_seqs_min, request.max_num_seqs_max),
         gpu_memory_utilization_range=(request.gpu_memory_min, request.gpu_memory_max),
         max_model_len_range=(request.max_model_len_min, request.max_model_len_max),
+        max_num_batched_tokens_range=(request.max_num_batched_tokens_min, request.max_num_batched_tokens_max),
+        block_size_options=request.block_size_options,
+        include_swap_space=request.include_swap_space,
+        swap_space_range=(request.swap_space_min, request.swap_space_max),
+        eval_concurrency=request.eval_concurrency,
+        eval_rps=request.eval_rps,
+        eval_requests=request.eval_requests,
         objective=request.objective,
         n_trials=request.n_trials,
-        eval_requests=request.eval_requests,
     )
     import os
     vllm_endpoint = request.vllm_endpoint or os.getenv("VLLM_ENDPOINT", "http://localhost:8000")
@@ -138,6 +158,9 @@ async def get_tuner_status():
         trials_completed=len(auto_tuner.trials),
         best=best_info,
         status=status_value,
+        best_score_history=[],
+        pareto_front_size=None,
+        last_rollback_trial=None,
     )
 
 
@@ -153,6 +176,8 @@ async def get_tuning_trials(limit: int = 20):
             params=t.params,
             score=t.score,
             status=t.status,
+            is_pareto_optimal=getattr(t, "is_pareto_optimal", False),
+            pruned=getattr(t, "pruned", False),
         )
         for t in trials
     ]
