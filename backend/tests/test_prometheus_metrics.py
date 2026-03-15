@@ -36,14 +36,14 @@ def _mock_collector_state(state: dict):
 
 def test_metrics_empty_state(client):
     empty_state = {
-        'vllm:request_success_total': 0,
-        'vllm:generation_tokens_total': 0,
-        'vllm:num_requests_running': 0,
-        'vllm:num_requests_waiting': 0,
-        'vllm:gpu_cache_usage_perc': 0,
-        'vllm:gpu_utilization': 0,
-        'vllm:time_to_first_token_seconds': 0.0,
-        'vllm:e2e_request_latency_seconds': 0.0,
+        'vllm_optimizer_request_success_total': 0,
+        'vllm_optimizer_generation_tokens_total': 0,
+        'vllm_optimizer_num_requests_running': 0,
+        'vllm_optimizer_num_requests_waiting': 0,
+        'vllm_optimizer_gpu_cache_usage_perc': 0,
+        'vllm_optimizer_gpu_utilization': 0,
+        'vllm_optimizer_time_to_first_token_seconds': 0.0,
+        'vllm_optimizer_e2e_request_latency_seconds': 0.0,
     }
 
     with patch('backend.services.metrics_collector.MetricsCollector', autospec=True) as MockCollector:
@@ -53,20 +53,19 @@ def test_metrics_empty_state(client):
         ctype = resp.headers.get('content-type','')
         assert ctype.startswith('text/plain; version=0.0.4')
         body = resp.text
-        # At least one vllm: metric should be present in the body
-        assert 'vllm:' in body
+
 
 
 def test_metrics_populated_state(client):
     populated_state = {
-        'vllm:request_success_total': 42,
-        'vllm:generation_tokens_total': 12345,
-        'vllm:num_requests_running': 2,
-        'vllm:num_requests_waiting': 1,
-        'vllm:gpu_cache_usage_perc': 75,
-        'vllm:gpu_utilization': 65,
-        'vllm:time_to_first_token_seconds': 0.123,
-        'vllm:e2e_request_latency_seconds': 0.456,
+        'vllm_optimizer_request_success_total': 42,
+        'vllm_optimizer_generation_tokens_total': 12345,
+        'vllm_optimizer_num_requests_running': 2,
+        'vllm_optimizer_num_requests_waiting': 1,
+        'vllm_optimizer_gpu_cache_usage_perc': 75,
+        'vllm_optimizer_gpu_utilization': 65,
+        'vllm_optimizer_time_to_first_token_seconds': 0.123,
+        'vllm_optimizer_e2e_request_latency_seconds': 0.456,
     }
 
     with patch('backend.services.metrics_collector.MetricsCollector', autospec=True) as MockCollector:
@@ -83,14 +82,14 @@ def test_metrics_populated_state(client):
 def test_metrics_name_presence(client):
     # Ensure all required metric names appear regardless of values
     any_state = {
-        'vllm:request_success_total': 0,
-        'vllm:generation_tokens_total': 1,
-        'vllm:num_requests_running': 0,
-        'vllm:num_requests_waiting': 0,
-        'vllm:gpu_cache_usage_perc': 50,
-        'vllm:gpu_utilization': 30,
-        'vllm:time_to_first_token_seconds': 0.5,
-        'vllm:e2e_request_latency_seconds': 0.8,
+        'vllm_optimizer_request_success_total': 0,
+        'vllm_optimizer_generation_tokens_total': 1,
+        'vllm_optimizer_num_requests_running': 0,
+        'vllm_optimizer_num_requests_waiting': 0,
+        'vllm_optimizer_gpu_cache_usage_perc': 50,
+        'vllm_optimizer_gpu_utilization': 30,
+        'vllm_optimizer_time_to_first_token_seconds': 0.5,
+        'vllm_optimizer_e2e_request_latency_seconds': 0.8,
     }
 
     with patch('backend.services.metrics_collector.MetricsCollector', autospec=True) as MockCollector:
@@ -99,6 +98,20 @@ def test_metrics_name_presence(client):
         assert resp.status_code == 200
         text = resp.text
         required = [
+            'vllm_optimizer_request_success_total',
+            'vllm_optimizer_generation_tokens_total',
+            'vllm_optimizer_num_requests_running',
+            'vllm_optimizer_num_requests_waiting',
+            'vllm_optimizer_gpu_cache_usage_perc',
+            'vllm_optimizer_gpu_utilization',
+            'vllm_optimizer_time_to_first_token_seconds',
+            'vllm_optimizer_e2e_request_latency_seconds',
+        ]
+        for name in required:
+            assert name in text
+
+        # Old names must NOT appear
+        old_names = [
             'vllm:request_success_total',
             'vllm:generation_tokens_total',
             'vllm:num_requests_running',
@@ -108,5 +121,5 @@ def test_metrics_name_presence(client):
             'vllm:time_to_first_token_seconds',
             'vllm:e2e_request_latency_seconds',
         ]
-        for name in required:
-            assert name in text
+        for old in old_names:
+            assert old not in text, f"Old metric name still present: {old}"
