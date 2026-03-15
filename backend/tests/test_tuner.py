@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import asyncio
 
 from ..main import app
-from ..services.auto_tuner import AutoTuner, K8S_NAMESPACE, K8S_DEPLOYMENT
+from ..services.auto_tuner import AutoTuner, K8S_NAMESPACE, K8S_DEPLOYMENT, VLLM_IS_NAME
 from ..models.load_test import TuningConfig, TuningTrial, LoadTestConfig
  
 
@@ -150,7 +150,7 @@ async def test_apply_params_patches_correct_annotation_location(auto_tuner_insta
     assert call_args.kwargs["group"] == "serving.kserve.io"
     assert call_args.kwargs["version"] == "v1beta1"
     assert call_args.kwargs["plural"] == "inferenceservices"
-    assert call_args.kwargs["name"] == K8S_DEPLOYMENT
+    assert call_args.kwargs["name"] == VLLM_IS_NAME
     assert call_args.kwargs["namespace"] == K8S_NAMESPACE
 
     patch_body = call_args.kwargs["body"]
@@ -1015,3 +1015,54 @@ async def test_phase_events_broadcast_in_start(auto_tuner_instance, mock_k8s_cli
     assert "applying_config" in phase_names
     assert "restarting" in phase_names
     assert "waiting_ready" in phase_names
+
+
+@pytest.mark.asyncio
+async def test_apply_params_returns_failure_when_is_patch_throws(auto_tuner_instance, mock_k8s_clients):
+    tuner = auto_tuner_instance
+    mock_custom_api = mock_k8s_clients[2].return_value
+    mock_custom_api.patch_namespaced_custom_object.side_effect = Exception("IS not found")
+
+    params = {
+        "max_num_seqs": 64,
+        "gpu_memory_utilization": 0.8,
+        "max_model_len": 4096,
+        "enable_chunked_prefill": False,
+        "enable_enforce_eager": False,
+    }
+
+    result = await tuner._apply_params(params)
+
+    assert result["success"] is False
+    assert "error" in result
+    assert "InferenceService" in result["error"] or "IS not found" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_rollback_uses_vllm_is_name(auto_tuner_instance, mock_k8s_clients):
+    tuner = auto_tuner_instance
+    mock_custom_api = mock_k8s_clients[2].return_value
+    mock_core_api = mock_k8s_clients[1].return_value
+
+    tuner._cm_snapshot = {"MAX_NUM_SEQS": "64"}
+
+    await tuner._rollback_to_snapshot(0)
+
+    call_args = mock_custom_api.patch_namespaced_custom_object.call_args
+    assert call_args.kwargs["name"] == VLLM_IS_NAME
+    assert call_args.kwargs["name"] != K8S_DEPLOYMENT
+
+
+def test_config_has_resolved_model_name(client):
+    resp = client.get("/api/config")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "resolved_model_name" in data
+
+
+def test_config_vllm_model_name_not_deployment_name(client):
+    resp = client.get("/api/config")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data.get("vllm_model_name") != "llm-ov-predictor"
+    assert data.get("vllm_model_name") != "vllm-deployment"
