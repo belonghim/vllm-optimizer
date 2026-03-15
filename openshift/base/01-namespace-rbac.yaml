@@ -27,7 +27,7 @@ metadata:
 rules:
   - apiGroups: ["apps"]
     resources: ["deployments","replicasets"]
-    verbs: ["get","list","watch","patch","update"]
+    verbs: ["get","list","watch"]
   - apiGroups: [""]
     resources: ["configmaps","pods","pods/log","services","endpoints"]
     verbs: ["get","list","watch","patch","update"]

@@ -420,6 +420,39 @@ curl --socks5-hostname 127.0.0.1:8882 -H "Authorization: Bearer $TOKEN" \
 
 ---
 
+## E2E 클러스터 검증 필수 규칙
+
+auto_tuner, 부하 테스트, RBAC, ConfigMap 관련 코드/YAML 변경 시 반드시 수행:
+
+1. `./deploy.sh dev`로 OpenShift 클러스터에 배포
+2. 실제 클러스터에서 `oc` 명령으로 기능 정상 동작 직접 확인
+3. 파드 재기동이 필요한 변경: `oc get pods -n vllm`으로 파드 교체 확인
+4. 결과를 사용자에게 물어보지 말고, 에이전트가 직접 확인 후 보고
+
+**위반 사례**: RBAC 403 에러는 단위 테스트만으로는 발견되지 않음. 클러스터 배포 없이 코드만 수정하고 완료 처리했다가 실제로는 파드 재기동이 전혀 이루어지지 않았음.
+
+```bash
+# 기본 E2E 검증 절차
+NS=vllm-optimizer-dev
+BACKEND_POD=$(oc get pod -n $NS -l app=vllm-optimizer-backend -o name | head -1)
+
+# 1. 배포
+./deploy.sh dev
+
+# 2. 튜닝 실행 전 파드 UID 기록
+BEFORE_UID=$(oc get pods -n vllm -l app=isvc.llm-ov-predictor -o jsonpath='{.items[*].metadata.uid}')
+
+# 3. IS annotation 확인 (재기동 트리거 방식)
+oc get inferenceservice llm-ov -n vllm -o jsonpath='{.spec.predictor.annotations}'
+
+# 4. 튜닝 완료 후 파드 UID 변경 확인
+AFTER_UID=$(oc get pods -n vllm -l app=isvc.llm-ov-predictor -o jsonpath='{.items[*].metadata.uid}')
+[ "$BEFORE_UID" != "$AFTER_UID" ] && echo "PASS: pod restarted" || echo "FAIL: pod NOT restarted"
+
+# 5. 로그에 403 없음 확인
+oc logs -l app=vllm-optimizer-backend -n $NS --tail=50 | grep -i "403\|forbidden"
+```
+
 ## 자주 발생하는 문제 (에이전트 참고)
 
 ### SCC 오류 발생 시
