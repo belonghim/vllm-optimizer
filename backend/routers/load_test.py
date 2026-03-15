@@ -164,22 +164,34 @@ async def stream_load_test_results(test_id: Optional[str] = None):
     - Streams incremental results as the test runs
     - Each event contains a RequestResult or partial LoadTestResult
     - Connection stays open until test completes or client disconnects
+    - Sends keepalive comments every 15s to prevent proxy/browser timeouts
     - Use EventSource in frontend to consume this stream
     """
     queue = await load_engine.subscribe()
-    
+
     async def event_generator():
         try:
             while True:
-                # Wait for data from the engine
-                data = await queue.get()
-                yield f"data: {json.dumps(data)}\n\n"
+                try:
+                    data = await asyncio.wait_for(queue.get(), timeout=15)
+                    yield f"data: {json.dumps(data)}\n\n"
+                    if data.get("type") in ("completed", "stopped"):
+                        break
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"
         except asyncio.CancelledError:
             pass
         finally:
             await load_engine.unsubscribe(queue)
-    
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/history")
