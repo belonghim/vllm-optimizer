@@ -7,12 +7,21 @@ import { ScatterChart, Scatter, CartesianGrid, XAxis, YAxis, Tooltip, Responsive
 
 const fmt = (n, d = 1) => (n == null ? "—" : Number(n).toFixed(d));
 
+const PHASE_LABELS = {
+  applying_config: "ConfigMap 업데이트 중...",
+  restarting: "InferenceService 재시작 중...",
+  waiting_ready: "Pod Ready 대기 중...",
+  warmup: "Warmup 요청 전송 중...",
+  evaluating: "성능 평가 중...",
+};
+
 function TunerPage() {
   const { isMockEnabled } = useMockData();
   const [error, setError] = useState(null);
   const [status, setStatus] = useState({ running: false, trials_completed: 0 });
   const [trials, setTrials] = useState([]);
   const [importance, setImportance] = useState({});
+  const [currentPhase, setCurrentPhase] = useState(null);
   const [config, setConfig] = useState({
     objective: "balanced",
     n_trials: 20,
@@ -58,7 +67,11 @@ function TunerPage() {
     es.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+        if (data.type === "phase") {
+          setCurrentPhase(data.data);
+        }
         if (data.type === "trial_complete" || data.type === "tuning_complete") {
+          setCurrentPhase(null);
           fetchStatus();
         }
       } catch (e) {}
@@ -99,6 +112,7 @@ function TunerPage() {
 
   const stop = async () => {
     await fetch(`${API}/tuner/stop`, { method: "POST" });
+    setCurrentPhase(null);
     fetchStatus();
   };
 
@@ -194,6 +208,20 @@ function TunerPage() {
             {status.trials_completed} / {config.n_trials} trials
           </span>
         </div>
+
+        {status.running && currentPhase && (
+          <div style={{
+            marginTop: 12,
+            padding: "8px 16px",
+            background: "rgba(0,163,255,0.08)",
+            border: `1px solid ${COLORS.accent}`,
+            fontSize: 12,
+            fontFamily: "'JetBrains Mono', monospace",
+            color: COLORS.accent,
+          }}>
+            Trial {(currentPhase.trial_id ?? 0) + 1}: {PHASE_LABELS[currentPhase.phase] || currentPhase.phase}
+          </div>
+        )}
       </div>
 
       
