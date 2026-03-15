@@ -412,6 +412,10 @@ class AutoTuner:
             "enable_chunked_prefill", [True, False]
         )
 
+        params["enable_enforce_eager"] = trial.suggest_categorical(
+            "enable_enforce_eager", [True, False]
+        )
+
         _step = 256
         _batched_low = max(
             config.max_num_batched_tokens_range[0], params["max_num_seqs"]
@@ -466,9 +470,8 @@ class AutoTuner:
                             params["gpu_memory_utilization"]
                         ),
                         "MAX_MODEL_LEN": str(params["max_model_len"]),
-                        "ENABLE_CHUNKED_PREFILL": str(
-                            params["enable_chunked_prefill"]
-                        ).lower(),
+                        "ENABLE_CHUNKED_PREFILL": "true" if params["enable_chunked_prefill"] else "",
+                        "ENABLE_ENFORCE_EAGER": "true" if params.get("enable_enforce_eager") else "",
                     }
 
                     if "max_num_batched_tokens" in params:
