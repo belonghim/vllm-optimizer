@@ -177,142 +177,7 @@ function TunerPage() {
               <option value="balanced">균형 (TPS / Latency)</option>
               <option value="pareto">Pareto (TPS + Latency)</option>
             </select>
-      </div>
-
-        <div style={{ display: "flex", gap: 8, marginTop: 16, alignItems: "center" }}>
-          <button className="btn btn-primary" onClick={start} disabled={status.running}>
-            ▶ Start Tuning
-          </button>
-          <button className="btn btn-danger" onClick={stop} disabled={!status.running}>
-            ■ Stop
-          </button>
-          {status.best && (
-            <button className="btn btn-green" onClick={applyBest}>
-              ✓ Apply Best Params
-            </button>
-          )}
-          <span className={`tag tag-${status.running ? "running" : "idle"}`}>
-            {status.running ? "TUNING..." : "IDLE"}
-          </span>
-          <span style={{ fontSize: 11, color: COLORS.muted }}>
-            {status.trials_completed} / {config.n_trials} trials
-          </span>
-        </div>
-
-        <div style={{ marginTop: 8 }}>
-          <button
-            className="btn"
-            onClick={() => setShowAdvanced(v => !v)}
-            style={{ fontSize: 11, padding: "4px 12px", background: "none", border: `1px solid ${COLORS.border}`, color: COLORS.muted, cursor: "pointer" }}
-          >
-            고급 설정 {showAdvanced ? "▲" : "▼"}
-          </button>
-        </div>
-
-        {showAdvanced && (
-          <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, padding: 16, marginTop: 8 }}>
-            {currentConfig && (
-              <div style={{ background: "rgba(0,0,0,0.2)", border: `1px solid ${COLORS.border}`, padding: 12, marginBottom: 16, fontSize: 11 }}>
-                <div style={{ color: COLORS.muted, marginBottom: 6, fontFamily: "'JetBrains Mono', monospace" }}>현재 vLLM 설정 (ConfigMap)</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 16px" }}>
-                  {Object.entries(currentConfig).map(([k, v]) => (
-                    <span key={k} style={{ fontFamily: "'JetBrains Mono', monospace", color: COLORS.text, fontSize: 11 }}>
-                      {k}: <span style={{ color: COLORS.accent }}>{String(v) || "(비어있음)"}</span>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className="grid-form" style={{ gap: 12 }}>
-              <div>
-                <label className="label">max_model_len 범위</label>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <input className="input" type="number" placeholder="Min" value={config.max_model_len_min}
-                    onChange={e => setConfig(c => ({ ...c, max_model_len_min: +e.target.value }))} />
-                  <input className="input" type="number" placeholder="Max" value={config.max_model_len_max}
-                    onChange={e => setConfig(c => ({ ...c, max_model_len_max: +e.target.value }))} />
-                </div>
-              </div>
-              <div>
-                <label className="label">max_num_batched_tokens 범위</label>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <input className="input" type="number" placeholder="Min" value={config.max_num_batched_tokens_min}
-                    onChange={e => setConfig(c => ({ ...c, max_num_batched_tokens_min: +e.target.value }))} />
-                  <input className="input" type="number" placeholder="Max" value={config.max_num_batched_tokens_max}
-                    onChange={e => setConfig(c => ({ ...c, max_num_batched_tokens_max: +e.target.value }))} />
-                </div>
-              </div>
-              <div>
-                <label className="label">block_size 옵션</label>
-                <div style={{ display: "flex", gap: 12 }}>
-                  {[8, 16, 32].map(size => (
-                    <label key={size} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: COLORS.text, cursor: "pointer" }}>
-                      <input type="checkbox"
-                        checked={config.block_size_options.includes(size)}
-                        onChange={e => {
-                          setConfig(c => ({
-                            ...c,
-                            block_size_options: e.target.checked
-                              ? [...c.block_size_options, size].sort((a, b) => a - b)
-                              : c.block_size_options.filter(s => s !== size)
-                          }));
-                        }}
-                      />
-                      {size}
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="label" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <input type="checkbox"
-                    checked={config.include_swap_space}
-                    onChange={e => setConfig(c => ({ ...c, include_swap_space: e.target.checked }))}
-                  />
-                  swap_space 포함
-                </label>
-                {config.include_swap_space && (
-                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                    <input className="input" type="number" step="0.5" placeholder="Min GB" value={config.swap_space_min}
-                      onChange={e => setConfig(c => ({ ...c, swap_space_min: +e.target.value }))} />
-                    <input className="input" type="number" step="0.5" placeholder="Max GB" value={config.swap_space_max}
-                      onChange={e => setConfig(c => ({ ...c, swap_space_max: +e.target.value }))} />
-                  </div>
-                )}
-              </div>
-              <div>
-                <label className="label">평가 요청 수</label>
-                <input className="input" type="number" value={config.eval_requests}
-                  onChange={e => setConfig(c => ({ ...c, eval_requests: +e.target.value }))} />
-              </div>
-              <div>
-                <label className="label">평가 동시 요청</label>
-                <input className="input" type="number" value={config.eval_concurrency}
-                  onChange={e => setConfig(c => ({ ...c, eval_concurrency: +e.target.value }))} />
-              </div>
-              <div>
-                <label className="label">평가 RPS</label>
-                <input className="input" type="number" value={config.eval_rps}
-                  onChange={e => setConfig(c => ({ ...c, eval_rps: +e.target.value }))} />
-              </div>
-            </div>
           </div>
-        )}
-
-        {status.running && currentPhase && (
-          <div style={{
-            marginTop: 12,
-            padding: "8px 16px",
-            background: "rgba(0,163,255,0.08)",
-            border: `1px solid ${COLORS.accent}`,
-            fontSize: 12,
-            fontFamily: "'JetBrains Mono', monospace",
-            color: COLORS.accent,
-          }}>
-            Trial {(currentPhase.trial_id ?? 0) + 1}: {PHASE_LABELS[currentPhase.phase] || currentPhase.phase}
-          </div>
-        )}
-      </div>
           <div>
             <label className="label">Trial 수</label>
             <input className="input" type="number" value={config.n_trials}
@@ -360,6 +225,7 @@ function TunerPage() {
 
         <div style={{ marginTop: 8 }}>
           <button
+            className="btn"
             onClick={() => setShowAdvanced(v => !v)}
             style={{ fontSize: 11, padding: "4px 12px", background: "none", border: `1px solid ${COLORS.border}`, color: COLORS.muted, cursor: "pointer" }}
           >
@@ -370,12 +236,12 @@ function TunerPage() {
         {showAdvanced && (
           <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, padding: 16, marginTop: 8 }}>
             {currentConfig && (
-              <div style={{ marginBottom: 12, padding: "8px 12px", background: "rgba(255,255,255,0.03)", fontSize: 11 }}>
-                <div style={{ color: COLORS.muted, marginBottom: 4, fontFamily: "'JetBrains Mono', monospace" }}>현재 vLLM 설정 (ConfigMap)</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 16px" }}>
+              <div style={{ background: "rgba(0,0,0,0.2)", border: `1px solid ${COLORS.border}`, padding: 12, marginBottom: 16, fontSize: 11 }}>
+                <div style={{ color: COLORS.muted, marginBottom: 6, fontFamily: "'JetBrains Mono', monospace" }}>현재 vLLM 설정 (ConfigMap)</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 16px" }}>
                   {Object.entries(currentConfig).map(([k, v]) => (
                     <span key={k} style={{ fontFamily: "'JetBrains Mono', monospace", color: COLORS.text, fontSize: 11 }}>
-                      {k}: <span style={{ color: COLORS.accent }}>{v || "(비어있음)"}</span>
+                      {k}: <span style={{ color: COLORS.accent }}>{String(v) || "(비어있음)"}</span>
                     </span>
                   ))}
                 </div>
