@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { API, COLORS, font } from "../constants";
+import { API, COLORS } from "../constants";
 import { useMockData } from "../contexts/MockDataContext";
 import MetricCard from "../components/MetricCard";
 import { mockTrials } from "../mockData";
@@ -74,7 +74,9 @@ function TunerPage() {
           setCurrentPhase(null);
           fetchStatus();
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn("SSE parse error:", e);
+      }
     };
     es.onerror = () => { es.close(); };
     return () => { es.close(); };

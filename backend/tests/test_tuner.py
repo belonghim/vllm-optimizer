@@ -2,7 +2,6 @@ import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import AsyncMock, MagicMock, patch
 import asyncio
-import datetime
 
 from ..main import app
 from ..services.auto_tuner import AutoTuner, K8S_NAMESPACE, K8S_DEPLOYMENT

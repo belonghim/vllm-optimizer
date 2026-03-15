@@ -6,7 +6,6 @@ import logging
 import asyncio
 import inspect
 import os
-import json
 import datetime
 import math
 from .model_resolver import resolve_model_name
@@ -349,8 +348,8 @@ class AutoTuner:
                             for recorded in self._trials:
                                 recorded.is_pareto_optimal = (recorded.trial_id in pareto_trial_numbers)
                         self._pareto_front_size = len(pareto_trial_numbers)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("[AutoTuner] Pareto front update failed: %s", e)
 
                 # Broadcast trial completion event
                 await self._broadcast({
@@ -670,8 +669,8 @@ class AutoTuner:
         try:
             if hasattr(self._study, "directions") and len(getattr(self._study, "directions", [])) > 1:
                 return {}
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("[AutoTuner] Multi-objective check failed: %s", e)
         try:
             importance = optuna.importance.get_param_importances(self._study)
             return dict(importance)
