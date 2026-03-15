@@ -425,8 +425,8 @@ async def test_apply_params_uses_correct_configmap_keys(auto_tuner_instance, moc
     assert "ENABLE_CHUNKED_PREFILL" in patch_data
     assert patch_data["ENABLE_CHUNKED_PREFILL"] == "true"
 
-    # ENABLE_ENFORCE_EAGER should not be touched by _apply_params
-    assert "ENABLE_ENFORCE_EAGER" not in patch_data
+    assert "ENABLE_ENFORCE_EAGER" in patch_data
+    assert patch_data["ENABLE_ENFORCE_EAGER"] == ""
 
 def test_importance_returns_empty_when_no_trials(client):
     """When no trials have been run, /importance should return {}"""
@@ -919,3 +919,100 @@ async def test_pruned_trials_not_counted_as_best_trial(auto_tuner_instance, mock
     if tuner._best_trial is not None:
         assert not tuner._best_trial.pruned, "Best trial should not be marked as pruned"
         assert tuner._best_trial.status != "pruned"
+
+
+@pytest.mark.asyncio
+async def test_chunked_prefill_false_writes_empty_string(auto_tuner_instance, mock_k8s_clients):
+    tuner = auto_tuner_instance
+    mock_core_api = mock_k8s_clients[1].return_value
+
+    params = {
+        "max_num_seqs": 64,
+        "gpu_memory_utilization": 0.8,
+        "max_model_len": 4096,
+        "enable_chunked_prefill": False,
+        "enable_enforce_eager": False,
+        "max_num_batched_tokens": 512,
+    }
+
+    await tuner._apply_params(params)
+
+    call_args = mock_core_api.patch_namespaced_config_map.call_args
+    patch_data = call_args.kwargs["body"]["data"]
+
+    assert patch_data["ENABLE_CHUNKED_PREFILL"] == ""
+
+    mock_core_api.patch_namespaced_config_map.reset_mock()
+    params_true = {**params, "enable_chunked_prefill": True}
+    await tuner._apply_params(params_true)
+    patch_data_true = mock_core_api.patch_namespaced_config_map.call_args.kwargs["body"]["data"]
+    assert patch_data_true["ENABLE_CHUNKED_PREFILL"] == "true"
+
+
+@pytest.mark.asyncio
+async def test_enforce_eager_writes_correct_values(auto_tuner_instance, mock_k8s_clients):
+    tuner = auto_tuner_instance
+    mock_core_api = mock_k8s_clients[1].return_value
+
+    params_false = {
+        "max_num_seqs": 64,
+        "gpu_memory_utilization": 0.8,
+        "max_model_len": 4096,
+        "enable_chunked_prefill": False,
+        "enable_enforce_eager": False,
+        "max_num_batched_tokens": 512,
+    }
+
+    await tuner._apply_params(params_false)
+    patch_data_false = mock_core_api.patch_namespaced_config_map.call_args.kwargs["body"]["data"]
+    assert patch_data_false["ENABLE_ENFORCE_EAGER"] == ""
+
+    mock_core_api.patch_namespaced_config_map.reset_mock()
+    params_true = {**params_false, "enable_enforce_eager": True}
+    await tuner._apply_params(params_true)
+    patch_data_true = mock_core_api.patch_namespaced_config_map.call_args.kwargs["body"]["data"]
+    assert patch_data_true["ENABLE_ENFORCE_EAGER"] == "true"
+
+
+def test_suggest_params_includes_enforce_eager(auto_tuner_instance):
+    tuner = auto_tuner_instance
+    trial_mock = MagicMock()
+    trial_mock.suggest_int.side_effect = lambda name, low, high, step=1: low
+    trial_mock.suggest_float.side_effect = lambda name, low, high: low
+    trial_mock.suggest_categorical.side_effect = lambda name, choices: choices[0]
+
+    config = TuningConfig()
+    params = tuner._suggest_params(trial_mock, config)
+
+    assert "enable_enforce_eager" in params
+    assert params["enable_enforce_eager"] in [True, False]
+
+
+@pytest.mark.asyncio
+async def test_phase_events_broadcast_in_start(auto_tuner_instance, mock_k8s_clients):
+    tuner = auto_tuner_instance
+
+    tuner._evaluate = AsyncMock(return_value=(50.0, 50.0, 0.2))
+    tuner._wait_for_ready = AsyncMock(return_value=True)
+    tuner._apply_params = AsyncMock(return_value={"success": True})
+
+    q = await tuner.subscribe()
+
+    config = TuningConfig(n_trials=1, eval_requests=5, warmup_requests=0)
+    await tuner.start(config, "http://mock:8080")
+
+    await tuner.unsubscribe(q)
+
+    events = []
+    while not q.empty():
+        events.append(q.get_nowait())
+
+    event_types = [e.get("type") for e in events]
+    assert "trial_start" in event_types
+    assert "trial_complete" in event_types
+
+    phase_events = [e for e in events if e.get("type") == "phase"]
+    phase_names = [e["data"]["phase"] for e in phase_events]
+    assert "applying_config" in phase_names
+    assert "restarting" in phase_names
+    assert "waiting_ready" in phase_names
