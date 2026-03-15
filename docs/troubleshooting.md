@@ -1,7 +1,7 @@
 ---
 title: "vLLM Optimizer Troubleshooting Guide"
 date: 2026-03-08
-updated: 2026-03-08
+updated: 2026-03-15
 tags: [troubleshooting, openshift, debugging]
 status: published
 ---
@@ -222,3 +222,65 @@ These commands can help diagnose issues in your OpenShift cluster.
     ```
 -   **vLLM Deployment Name Verification**: `oc get deployment -n vllm`
 -   **vLLM Pod Status**: `oc get pods -n vllm`
+-   **vllm-config ConfigMap 조회**: `oc get configmap vllm-config -n vllm -o yaml`
+-   **Deployment Rollout 상태 확인**: `oc rollout status deployment/llm-ov-predictor -n vllm`
+-   **vllm-config API 조회**: `curl http://localhost:8000/api/vllm-config`
+
+---
+
+## Auto-Tuner 관련 트러블슈팅
+
+### 11. Auto-Tuning 중 vLLM 파드가 재기동되지 않음
+
+**Symptom**: "Pod Ready 대기 중..." 메시지가 표시되고 300초 후 타임아웃, 또는 튜닝은 진행되지만 vLLM 설정이 실제로 변경되지 않음.
+
+**Cause**: 자동 튜너는 ConfigMap 수정 후 `llm-ov-predictor` Deployment의 pod template annotation을 직접 패치하여 rollout restart를 트리거합니다. 이 과정이 실패하는 주요 원인은:
+1. `K8S_DEPLOYMENT_NAME` 환경변수가 올바른 Deployment 이름(`llm-ov-predictor`)으로 설정되지 않은 경우
+2. 백엔드 ServiceAccount에 `llm-ov-predictor` Deployment 패치 권한이 없는 경우
+
+**Diagnosis**:
+1. 백엔드 로그에서 `Deployment 재시작 실패` 오류 확인:
+   ```bash
+   oc logs -l app=vllm-optimizer-backend -n vllm-optimizer-dev | grep -i "deployment\|restart\|rollout"
+   ```
+2. Deployment 이름 확인:
+   ```bash
+   oc get deployment -n vllm
+   # 예: llm-ov-predictor 가 있어야 함
+   ```
+3. 수동 rollout restart 테스트:
+   ```bash
+   oc rollout restart deployment/llm-ov-predictor -n vllm
+   oc rollout status deployment/llm-ov-predictor -n vllm
+   ```
+
+**Fix**:
+1. `openshift/base/03-backend.yaml`에서 `K8S_DEPLOYMENT_NAME`이 `llm-ov-predictor`로 설정되어 있는지 확인:
+   ```yaml
+   - name: K8S_DEPLOYMENT_NAME
+     value: "llm-ov-predictor"
+   ```
+2. RBAC 권한 확인 — `openshift/base/01-namespace-rbac.yaml`의 ClusterRole에 `deployments/patch` 권한이 있어야 함.
+
+### 12. 자동 튜닝 후 파라미터가 vLLM에 반영되지 않음
+
+**Symptom**: 튜닝 완료 후 vLLM 성능 지표가 변하지 않음. ConfigMap은 수정됐지만 vLLM 프로세스가 이전 값을 사용하고 있음.
+
+**Cause**: Kubernetes에서 `envFrom`으로 마운트된 ConfigMap은 Pod가 시작될 때 환경변수로 설정되며, ConfigMap이 변경되어도 실행 중인 Pod에는 반영되지 않습니다. **Pod를 반드시 재기동해야** 새 값이 적용됩니다.
+
+**Diagnosis**:
+1. 현재 ConfigMap 값 확인:
+   ```bash
+   oc get configmap vllm-config -n vllm -o yaml
+   ```
+2. 현재 실행 중인 vLLM Pod의 환경변수 확인:
+   ```bash
+   oc exec -it $(oc get pod -n vllm -l app=isvc.llm-ov-predictor -o name | head -1) -n vllm -- env | grep MAX_NUM_SEQS
+   ```
+   두 값이 다르다면 Pod 재기동이 필요합니다.
+
+**Fix**: 수동으로 파드 재기동:
+```bash
+oc rollout restart deployment/llm-ov-predictor -n vllm
+oc rollout status deployment/llm-ov-predictor -n vllm
+```

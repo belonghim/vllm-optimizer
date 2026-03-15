@@ -190,10 +190,11 @@ spec:
 | `VLLM_NAMESPACE` | vLLM 서비스 네임스페이스 | `vllm` |
 | `PROMETHEUS_URL` | Thanos Querier URL | `https://thanos-querier.openshift-monitoring.svc.cluster.local:9091` |
 | `K8S_NAMESPACE` | K8s Pod 조회 대상 네임스페이스 | `vllm` |
-| `K8S_DEPLOYMENT_NAME` | vLLM Deployment 이름 (KServe: `{isvc}-predictor`) | `llm-ov-predictor` |
+| `K8S_DEPLOYMENT_NAME` | vLLM Deployment 이름 (KServe: `{isvc}-predictor`). **MetricsCollector의 pod listing 및 auto-tuner의 Deployment rollout restart에 사용.** | `llm-ov-predictor` |
+| `VLLM_DEPLOYMENT_NAME` | KServe InferenceService 이름. **auto-tuner의 IS 이름 참조에 사용.** `K8S_DEPLOYMENT_NAME`과 혼동 금지. | `llm-ov` |
 | `K8S_CONFIGMAP_NAME` | vLLM ConfigMap 이름 | `vllm-config` |
 | `VLLM_ENDPOINT` | vLLM 추론 엔드포인트 (테스트용) | `http://llm-ov-predictor.vllm.svc.cluster.local:8080` |
-| `VLLM_MODEL` | vLLM 모델명 (테스트용) | `Qwen2.5-Coder-3B-Instruct-int4-ov` |
+| `VLLM_MODEL` | vLLM 모델명. `/api/config`의 `vllm_model_name` 반환에 사용. | `Qwen2.5-Coder-3B-Instruct-int4-ov` |
 
 ---
 
@@ -447,6 +448,23 @@ oc import-image vllm-optimizer-backend:latest \
 - auto_tuner가 vLLM에 추론 요청 → p99 latency 상승 → `skip_if_overloaded` 트리거
 - `skip_if_overloaded`는 최대 120초 대기 후 skip (Thanos 1분 rate window 롤오버 대기)
 - 지속 skip 시: vLLM pod 상태 확인 (`oc get pods -n vllm`)
+
+### auto_tuner vLLM 파드 재기동 안 됨
+- auto_tuner는 `K8S_DEPLOYMENT_NAME`(예: `llm-ov-predictor`) Deployment를 직접 rollout restart
+- 파드가 재기동되지 않으면: 백엔드 로그에서 `Deployment 재시작 실패` 오류 확인
+- `K8S_DEPLOYMENT_NAME`이 실제 Deployment 이름과 일치하는지 확인: `oc get deployment -n vllm`
+- 수동 확인: `oc rollout restart deployment/llm-ov-predictor -n vllm`
+- **주의**: KServe InferenceService 이름(`llm-ov`, `VLLM_DEPLOYMENT_NAME`)과 Deployment 이름(`llm-ov-predictor`, `K8S_DEPLOYMENT_NAME`)은 다름. 파드 재기동에는 Deployment 이름 사용.
+
+### auto_tuner ConfigMap 수정 후 vLLM 설정 미반영
+- `envFrom`으로 마운트된 ConfigMap은 Pod 재기동 없이는 환경변수가 갱신되지 않음
+- auto_tuner의 trial 실행 중 rollout restart 성공 여부를 백엔드 로그로 확인
+- 수동 적용: `oc rollout restart deployment/llm-ov-predictor -n vllm`
+- 현재 Pod 환경변수 확인: `oc exec <pod> -n vllm -- env | grep MAX_NUM_SEQS`
+
+### auto_tuner model="auto" 사용 금지
+- `/v1/models` 엔드포인트에서 동적 해석 필수
+- `model_resolver.py`의 `resolve_model_name()` 함수 사용 (이미 auto_tuner에 통합됨)
 
 ---
 

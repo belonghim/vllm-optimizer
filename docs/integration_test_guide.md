@@ -1,7 +1,7 @@
 ---
 title: "vLLM Optimizer 통합 테스트 가이드"
 date: 2026-03-08
-updated: 2026-03-08
+updated: 2026-03-15
 tags: [integration-test, performance, vllm, korean]
 status: published
 ---
@@ -27,6 +27,7 @@ cd backend && python3 -m pytest tests/ -x -q -m "not integration"
 - `test_metrics_collection.py`: 메트릭 수집 기능 검증
 - `test_auto_tuner.py`: 자동 튜너 기능 검증
 - `test_sse_streaming.py`: SSE 스트리밍 기능 검증
+- `test_pod_restart.py`: **자동 튜닝 시 vLLM 파드 재기동 E2E 검증** — 튜닝 실행 전/후 파드 UID 비교로 실제 재기동 확인. `/api/vllm-config` PATCH API 기능도 검증.
 
 ## 3. 환경변수
 
@@ -40,6 +41,8 @@ cd backend && python3 -m pytest tests/ -x -q -m "not integration"
 | `VLLM_NAMESPACE` | vLLM 네임스페이스 | `vllm` |
 | `OPTIMIZER_NAMESPACE` | Optimizer 네임스페이스 | `vllm-optimizer-dev` |
 | `PERF_BASELINE_FILE` | Baseline JSON 경로 | `baseline.dev.json` |
+| `VLLM_POD_LABEL` | vLLM 파드 식별 레이블 (`test_pod_restart.py`) | `app=isvc.llm-ov-predictor` |
+| `POD_RESTART_TIMEOUT` | 파드 재기동 대기 최대 시간(초) (`test_pod_restart.py`) | `300` |
 
 ## 4. Baseline 관리
 

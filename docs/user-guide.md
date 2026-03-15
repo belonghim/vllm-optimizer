@@ -1,7 +1,7 @@
 ---
 title: "vLLM Optimizer 대시보드 사용자 가이드"
 date: 2026-03-08
-updated: 2026-03-08
+updated: 2026-03-15
 tags: [user-guide, dashboard, vllm, korean]
 status: published
 ---
@@ -72,12 +72,14 @@ oc get route vllm-optimizer -n vllm-optimizer-dev
 | 필드 | 설명 | 기본값 |
 |:-----|:-----|:--------|
 | vLLM Endpoint | 부하 테스트를 수행할 vLLM 추론 엔드포인트 URL입니다. 이 값은 자동으로 채워집니다. | — |
-| Model Name | 테스트에 사용할 모델의 이름입니다. `auto`로 설정하면 vLLM 서비스에서 자동으로 모델을 감지합니다. | auto |
+| Model Name | 테스트에 사용할 모델의 이름입니다. 대시보드 로드 시 vLLM 서비스에서 실제 모델명을 자동으로 감지하여 설정됩니다. | (자동 감지) |
 | Total Requests | vLLM 서비스로 전송할 총 요청 수입니다. | 200 |
 | Concurrency | 동시에 처리할 요청 수입니다. | 20 |
 | RPS | 초당 전송할 요청 수입니다. `0`으로 설정하면 제한 없이 요청을 전송합니다. | 10 |
 | Max Tokens | vLLM 응답의 최대 토큰 수입니다. | 256 |
 | Streaming Mode | 체크 시 스트리밍 모드로 부하 테스트를 수행하며, TTFT(Time To First Token) 측정이 활성화됩니다. | ON |
+| 프롬프트 템플릿 | vLLM에 전송할 프롬프트 텍스트입니다. 여러 줄 입력 가능합니다. | Hello, how are you? |
+| Temperature | 생성 다양성을 제어합니다. 0에 가까울수록 결정적, 높을수록 무작위적입니다. (0~2 범위) | 0.7 |
 
 ### 실행
 
@@ -140,20 +142,36 @@ oc get route vllm-optimizer -n vllm-optimizer-dev
 
 ### 설정 항목
 
-| 필드 | 설명 | 옵션 |
+**기본 설정:**
+
+| 필드 | 설명 | 기본값 |
 |:-----|:-----|:-----|
-| 최적화 목표 | 튜닝의 목표를 선택합니다. | 최대 처리량 (TPS) / 최소 레이턴시 / 균형 (TPS / Latency) |
-| Trial 수 | Optuna가 탐색할 파라미터 조합의 총 개수입니다. | 숫자 입력 (기본 20) |
-| max_num_seqs 범위 | vLLM의 `max_num_seqs` 파라미터(동시 처리 시퀀스 수)를 탐색할 최소/최대 범위입니다. | Min / Max |
-| GPU Memory Util 범위 | vLLM의 `gpu_memory_utilization` 파라미터(GPU 메모리 사용률)를 탐색할 최소/최대 범위입니다. | Min / Max (0.0~1.0) |
+| 최적화 목표 | 튜닝의 목표를 선택합니다. | 균형 (TPS / Latency) |
+| Trial 수 | Optuna가 탐색할 파라미터 조합의 총 개수입니다. | 20 |
+| max_num_seqs 범위 | vLLM의 `max_num_seqs` 파라미터(동시 처리 시퀀스 수)를 탐색할 최소/최대 범위입니다. | 32 ~ 256 |
+| GPU Memory Util 범위 | vLLM의 `gpu_memory_utilization` 파라미터(GPU 메모리 사용률)를 탐색할 최소/최대 범위입니다. | 0.8 ~ 0.95 |
+
+**고급 설정** (▼ 버튼으로 펼치기):
+
+| 필드 | 설명 |
+|:-----|:-----|
+| max_model_len 범위 | 최대 컨텍스트 길이 탐색 범위 (Min / Max) |
+| max_num_batched_tokens 범위 | 배치당 최대 토큰 수 탐색 범위 (Min / Max) |
+| block_size 옵션 | KV 캐시 블록 크기 선택 (체크박스: 8 / 16 / 32) |
+| swap_space 포함 | CPU 스왑 메모리 사용 여부 및 크기 범위 (GB) |
+| 평가 요청 수 / 동시 요청 / RPS | 각 trial의 성능 측정에 사용할 부하 테스트 설정 |
+
+**현재 vLLM 설정**: 고급 설정 섹션 상단에 현재 vllm-config ConfigMap 값이 읽기 전용으로 표시됩니다.
 
 ### 실행
 
-1. `최적화 목표`와 각 파라미터의 `탐색 범위`를 지정합니다.
+1. `최적화 목표`와 각 파라미터의 `탐색 범위`를 지정합니다. 더 많은 파라미터를 탐색하려면 "고급 설정 ▼"을 펼치십시오.
 2. **▶ Start Tuning** 버튼을 클릭하여 자동 튜닝을 시작합니다.
-3. `N / M trials` 형식으로 Trial 진행 상황이 3초마다 자동으로 갱신됩니다.
+3. `N / M trials` 형식으로 Trial 진행 상황이 표시되며, 각 trial의 현재 단계(ConfigMap 업데이트 → 파드 재기동 → 평가)가 실시간으로 표시됩니다.
 4. 튜닝이 진행되면서 최적의 파라미터 조합이 발견되면 **최적 파라미터 발견** 섹션이 화면에 나타납니다.
 5. **■ Stop** 버튼을 클릭하여 언제든지 튜닝을 중도 중단할 수 있습니다.
+
+> ℹ️ **참고**: 각 trial은 vLLM 파드를 재기동(`kubectl rollout restart` 동일)하므로 **파드당 수십 초~수 분**이 소요됩니다. 20 trial 기준 총 소요 시간은 환경에 따라 30분~2시간 이상일 수 있습니다.
 
 ### 결과 화면
 
@@ -164,10 +182,24 @@ oc get route vllm-optimizer -n vllm-optimizer-dev
 
 ### 최적 파라미터 적용
 
-> ⚠️ **주의**: **✓ Apply Best Params** 버튼은 자동 튜닝을 통해 발견된 최적 파라미터를 Kubernetes ConfigMap에 직접 적용합니다. 이 작업은 즉시 vLLM 설정에 반영되며, **되돌리기 기능이 없습니다**. 적용 전에 현재 ConfigMap 값을 별도로 기록해 두는 것을 강력히 권장합니다.
+> ⚠️ **주의**: **✓ Apply Best Params** 버튼은 자동 튜닝을 통해 발견된 최적 파라미터를 Kubernetes ConfigMap에 직접 적용하고, vLLM 파드를 재기동합니다. 이 작업은 즉시 vLLM 설정에 반영되며, **되돌리기 기능이 없습니다**. 적용 전에 현재 ConfigMap 값을 별도로 기록해 두는 것을 강력히 권장합니다.
 > ```bash
 > oc get configmap vllm-config -n vllm -o yaml
 > ```
+
+### vllm-config 직접 편집
+
+대시보드의 고급 설정 섹션에서 현재 ConfigMap 값을 확인하고, `/api/vllm-config` API를 통해 직접 수정할 수도 있습니다 (튜닝 없이 값만 변경).
+```bash
+# ConfigMap 현재 값 조회 (API)
+curl http://<backend>/api/vllm-config
+
+# 특정 값 수정 (허용 키만 가능)
+curl -X PATCH http://<backend>/api/vllm-config \
+  -H 'Content-Type: application/json' \
+  -d '{"data": {"MAX_NUM_SEQS": "128"}}'
+```
+> ℹ️ **참고**: ConfigMap만 수정하면 vLLM 파드가 자동으로 재기동되지 않습니다. 새 값을 적용하려면 파드를 수동으로 재기동하거나 자동 튜닝을 통해 적용하십시오.
 
 ## 7. 자주 묻는 질문 (FAQ)
 
