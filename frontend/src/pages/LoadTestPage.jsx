@@ -65,7 +65,7 @@ function LoadTestPage() {
         let data;
         try {
           data = JSON.parse(e.data);
-        } catch (parseErr) {
+        } catch {
           return;
         }
         if (data.type === "progress" && data.data) {
