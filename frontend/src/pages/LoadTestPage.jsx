@@ -15,6 +15,7 @@ function LoadTestPage() {
     concurrency: 20,
     rps: 10,
     max_tokens: 256,
+    prompt_template: "Hello, how are you?",
     temperature: 0.7,
     stream: true,
   });
@@ -147,6 +148,17 @@ function LoadTestPage() {
       .catch(() => {}); // silently fail — user can type manually
   }, []);
 
+  useEffect(() => {
+    fetch(`${API}/config`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.resolved_model_name && data.resolved_model_name !== "auto") {
+          setConfig(c => ({ ...c, model: c.model === "auto" ? data.resolved_model_name : c.model }));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* 설정 */}
@@ -168,6 +180,22 @@ function LoadTestPage() {
                   onChange={e => setConfig(c => ({ ...c, [key]: type === "number" ? +e.target.value : e.target.value }))} />
               </div>
             ))}
+            <div>
+              <label className="label">프롬프트 템플릿</label>
+              <textarea
+                className="input"
+                rows={3}
+                style={{ resize: "vertical", fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}
+                value={config.prompt_template}
+                onChange={e => setConfig(c => ({ ...c, prompt_template: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="label">Temperature</label>
+              <input className="input" type="number" step="0.1" min="0" max="2"
+                value={config.temperature}
+                onChange={e => setConfig(c => ({ ...c, temperature: +e.target.value }))} />
+            </div>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16 }}>
