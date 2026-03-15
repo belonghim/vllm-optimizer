@@ -22,10 +22,18 @@ class MockEventSource {
     this.url = url;
     this.onmessage = null;
     this.onerror = null;
+    this.readyState = 1;
+    this.closeSpy = vi.fn();
     mockEsInstance = this;
   }
-  close() {}
+  close() {
+    this.readyState = 2;
+    this.closeSpy();
+  }
 }
+MockEventSource.CONNECTING = 0;
+MockEventSource.OPEN = 1;
+MockEventSource.CLOSED = 2;
 
 beforeEach(() => {
   mockEsInstance = null;
@@ -332,6 +340,93 @@ describe("LoadTestPage", () => {
 
       const button = screen.getByText("✓ Saved");
       expect(button).toBeDisabled();
+    });
+  });
+
+  describe("SSE onerror reconnect behavior", () => {
+    it("does not close EventSource when readyState is CONNECTING (transient error)", async () => {
+      render(<LoadTestPage />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByText("▶ Run Load Test"));
+      });
+      await waitFor(() => expect(mockEsInstance).not.toBeNull());
+
+      mockEsInstance.readyState = 0;
+
+      act(() => {
+        mockEsInstance.onerror();
+      });
+
+      expect(mockEsInstance.closeSpy).not.toHaveBeenCalled();
+      expect(screen.queryByText(/SSE 연결 실패/)).not.toBeInTheDocument();
+    });
+
+    it("closes EventSource and shows error when readyState is CLOSED", async () => {
+      render(<LoadTestPage />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByText("▶ Run Load Test"));
+      });
+      await waitFor(() => expect(mockEsInstance).not.toBeNull());
+
+      mockEsInstance.readyState = 2;
+
+      act(() => {
+        mockEsInstance.onerror();
+      });
+
+      expect(mockEsInstance.closeSpy).toHaveBeenCalled();
+      expect(screen.getByText(/SSE 연결 실패/)).toBeInTheDocument();
+    });
+
+    it("shows error after max retries (4 CONNECTING errors) exceeded", async () => {
+      render(<LoadTestPage />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByText("▶ Run Load Test"));
+      });
+      await waitFor(() => expect(mockEsInstance).not.toBeNull());
+
+      mockEsInstance.readyState = 0;
+
+      act(() => { mockEsInstance.onerror(); });
+      act(() => { mockEsInstance.onerror(); });
+      act(() => { mockEsInstance.onerror(); });
+
+      expect(mockEsInstance.closeSpy).not.toHaveBeenCalled();
+      expect(screen.queryByText(/SSE 연결 실패/)).not.toBeInTheDocument();
+
+      act(() => { mockEsInstance.onerror(); });
+
+      expect(mockEsInstance.closeSpy).toHaveBeenCalled();
+      expect(screen.getByText(/SSE 연결 실패/)).toBeInTheDocument();
+    });
+
+    it("resets retry count when a valid message is received", async () => {
+      render(<LoadTestPage />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByText("▶ Run Load Test"));
+      });
+      await waitFor(() => expect(mockEsInstance).not.toBeNull());
+
+      mockEsInstance.readyState = 0;
+      act(() => { mockEsInstance.onerror(); });
+      act(() => { mockEsInstance.onerror(); });
+
+      act(() => {
+        mockEsInstance.onmessage({
+          data: JSON.stringify({ type: "progress", data: { total: 1, total_requested: 10 } }),
+        });
+      });
+
+      act(() => { mockEsInstance.onerror(); });
+      act(() => { mockEsInstance.onerror(); });
+      act(() => { mockEsInstance.onerror(); });
+
+      expect(mockEsInstance.closeSpy).not.toHaveBeenCalled();
+      expect(screen.queryByText(/SSE 연결 실패/)).not.toBeInTheDocument();
     });
   });
 });

@@ -29,6 +29,7 @@ function LoadTestPage() {
    const [saveStatus, setSaveStatus] = useState(null);
    const esRef = useRef(null);
    const mockTimerRef = useRef(null);
+   const retryCountRef = useRef(0);
 
    const start = async () => {
      setStatus("running");
@@ -60,11 +61,11 @@ function LoadTestPage() {
       const es = new EventSource(`${API}/load_test/stream`);
       esRef.current = es;
       es.onmessage = (e) => {
+        retryCountRef.current = 0;
         let data;
         try {
           data = JSON.parse(e.data);
         } catch (parseErr) {
-          console.warn("[SSE] Failed to parse message:", parseErr);
           return;
         }
         if (data.type === "progress" && data.data) {
@@ -88,7 +89,13 @@ function LoadTestPage() {
         }
       };
       es.onerror = () => {
-        setError("SSE 연결 실패: 부하 테스트 스트림에 연결할 수 없습니다.");
+        if (es.readyState === EventSource.CONNECTING) {
+          retryCountRef.current += 1;
+          if (retryCountRef.current <= 3) {
+            return;
+          }
+        }
+        setError(`SSE 연결 실패: 부하 테스트 스트림에 연결할 수 없습니다. (재시도 ${retryCountRef.current}회 후 실패)`);
         setStatus("error");
         es.close();
         esRef.current = null;
