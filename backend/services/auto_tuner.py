@@ -239,12 +239,26 @@ class AutoTuner:
                     "data": {"trial_id": trial_num, "params": params},
                 })
 
+                await self._broadcast({
+                    "type": "phase",
+                    "data": {"trial_id": trial_num, "phase": "applying_config"},
+                })
+
                 # 파라미터 적용 (Kubernetes ConfigMap 업데이트)
                 apply_result = await self._apply_params(params)
                 if not apply_result["success"]:
                     async with self._study_lock:
                         self._study.tell(trial, state=optuna.trial.TrialState.FAIL)
                     continue
+
+                await self._broadcast({
+                    "type": "phase",
+                    "data": {"trial_id": trial_num, "phase": "restarting"},
+                })
+                await self._broadcast({
+                    "type": "phase",
+                    "data": {"trial_id": trial_num, "phase": "waiting_ready"},
+                })
 
                 # vLLM 재시작 대기
                 ready = await self._wait_for_ready()
@@ -570,11 +584,17 @@ class AutoTuner:
         endpoint: str,
         config: TuningConfig,
         trial=None,
+        trial_num: int = 0,
     ) -> tuple[float, float, float]:
         """부하 테스트 실행 후 점수 반환 (fast probe + full evaluation)"""
         model_name = await resolve_model_name(endpoint)
+        _trial_id = trial.number if trial is not None and hasattr(trial, "number") else trial_num
 
         if config.warmup_requests > 0:
+            await self._broadcast({
+                "type": "phase",
+                "data": {"trial_id": _trial_id, "phase": "warmup", "requests": config.warmup_requests},
+            })
             warmup_config = LoadTestConfig(
                 endpoint=endpoint,
                 model=model_name,
@@ -607,6 +627,10 @@ class AutoTuner:
             rps=config.eval_rps,
             stream=True,
         )
+        await self._broadcast({
+            "type": "phase",
+                "data": {"trial_id": _trial_id, "phase": "evaluating"},
+        })
         fast_result = await self._load_engine.run(fast_config)
         fast_score = _compute_score(fast_result)
 
