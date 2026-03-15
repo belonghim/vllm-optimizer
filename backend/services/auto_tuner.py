@@ -77,7 +77,7 @@ class AutoTuner:
     async def _wait_for_ready(self, timeout: int = 300, interval: int = 5) -> bool:
         """InferenceService가 준비될 때까지 폴링합니다."""
         import time as _time
-        logger.info(f"[AutoTuner] InferenceService '{K8S_DEPLOYMENT}' 준비 대기 중...")
+        logger.info(f"[AutoTuner] InferenceService '{VLLM_IS_NAME}' 준비 대기 중...")
         wait_start = _time.monotonic()
         start_time = asyncio.get_event_loop().time()
         result = False
