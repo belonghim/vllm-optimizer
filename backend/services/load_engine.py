@@ -198,19 +198,30 @@ class LoadTestEngine:
                 await asyncio.sleep(interval)
 
         # 남은 태스크 완료 대기
-        if tasks:
-            remaining = await asyncio.gather(
-                *[t for t in tasks if t not in processed_tasks],
-                return_exceptions=True,
-            )
-            for result in remaining:
-                if isinstance(result, RequestResult):
-                    async with self._state_lock:
-                        self._state.results.append(result)
-                        if result.success:
-                            self._state.completed_requests += 1
-                        else:
-                            self._state.failed_requests += 1
+        remaining_tasks = [t for t in tasks if t not in processed_tasks]
+        if remaining_tasks:
+            for fut in asyncio.as_completed(remaining_tasks):
+                try:
+                    result = await fut
+                except Exception as e:
+                    result = RequestResult(
+                        req_id=-1,
+                        success=False,
+                        latency=time.time() - self._state.start_time,
+                        error=str(e),
+                    )
+                async with self._state_lock:
+                    self._state.results.append(result)
+                    if result.success:
+                        self._state.completed_requests += 1
+                    else:
+                        self._state.failed_requests += 1
+
+                stats = self._compute_stats()
+                await self._broadcast({
+                    "type": "progress",
+                    "data": stats,
+                })
 
         async with self._state_lock:
             self._state.status = LoadTestStatus.COMPLETED
