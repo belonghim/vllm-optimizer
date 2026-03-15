@@ -35,65 +35,52 @@ def _mock_collector_state(state: dict):
 
 
 def test_metrics_empty_state(client):
-    empty_state = {
-        'vllm_optimizer_request_success_total': 0,
-        'vllm_optimizer_generation_tokens_total': 0,
-        'vllm_optimizer_num_requests_running': 0,
-        'vllm_optimizer_num_requests_waiting': 0,
-        'vllm_optimizer_gpu_cache_usage_perc': 0,
-        'vllm_optimizer_gpu_utilization': 0,
-        'vllm_optimizer_time_to_first_token_seconds': 0.0,
-        'vllm_optimizer_e2e_request_latency_seconds': 0.0,
-    }
-
     with patch('backend.services.metrics_collector.MetricsCollector', autospec=True) as MockCollector:
-        MockCollector.return_value = _mock_collector_state(empty_state)
+        MockCollector.return_value = _mock_collector_state({})
         resp = client.get("/api/metrics")
         assert resp.status_code == 200
         ctype = resp.headers.get('content-type','')
         assert ctype.startswith('text/plain; version=0.0.4')
         body = resp.text
-
+        # Optimizer-prefixed metrics must be present; old vllm: names must NOT appear
+        assert 'vllm_optimizer_' in body
+        # Old colliding names must NOT be re-exported
+        old_names = [
+            'vllm:num_requests_running',
+            'vllm:num_requests_waiting',
+            'vllm:gpu_cache_usage_perc',
+            'vllm:gpu_utilization',
+            'vllm:request_success_total',
+            'vllm:generation_tokens_total',
+            'vllm:time_to_first_token_seconds',
+            'vllm:e2e_request_latency_seconds',
+        ]
+        for old in old_names:
+            assert old not in body, f"Old colliding metric name still exported: {old}"
 
 
 def test_metrics_populated_state(client):
-    populated_state = {
-        'vllm_optimizer_request_success_total': 42,
-        'vllm_optimizer_generation_tokens_total': 12345,
-        'vllm_optimizer_num_requests_running': 2,
-        'vllm_optimizer_num_requests_waiting': 1,
-        'vllm_optimizer_gpu_cache_usage_perc': 75,
-        'vllm_optimizer_gpu_utilization': 65,
-        'vllm_optimizer_time_to_first_token_seconds': 0.123,
-        'vllm_optimizer_e2e_request_latency_seconds': 0.456,
-    }
-
     with patch('backend.services.metrics_collector.MetricsCollector', autospec=True) as MockCollector:
-        MockCollector.return_value = _mock_collector_state(populated_state)
+        MockCollector.return_value = _mock_collector_state({})
         resp = client.get("/api/metrics")
         assert resp.status_code == 200
         ctype = resp.headers.get('content-type','')
         assert ctype.startswith('text/plain; version=0.0.4')
         body = resp.text
-        # Do not rely on exact numeric values; ensure metric names appear
-        assert any(n in body for n in populated_state.keys())
+        # New optimizer-prefixed names must appear
+        new_names = [
+            'vllm_optimizer_request_success_total',
+            'vllm_optimizer_generation_tokens_total',
+            'vllm_optimizer_num_requests_running',
+            'vllm_optimizer_num_requests_waiting',
+        ]
+        assert any(n in body for n in new_names)
 
 
 def test_metrics_name_presence(client):
-    # Ensure all required metric names appear regardless of values
-    any_state = {
-        'vllm_optimizer_request_success_total': 0,
-        'vllm_optimizer_generation_tokens_total': 1,
-        'vllm_optimizer_num_requests_running': 0,
-        'vllm_optimizer_num_requests_waiting': 0,
-        'vllm_optimizer_gpu_cache_usage_perc': 50,
-        'vllm_optimizer_gpu_utilization': 30,
-        'vllm_optimizer_time_to_first_token_seconds': 0.5,
-        'vllm_optimizer_e2e_request_latency_seconds': 0.8,
-    }
-
+    # Ensure all required new metric names appear and old names are absent
     with patch('backend.services.metrics_collector.MetricsCollector', autospec=True) as MockCollector:
-        MockCollector.return_value = _mock_collector_state(any_state)
+        MockCollector.return_value = _mock_collector_state({})
         resp = client.get("/api/metrics")
         assert resp.status_code == 200
         text = resp.text
@@ -108,18 +95,18 @@ def test_metrics_name_presence(client):
             'vllm_optimizer_e2e_request_latency_seconds',
         ]
         for name in required:
-            assert name in text
+            assert name in text, f"New metric name not found in output: {name}"
 
-        # Old names must NOT appear
+        # Old colliding names must NOT appear
         old_names = [
-            'vllm:request_success_total',
-            'vllm:generation_tokens_total',
             'vllm:num_requests_running',
             'vllm:num_requests_waiting',
             'vllm:gpu_cache_usage_perc',
             'vllm:gpu_utilization',
+            'vllm:request_success_total',
+            'vllm:generation_tokens_total',
             'vllm:time_to_first_token_seconds',
             'vllm:e2e_request_latency_seconds',
         ]
         for old in old_names:
-            assert old not in text, f"Old metric name still present: {old}"
+            assert old not in text, f"Old colliding metric name still present: {old}"

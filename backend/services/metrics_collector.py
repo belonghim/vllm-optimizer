@@ -52,71 +52,53 @@ class VLLMMetrics:
 
 # vLLM Prometheus 메트릭 쿼리 매핑
 def _build_queries(namespace: str) -> dict[str, dict[str, str]]:
+    ns = namespace
     return {
         "0.11.x": {
-            # Throughput
-            "tokens_per_second": f'rate(vllm:generation_tokens_total{{namespace="{namespace}"}}[1m])',
-            "requests_per_second": f'rate(vllm:request_success_total{{namespace="{namespace}"}}[1m])',
-            # Latency
-            "mean_ttft_ms": f'histogram_quantile(0.5, rate(vllm:time_to_first_token_seconds_bucket{{namespace="{namespace}"}}[1m])) * 1000',
-            "p99_ttft_ms": f'histogram_quantile(0.99, rate(vllm:time_to_first_token_seconds_bucket{{namespace="{namespace}"}}[1m])) * 1000',
-            "mean_e2e_latency_ms": f'histogram_quantile(0.5, rate(vllm:e2e_request_latency_seconds_bucket{{namespace="{namespace}"}}[1m])) * 1000',
-            "p99_e2e_latency_ms": f'histogram_quantile(0.99, rate(vllm:e2e_request_latency_seconds_bucket{{namespace="{namespace}"}}[1m])) * 1000',
-            # KV Cache — use vllm:kv_cache_usage_perc (NOT gpu_cache_usage_perc)
-            "kv_cache_usage_pct": f'vllm:kv_cache_usage_perc{{namespace="{namespace}"}} * 100',
-            "kv_cache_hit_rate": f'vllm:cache_config_info{{namespace="{namespace}"}}',
-            # Queue
-            "running_requests": f'vllm:num_requests_running{{namespace="{namespace}"}}',
-            "waiting_requests": f'vllm:num_requests_waiting{{namespace="{namespace}"}}',
-            # GPU Memory — vllm:gpu_memory_total_bytes does NOT exist in 0.11.x
-            # Use gpu_cache_usage_perc as a proxy for used memory fraction
-            "gpu_memory_used_gb": f'vllm:gpu_cache_usage_perc{{namespace="{namespace}"}}',
-            "gpu_memory_total_gb": f'vllm:gpu_cache_usage_perc{{namespace="{namespace}"}} * 0 + 1',  # placeholder: 1 GB sentinel
-            # GPU Utilization — use vllm:gpu_utilization (NOT vllm:gpu_utilization_perc)
-            "gpu_utilization_pct": f'vllm:gpu_utilization{{namespace="{namespace}"}} * 100',
+            "tokens_per_second": f'rate(vllm:generation_tokens_total{{namespace="{ns}"}}[1m])',
+            "requests_per_second": f'rate(vllm:request_success_total{{namespace="{ns}"}}[1m])',
+            "mean_ttft_ms": f'histogram_quantile(0.5, rate(vllm:time_to_first_token_seconds_bucket{{namespace="{ns}"}}[1m])) * 1000',
+            "p99_ttft_ms": f'histogram_quantile(0.99, rate(vllm:time_to_first_token_seconds_bucket{{namespace="{ns}"}}[1m])) * 1000',
+            "mean_e2e_latency_ms": f'histogram_quantile(0.5, rate(vllm:e2e_request_latency_seconds_bucket{{namespace="{ns}"}}[1m])) * 1000',
+            "p99_e2e_latency_ms": f'histogram_quantile(0.99, rate(vllm:e2e_request_latency_seconds_bucket{{namespace="{ns}"}}[1m])) * 1000',
+            "kv_cache_usage_pct": f'vllm:kv_cache_usage_perc{{namespace="{ns}"}} * 100',
+            "kv_cache_hit_rate": f'vllm:cache_config_info{{namespace="{ns}"}}',
+            "running_requests": f'vllm:num_requests_running{{namespace="{ns}"}}',
+            "waiting_requests": f'vllm:num_requests_waiting{{namespace="{ns}"}}',
+            "gpu_memory_used_gb": f'vllm:gpu_cache_usage_perc{{namespace="{ns}"}}',
+            "gpu_memory_total_gb": f'vllm:gpu_cache_usage_perc{{namespace="{ns}"}} * 0 + 1',
+            "gpu_utilization_pct": f'vllm:gpu_utilization{{namespace="{ns}"}} * 100',
         },
         "0.13.x": {
-            # Throughput
-            "tokens_per_second": f'sum(rate(vllm:num_generated_tokens{{namespace="{namespace}"}}[1m]))',
-            "requests_per_second": f'sum(rate(vllm:num_requests_finished{{namespace="{namespace}"}}[1m]))',
-            # Latency
-            "mean_ttft_ms": f'histogram_quantile(0.5, sum by (le) (rate(vllm:time_to_first_token_seconds_bucket{{namespace="{namespace}"}}[1m]))) * 1000',
-            "p99_ttft_ms": f'histogram_quantile(0.99, sum by (le) (rate(vllm:time_to_first_token_seconds_bucket{{namespace="{namespace}"}}[1m]))) * 1000',
-            "mean_e2e_latency_ms": f'histogram_quantile(0.5, sum by (le) (rate(vllm:e2e_request_latency_seconds_bucket{{namespace="{namespace}"}}[1m]))) * 1000',
-            "p99_e2e_latency_ms": f'histogram_quantile(0.99, sum by (le) (rate(vllm:e2e_request_latency_seconds_bucket{{namespace="{namespace}"}}[1m]))) * 1000',
-            # KV Cache
-            "kv_cache_usage_pct": f'vllm:kv_cache_usage_perc{{namespace="{namespace}"}} * 100',
-            "kv_cache_hit_rate": f'vllm:kv_cache_hit_rate{{namespace="{namespace}"}}',
-            # Queue
-            "running_requests": f'vllm:num_requests_running{{namespace="{namespace}"}}',
-            "waiting_requests": f'vllm:num_requests_waiting{{namespace="{namespace}"}}',
-            # GPU Memory
-            "gpu_memory_used_gb": f'vllm:gpu_memory_usage_bytes{{namespace="{namespace}"}} / 1024^3',
-            "gpu_memory_total_gb": f'vllm:gpu_memory_total_bytes{{namespace="{namespace}"}} / 1024^3',
-            # GPU Utilization
-            "gpu_utilization_pct": f'vllm:gpu_utilization_perc{{namespace="{namespace}"}} * 100',
+            "tokens_per_second": f'sum(rate(vllm:num_generated_tokens{{namespace="{ns}"}}[1m]))',
+            "requests_per_second": f'sum(rate(vllm:num_requests_finished{{namespace="{ns}"}}[1m]))',
+            "mean_ttft_ms": f'histogram_quantile(0.5, sum by (le) (rate(vllm:time_to_first_token_seconds_bucket{{namespace="{ns}"}}[1m]))) * 1000',
+            "p99_ttft_ms": f'histogram_quantile(0.99, sum by (le) (rate(vllm:time_to_first_token_seconds_bucket{{namespace="{ns}"}}[1m]))) * 1000',
+            "mean_e2e_latency_ms": f'histogram_quantile(0.5, sum by (le) (rate(vllm:e2e_request_latency_seconds_bucket{{namespace="{ns}"}}[1m]))) * 1000',
+            "p99_e2e_latency_ms": f'histogram_quantile(0.99, sum by (le) (rate(vllm:e2e_request_latency_seconds_bucket{{namespace="{ns}"}}[1m]))) * 1000',
+            "kv_cache_usage_pct": f'vllm:kv_cache_usage_perc{{namespace="{ns}"}} * 100',
+            "kv_cache_hit_rate": f'vllm:kv_cache_hit_rate{{namespace="{ns}"}}',
+            "running_requests": f'vllm:num_requests_running{{namespace="{ns}"}}',
+            "waiting_requests": f'vllm:num_requests_waiting{{namespace="{ns}"}}',
+            "gpu_memory_used_gb": f'vllm:gpu_memory_usage_bytes{{namespace="{ns}"}} / 1024^3',
+            "gpu_memory_total_gb": f'vllm:gpu_memory_total_bytes{{namespace="{ns}"}} / 1024^3',
+            "gpu_utilization_pct": f'vllm:gpu_utilization_perc{{namespace="{ns}"}} * 100',
         },
         "0.13.x-cpu": {
-            # Throughput — CPU node names differ from GPU metrics
-            "tokens_per_second": f'sum(rate(vllm:num_generated_tokens{{namespace="{namespace}"}}[1m]))',
-            "requests_per_second": f'sum(rate(vllm:num_requests_finished{{namespace="{namespace}"}}[1m]))',
-            # Latency
-            "mean_ttft_ms": f'histogram_quantile(0.5, rate(vllm:time_to_first_token_seconds_bucket{{namespace="{namespace}"}}[1m])) * 1000',
-            "p99_ttft_ms": f'histogram_quantile(0.99, rate(vllm:time_to_first_token_seconds_bucket{{namespace="{namespace}"}}[1m])) * 1000',
-            "mean_e2e_latency_ms": f'histogram_quantile(0.5, rate(vllm:e2e_request_latency_seconds_bucket{{namespace="{namespace}"}}[1m])) * 1000',
-            "p99_e2e_latency_ms": f'histogram_quantile(0.99, rate(vllm:e2e_request_latency_seconds_bucket{{namespace="{namespace}"}}[1m])) * 1000',
-            # KV Cache
-            "kv_cache_usage_pct": f'vllm:kv_cache_usage_perc{{namespace="{namespace}"}} * 100',
-            "kv_cache_hit_rate": f'vllm:cache_config_info{{namespace="{namespace}"}}',
-            # Queue
-            "running_requests": f'vllm:num_requests_running{{namespace="{namespace}"}}',
-            "waiting_requests": f'vllm:num_requests_waiting{{namespace="{namespace}"}}',
-            # CPU Memory — CPU nodes expose cache percent only
-            "gpu_memory_used_gb": f'vllm:gpu_cache_usage_perc{{namespace="{namespace}"}}',
-            "gpu_memory_total_gb": f'vllm:gpu_cache_usage_perc{{namespace="{namespace}"}} * 0 + 1',
-            # CPU Utilization — metric exists but stays at zero on CPU
-            "gpu_utilization_pct": f'vllm:gpu_utilization{{namespace="{namespace}"}} * 100',
-        }
+            "tokens_per_second": f'sum(rate(vllm:generation_tokens_total{{namespace="{ns}"}}[1m]))',
+            "requests_per_second": f'sum(rate(vllm:request_success_total{{namespace="{ns}"}}[1m]))',
+            "mean_ttft_ms": f'histogram_quantile(0.5, rate(vllm:time_to_first_token_seconds_bucket{{namespace="{ns}"}}[1m])) * 1000',
+            "p99_ttft_ms": f'histogram_quantile(0.99, rate(vllm:time_to_first_token_seconds_bucket{{namespace="{ns}"}}[1m])) * 1000',
+            "mean_e2e_latency_ms": f'histogram_quantile(0.5, rate(vllm:e2e_request_latency_seconds_bucket{{namespace="{ns}"}}[1m])) * 1000',
+            "p99_e2e_latency_ms": f'histogram_quantile(0.99, rate(vllm:e2e_request_latency_seconds_bucket{{namespace="{ns}"}}[1m])) * 1000',
+            "kv_cache_usage_pct": f'vllm:kv_cache_usage_perc{{namespace="{ns}"}} * 100',
+            "kv_cache_hit_rate": f'vllm:cache_config_info{{namespace="{ns}"}}',
+            "running_requests": f'vllm:num_requests_running{{namespace="{ns}"}}',
+            "waiting_requests": f'vllm:num_requests_waiting{{namespace="{ns}"}}',
+            "gpu_memory_used_gb": f'vllm:gpu_cache_usage_perc{{namespace="{ns}"}}',
+            "gpu_memory_total_gb": f'vllm:gpu_cache_usage_perc{{namespace="{ns}"}} * 0 + 1',
+            "gpu_utilization_pct": f'vllm:gpu_utilization{{namespace="{ns}"}} * 100',
+        },
     }
 
 

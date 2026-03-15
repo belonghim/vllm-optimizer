@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch, MagicMock
 from collections.abc import AsyncGenerator
 
 import backend.services.metrics_collector 
-from backend.services.metrics_collector import MetricsCollector, K8S_NAMESPACE, _build_queries
+from backend.services.metrics_collector import MetricsCollector, _build_queries
 
 class TestMetricsCollectorVersionDetection:
     @pytest_asyncio.fixture
@@ -98,25 +98,30 @@ class TestMetricsCollectorQuerySelection:
             yield collector
 
     async def test_queries_set_based_on_version_011x(self, mock_metrics_collector: MetricsCollector):
-        # Mock _detect_version to return "0.11.x"
         with patch.object(mock_metrics_collector, '_detect_version', return_value="0.11.x"):
             await mock_metrics_collector._post_init()
             assert mock_metrics_collector._version == "0.11.x"
-            assert mock_metrics_collector._current_queries == _build_queries(K8S_NAMESPACE)["0.11.x"]
+            assert mock_metrics_collector._current_queries == _build_queries("default")["0.11.x"]
 
     async def test_queries_set_based_on_version_013x(self, mock_metrics_collector: MetricsCollector):
-        # Mock _detect_version to return "0.13.x"
         with patch.object(mock_metrics_collector, '_detect_version', return_value="0.13.x"):
             await mock_metrics_collector._post_init()
             assert mock_metrics_collector._version == "0.13.x"
-            assert mock_metrics_collector._current_queries == _build_queries(K8S_NAMESPACE)["0.13.x"]
+            assert mock_metrics_collector._current_queries == _build_queries("default")["0.13.x"]
 
     async def test_queries_set_based_on_unknown_version_falls_back_to_011x(self, mock_metrics_collector: MetricsCollector):
-        # Mock _detect_version to return an unknown version
         with patch.object(mock_metrics_collector, '_detect_version', return_value="99.99.x"):
             await mock_metrics_collector._post_init()
-            assert mock_metrics_collector._version == "99.99.x" # The version itself is stored
-            assert mock_metrics_collector._current_queries == _build_queries(K8S_NAMESPACE)["0.11.x"] # But queries fall back
+            assert mock_metrics_collector._version == "99.99.x"
+            assert mock_metrics_collector._current_queries == _build_queries("default")["0.11.x"]
+
+    async def test_queries_contain_namespace_filter(self, mock_metrics_collector: MetricsCollector):
+        with patch.object(mock_metrics_collector, '_detect_version', return_value="0.13.x-cpu"):
+            await mock_metrics_collector._post_init()
+            queries = mock_metrics_collector._current_queries
+            assert queries is not None
+            for key, query in queries.items():
+                assert 'namespace=' in query, f"Query '{key}' missing namespace filter: {query}"
 
 class TestMetricsCollectorNaNFiltering:
     @pytest_asyncio.fixture
