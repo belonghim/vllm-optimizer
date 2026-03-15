@@ -22,6 +22,8 @@ function TunerPage() {
   const [trials, setTrials] = useState([]);
   const [importance, setImportance] = useState({});
   const [currentPhase, setCurrentPhase] = useState(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [currentConfig, setCurrentConfig] = useState(null);
   const [config, setConfig] = useState({
     objective: "balanced",
     n_trials: 20,
@@ -81,6 +83,14 @@ function TunerPage() {
     es.onerror = () => { es.close(); };
     return () => { es.close(); };
   }, [status.running, isMockEnabled, fetchStatus]);
+
+  useEffect(() => {
+    if (isMockEnabled) return;
+    fetch(`${API}/vllm-config`)
+      .then(r => r.json())
+      .then(data => { if (data.success) setCurrentConfig(data.data); })
+      .catch(() => {});
+  }, [isMockEnabled]);
 
   useEffect(() => {
     fetch(`${API}/config`)
@@ -210,6 +220,105 @@ function TunerPage() {
             {status.trials_completed} / {config.n_trials} trials
           </span>
         </div>
+
+        <div style={{ marginTop: 8 }}>
+          <button
+            onClick={() => setShowAdvanced(v => !v)}
+            style={{ fontSize: 11, padding: "4px 12px", background: "none", border: `1px solid ${COLORS.border}`, color: COLORS.muted, cursor: "pointer" }}
+          >
+            고급 설정 {showAdvanced ? "▲" : "▼"}
+          </button>
+        </div>
+
+        {showAdvanced && (
+          <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, padding: 16, marginTop: 8 }}>
+            {currentConfig && (
+              <div style={{ marginBottom: 12, padding: "8px 12px", background: "rgba(255,255,255,0.03)", fontSize: 11 }}>
+                <div style={{ color: COLORS.muted, marginBottom: 4, fontFamily: "'JetBrains Mono', monospace" }}>현재 vLLM 설정 (ConfigMap)</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 16px" }}>
+                  {Object.entries(currentConfig).map(([k, v]) => (
+                    <span key={k} style={{ fontFamily: "'JetBrains Mono', monospace", color: COLORS.text, fontSize: 11 }}>
+                      {k}: <span style={{ color: COLORS.accent }}>{v || "(비어있음)"}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="grid-form" style={{ gap: 12 }}>
+              <div>
+                <label className="label">max_model_len 범위</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input className="input" type="number" placeholder="Min" value={config.max_model_len_min}
+                    onChange={e => setConfig(c => ({ ...c, max_model_len_min: +e.target.value }))} />
+                  <input className="input" type="number" placeholder="Max" value={config.max_model_len_max}
+                    onChange={e => setConfig(c => ({ ...c, max_model_len_max: +e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <label className="label">max_num_batched_tokens 범위</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input className="input" type="number" placeholder="Min" value={config.max_num_batched_tokens_min}
+                    onChange={e => setConfig(c => ({ ...c, max_num_batched_tokens_min: +e.target.value }))} />
+                  <input className="input" type="number" placeholder="Max" value={config.max_num_batched_tokens_max}
+                    onChange={e => setConfig(c => ({ ...c, max_num_batched_tokens_max: +e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <label className="label">block_size 옵션</label>
+                <div style={{ display: "flex", gap: 12 }}>
+                  {[8, 16, 32].map(size => (
+                    <label key={size} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: COLORS.text, cursor: "pointer" }}>
+                      <input type="checkbox"
+                        checked={config.block_size_options.includes(size)}
+                        onChange={e => {
+                          setConfig(c => ({
+                            ...c,
+                            block_size_options: e.target.checked
+                              ? [...c.block_size_options, size].sort((a, b) => a - b)
+                              : c.block_size_options.filter(s => s !== size)
+                          }));
+                        }}
+                      />
+                      {size}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="label" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <input type="checkbox"
+                    checked={config.include_swap_space}
+                    onChange={e => setConfig(c => ({ ...c, include_swap_space: e.target.checked }))}
+                  />
+                  swap_space 포함
+                </label>
+                {config.include_swap_space && (
+                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                    <input className="input" type="number" step="0.5" placeholder="Min GB" value={config.swap_space_min}
+                      onChange={e => setConfig(c => ({ ...c, swap_space_min: +e.target.value }))} />
+                    <input className="input" type="number" step="0.5" placeholder="Max GB" value={config.swap_space_max}
+                      onChange={e => setConfig(c => ({ ...c, swap_space_max: +e.target.value }))} />
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className="label">평가 요청 수</label>
+                <input className="input" type="number" value={config.eval_requests}
+                  onChange={e => setConfig(c => ({ ...c, eval_requests: +e.target.value }))} />
+              </div>
+              <div>
+                <label className="label">평가 동시 요청</label>
+                <input className="input" type="number" value={config.eval_concurrency}
+                  onChange={e => setConfig(c => ({ ...c, eval_concurrency: +e.target.value }))} />
+              </div>
+              <div>
+                <label className="label">평가 RPS</label>
+                <input className="input" type="number" value={config.eval_rps}
+                  onChange={e => setConfig(c => ({ ...c, eval_rps: +e.target.value }))} />
+              </div>
+            </div>
+          </div>
+        )}
 
         {status.running && currentPhase && (
           <div style={{
