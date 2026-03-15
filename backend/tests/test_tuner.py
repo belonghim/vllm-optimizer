@@ -53,15 +53,9 @@ def mock_k8s_clients():
          patch('kubernetes.client.CustomObjectsApi') as mock_custom_api:
         
         mock_core_api.return_value.read_namespaced_config_map.return_value = MagicMock(data={})
-        _ready_deployment = MagicMock()
-        _ready_deployment.spec.replicas = 1
-        _ready_deployment.metadata.generation = 1
-        _ready_deployment.status.observed_generation = 1
-        _ready_deployment.status.ready_replicas = 1
-        _ready_deployment.status.updated_replicas = 1
-        _ready_deployment.status.unavailable_replicas = 0
-        mock_apps_api.return_value.read_namespaced_deployment_status.return_value = _ready_deployment
-        mock_apps_api.return_value.patch_namespaced_deployment = MagicMock()
+        mock_custom_api.return_value.get_namespaced_custom_object.return_value = {
+            "status": {"conditions": [{"type": "Ready", "status": "True"}]}
+        }
         mock_custom_api.return_value.patch_namespaced_custom_object = MagicMock()
         yield mock_apps_api, mock_core_api, mock_custom_api
 
@@ -135,7 +129,7 @@ def test_tuner_start_endpoint(client):
 @pytest.mark.asyncio
 async def test_apply_params_patches_correct_annotation_location(auto_tuner_instance, mock_k8s_clients):
     tuner = auto_tuner_instance
-    mock_apps_api = mock_k8s_clients[0].return_value
+    mock_custom_api = mock_k8s_clients[2].return_value
 
     params = {
         "max_num_seqs": 128,
@@ -146,74 +140,52 @@ async def test_apply_params_patches_correct_annotation_location(auto_tuner_insta
 
     await tuner._apply_params(params)
 
-    mock_apps_api.patch_namespaced_deployment.assert_called_once()
-    call_args = mock_apps_api.patch_namespaced_deployment.call_args
+    mock_custom_api.patch_namespaced_custom_object.assert_called_once()
+    call_args = mock_custom_api.patch_namespaced_custom_object.call_args
 
-    assert call_args.kwargs["name"] == K8S_DEPLOYMENT
+    assert call_args.kwargs["name"] == VLLM_IS_NAME
     assert call_args.kwargs["namespace"] == K8S_NAMESPACE
+    assert call_args.kwargs["group"] == "serving.kserve.io"
+    assert call_args.kwargs["plural"] == "inferenceservices"
 
     patch_body = call_args.kwargs["body"]
     assert "spec" in patch_body
-    assert "template" in patch_body["spec"]
-    assert "metadata" in patch_body["spec"]["template"]
-    assert "annotations" in patch_body["spec"]["template"]["metadata"]
-    assert "kubectl.kubernetes.io/restartedAt" in patch_body["spec"]["template"]["metadata"]["annotations"]
+    assert "predictor" in patch_body["spec"]
+    assert "annotations" in patch_body["spec"]["predictor"]
+    assert "serving.kserve.io/restartedAt" in patch_body["spec"]["predictor"]["annotations"]
 
 
 @pytest.mark.asyncio
 async def test_wait_for_ready_polls_inferenceservice_status(auto_tuner_instance, mock_k8s_clients):
     tuner = auto_tuner_instance
-    mock_apps_api = mock_k8s_clients[0].return_value
+    mock_custom_api = mock_k8s_clients[2].return_value
 
-    def _not_ready():
-        m = MagicMock()
-        m.spec.replicas = 1
-        m.metadata.generation = 2
-        m.status.observed_generation = 1
-        m.status.ready_replicas = 0
-        m.status.updated_replicas = 0
-        m.status.unavailable_replicas = 1
-        return m
-
-    def _ready():
-        m = MagicMock()
-        m.spec.replicas = 1
-        m.metadata.generation = 2
-        m.status.observed_generation = 2
-        m.status.ready_replicas = 1
-        m.status.updated_replicas = 1
-        m.status.unavailable_replicas = 0
-        return m
-
-    mock_apps_api.read_namespaced_deployment_status.side_effect = [
-        _not_ready(), _not_ready(), _ready()
+    mock_custom_api.get_namespaced_custom_object.side_effect = [
+        {"status": {"conditions": [{"type": "Ready", "status": "False"}]}},
+        {"status": {"conditions": [{"type": "Ready", "status": "False"}]}},
+        {"status": {"conditions": [{"type": "Ready", "status": "True"}]}},
     ]
 
     with patch('asyncio.sleep', new=AsyncMock()) as mock_sleep:
         ready = await tuner._wait_for_ready(timeout=10, interval=1)
         assert ready
-        assert mock_apps_api.read_namespaced_deployment_status.call_count == 3
+        assert mock_custom_api.get_namespaced_custom_object.call_count == 3
         assert mock_sleep.call_count == 2
 
 
 @pytest.mark.asyncio
 async def test_wait_for_ready_times_out(auto_tuner_instance, mock_k8s_clients):
     tuner = auto_tuner_instance
-    mock_apps_api = mock_k8s_clients[0].return_value
+    mock_custom_api = mock_k8s_clients[2].return_value
 
-    not_ready = MagicMock()
-    not_ready.spec.replicas = 1
-    not_ready.metadata.generation = 2
-    not_ready.status.observed_generation = 1
-    not_ready.status.ready_replicas = 0
-    not_ready.status.updated_replicas = 0
-    not_ready.status.unavailable_replicas = 1
-    mock_apps_api.read_namespaced_deployment_status.return_value = not_ready
+    mock_custom_api.get_namespaced_custom_object.return_value = {
+        "status": {"conditions": [{"type": "Ready", "status": "False"}]}
+    }
 
     with patch('asyncio.sleep', new=AsyncMock()) as mock_sleep:
         ready = await tuner._wait_for_ready(timeout=3, interval=1)
         assert not ready
-        assert mock_apps_api.read_namespaced_deployment_status.call_count > 1
+        assert mock_custom_api.get_namespaced_custom_object.call_count > 1
         assert mock_sleep.call_count >= 2
 
 
@@ -277,8 +249,8 @@ async def test_start_reapplies_best_params_at_end(auto_tuner_instance, mock_k8s_
     # The number of configmap patches should be equal to n_trials
     assert mock_core_api.patch_namespaced_config_map.call_count == config.n_trials
     
-    mock_apps_api = mock_k8s_clients[0].return_value
-    assert mock_apps_api.patch_namespaced_deployment.call_count == config.n_trials + 1
+    # IS patch should be called once per trial + once for final best params reapplication
+    assert mock_custom_api.patch_namespaced_custom_object.call_count == config.n_trials + 1
 
 
 @pytest.mark.asyncio
@@ -1041,8 +1013,8 @@ async def test_phase_events_broadcast_in_start(auto_tuner_instance, mock_k8s_cli
 @pytest.mark.asyncio
 async def test_apply_params_returns_failure_when_is_patch_throws(auto_tuner_instance, mock_k8s_clients):
     tuner = auto_tuner_instance
-    mock_apps_api = mock_k8s_clients[0].return_value
-    mock_apps_api.patch_namespaced_deployment.side_effect = Exception("Deployment not found")
+    mock_custom_api = mock_k8s_clients[2].return_value
+    mock_custom_api.patch_namespaced_custom_object.side_effect = Exception("InferenceService not found")
 
     params = {
         "max_num_seqs": 64,
@@ -1056,24 +1028,24 @@ async def test_apply_params_returns_failure_when_is_patch_throws(auto_tuner_inst
 
     assert result["success"] is False
     assert "error" in result
-    assert "Deployment" in result["error"] or "Deployment not found" in result["error"]
+    assert "InferenceService" in result["error"]
 
 
 @pytest.mark.asyncio
-async def test_rollback_uses_deployment_restart(auto_tuner_instance, mock_k8s_clients):
+async def test_rollback_uses_inferenceservice_annotation(auto_tuner_instance, mock_k8s_clients):
     tuner = auto_tuner_instance
-    mock_apps_api = mock_k8s_clients[0].return_value
+    mock_custom_api = mock_k8s_clients[2].return_value
 
     tuner._cm_snapshot = {"MAX_NUM_SEQS": "64"}
 
     await tuner._rollback_to_snapshot(0)
 
-    mock_apps_api.patch_namespaced_deployment.assert_called_once()
-    call_args = mock_apps_api.patch_namespaced_deployment.call_args
-    assert call_args.kwargs["name"] == K8S_DEPLOYMENT
+    mock_custom_api.patch_namespaced_custom_object.assert_called_once()
+    call_args = mock_custom_api.patch_namespaced_custom_object.call_args
+    assert call_args.kwargs["name"] == VLLM_IS_NAME
     assert call_args.kwargs["namespace"] == K8S_NAMESPACE
     patch_body = call_args.kwargs["body"]
-    assert "kubectl.kubernetes.io/restartedAt" in patch_body["spec"]["template"]["metadata"]["annotations"]
+    assert "serving.kserve.io/restartedAt" in patch_body["spec"]["predictor"]["annotations"]
 
 
 def test_config_has_resolved_model_name(client):

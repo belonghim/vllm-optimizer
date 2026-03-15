@@ -76,32 +76,31 @@ class AutoTuner:
 
     async def _wait_for_ready(self, timeout: int = 300, interval: int = 5) -> bool:
         import time as _time
-        logger.info(f"[AutoTuner] Deployment '{K8S_DEPLOYMENT}' rollout 완료 대기 중...")
+        logger.info(f"[AutoTuner] InferenceService '{VLLM_IS_NAME}' 준비 대기 중...")
         wait_start = _time.monotonic()
         start_time = asyncio.get_event_loop().time()
         result = False
         while asyncio.get_event_loop().time() - start_time < timeout:
             self._poll_count += 1
             try:
-                deployment = await asyncio.to_thread(
-                    self._k8s_apps.read_namespaced_deployment_status,
-                    name=K8S_DEPLOYMENT,
+                inferenceservice = await asyncio.to_thread(
+                    self._k8s_custom.get_namespaced_custom_object,
+                    group="serving.kserve.io",
+                    version="v1beta1",
+                    name=VLLM_IS_NAME,
                     namespace=K8S_NAMESPACE,
+                    plural="inferenceservices",
                 )
-                spec_replicas = deployment.spec.replicas or 1
-                s = deployment.status
-                if (
-                    s.observed_generation is not None
-                    and s.observed_generation >= (deployment.metadata.generation or 1)
-                    and (s.ready_replicas or 0) == spec_replicas
-                    and (s.updated_replicas or 0) == spec_replicas
-                    and (s.unavailable_replicas or 0) == 0
-                ):
-                    logger.info(f"[AutoTuner] Deployment '{K8S_DEPLOYMENT}' rollout 완료.")
-                    result = True
+                conditions = (inferenceservice or {}).get("status", {}).get("conditions", [])
+                for c in conditions:
+                    if c.get("type") == "Ready" and c.get("status") == "True":
+                        logger.info(f"[AutoTuner] InferenceService '{VLLM_IS_NAME}' 준비 완료.")
+                        result = True
+                        break
+                if result:
                     break
             except Exception as e:
-                logger.warning(f"[AutoTuner] Deployment 상태 확인 중 오류 발생: {e}")
+                logger.warning(f"[AutoTuner] IS 상태 확인 오류: {e}")
 
             await asyncio.sleep(interval)
 
@@ -110,7 +109,7 @@ class AutoTuner:
         self._total_wait_seconds += wait_duration
 
         if not result:
-            logger.error(f"[AutoTuner] Deployment '{K8S_DEPLOYMENT}' rollout 시간 초과: {timeout}초.")
+            logger.error(f"[AutoTuner] InferenceService '{VLLM_IS_NAME}' 시간 초과: {timeout}초.")
         return result
 
     async def subscribe(self) -> asyncio.Queue:
@@ -502,27 +501,31 @@ class AutoTuner:
                     logger.info(f"[AutoTuner] ConfigMap '{K8S_CONFIGMAP}' patched successfully.")
 
                 try:
+                    name = VLLM_IS_NAME
                     restart_body = {
                         "spec": {
-                            "template": {
-                                "metadata": {
-                                    "annotations": {
-                                        "kubectl.kubernetes.io/restartedAt": datetime.datetime.now(datetime.timezone.utc).isoformat()
-                                    }
+                            "predictor": {
+                                "annotations": {
+                                    "serving.kserve.io/restartedAt": datetime.datetime.now(
+                                        datetime.timezone.utc
+                                    ).isoformat()
                                 }
                             }
                         }
                     }
                     await asyncio.to_thread(
-                        self._k8s_apps.patch_namespaced_deployment,
-                        name=K8S_DEPLOYMENT,
+                        self._k8s_custom.patch_namespaced_custom_object,
+                        group="serving.kserve.io",
+                        version="v1beta1",
                         namespace=K8S_NAMESPACE,
+                        plural="inferenceservices",
+                        name=name,
                         body=restart_body,
                     )
-                    logger.info(f"[AutoTuner] Deployment '{K8S_DEPLOYMENT}' rollout restart triggered in '{K8S_NAMESPACE}'.")
+                    logger.info(f"[AutoTuner] InferenceService '{name}' restarted in '{K8S_NAMESPACE}'.")
                 except Exception as e:
-                    logger.error(f"[AutoTuner] Deployment 재시작 실패: {e}")
-                    return {"success": False, "error": f"Deployment restart failed: {e}"}
+                    logger.error(f"[AutoTuner] InferenceService restart failed: {e}")
+                    return {"success": False, "error": f"InferenceService restart failed: {e}"}
 
             return {"success": True}
         except Exception as e:
@@ -543,21 +546,22 @@ class AutoTuner:
                 )
                 rollback_restart_body = {
                     "spec": {
-                        "template": {
-                            "metadata": {
-                                "annotations": {
-                                    "kubectl.kubernetes.io/restartedAt": datetime.datetime.now(
-                                        datetime.timezone.utc
-                                    ).isoformat()
-                                }
+                        "predictor": {
+                            "annotations": {
+                                "serving.kserve.io/restartedAt": datetime.datetime.now(
+                                    datetime.timezone.utc
+                                ).isoformat()
                             }
                         }
                     }
                 }
                 await asyncio.to_thread(
-                    self._k8s_apps.patch_namespaced_deployment,
-                    name=K8S_DEPLOYMENT,
+                    self._k8s_custom.patch_namespaced_custom_object,
+                    group="serving.kserve.io",
+                    version="v1beta1",
                     namespace=K8S_NAMESPACE,
+                    plural="inferenceservices",
+                    name=VLLM_IS_NAME,
                     body=rollback_restart_body,
                 )
             self._last_rollback_trial = trial_num
