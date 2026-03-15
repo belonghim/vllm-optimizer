@@ -1,9 +1,11 @@
+import pytest
 from fastapi.testclient import TestClient
 from ..main import app
 
 client = TestClient(app)
 
 
+@pytest.mark.integration
 def test_integration_metrics_endpoint_no_mock():
     resp = client.get("/api/metrics")
     assert resp.status_code == 200
