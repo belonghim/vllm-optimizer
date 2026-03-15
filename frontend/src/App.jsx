@@ -33,7 +33,12 @@ const PAGES = [
 
 export default function App() {
   const [page, setPage] = useState("monitor");
-  const ActivePage = PAGES.find(p => p.id === page)?.Component ?? MonitorPage;
+
+  const handleSetPage = (id) => {
+    setPage(id);
+    requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+  };
+
 
   return (
     <>
@@ -57,7 +62,7 @@ export default function App() {
         <nav style={{ display: "flex", flex: 1 }}>
           {PAGES.map(p => (
             <button key={p.id} className={`nav-btn ${page === p.id ? "active" : ""}`}
-              onClick={() => setPage(p.id)}>
+              onClick={() => handleSetPage(p.id)}>
               {p.label}
             </button>
           ))}
@@ -73,9 +78,13 @@ export default function App() {
 
       {/* MAIN */}
       <main style={{ padding: 1, minHeight: "calc(100vh - 57px)", background: COLORS.bg }}>
-        <ErrorBoundary>
-          <ActivePage />
-        </ErrorBoundary>
+        {PAGES.map(p => (
+          <div key={p.id} style={{ display: page === p.id ? undefined : 'none' }}>
+            <ErrorBoundary>
+              <p.Component />
+            </ErrorBoundary>
+          </div>
+        ))}
       </main>
     </>
   );
