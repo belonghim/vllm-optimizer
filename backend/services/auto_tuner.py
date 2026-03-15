@@ -75,46 +75,42 @@ class AutoTuner:
             logger.warning("K8s client unavailable: %s", e)
 
     async def _wait_for_ready(self, timeout: int = 300, interval: int = 5) -> bool:
-        """InferenceService가 준비될 때까지 폴링합니다."""
         import time as _time
-        logger.info(f"[AutoTuner] InferenceService '{VLLM_IS_NAME}' 준비 대기 중...")
+        logger.info(f"[AutoTuner] Deployment '{K8S_DEPLOYMENT}' rollout 완료 대기 중...")
         wait_start = _time.monotonic()
         start_time = asyncio.get_event_loop().time()
         result = False
         while asyncio.get_event_loop().time() - start_time < timeout:
             self._poll_count += 1
             try:
-                inferenceservice = await asyncio.to_thread(
-                    self._k8s_custom.get_namespaced_custom_object,
-                    group="serving.kserve.io",
-                    version="v1beta1",
-                    name=VLLM_IS_NAME,
+                deployment = await asyncio.to_thread(
+                    self._k8s_apps.read_namespaced_deployment_status,
+                    name=K8S_DEPLOYMENT,
                     namespace=K8S_NAMESPACE,
-                    plural="inferenceservices",
                 )
-
-                if inspect.isawaitable(inferenceservice):
-                    inferenceservice = await inferenceservice
-                
-                if inferenceservice and "status" in inferenceservice and "conditions" in inferenceservice["status"]:
-                    for condition in inferenceservice["status"]["conditions"]:
-                        if condition.get("type") == "Ready" and condition.get("status") == "True":
-                            logger.info(f"[AutoTuner] InferenceService '{VLLM_IS_NAME}' 준비 완료.")
-                            result = True
-                            break
-                if result:
+                spec_replicas = deployment.spec.replicas or 1
+                s = deployment.status
+                if (
+                    s.observed_generation is not None
+                    and s.observed_generation >= (deployment.metadata.generation or 1)
+                    and (s.ready_replicas or 0) == spec_replicas
+                    and (s.updated_replicas or 0) == spec_replicas
+                    and (s.unavailable_replicas or 0) == 0
+                ):
+                    logger.info(f"[AutoTuner] Deployment '{K8S_DEPLOYMENT}' rollout 완료.")
+                    result = True
                     break
             except Exception as e:
-                logger.warning(f"[AutoTuner] InferenceService 상태 확인 중 오류 발생: {e}")
-            
+                logger.warning(f"[AutoTuner] Deployment 상태 확인 중 오류 발생: {e}")
+
             await asyncio.sleep(interval)
-        
+
         wait_duration = _time.monotonic() - wait_start
         self._wait_durations.append(round(wait_duration, 2))
         self._total_wait_seconds += wait_duration
 
         if not result:
-            logger.error(f"[AutoTuner] InferenceService '{VLLM_IS_NAME}' 시간 초과: {timeout}초 내에 준비되지 않음.")
+            logger.error(f"[AutoTuner] Deployment '{K8S_DEPLOYMENT}' rollout 시간 초과: {timeout}초.")
         return result
 
     async def subscribe(self) -> asyncio.Queue:
@@ -505,35 +501,28 @@ class AutoTuner:
                                              body=patch_body)
                     logger.info(f"[AutoTuner] ConfigMap '{K8S_CONFIGMAP}' patched successfully.")
 
-                # InferenceService 재시작 트리거
                 try:
-                    k8s_custom_api = self._k8s_custom
-                    group = "serving.kserve.io"
-                    version = "v1beta1"
-                    plural = "inferenceservices"
-                    name = VLLM_IS_NAME
-                    
                     restart_body = {
                         "spec": {
-                            "predictor": {
-                                "annotations": {
-                                    "serving.kserve.io/restartedAt": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+                            "template": {
+                                "metadata": {
+                                    "annotations": {
+                                        "kubectl.kubernetes.io/restartedAt": datetime.datetime.now(datetime.timezone.utc).isoformat()
+                                    }
                                 }
                             }
                         }
                     }
-                    
-                    await asyncio.to_thread(k8s_custom_api.patch_namespaced_custom_object,
-                                              group=group,
-                                              version=version,
-                                              namespace=K8S_NAMESPACE,
-                                              plural=plural,
-                                              name=name,
-                                              body=restart_body)
-                    logger.info(f"[AutoTuner] InferenceService '{name}' in namespace '{K8S_NAMESPACE}' restarted successfully.")
+                    await asyncio.to_thread(
+                        self._k8s_apps.patch_namespaced_deployment,
+                        name=K8S_DEPLOYMENT,
+                        namespace=K8S_NAMESPACE,
+                        body=restart_body,
+                    )
+                    logger.info(f"[AutoTuner] Deployment '{K8S_DEPLOYMENT}' rollout restart triggered in '{K8S_NAMESPACE}'.")
                 except Exception as e:
-                    logger.error(f"[AutoTuner] InferenceService 재시작 실패: {e}")
-                    return {"success": False, "error": f"InferenceService restart failed: {e}"}
+                    logger.error(f"[AutoTuner] Deployment 재시작 실패: {e}")
+                    return {"success": False, "error": f"Deployment restart failed: {e}"}
 
             return {"success": True}
         except Exception as e:
@@ -552,26 +541,24 @@ class AutoTuner:
                     namespace=K8S_NAMESPACE,
                     body={"data": self._cm_snapshot},
                 )
-                k8s_custom_api = self._k8s_custom
-                restart_body = {
+                rollback_restart_body = {
                     "spec": {
-                        "predictor": {
-                            "annotations": {
-                                "serving.kserve.io/restartedAt": datetime.datetime.now(
-                                    datetime.timezone.utc
-                                ).isoformat().replace("+00:00", "Z")
+                        "template": {
+                            "metadata": {
+                                "annotations": {
+                                    "kubectl.kubernetes.io/restartedAt": datetime.datetime.now(
+                                        datetime.timezone.utc
+                                    ).isoformat()
+                                }
                             }
                         }
                     }
                 }
                 await asyncio.to_thread(
-                    k8s_custom_api.patch_namespaced_custom_object,
-                    group="serving.kserve.io",
-                    version="v1beta1",
+                    self._k8s_apps.patch_namespaced_deployment,
+                    name=K8S_DEPLOYMENT,
                     namespace=K8S_NAMESPACE,
-                    plural="inferenceservices",
-                    name=VLLM_IS_NAME,
-                    body=restart_body,
+                    body=rollback_restart_body,
                 )
             self._last_rollback_trial = trial_num
             logger.info("[AutoTuner] Rollback to snapshot completed for trial %d", trial_num)
