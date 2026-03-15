@@ -18,13 +18,22 @@ beforeEach(() => {
 let mockEsInstance = null;
 
 class MockEventSource {
+  static CONNECTING = 0;
+  static OPEN = 1;
+  static CLOSED = 2;
+
   constructor(url) {
     this.url = url;
     this.onmessage = null;
     this.onerror = null;
+    this.readyState = MockEventSource.CONNECTING;
+    this.closeSpy = vi.fn();
     mockEsInstance = this;
   }
-  close() {}
+  close() {
+    this.readyState = MockEventSource.CLOSED;
+    this.closeSpy();
+  }
 }
 
 beforeEach(() => {
@@ -199,13 +208,16 @@ describe("LoadTestPage", () => {
     });
 
     it("shows success feedback after save", async () => {
-      vi.stubGlobal(
-        "fetch",
-        vi.fn()
-          .mockResolvedValueOnce({ ok: true, json: async () => ({}) })
-          .mockResolvedValueOnce({ ok: true, json: async () => ({ test_id: "t1", status: "started", config: { model: "m1" } }) })
-          .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 1 }) })
-      );
+      const fetch = vi.fn(url => {
+        if (url.toString().endsWith('/benchmark/save')) {
+          return Promise.resolve({ ok: true, json: async () => ({ id: 1 }) });
+        }
+        if (url.toString().endsWith('/load_test/start')) {
+          return Promise.resolve({ ok: true, json: async () => ({ test_id: "t1", status: "started", config: { model: "m1" } }) });
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) });
+      });
+      vi.stubGlobal("fetch", fetch);
 
       render(<LoadTestPage />);
       await act(async () => { fireEvent.click(screen.getByText("▶ Run Load Test")); });
@@ -229,13 +241,16 @@ describe("LoadTestPage", () => {
     });
 
     it("shows error feedback after failed save", async () => {
-      vi.stubGlobal(
-        "fetch",
-        vi.fn()
-          .mockResolvedValueOnce({ ok: true, json: async () => ({}) })
-          .mockResolvedValueOnce({ ok: true, json: async () => ({ test_id: "t1", status: "started", config: { model: "m1" } }) })
-          .mockResolvedValueOnce({ ok: false })
-      );
+      const fetch = vi.fn(url => {
+        if (url.toString().endsWith('/benchmark/save')) {
+          return Promise.resolve({ ok: false, status: 500 });
+        }
+        if (url.toString().endsWith('/load_test/start')) {
+          return Promise.resolve({ ok: true, json: async () => ({ test_id: "t1", status: "started", config: { model: "m1" } }) });
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) });
+      });
+      vi.stubGlobal("fetch", fetch);
 
       render(<LoadTestPage />);
       await act(async () => { fireEvent.click(screen.getByText("▶ Run Load Test")); });
@@ -265,13 +280,16 @@ describe("LoadTestPage", () => {
 
     it("disables button during save", async () => {
       let resolvePromise;
-      vi.stubGlobal(
-        "fetch",
-        vi.fn()
-          .mockResolvedValueOnce({ ok: true, json: async () => ({}) })
-          .mockResolvedValueOnce({ ok: true, json: async () => ({ test_id: "t1", status: "started", config: { model: "m1" } }) })
-          .mockImplementationOnce(() => new Promise(resolve => { resolvePromise = resolve; }))
-      );
+      const fetch = vi.fn(url => {
+        if (url.toString().endsWith('/benchmark/save')) {
+          return new Promise(resolve => { resolvePromise = resolve; });
+        }
+        if (url.toString().endsWith('/load_test/start')) {
+          return Promise.resolve({ ok: true, json: async () => ({ test_id: "t1", status: "started", config: { model: "m1" } }) });
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) });
+      });
+      vi.stubGlobal("fetch", fetch);
 
       render(<LoadTestPage />);
       await act(async () => { fireEvent.click(screen.getByText("▶ Run Load Test")); });
@@ -302,13 +320,16 @@ describe("LoadTestPage", () => {
     });
 
     it("disables button after successful save", async () => {
-      vi.stubGlobal(
-        "fetch",
-        vi.fn()
-          .mockResolvedValueOnce({ ok: true, json: async () => ({}) })
-          .mockResolvedValueOnce({ ok: true, json: async () => ({ test_id: "t1", status: "started", config: { model: "m1" } }) })
-          .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 1 }) })
-      );
+      const fetch = vi.fn(url => {
+        if (url.toString().endsWith('/benchmark/save')) {
+          return Promise.resolve({ ok: true, json: async () => ({ id: 1 }) });
+        }
+        if (url.toString().endsWith('/load_test/start')) {
+          return Promise.resolve({ ok: true, json: async () => ({ test_id: "t1", status: "started", config: { model: "m1" } }) });
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) });
+      });
+      vi.stubGlobal("fetch", fetch);
 
       render(<LoadTestPage />);
       await act(async () => { fireEvent.click(screen.getByText("▶ Run Load Test")); });
@@ -332,6 +353,52 @@ describe("LoadTestPage", () => {
 
       const button = screen.getByText("✓ Saved");
       expect(button).toBeDisabled();
+    });
+  });
+
+  describe("SSE onerror reconnect behavior", () => {
+    it("does not close EventSource and shows banner when readyState is CONNECTING", async () => {
+      render(<LoadTestPage />);
+      await act(async () => { fireEvent.click(screen.getByText("▶ Run Load Test")); });
+      await waitFor(() => expect(mockEsInstance).not.toBeNull());
+
+      mockEsInstance.readyState = MockEventSource.CONNECTING;
+      act(() => { mockEsInstance.onerror(); });
+
+      // Should not close the connection
+      expect(mockEsInstance.closeSpy).not.toHaveBeenCalled();
+      // Should show the reconnecting banner
+      expect(screen.getByText(/재연결 중/)).toBeInTheDocument();
+    });
+
+    it("shows reconnecting banner when onerror fires in CONNECTING state", async () => {
+      render(<LoadTestPage />);
+      await act(async () => { fireEvent.click(screen.getByText("▶ Run Load Test")); });
+      await waitFor(() => expect(mockEsInstance).not.toBeNull());
+
+      mockEsInstance.readyState = 0; // CONNECTING
+      act(() => { mockEsInstance.onerror(); });
+
+      expect(screen.getByText(/재연결 중/)).toBeInTheDocument();
+      expect(screen.queryByText(/SSE 연결 실패/)).not.toBeInTheDocument();
+    });
+
+    it("clears reconnecting banner when valid SSE message received", async () => {
+      render(<LoadTestPage />);
+      await act(async () => { fireEvent.click(screen.getByText("▶ Run Load Test")); });
+      await waitFor(() => expect(mockEsInstance).not.toBeNull());
+
+      mockEsInstance.readyState = 0;
+      act(() => { mockEsInstance.onerror(); });
+      expect(screen.getByText(/재연결 중/)).toBeInTheDocument();
+
+      act(() => {
+        mockEsInstance.onmessage({
+          data: JSON.stringify({ type: "progress", data: { total: 1, total_requested: 10 } }),
+        });
+      });
+
+      expect(screen.queryByText(/재연결 중/)).not.toBeInTheDocument();
     });
   });
 });

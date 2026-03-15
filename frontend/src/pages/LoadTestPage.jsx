@@ -27,8 +27,9 @@ function LoadTestPage() {
    const [error, setError] = useState(null);
    const [isSaving, setIsSaving] = useState(false);
    const [saveStatus, setSaveStatus] = useState(null);
+   const [isReconnecting, setIsReconnecting] = useState(false);
    const esRef = useRef(null);
-   const mockTimerRef = useRef(null);
+   const retryCountRef = useRef(0);
 
    const start = async () => {
      setStatus("running");
@@ -37,6 +38,7 @@ function LoadTestPage() {
      setProgress(0);
      setError(null);
      setSaveStatus(null);
+     retryCountRef.current = 0;
 
     if (isMockEnabled) {
       // Mock mode: simulate locally
@@ -60,11 +62,12 @@ function LoadTestPage() {
       const es = new EventSource(`${API}/load_test/stream`);
       esRef.current = es;
       es.onmessage = (e) => {
+        retryCountRef.current = 0;
+        setIsReconnecting(false);
         let data;
         try {
           data = JSON.parse(e.data);
-        } catch (parseErr) {
-          console.warn("[SSE] Failed to parse message:", parseErr);
+        } catch {
           return;
         }
         if (data.type === "progress" && data.data) {
@@ -88,7 +91,15 @@ function LoadTestPage() {
         }
       };
       es.onerror = () => {
-        setError("SSE 연결 실패: 부하 테스트 스트림에 연결할 수 없습니다.");
+        if (es.readyState === EventSource.CONNECTING) {
+          retryCountRef.current += 1;
+          if (retryCountRef.current <= 3) {
+            setIsReconnecting(true);
+            return;
+          }
+        }
+        setIsReconnecting(false);
+        setError("SSE 연결 실패: 부하 테스트 스트림에 연결할 수 없습니다. (최대 재시도 횟수 초과)");
         setStatus("error");
         es.close();
         esRef.current = null;
@@ -141,20 +152,13 @@ function LoadTestPage() {
     fetch(`${API}/config`)
       .then(r => r.json())
       .then(data => {
-        if (data.vllm_endpoint) {
-          setConfig(c => ({ ...c, endpoint: c.endpoint || data.vllm_endpoint }));
-        }
-      })
-      .catch(() => {}); // silently fail — user can type manually
-  }, []);
-
-  useEffect(() => {
-    fetch(`${API}/config`)
-      .then(r => r.json())
-      .then(data => {
-        if (data.resolved_model_name && data.resolved_model_name !== "auto") {
-          setConfig(c => ({ ...c, model: c.model === "auto" ? data.resolved_model_name : c.model }));
-        }
+        setConfig(c => ({
+          ...c,
+          ...(data.vllm_endpoint ? { endpoint: c.endpoint || data.vllm_endpoint } : {}),
+          ...(data.resolved_model_name && data.resolved_model_name !== "auto"
+            ? { model: c.model === "auto" ? data.resolved_model_name : c.model }
+            : {}),
+        }));
       })
       .catch(() => {});
   }, []);
@@ -216,6 +220,19 @@ function LoadTestPage() {
             <span className={`tag tag-${status}`}>{status.toUpperCase()}</span>
           </div>
         </div>
+
+      {isReconnecting && status === "running" && (
+        <div style={{
+          background: "rgba(255,180,0,0.08)",
+          border: "1px solid rgba(255,180,0,0.4)",
+          color: "#ffb400",
+          padding: "10px 16px",
+          fontSize: 12,
+          fontFamily: font.mono,
+        }}>
+          ↺ SSE 재연결 중... ({retryCountRef.current}/3회 시도)
+        </div>
+      )}
 
       {error && (
         <div style={{
