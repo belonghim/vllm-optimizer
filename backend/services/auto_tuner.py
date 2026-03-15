@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 K8S_NAMESPACE = os.getenv("K8S_NAMESPACE", "default")
 K8S_DEPLOYMENT = os.getenv("K8S_DEPLOYMENT_NAME", "vllm-deployment")
 K8S_CONFIGMAP = os.getenv("K8S_CONFIGMAP_NAME", "vllm-config")
+VLLM_IS_NAME = os.getenv("VLLM_DEPLOYMENT_NAME") or "llm-ov"
 
 
 class AutoTuner:
@@ -87,7 +88,7 @@ class AutoTuner:
                     self._k8s_custom.get_namespaced_custom_object,
                     group="serving.kserve.io",
                     version="v1beta1",
-                    name=K8S_DEPLOYMENT,
+                    name=VLLM_IS_NAME,
                     namespace=K8S_NAMESPACE,
                     plural="inferenceservices",
                 )
@@ -98,7 +99,7 @@ class AutoTuner:
                 if inferenceservice and "status" in inferenceservice and "conditions" in inferenceservice["status"]:
                     for condition in inferenceservice["status"]["conditions"]:
                         if condition.get("type") == "Ready" and condition.get("status") == "True":
-                            logger.info(f"[AutoTuner] InferenceService '{K8S_DEPLOYMENT}' 준비 완료.")
+                            logger.info(f"[AutoTuner] InferenceService '{VLLM_IS_NAME}' 준비 완료.")
                             result = True
                             break
                 if result:
@@ -113,7 +114,7 @@ class AutoTuner:
         self._total_wait_seconds += wait_duration
 
         if not result:
-            logger.error(f"[AutoTuner] InferenceService '{K8S_DEPLOYMENT}' 시간 초과: {timeout}초 내에 준비되지 않음.")
+            logger.error(f"[AutoTuner] InferenceService '{VLLM_IS_NAME}' 시간 초과: {timeout}초 내에 준비되지 않음.")
         return result
 
     async def subscribe(self) -> asyncio.Queue:
@@ -510,7 +511,7 @@ class AutoTuner:
                     group = "serving.kserve.io"
                     version = "v1beta1"
                     plural = "inferenceservices"
-                    name = K8S_DEPLOYMENT # Use K8S_DEPLOYMENT for InferenceService name
+                    name = VLLM_IS_NAME
                     
                     restart_body = {
                         "spec": {
@@ -532,6 +533,7 @@ class AutoTuner:
                     logger.info(f"[AutoTuner] InferenceService '{name}' in namespace '{K8S_NAMESPACE}' restarted successfully.")
                 except Exception as e:
                     logger.error(f"[AutoTuner] InferenceService 재시작 실패: {e}")
+                    return {"success": False, "error": f"InferenceService restart failed: {e}"}
 
             return {"success": True}
         except Exception as e:
@@ -568,7 +570,7 @@ class AutoTuner:
                     version="v1beta1",
                     namespace=K8S_NAMESPACE,
                     plural="inferenceservices",
-                    name=K8S_DEPLOYMENT,
+                    name=VLLM_IS_NAME,
                     body=restart_body,
                 )
             self._last_rollback_trial = trial_num
