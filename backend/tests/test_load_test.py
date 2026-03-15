@@ -1,3 +1,4 @@
+import asyncio
 import sys
 import time
 
@@ -137,3 +138,129 @@ def test_compute_stats_total_requested_defaults_to_zero():
     engine._state.results.append(RequestResult(req_id=0, success=True, latency=0.1))
     stats = engine._compute_stats()
     assert stats.get("total_requested") == 0
+
+
+async def test_gather_phase_broadcasts_progress_per_result():
+    """gather 구간에서 per-result broadcast가 발생하는지 검증"""
+    from services.load_engine import LoadTestEngine, LoadTestState, LoadTestStatus
+    from models.load_test import LoadTestConfig, RequestResult
+
+    engine = LoadTestEngine()
+    q = await engine.subscribe()
+
+    config = LoadTestConfig(total_requests=3)
+    engine._state = LoadTestState(
+        status=LoadTestStatus.RUNNING,
+        start_time=time.time(),
+        total_requests=config.total_requests,
+    )
+    engine._stop_event.clear()
+
+    results = [
+        RequestResult(req_id=0, success=True, latency=0.1, output_tokens=10, tps=100.0),
+        RequestResult(req_id=1, success=True, latency=0.2, output_tokens=20, tps=100.0),
+        RequestResult(req_id=2, success=True, latency=0.15, output_tokens=15, tps=100.0),
+    ]
+
+    async def fake_task(r):
+        return r
+
+    tasks = [asyncio.create_task(fake_task(r)) for r in results]
+    processed_tasks = set()
+
+    for fut in asyncio.as_completed([t for t in tasks if t not in processed_tasks]):
+        try:
+            result = await fut
+        except Exception as e:
+            result = RequestResult(
+                req_id=-1,
+                success=False,
+                latency=0.0,
+                error=str(e),
+            )
+
+        async with engine._state_lock:
+            engine._state.results.append(result)
+            if result.success:
+                engine._state.completed_requests += 1
+            else:
+                engine._state.failed_requests += 1
+            processed_tasks.add(fut)
+
+        stats = engine._compute_stats()
+        await engine._broadcast({"type": "progress", "data": stats})
+
+    events = []
+    for _ in range(3):
+        try:
+            events.append(q.get_nowait())
+        except asyncio.QueueEmpty:
+            break
+
+    assert len(events) == 3, f"Expected 3 broadcast events, got {len(events)}"
+    for ev in events:
+        assert ev["type"] == "progress"
+
+    await engine.unsubscribe(q)
+
+
+async def test_gather_phase_handles_exceptions_as_failed_results():
+    """gather 구간 exception이 failed_requests 카운터에 반영되는지 검증"""
+    from services.load_engine import LoadTestEngine, LoadTestState, LoadTestStatus
+    from models.load_test import RequestResult
+
+    engine = LoadTestEngine()
+    q = await engine.subscribe()
+
+    engine._state = LoadTestState(
+        status=LoadTestStatus.RUNNING,
+        start_time=time.time(),
+        total_requests=2,
+    )
+
+    async def success_task():
+        return RequestResult(req_id=0, success=True, latency=0.1, output_tokens=5, tps=50.0)
+
+    async def failing_task():
+        raise RuntimeError("Simulated request failure")
+
+    tasks = [
+        asyncio.create_task(success_task()),
+        asyncio.create_task(failing_task()),
+    ]
+
+    for fut in asyncio.as_completed(tasks):
+        try:
+            result = await fut
+        except Exception as e:
+            result = RequestResult(
+                req_id=-1,
+                success=False,
+                latency=0.0,
+                error=str(e),
+            )
+
+        async with engine._state_lock:
+            engine._state.results.append(result)
+            if result.success:
+                engine._state.completed_requests += 1
+            else:
+                engine._state.failed_requests += 1
+
+        stats = engine._compute_stats()
+        await engine._broadcast({"type": "progress", "data": stats})
+
+    assert engine._state.failed_requests == 1, (
+        f"Expected failed_requests=1, got {engine._state.failed_requests}"
+    )
+    assert engine._state.completed_requests == 1
+
+    events = []
+    for _ in range(2):
+        try:
+            events.append(q.get_nowait())
+        except asyncio.QueueEmpty:
+            break
+    assert len(events) == 2
+
+    await engine.unsubscribe(q)
