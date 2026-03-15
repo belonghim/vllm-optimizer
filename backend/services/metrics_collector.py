@@ -97,8 +97,8 @@ VLLM_QUERIES_BY_VERSION: dict[str, dict[str, str]] = {
     },
     "0.13.x-cpu": {
         # Throughput — CPU node names differ from GPU metrics
-        "tokens_per_second": 'rate(vllm:generation_tokens_total[1m])',
-        "requests_per_second": 'rate(vllm:request_success_total[1m])',
+        "tokens_per_second": 'sum(rate(vllm:generation_tokens_total[1m]))',
+        "requests_per_second": 'sum(rate(vllm:request_success_total[1m]))',
         # Latency
         "mean_ttft_ms": 'histogram_quantile(0.5, rate(vllm:time_to_first_token_seconds_bucket[1m])) * 1000',
         "p99_ttft_ms": 'histogram_quantile(0.99, rate(vllm:time_to_first_token_seconds_bucket[1m])) * 1000',
