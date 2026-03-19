@@ -4,8 +4,8 @@
 """
 import logging
 import asyncio
-import inspect
 import os
+import time
 import datetime
 import math
 from .model_resolver import resolve_model_name
@@ -76,9 +76,8 @@ class AutoTuner:
             logger.warning("K8s client unavailable: %s", e)
 
     async def _wait_for_ready(self, timeout: int = 300, interval: int = 5) -> bool:
-        import time as _time
         logger.info(f"[AutoTuner] InferenceService '{VLLM_IS_NAME}' 준비 대기 중...")
-        wait_start = _time.monotonic()
+        wait_start = time.monotonic()
         start_time = asyncio.get_event_loop().time()
         result = False
         while asyncio.get_event_loop().time() - start_time < timeout:
@@ -105,7 +104,7 @@ class AutoTuner:
 
             await asyncio.sleep(interval)
 
-        wait_duration = _time.monotonic() - wait_start
+        wait_duration = time.monotonic() - wait_start
         self._wait_durations.append(round(wait_duration, 2))
         self._total_wait_seconds += wait_duration
 
@@ -155,20 +154,23 @@ class AutoTuner:
             "per_trial_waits": [round(d, 2) for d in self._wait_durations],
         }
 
+    async def _init_tuning_state(self, config: TuningConfig) -> None:
+        self._running = True
+        self._config = config
+        self._trials = []
+        self._best_score_history = []
+        self._best_trial = None
+        self._pareto_front_size = None
+        storage_url = os.getenv("OPTUNA_STORAGE_URL")
+        self._direction, self._study = await self._setup_study(config, storage_url)
+
     async def start(self, config: TuningConfig, vllm_endpoint: str) -> dict:
         async with self._lock:
             if self._running:
                 return {"error": "이미 튜닝이 실행 중입니다."}
             if not OPTUNA_AVAILABLE:
                 return {"error": "optuna 패키지가 필요합니다: pip install optuna"}
-            self._running = True
-            self._config = config
-            self._trials = []
-            self._best_score_history = []
-            self._best_trial = None
-            self._pareto_front_size = None
-            storage_url = os.getenv("OPTUNA_STORAGE_URL")
-            self._direction, self._study = await self._setup_study(config, storage_url)
+            await self._init_tuning_state(config)
 
         self._vllm_endpoint = vllm_endpoint
         try:
@@ -179,8 +181,7 @@ class AutoTuner:
                 async with self._study_lock:
                     trial = self._study.ask()
                 params = self._suggest_params(trial, config)
-                import time as _time
-                _trial_start = _time.monotonic()
+                        _trial_start = time.monotonic()
 
                 await self._broadcast({
                     "type": "trial_start",
@@ -297,32 +298,42 @@ class AutoTuner:
         """트라이얼 성능 평가 실행. (score, tps, p99_lat) 반환."""
         return await self._evaluate(self._vllm_endpoint, self._config, trial=trial)
 
+    async def _emit_trial_metrics(self, trial_start: float, status: str) -> None:
+        try:
+            if _METRICS_AVAILABLE:
+                tuner_trial_duration_seconds.observe(time.monotonic() - trial_start)
+                tuner_trials_total.labels(status=status).inc()
+                if status == "completed" and self._best_trial is not None:
+                    tuner_best_score.labels(objective=self._config.objective).set(self._best_trial.score)
+        except Exception as _e:  # intentional: non-critical metrics
+            logger.debug("[AutoTuner] Metrics emit failed (non-critical): %s", _e)
+
+    async def _update_pareto_front(self) -> None:
+        try:
+            pareto_trial_numbers = {t.number for t in self._study.best_trials}
+            async with self._lock:
+                for recorded in self._trials:
+                    recorded.is_pareto_optimal = (recorded.trial_id in pareto_trial_numbers)
+            self._pareto_front_size = len(pareto_trial_numbers)
+        except Exception as e:  # intentional: non-critical
+            logger.debug("[AutoTuner] Pareto front update failed: %s", e)
+
     async def _handle_trial_result(
         self, trial, trial_num: int, score, tps, p99_lat, trial_start, params
     ) -> bool:
         """트라이얼 결과 처리. 가지치기된 경우 True 반환."""
-        import time as _time
         if self._config.objective != "pareto" and trial.should_prune():
             async with self._study_lock:
                 self._study.tell(trial, state=optuna.trial.TrialState.PRUNED)
-            t = TuningTrial(
-                trial_id=trial_num, params=params, tps=tps,
-                p99_latency=p99_lat, score=score, status="pruned", pruned=True,
-            )
+            t = TuningTrial(trial_id=trial_num, params=params, tps=tps,
+                            p99_latency=p99_lat, score=score, status="pruned", pruned=True)
             async with self._lock:
                 self._trials.append(t)
                 self._best_score_history.append(self._best_trial.score if self._best_trial else 0)
-            try:
-                if _METRICS_AVAILABLE:
-                    tuner_trial_duration_seconds.observe(_time.monotonic() - trial_start)
-                    tuner_trials_total.labels(status="pruned").inc()
-            except Exception as _e:  # intentional: non-critical metrics
-                logger.debug("[AutoTuner] Metrics emit failed (non-critical): %s", _e)
-            await self._broadcast({
-                "type": "trial_complete",
-                "data": {"trial_id": trial_num, "score": score, "tps": tps,
-                         "p99_latency": p99_lat, "pruned": True},
-            })
+            await self._emit_trial_metrics(trial_start, "pruned")
+            await self._broadcast({"type": "trial_complete", "data": {
+                "trial_id": trial_num, "score": score, "tps": tps,
+                "p99_latency": p99_lat, "pruned": True}})
             return True
 
         if self._config.objective == "pareto":
@@ -333,10 +344,8 @@ class AutoTuner:
             async with self._study_lock:
                 self._study.tell(trial, score)
 
-        t = TuningTrial(
-            trial_id=trial_num, params=params, tps=tps,
-            p99_latency=p99_lat, score=score, status="completed",
-        )
+        t = TuningTrial(trial_id=trial_num, params=params, tps=tps,
+                        p99_latency=p99_lat, score=score, status="completed")
         async with self._lock:
             self._trials.append(t)
             direction = self._direction
@@ -345,30 +354,12 @@ class AutoTuner:
                (direction == "minimize" and score < self._best_trial.score):
                 self._best_trial = t
             self._best_score_history.append(self._best_trial.score if self._best_trial else score)
-        try:
-            if _METRICS_AVAILABLE:
-                tuner_trial_duration_seconds.observe(_time.monotonic() - trial_start)
-                tuner_trials_total.labels(status="completed").inc()
-                if self._best_trial is not None:
-                    tuner_best_score.labels(objective=self._config.objective).set(self._best_trial.score)
-        except Exception as _e:  # intentional: non-critical metrics
-            logger.debug("[AutoTuner] Metrics emit failed (non-critical): %s", _e)
-
+        await self._emit_trial_metrics(trial_start, "completed")
         if self._config.objective == "pareto":
-            try:
-                pareto_trial_numbers = {t.number for t in self._study.best_trials}
-                async with self._lock:
-                    for recorded in self._trials:
-                        recorded.is_pareto_optimal = (recorded.trial_id in pareto_trial_numbers)
-                self._pareto_front_size = len(pareto_trial_numbers)
-            except Exception as e:  # intentional: non-critical
-                logger.debug("[AutoTuner] Pareto front update failed: %s", e)
-
-        await self._broadcast({
-            "type": "trial_complete",
-            "data": {"trial_id": trial_num, "score": score, "tps": tps,
-                     "p99_latency": p99_lat, "pruned": False},
-        })
+            await self._update_pareto_front()
+        await self._broadcast({"type": "trial_complete", "data": {
+            "trial_id": trial_num, "score": score, "tps": tps,
+            "p99_latency": p99_lat, "pruned": False}})
         return False
 
     async def _finalize_tuning(self) -> None:
