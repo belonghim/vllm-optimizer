@@ -11,7 +11,7 @@ from .model_resolver import resolve_model_name
 from typing import Optional, List, Any, cast
 from kubernetes import client as k8s_client, config as k8s_config
 from kubernetes.client.exceptions import ApiException
-from models.load_test import TuningConfig, TuningTrial, LoadTestConfig
+from models.load_test import TuningConfig, TuningTrial, LoadTestConfig  # pyright: ignore[reportImplicitRelativeImport]
 
 import optuna
 optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -23,7 +23,7 @@ tuner_trials_total: Any = None
 tuner_best_score: Any = None
 tuner_trial_duration_seconds: Any = None
 try:
-    from metrics.prometheus_metrics import (
+    from metrics.prometheus_metrics import (  # pyright: ignore[reportImplicitRelativeImport]
         tuner_trials_total,  # type: ignore[assignment]
         tuner_best_score,  # type: ignore[assignment]
         tuner_trial_duration_seconds,  # type: ignore[assignment]
@@ -106,7 +106,7 @@ class AutoTuner:
                     namespace=K8S_NAMESPACE,
                     plural="inferenceservices",
                 )
-                _isvc: dict[str, Any] = cast(dict, inferenceservice) if inferenceservice else {}
+                _isvc: dict[str, Any] = cast(dict[str, Any], inferenceservice) if inferenceservice else {}
                 conditions = _isvc.get("status", {}).get("conditions", [])
                 for c in conditions:
                     if c.get("type") == "Ready" and c.get("status") == "True":
@@ -143,7 +143,7 @@ class AutoTuner:
             except ValueError:
                 pass
 
-    async def _broadcast(self, data: dict):
+    async def _broadcast(self, data: dict[str, Any]) -> None:
         """Broadcast an event to all subscribers."""
         async with self._subscribers_lock:
             targets = list(self._subscribers)
@@ -163,7 +163,7 @@ class AutoTuner:
         return self._running
 
     @property
-    def wait_metrics(self) -> dict:
+    def wait_metrics(self) -> dict[str, Any]:
         return {
             "total_wait_seconds": round(self._total_wait_seconds, 2),
             "poll_count": self._poll_count,
@@ -180,7 +180,7 @@ class AutoTuner:
         storage_url = os.getenv("OPTUNA_STORAGE_URL")
         self._direction, self._study = await self._setup_study(config, storage_url)
 
-    async def start(self, config: TuningConfig, vllm_endpoint: str) -> dict:
+    async def start(self, config: TuningConfig, vllm_endpoint: str) -> dict[str, Any]:
         async with self._lock:
             if self._running:
                 return {"error": "이미 튜닝이 실행 중입니다."}
@@ -195,6 +195,7 @@ class AutoTuner:
                     break
 
                 async with self._study_lock:
+                    assert self._study is not None
                     trial = self._study.ask()
                 params = self._suggest_params(trial, config)
                 _trial_start = time.monotonic()
@@ -238,14 +239,16 @@ class AutoTuner:
         finally:
             self._running = False
 
-    async def _setup_study(self, config: TuningConfig, storage_url: str | None) -> tuple:
+    async def _setup_study(
+        self, config: TuningConfig, storage_url: str | None
+    ) -> tuple[str, optuna.Study]:
         """Optuna study 초기화 및 반환."""
         direction = "maximize"
         if config.objective == "pareto":
             sampler = optuna.samplers.NSGAIISampler(seed=42)
             pruner = optuna.pruners.NopPruner()
             _study_name = "vllm-tuner-pareto"
-            direction_kwarg = {"directions": ["maximize", "minimize"]}
+            direction_kwarg: dict[str, Any] = {"directions": ["maximize", "minimize"]}
         else:
             direction = "maximize" if config.objective == "tps" else "minimize"
             sampler = optuna.samplers.TPESampler(seed=42)
@@ -260,7 +263,7 @@ class AutoTuner:
                     storage_url,
                     engine_kwargs={"connect_args": {"check_same_thread": False}},
                 )
-                study = await asyncio.to_thread(
+                study = await asyncio.to_thread(  # type: ignore[arg-type]
                     optuna.create_study,
                     sampler=sampler,
                     pruner=pruner,
@@ -276,13 +279,17 @@ class AutoTuner:
                     logger.info("[AutoTuner] Warm-start: enqueued previous best params: %s", best_params)
             except Exception as e:  # intentional: storage fallback (SQLAlchemy/Optuna errors too diverse)
                 logger.warning("[AutoTuner] SQLite storage failed, falling back to in-memory: %s", e)
-                study = optuna.create_study(sampler=sampler, pruner=pruner, **direction_kwarg)
+                study = optuna.create_study(
+                    sampler=sampler, pruner=pruner, **direction_kwarg
+                )  # type: ignore[arg-type]
         else:
-            study = optuna.create_study(sampler=sampler, pruner=pruner, **direction_kwarg)
+            study = optuna.create_study(
+                sampler=sampler, pruner=pruner, **direction_kwarg
+            )  # type: ignore[arg-type]
 
         return direction, study
 
-    async def _apply_trial_params(self, trial, trial_num: int, params: dict) -> bool:
+    async def _apply_trial_params(self, trial, trial_num: int, params: dict[str, Any]) -> bool:
         """InferenceService args 업데이트. 실패 시 Optuna FAIL 처리 후 False 반환."""
         await self._broadcast({
             "type": "phase",
@@ -291,6 +298,7 @@ class AutoTuner:
         apply_result = await self._apply_params(params)
         if not apply_result["success"]:
             async with self._study_lock:
+                assert self._study is not None
                 self._study.tell(trial, state=optuna.trial.TrialState.FAIL)
             return False
         return True
@@ -302,6 +310,7 @@ class AutoTuner:
             logger.warning("[AutoTuner] Trial %d: InferenceService not ready, rolling back", trial_num)
             await self._rollback_to_snapshot(trial_num)
             async with self._study_lock:
+                assert self._study is not None
                 self._study.tell(trial, state=optuna.trial.TrialState.FAIL)
             return False
         return True
@@ -310,22 +319,25 @@ class AutoTuner:
         """InferenceService args rollback (_rollback_to_snapshot의 named alias)."""
         return await self._rollback_to_snapshot(trial_num)
 
-    async def _run_trial_evaluation(self, trial) -> tuple:
+    async def _run_trial_evaluation(self, trial) -> tuple[Any, ...]:
         """트라이얼 성능 평가 실행. (score, tps, p99_lat) 반환."""
+        assert self._config is not None
         return await self._evaluate(self._vllm_endpoint, self._config, trial=trial)
 
     async def _emit_trial_metrics(self, trial_start: float, status: str) -> None:
         try:
-            if _METRICS_AVAILABLE:
+            if _metrics_available:
                 tuner_trial_duration_seconds.observe(time.monotonic() - trial_start)
                 tuner_trials_total.labels(status=status).inc()
                 if status == "completed" and self._best_trial is not None:
+                    assert self._config is not None
                     tuner_best_score.labels(objective=self._config.objective).set(self._best_trial.score)
         except Exception as _e:  # intentional: non-critical metrics
             logger.debug("[AutoTuner] Metrics emit failed (non-critical): %s", _e)
 
     async def _update_pareto_front(self) -> None:
         try:
+            assert self._study is not None
             pareto_trial_numbers = {t.number for t in self._study.best_trials}
             async with self._lock:
                 for recorded in self._trials:
@@ -338,8 +350,10 @@ class AutoTuner:
         self, trial, trial_num: int, score, tps, p99_lat, trial_start, params
     ) -> bool:
         """트라이얼 결과 처리. 가지치기된 경우 True 반환."""
+        assert self._config is not None
         if self._config.objective != "pareto" and trial.should_prune():
             async with self._study_lock:
+                assert self._study is not None
                 self._study.tell(trial, state=optuna.trial.TrialState.PRUNED)
             t = TuningTrial(trial_id=trial_num, params=params, tps=tps,
                             p99_latency=p99_lat, score=score, status="pruned", pruned=True)
@@ -354,10 +368,12 @@ class AutoTuner:
 
         if self._config.objective == "pareto":
             async with self._study_lock:
+                assert self._study is not None
                 self._study.tell(trial, [tps, p99_lat])
             score = tps / (p99_lat + 1) * 100
         else:
             async with self._study_lock:
+                assert self._study is not None
                 self._study.tell(trial, score)
 
         t = TuningTrial(trial_id=trial_num, params=params, tps=tps,
@@ -380,6 +396,8 @@ class AutoTuner:
 
     async def _finalize_tuning(self) -> None:
         """튜닝 완료 후 최적 파라미터 적용 및 완료 broadcast."""
+        assert self._config is not None
+        assert self._study is not None
         if self._best_trial:
             logger.info(
                 f"[AutoTuner] 튜닝 완료. 최적 파라미터로 InferenceService 재설정: {self._best_trial.params}"
@@ -398,8 +416,8 @@ class AutoTuner:
         async with self._lock:
             self._running = False
 
-    def _suggest_params(self, trial, config: TuningConfig) -> dict:
-        params: dict[str, object] = {}
+    def _suggest_params(self, trial, config: TuningConfig) -> dict[str, Any]:
+        params: dict[str, Any] = {}
 
         params["max_num_seqs"] = trial.suggest_int(
             "max_num_seqs",
@@ -469,7 +487,7 @@ class AutoTuner:
 
         return params
 
-    def _params_to_args(self, params: dict) -> list[str]:
+    def _params_to_args(self, params: dict[str, Any]) -> list[str]:
         """Convert tuning params to vLLM command-line args list."""
         args: list[str] = []
 
@@ -507,7 +525,7 @@ class AutoTuner:
 
         return args
 
-    async def _apply_params(self, params: dict) -> dict:
+    async def _apply_params(self, params: dict[str, Any]) -> dict[str, Any]:
         if not self._k8s_available:
             logger.info(f"[AutoTuner] K8s 없음 — 파라미터 적용 시뮬레이션: {params}")
             return {"success": True}
@@ -523,7 +541,10 @@ class AutoTuner:
                     namespace=K8S_NAMESPACE,
                     plural="inferenceservices",
                 )
-                current_args = (isvc.get("spec", {}).get("predictor", {}).get("model", {}).get("args") or [])
+                _isvc2: dict[str, Any] = cast(dict[str, Any], isvc) if isvc else {}
+                current_args = (
+                    _isvc2.get("spec", {}).get("predictor", {}).get("model", {}).get("args") or []
+                )
                 self._is_args_snapshot = list(current_args)
 
                 tuning_args = self._params_to_args(params)
@@ -596,7 +617,7 @@ class AutoTuner:
             logger.error("[AutoTuner] Rollback failed for trial %d: %s", trial_num, e)
             return False
 
-    def _compute_trial_score(self, result: dict, config: TuningConfig) -> float:
+    def _compute_trial_score(self, result: dict[str, Any], config: TuningConfig) -> float:
         """부하 테스트 결과에서 점수 계산."""
         tps = result.get("tps", {}).get("total", 0)
         p99_lat = result.get("latency", {}).get("p99", 9999)
@@ -705,7 +726,7 @@ class AutoTuner:
 
         return score, tps, p99_lat
 
-    def get_importance(self) -> dict:
+    def get_importance(self) -> dict[str, Any]:
         """파라미터 중요도 반환 (Optuna FAnova)"""
         if not self._study or len(self._trials) < 5:
             return {}
