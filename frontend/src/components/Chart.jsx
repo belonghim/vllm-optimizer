@@ -9,18 +9,21 @@ const CustomTooltip = ({ active, payload, label }) => {
   const visible = payload.filter(e => !String(e.dataKey).endsWith('_fill'));
   if (!visible.length) return null;
   return (
-    <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, fontSize: 11, padding: '4px 8px' }}>
-      <p style={{ color: COLORS.muted, margin: '0 0 4px' }}>{label}</p>
-      {visible.map(e => (
-        <p key={e.dataKey} style={{ color: e.color, margin: 0 }}>{e.name}: {e.value != null ? Number(e.value).toFixed(1) : '—'}</p>
-      ))}
+    <div className="chart-tooltip">
+      <p className="chart-tooltip-label">{label}</p>
+      {visible.map(e => {
+        const entryStyle = { color: e.color };
+        return (
+          <p key={e.dataKey} className="chart-tooltip-entry" style={entryStyle}>{e.name}: {e.value != null ? Number(e.value).toFixed(1) : '—'}</p>
+        );
+      })}
     </div>
   );
 };
 
 function Chart({ data, lines, title, height = 180 }) {
   return (
-    <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, padding: 16 }}>
+    <div className="chart-container">
       <div className="section-title">{title}</div>
       <ResponsiveContainer width="100%" height={height}>
         <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>

@@ -1,15 +1,13 @@
-import { COLORS } from '../constants';
-
 function MetricCard({ label, value, unit, color = "amber", delta }) {
   return (
     <div className={`metric-card ${color}`}>
       <div className="label">{label}</div>
-      <div className="big-num" style={{ color: COLORS[color] || COLORS.accent }}>
+      <div className="big-num">
         {value ?? "—"}
       </div>
       <div className="big-unit">{unit}</div>
       {delta != null && (
-        <div style={{ fontSize: 10, color: delta >= 0 ? COLORS.green : COLORS.red, marginTop: 4 }}>
+        <div className={`metric-card-delta ${delta >= 0 ? 'metric-card-delta--pos' : 'metric-card-delta--neg'}`}>
           {delta >= 0 ? "▲" : "▼"} {Math.abs(delta).toFixed(1)}%
         </div>
       )}

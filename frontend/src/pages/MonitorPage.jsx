@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { mockMetrics, mockHistory } from "../mockData";
 import { useMockData } from "../contexts/MockDataContext";
-import { API, COLORS, font } from "../constants";
+import { API, COLORS } from "../constants";
 import MetricCard from "../components/MetricCard";
 import Chart from "../components/Chart";
 import ErrorAlert from "../components/ErrorAlert";
@@ -63,26 +63,26 @@ function MonitorPage() {
   }, [isMockEnabled]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+    <div className="flex-col-1">
       <ErrorAlert message={error} className="error-alert--m08" />
-      <div className="grid-4" style={{ gap: 1 }}>
+      <div className="grid-4 gap-1">
         <MetricCard label="Tokens / sec" value={fmt(metrics?.tps, 0)} unit="TPS" color="amber" />
         <MetricCard label="TTFT Mean" value={fmt(metrics?.ttft_mean, 0)} unit="ms" color="cyan" />
         <MetricCard label="P99 Latency" value={fmt(metrics?.latency_p99, 0)} unit="ms" color="red" />
         <MetricCard label="KV Cache" value={fmt(metrics?.kv_cache, 1)} unit="%" color="purple" />
       </div>
-      <div className="grid-4" style={{ gap: 1 }}>
+      <div className="grid-4 gap-1">
         <MetricCard label="Running Reqs" value={metrics?.running ?? "—"} unit="requests" color="green" />
         <MetricCard label="Waiting Reqs" value={metrics?.waiting ?? "—"} unit="queue" color="red" />
         <MetricCard label="GPU Memory" value={metrics?.gpu_mem_used ? `${fmt(metrics.gpu_mem_used, 1)} / ${fmt(metrics.gpu_mem_total, 0)}` : "—"} unit="GB" color="amber" />
         <MetricCard label="Pods Ready" value={metrics ? `${metrics.pods_ready} / ${metrics.pods}` : "—"} unit="k8s pods" color="cyan" />
       </div>
-      <div className="grid-2" style={{ gap: 1 }}>
+      <div className="grid-2 gap-1">
         <Chart data={history} title="Throughput (TPS)" lines={[
           { key: "tps", color: COLORS.accent, label: "TPS" },
         ]} />
       </div>
-      <div className="grid-2" style={{ gap: 1 }}>
+      <div className="grid-2 gap-1">
         <Chart data={history} title="Latency (ms)" lines={[
           { key: "ttft_fill", color: COLORS.cyan, label: "TTFT (idle)", dash: true },
           { key: "lat_p99_fill", color: COLORS.red, label: "P99 (idle)", dash: true },
@@ -90,12 +90,12 @@ function MonitorPage() {
           { key: "lat_p99", color: COLORS.red, label: "P99" },
         ]} />
       </div>
-      <div className="grid-2" style={{ gap: 1 }}>
+      <div className="grid-2 gap-1">
         <Chart data={history} title="KV Cache Usage (%)" lines={[
           { key: "kv", color: COLORS.purple, label: "KV Cache %" },
         ]} />
       </div>
-      <div className="grid-2" style={{ gap: 1 }}>
+      <div className="grid-2 gap-1">
         <Chart data={history} title="Request Queue" lines={[
           { key: "running", color: COLORS.green, label: "Running" },
           { key: "waiting", color: COLORS.red, label: "Waiting" },

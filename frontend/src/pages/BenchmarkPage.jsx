@@ -7,6 +7,8 @@ import ErrorAlert from "../components/ErrorAlert";
 
 const fmt = (n, d = 1) => (n == null ? "—" : Number(n).toFixed(d));
 
+const TOOLTIP_STYLE = { background: COLORS.surface, border: `1px solid ${COLORS.border}` };
+
 function BenchmarkPage() {
   const [benchmarks, setBenchmarks] = useState([]);
   const [selected, setSelected] = useState([]);
@@ -19,7 +21,6 @@ function BenchmarkPage() {
       setError(null);
       return;
     }
-    // Real API mode
     fetch(`${API}/benchmark/list`)
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -52,9 +53,9 @@ function BenchmarkPage() {
     }));
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div className="flex-col-16">
       <ErrorAlert message={error} className="error-alert--mb8" />
-      <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, padding: 20 }}>
+      <div className="panel">
         <div className="section-title">저장된 벤치마크</div>
         <table className="table">
           <thead>
@@ -63,17 +64,17 @@ function BenchmarkPage() {
           <tbody>
             {benchmarks.map(b => (
               <tr key={b.id} onClick={() => toggle(b.id)}
-                style={{ cursor: "pointer", background: selected.includes(b.id) ? "rgba(245,166,35,0.05)" : "" }}>
+                className={selected.includes(b.id) ? 'benchmark-row benchmark-row--selected' : 'benchmark-row'}>
                 <td>
                   <input type="checkbox" checked={selected.includes(b.id)} readOnly />
                 </td>
-                <td style={{ color: COLORS.text }}>{b.name}</td>
-                <td style={{ color: COLORS.cyan }}>{b.config?.model || "—"}</td>
-                <td style={{ color: COLORS.muted }}>{new Date(b.timestamp * 1000).toLocaleDateString()}</td>
-                <td style={{ color: COLORS.accent }}>{fmt(b.result?.tps?.mean, 1)}</td>
-                <td style={{ color: COLORS.red }}>{fmt((b.result?.latency?.p99 || 0) * 1000, 0)}</td>
+                <td className="td-text">{b.name}</td>
+                <td className="td-cyan">{b.config?.model || "—"}</td>
+                <td className="td-muted">{new Date(b.timestamp * 1000).toLocaleDateString()}</td>
+                <td className="td-accent">{fmt(b.result?.tps?.mean, 1)}</td>
+                <td className="td-red">{fmt((b.result?.latency?.p99 || 0) * 1000, 0)}</td>
                 <td>{fmt(b.result?.rps_actual, 1)}</td>
-                <td style={{ color: COLORS.green }}>
+                <td className="td-green">
                   {b.result?.gpu_utilization_avg > 0
                     ? (b.result.tps.mean / b.result.gpu_utilization_avg).toFixed(1)
                     : "—"}
@@ -81,7 +82,7 @@ function BenchmarkPage() {
               </tr>
             ))}
             {benchmarks.length === 0 && (
-              <tr><td colSpan={8} style={{ color: COLORS.muted, textAlign: "center", padding: 32 }}>
+              <tr><td colSpan={8} className="benchmark-empty">
                 부하 테스트 결과를 저장하면 여기 나타납니다.
               </td></tr>
             )}
@@ -90,9 +91,9 @@ function BenchmarkPage() {
       </div>
 
       {compareData.length >= 2 && (
-        <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, padding: 20 }}>
+        <div className="panel">
           <div className="section-title">비교 차트</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+          <div className="benchmark-compare-charts">
             <div>
               <div className="label">TPS 비교</div>
               <ResponsiveContainer width="100%" height={200}>
@@ -100,7 +101,7 @@ function BenchmarkPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
                   <XAxis dataKey="name" tick={{ fontSize: 9, fill: COLORS.muted }} />
                   <YAxis tick={{ fontSize: 9, fill: COLORS.muted }} />
-                  <Tooltip contentStyle={{ background: COLORS.surface, border: `1px solid ${COLORS.border}` }} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} />
                   <Bar dataKey="tps" fill={COLORS.accent} name="TPS" />
                 </BarChart>
               </ResponsiveContainer>
@@ -112,7 +113,7 @@ function BenchmarkPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
                   <XAxis dataKey="name" tick={{ fontSize: 9, fill: COLORS.muted }} />
                   <YAxis tick={{ fontSize: 9, fill: COLORS.muted }} />
-                  <Tooltip contentStyle={{ background: COLORS.surface, border: `1px solid ${COLORS.border}` }} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} />
                   <Bar dataKey="p99" fill={COLORS.red} name="P99 ms" />
                 </BarChart>
               </ResponsiveContainer>
@@ -124,7 +125,7 @@ function BenchmarkPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
                   <XAxis dataKey="name" tick={{ fontSize: 9, fill: COLORS.muted }} />
                   <YAxis tick={{ fontSize: 9, fill: COLORS.muted }} />
-                  <Tooltip contentStyle={{ background: COLORS.surface, border: `1px solid ${COLORS.border}` }} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} />
                   <Bar dataKey="gpuEff" fill={COLORS.green} name="GPU Eff." />
                 </BarChart>
               </ResponsiveContainer>
