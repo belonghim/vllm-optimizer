@@ -1,5 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
+from typing import Any
 
 from ..main import app
 from ..models.load_test import LoadTestConfig, LoadTestResult, LatencyStats, TpsStats
@@ -70,7 +71,7 @@ def clear_storage():
     benchmark_storage.clear()
 
 
-_BASE_PAYLOAD = {
+_BASE_PAYLOAD: dict[str, Any] = {
     "name": "test",
     "config": {
         "endpoint": "http://fake:8080",
@@ -99,8 +100,8 @@ def test_by_model_empty(client):
 
 
 def test_by_model_grouping(client):
-    client.post("/api/benchmark/save", json={**_BASE_PAYLOAD, "name": "run-A"})  # type: ignore[arg-type]
-    payload_b = {**_BASE_PAYLOAD, "name": "run-B", "config": {**_BASE_PAYLOAD["config"], "model": "model-B"}}  # type: ignore[arg-type]
+    client.post("/api/benchmark/save", json={**_BASE_PAYLOAD, "name": "run-A"})  # type: ignore
+    payload_b = {**_BASE_PAYLOAD, "name": "run-B", "config": {**_BASE_PAYLOAD["config"], "model": "model-B"}}  # type: ignore
     client.post("/api/benchmark/save", json=payload_b)
 
     resp = client.get("/api/benchmark/by-model")
@@ -122,7 +123,7 @@ def test_by_model_gpu_efficiency(client):
 
 def test_by_model_gpu_zero(client):
     payload = {
-        **_BASE_PAYLOAD,  # type: ignore[arg-type]
+        **_BASE_PAYLOAD,  # type: ignore
         "result": {**_BASE_PAYLOAD["result"], "gpu_utilization_avg": 0.0},
     }
     client.post("/api/benchmark/save", json=payload)

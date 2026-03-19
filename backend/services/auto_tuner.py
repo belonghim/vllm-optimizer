@@ -63,6 +63,7 @@ class AutoTuner:
         self._vllm_endpoint: str = ""
         self._config: Optional[TuningConfig] = None  # Set in start()
         self._k8s_available = False
+        self._k8s_core: Optional[k8s_client.CoreV1Api] = None
         self._is_args_snapshot: list[str] | None = None
         self._last_rollback_trial: int | None = None
         self._pareto_front_size: int | None = None

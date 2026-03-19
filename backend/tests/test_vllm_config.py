@@ -1,5 +1,7 @@
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 from ..main import app
@@ -16,12 +18,14 @@ def client_with_vllm_config(client):
 
 
 def _get_vllm_config_globals(client: TestClient, method: str | None = None):
-    for route in client.app.routes:  # type: ignore[attr-defined]
+    for route in cast(FastAPI, client.app).routes:
         if getattr(route, "path", None) != "/api/vllm-config":
             continue
-        if method and method not in route.methods:
+        if method and method not in getattr(route, "methods", set()):
             continue
-        return route.endpoint.__globals__
+        endpoint = getattr(route, "endpoint", None)
+        if endpoint is not None:
+            return endpoint.__globals__
     return None
 
 
