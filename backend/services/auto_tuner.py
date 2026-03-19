@@ -11,6 +11,7 @@ import math
 from .model_resolver import resolve_model_name
 from typing import Optional, List
 from kubernetes import client as k8s_client, config as k8s_config
+from kubernetes.client.exceptions import ApiException
 from models.load_test import TuningConfig, TuningTrial, LoadTestConfig
 
 import optuna
@@ -65,13 +66,13 @@ class AutoTuner:
         try:
             try:
                 k8s_config.load_incluster_config()
-            except Exception:
+            except k8s_config.ConfigException:
                 k8s_config.load_kube_config()
             self._k8s_apps = k8s_client.AppsV1Api()
             self._k8s_core = k8s_client.CoreV1Api()
             self._k8s_custom = k8s_client.CustomObjectsApi()
             self._k8s_available = True
-        except Exception as e:
+        except k8s_config.ConfigException as e:
             logger.warning("K8s client unavailable: %s", e)
 
     async def _wait_for_ready(self, timeout: int = 300, interval: int = 5) -> bool:
@@ -99,7 +100,7 @@ class AutoTuner:
                         break
                 if result:
                     break
-            except Exception as e:
+            except ApiException as e:
                 logger.warning(f"[AutoTuner] IS 상태 확인 오류: {e}")
 
             await asyncio.sleep(interval)
@@ -256,7 +257,7 @@ class AutoTuner:
                     best_params = study.best_trial.params
                     study.enqueue_trial(params=best_params)
                     logger.info("[AutoTuner] Warm-start: enqueued previous best params: %s", best_params)
-            except Exception as e:
+            except Exception as e:  # intentional: storage fallback (SQLAlchemy/Optuna errors too diverse)
                 logger.warning("[AutoTuner] SQLite storage failed, falling back to in-memory: %s", e)
                 study = optuna.create_study(sampler=sampler, pruner=pruner, **direction_kwarg)
         else:
@@ -315,7 +316,7 @@ class AutoTuner:
                 if _METRICS_AVAILABLE:
                     tuner_trial_duration_seconds.observe(_time.monotonic() - trial_start)
                     tuner_trials_total.labels(status="pruned").inc()
-            except Exception as _e:
+            except Exception as _e:  # intentional: non-critical metrics
                 logger.debug("[AutoTuner] Metrics emit failed (non-critical): %s", _e)
             await self._broadcast({
                 "type": "trial_complete",
@@ -350,7 +351,7 @@ class AutoTuner:
                 tuner_trials_total.labels(status="completed").inc()
                 if self._best_trial is not None:
                     tuner_best_score.labels(objective=self._config.objective).set(self._best_trial.score)
-        except Exception as _e:
+        except Exception as _e:  # intentional: non-critical metrics
             logger.debug("[AutoTuner] Metrics emit failed (non-critical): %s", _e)
 
         if self._config.objective == "pareto":
@@ -360,7 +361,7 @@ class AutoTuner:
                     for recorded in self._trials:
                         recorded.is_pareto_optimal = (recorded.trial_id in pareto_trial_numbers)
                 self._pareto_front_size = len(pareto_trial_numbers)
-            except Exception as e:
+            except Exception as e:  # intentional: non-critical
                 logger.debug("[AutoTuner] Pareto front update failed: %s", e)
 
         await self._broadcast({
@@ -527,12 +528,12 @@ class AutoTuner:
                         body=restart_body,
                     )
                     logger.info(f"[AutoTuner] InferenceService '{name}' restarted in '{K8S_NAMESPACE}'.")
-                except Exception as e:
+                except ApiException as e:
                     logger.error(f"[AutoTuner] InferenceService restart failed: {e}")
                     return {"success": False, "error": f"InferenceService restart failed: {e}"}
 
             return {"success": True}
-        except Exception as e:
+        except Exception as e:  # intentional: K8s operation fallback
             logger.error(f"[AutoTuner] 파라미터 적용 실패: {e}")
             return {"success": False, "error": str(e)}
 
@@ -571,7 +572,7 @@ class AutoTuner:
             self._last_rollback_trial = trial_num
             logger.info("[AutoTuner] Rollback to snapshot completed for trial %d", trial_num)
             return True
-        except Exception as e:
+        except ApiException as e:
             logger.error("[AutoTuner] Rollback failed for trial %d: %s", trial_num, e)
             return False
 
@@ -608,7 +609,7 @@ class AutoTuner:
         try:
             await self._load_engine.run(warmup_config)
             logger.info("[AutoTuner] Warmup completed (%d requests)", config.warmup_requests)
-        except Exception as e:
+        except Exception as e:  # intentional: warmup non-critical
             logger.warning("[AutoTuner] Warmup failed (continuing): %s", e)
 
     async def _run_probe_load(
@@ -692,10 +693,10 @@ class AutoTuner:
         try:
             if hasattr(self._study, "directions") and len(getattr(self._study, "directions", [])) > 1:
                 return {}
-        except Exception as e:
+        except optuna.exceptions.OptunaError as e:
             logger.debug("[AutoTuner] Multi-objective check failed: %s", e)
         try:
             importance = optuna.importance.get_param_importances(self._study)
             return dict(importance)
-        except Exception:
+        except optuna.exceptions.OptunaError:
             return {}
