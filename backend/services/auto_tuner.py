@@ -6,7 +6,6 @@ import logging
 import asyncio
 import os
 import time
-import datetime
 import math
 from .model_resolver import resolve_model_name
 from typing import Optional, List
@@ -501,86 +500,53 @@ class AutoTuner:
 
         return args
 
-    async def _apply_params(self, params: dict, restart_only: bool = False) -> dict:
-        """InferenceService args 업데이트 → 자동 재시작"""
+    async def _apply_params(self, params: dict) -> dict:
         if not self._k8s_available:
             logger.info(f"[AutoTuner] K8s 없음 — 파라미터 적용 시뮬레이션: {params}")
             return {"success": True}
 
         try:
             async with self._k8s_lock:
-                if not restart_only:
-                    # Get current IS args and take snapshot
-                    logger.info(f"[AutoTuner] InferenceService '{VLLM_IS_NAME}' in namespace '{K8S_NAMESPACE}'")
-                    isvc = await asyncio.to_thread(
-                        self._k8s_custom.get_namespaced_custom_object,
-                        group="serving.kserve.io",
-                        version="v1beta1",
-                        name=VLLM_IS_NAME,
-                        namespace=K8S_NAMESPACE,
-                        plural="inferenceservices",
-                    )
-                    # Snapshot current args
-                    current_args = (isvc.get("spec", {}).get("predictor", {}).get("model", {}).get("args") or [])
-                    self._is_args_snapshot = list(current_args)
+                logger.info(f"[AutoTuner] InferenceService '{VLLM_IS_NAME}' in namespace '{K8S_NAMESPACE}'")
+                isvc = await asyncio.to_thread(
+                    self._k8s_custom.get_namespaced_custom_object,
+                    group="serving.kserve.io",
+                    version="v1beta1",
+                    name=VLLM_IS_NAME,
+                    namespace=K8S_NAMESPACE,
+                    plural="inferenceservices",
+                )
+                current_args = (isvc.get("spec", {}).get("predictor", {}).get("model", {}).get("args") or [])
+                self._is_args_snapshot = list(current_args)
 
-                    # Convert params to tuning args
-                    tuning_args = self._params_to_args(params)
+                tuning_args = self._params_to_args(params)
 
-                    # Filter out existing tuning args from current args to preserve static args
-                    static_args = [
-                        arg for arg in self._is_args_snapshot
-                        if not any(arg.startswith(prefix) for prefix in TUNING_ARG_PREFIXES)
-                    ]
+                static_args = [
+                    arg for arg in self._is_args_snapshot
+                    if not any(arg.startswith(prefix) for prefix in TUNING_ARG_PREFIXES)
+                ]
 
-                    # New args = static args + tuning args
-                    new_args = static_args + tuning_args
+                new_args = static_args + tuning_args
 
-                    # Patch IS with new args
-                    patch_body = {
-                        "spec": {
-                            "predictor": {
-                                "model": {
-                                    "args": new_args
-                                }
+                patch_body = {
+                    "spec": {
+                        "predictor": {
+                            "model": {
+                                "args": new_args
                             }
                         }
                     }
-                    await asyncio.to_thread(
-                        self._k8s_custom.patch_namespaced_custom_object,
-                        group="serving.kserve.io",
-                        version="v1beta1",
-                        namespace=K8S_NAMESPACE,
-                        plural="inferenceservices",
-                        name=VLLM_IS_NAME,
-                        body=patch_body,
-                    )
-                    logger.info(f"[AutoTuner] InferenceService '{VLLM_IS_NAME}' args patched successfully: {tuning_args}")
-                else:
-                    # restart_only: no args change, just let KServe auto-restart via spec change
-                    # Actually, we need to trigger restart. Since we're not changing args,
-                    # we need to use annotation to force restart.
-                    restart_body = {
-                        "spec": {
-                            "predictor": {
-                                "annotations": {
-                                    "serving.kserve.io/restartedAt": datetime.datetime.now(
-                                        datetime.timezone.utc
-                                    ).isoformat()
-                                }
-                            }
-                        }
-                    }
-                    await asyncio.to_thread(
-                        self._k8s_custom.patch_namespaced_custom_object,
-                        group="serving.kserve.io",
-                        version="v1beta1",
-                        namespace=K8S_NAMESPACE,
-                        plural="inferenceservices",
-                        name=VLLM_IS_NAME,
-                        body=restart_body,
-                    )
-                    logger.info(f"[AutoTuner] InferenceService '{VLLM_IS_NAME}' restarted (annotation only).")
+                }
+                await asyncio.to_thread(
+                    self._k8s_custom.patch_namespaced_custom_object,
+                    group="serving.kserve.io",
+                    version="v1beta1",
+                    namespace=K8S_NAMESPACE,
+                    plural="inferenceservices",
+                    name=VLLM_IS_NAME,
+                    body=patch_body,
+                )
+                logger.info(f"[AutoTuner] InferenceService '{VLLM_IS_NAME}' args patched successfully: {tuning_args}")
 
             return {"success": True}
         except ApiException as e:

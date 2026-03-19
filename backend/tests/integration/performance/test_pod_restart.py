@@ -118,8 +118,8 @@ def test_vllm_config_patch_via_api(
     _backup_restore_is_args: None,
 ):
     """
-    /api/vllm-config PATCH로 ConfigMap 수정 후 값 확인.
-    파드 재기동은 수행하지 않음 (ConfigMap 수정만).
+    /api/vllm-config PATCH로 IS args 수정 후 값 확인.
+    파드 재기동은 수행하지 않음 (IS args 수정만).
     """
     resp = http_client.get("/api/vllm-config", timeout=30)
     assert resp.status_code == 200, f"Failed to get vllm-config: {resp.text}"

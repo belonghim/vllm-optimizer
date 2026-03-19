@@ -108,12 +108,6 @@ class _DummyK8sApi:
     def read_namespaced_deployment(self, *args: Any, **kwargs: Any) -> types.SimpleNamespace:
         return types.SimpleNamespace(spec=types.SimpleNamespace(replicas=0))
 
-    def read_namespaced_config_map(self, *args: Any, **kwargs: Any) -> types.SimpleNamespace:
-        return types.SimpleNamespace(data={})
-
-    def patch_namespaced_config_map(self, *args: Any, **kwargs: Any) -> types.SimpleNamespace:
-        return types.SimpleNamespace()
-
 
 class _DummyCustomObjectsApi:
     async def get_namespaced_custom_object(self, *args: Any, **kwargs: Any) -> dict[str, Any]:

@@ -52,7 +52,6 @@ def mock_k8s_clients():
          patch('kubernetes.client.CoreV1Api') as mock_core_api, \
          patch('kubernetes.client.CustomObjectsApi') as mock_custom_api:
         
-        mock_core_api.return_value.read_namespaced_config_map.return_value = MagicMock(data={})
         mock_custom_api.return_value.get_namespaced_custom_object.return_value = {
             "status": {"conditions": [{"type": "Ready", "status": "True"}]}
         }
@@ -124,35 +123,6 @@ def test_tuner_start_endpoint(client):
     assert "success" in data
     assert "message" in data
     assert data["success"] is True
-
-
-@pytest.mark.asyncio
-async def test_apply_params_patches_correct_annotation_location(auto_tuner_instance, mock_k8s_clients):
-    tuner = auto_tuner_instance
-    mock_custom_api = mock_k8s_clients[2].return_value
-
-    params = {
-        "max_num_seqs": 128,
-        "gpu_memory_utilization": 0.8,
-        "max_model_len": 4096,
-        "enable_chunked_prefill": True,
-    }
-
-    await tuner._apply_params(params, restart_only=True)
-
-    mock_custom_api.patch_namespaced_custom_object.assert_called_once()
-    call_args = mock_custom_api.patch_namespaced_custom_object.call_args
-
-    assert call_args.kwargs["name"] == VLLM_IS_NAME
-    assert call_args.kwargs["namespace"] == K8S_NAMESPACE
-    assert call_args.kwargs["group"] == "serving.kserve.io"
-    assert call_args.kwargs["plural"] == "inferenceservices"
-
-    patch_body = call_args.kwargs["body"]
-    assert "spec" in patch_body
-    assert "predictor" in patch_body["spec"]
-    assert "annotations" in patch_body["spec"]["predictor"]
-    assert "serving.kserve.io/restartedAt" in patch_body["spec"]["predictor"]["annotations"]
 
 
 @pytest.mark.asyncio
@@ -230,11 +200,10 @@ async def test_start_reapplies_best_params_at_end(auto_tuner_instance, mock_k8s_
     await tuner.start(config, vllm_endpoint)
 
     # Check calls to _apply_params
-    # First two calls are for trials, last call is for best params with restart_only=True
+    # First two calls are for trials, last call is for best params
     assert tuner._apply_params.call_count == config.n_trials + 1
-    
-    last_call_args, last_call_kwargs = tuner._apply_params.call_args_list[-1]
-    assert last_call_kwargs.get("restart_only") is None or last_call_kwargs.get("restart_only") is False
+
+    last_call_args, _ = tuner._apply_params.call_args_list[-1]
     assert last_call_args[0] == tuner._best_trial.params
 
     last_patch_call = mock_custom_api.patch_namespaced_custom_object.call_args_list[-1]
