@@ -575,49 +575,55 @@ class AutoTuner:
             logger.error("[AutoTuner] Rollback failed for trial %d: %s", trial_num, e)
             return False
 
-    async def _evaluate(
+    def _compute_trial_score(self, result: dict, config: TuningConfig) -> float:
+        """부하 테스트 결과에서 점수 계산."""
+        tps = result.get("tps", {}).get("total", 0)
+        p99_lat = result.get("latency", {}).get("p99", 9999)
+        if config.objective == "tps":
+            return tps
+        if config.objective == "latency":
+            return -p99_lat
+        return tps / (p99_lat + 1) * 100
+
+    async def _run_warmup_load(
         self,
         endpoint: str,
+        model: str,
         config: TuningConfig,
-        trial=None,
-        trial_num: int = 0,
+        trial_id: int,
+    ) -> None:
+        """Warmup phase 실행."""
+        await self._broadcast({
+            "type": "phase",
+            "data": {"trial_id": trial_id, "phase": "warmup", "requests": config.warmup_requests},
+        })
+        warmup_config = LoadTestConfig(
+            endpoint=endpoint,
+            model=model,
+            total_requests=config.warmup_requests,
+            concurrency=min(config.eval_concurrency, config.warmup_requests),
+            rps=config.eval_rps,
+            stream=True,
+        )
+        try:
+            await self._load_engine.run(warmup_config)
+            logger.info("[AutoTuner] Warmup completed (%d requests)", config.warmup_requests)
+        except Exception as e:
+            logger.warning("[AutoTuner] Warmup failed (continuing): %s", e)
+
+    async def _run_probe_load(
+        self,
+        endpoint: str,
+        model: str,
+        config: TuningConfig,
+        trial,
+        trial_id: int,
     ) -> tuple[float, float, float]:
-        """부하 테스트 실행 후 점수 반환 (fast probe + full evaluation)"""
-        model_name = await resolve_model_name(endpoint)
-        _trial_id = trial.number if trial is not None and hasattr(trial, "number") else trial_num
-
-        if config.warmup_requests > 0:
-            await self._broadcast({
-                "type": "phase",
-                "data": {"trial_id": _trial_id, "phase": "warmup", "requests": config.warmup_requests},
-            })
-            warmup_config = LoadTestConfig(
-                endpoint=endpoint,
-                model=model_name,
-                total_requests=config.warmup_requests,
-                concurrency=min(config.eval_concurrency, config.warmup_requests),
-                rps=config.eval_rps,
-                stream=True,
-            )
-            try:
-                await self._load_engine.run(warmup_config)
-                logger.info("[AutoTuner] Warmup completed (%d requests)", config.warmup_requests)
-            except Exception as e:
-                logger.warning("[AutoTuner] Warmup failed (continuing): %s", e)
-
-        def _compute_score(result: dict) -> float:
-            tps = result.get("tps", {}).get("total", 0)
-            p99_lat = result.get("latency", {}).get("p99", 9999)
-            if config.objective == "tps":
-                return tps
-            if config.objective == "latency":
-                return -p99_lat
-            return tps / (p99_lat + 1) * 100
-
+        """Probe phase (fast + full) 실행."""
         fast_requests = max(1, int(config.eval_requests * config.eval_fast_fraction))
         fast_config = LoadTestConfig(
             endpoint=endpoint,
-            model=model_name,
+            model=model,
             total_requests=fast_requests,
             concurrency=config.eval_concurrency,
             rps=config.eval_rps,
@@ -625,10 +631,10 @@ class AutoTuner:
         )
         await self._broadcast({
             "type": "phase",
-                "data": {"trial_id": _trial_id, "phase": "evaluating"},
+            "data": {"trial_id": trial_id, "phase": "evaluating"},
         })
         fast_result = await self._load_engine.run(fast_config)
-        fast_score = _compute_score(fast_result)
+        fast_score = self._compute_trial_score(fast_result, config)
 
         if trial is not None and config.objective != "pareto":
             trial.report(fast_score, step=0)
@@ -641,20 +647,40 @@ class AutoTuner:
         if remaining_requests > 0:
             full_config = LoadTestConfig(
                 endpoint=endpoint,
-                model=model_name,
+                model=model,
                 total_requests=remaining_requests,
                 concurrency=config.eval_concurrency,
                 rps=config.eval_rps,
                 stream=True,
             )
             full_result = await self._load_engine.run(full_config)
-            score = _compute_score(full_result)
+            score = self._compute_trial_score(full_result, config)
             tps = full_result.get("tps", {}).get("total", 0)
             p99_lat = full_result.get("latency", {}).get("p99", 9999)
         else:
             score = fast_score
             tps = fast_result.get("tps", {}).get("total", 0)
             p99_lat = fast_result.get("latency", {}).get("p99", 9999)
+
+        return score, tps, p99_lat
+
+    async def _evaluate(
+        self,
+        endpoint: str,
+        config: TuningConfig,
+        trial=None,
+        trial_num: int = 0,
+    ) -> tuple[float, float, float]:
+        """부하 테스트 실행 후 점수 반환 (fast probe + full evaluation)"""
+        model_name = await resolve_model_name(endpoint)
+        _trial_id = trial.number if trial is not None and hasattr(trial, "number") else trial_num
+
+        if config.warmup_requests > 0:
+            await self._run_warmup_load(endpoint, model_name, config, _trial_id)
+
+        score, tps, p99_lat = await self._run_probe_load(
+            endpoint, model_name, config, trial, _trial_id
+        )
 
         return score, tps, p99_lat
 
