@@ -3,7 +3,8 @@ import asyncio
 import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Dict, Optional
+from typing import Any, Dict, Optional, cast
+from kubernetes.client import CustomObjectsApi
 from kubernetes.client.exceptions import ApiException as K8sApiException
 
 logger = logging.getLogger(__name__)
@@ -41,7 +42,7 @@ _KEY_TO_ARG = {v: k for k, v in _ARG_TO_KEY.items()}
 _TUNING_ARG_PREFIXES = tuple(_ARG_TO_KEY.keys())
 
 
-def _args_to_config_dict(args: list) -> dict:
+def _args_to_config_dict(args: list[str]) -> dict[str, Any]:
     """IS args list → key-value config dict"""
     result = {}
     for arg in args:
@@ -55,7 +56,7 @@ def _args_to_config_dict(args: list) -> dict:
     return result
 
 
-def _config_dict_to_tuning_args(config: dict) -> list:
+def _config_dict_to_tuning_args(config: dict[str, Any]) -> list[str]:
     """key-value config dict → IS tuning args list"""
     result = []
     for key, value in config.items():
@@ -74,11 +75,11 @@ def _config_dict_to_tuning_args(config: dict) -> list:
 
 
 class VllmConfigPatchRequest(BaseModel):
-    data: Dict[str, str] = {}
+    data: dict[str, str] = {}
     storageUri: Optional[str] = None
 
 
-def _get_k8s_custom() -> Optional[object]:
+def _get_k8s_custom() -> Optional[CustomObjectsApi]:
     try:
         from kubernetes import client, config as k8s_config
         try:
@@ -92,20 +93,21 @@ def _get_k8s_custom() -> Optional[object]:
 
 
 @router.get("")
-async def get_vllm_config() -> dict:
-    custom = await asyncio.to_thread(_get_k8s_custom)
-    if custom is None:
+async def get_vllm_config() -> dict[str, Any]:
+    _custom = await asyncio.to_thread(_get_k8s_custom)
+    if _custom is None:
         raise HTTPException(status_code=503, detail="Kubernetes not available")
+    _api = _custom
     try:
-        is_obj = await asyncio.to_thread(
-            custom.get_namespaced_custom_object,
+        is_obj = cast(dict[str, Any], await asyncio.to_thread(
+            _api.get_namespaced_custom_object,
             group="serving.kserve.io",
             version="v1beta1",
             namespace=K8S_NAMESPACE,
             plural="inferenceservices",
             name=VLLM_IS_NAME,
-        )
-        model_spec = is_obj.get("spec", {}).get("predictor", {}).get("model", {})
+        ))
+        model_spec: dict[str, Any] = is_obj.get("spec", {}).get("predictor", {}).get("model", {})  # type: ignore[index]
         args = model_spec.get("args") or []
         storage_uri = model_spec.get("storageUri")
         return {"success": True, "data": _args_to_config_dict(args), "storageUri": storage_uri}
@@ -115,7 +117,7 @@ async def get_vllm_config() -> dict:
 
 
 @router.patch("")
-async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict:
+async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict[str, Any]:
     # 키 유효성 검증
     invalid_keys = set(request.data.keys()) - ALLOWED_CONFIG_KEYS
     if invalid_keys:
@@ -141,20 +143,20 @@ async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict:
     custom = await asyncio.to_thread(_get_k8s_custom)
     if custom is None:
         raise HTTPException(status_code=503, detail="Kubernetes not available")
-
+    _api = custom
     try:
-        model_patch: dict = {}
+        model_patch: dict[str, Any] = {}
 
         if request.data:
-            is_obj = await asyncio.to_thread(
-                custom.get_namespaced_custom_object,
+            is_obj = cast(dict[str, Any], await asyncio.to_thread(
+                _api.get_namespaced_custom_object,
                 group="serving.kserve.io",
                 version="v1beta1",
                 namespace=K8S_NAMESPACE,
                 plural="inferenceservices",
                 name=VLLM_IS_NAME,
-            )
-            current_args = (is_obj.get("spec", {}).get("predictor", {})
+            ))
+            current_args: list[str] = (is_obj.get("spec", {}).get("predictor", {})  # type: ignore[index]
                             .get("model", {}).get("args") or [])
 
             # 정적 args (튜닝 파라미터 아닌 것) 보존
@@ -169,7 +171,7 @@ async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict:
 
         patch_body = {"spec": {"predictor": {"model": model_patch}}}
         await asyncio.to_thread(
-            custom.patch_namespaced_custom_object,
+            _api.patch_namespaced_custom_object,
             group="serving.kserve.io",
             version="v1beta1",
             namespace=K8S_NAMESPACE,

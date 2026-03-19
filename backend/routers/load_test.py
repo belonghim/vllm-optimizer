@@ -28,11 +28,11 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 # In-memory state for active test (in production, use proper state management)
-_active_test_task: Optional[asyncio.Task] = None
+_active_test_task: Optional[asyncio.Task[Any]] = None
 _current_config: Optional[LoadTestConfig] = None
 
 # In-memory history store (max 100 entries, no persistence)
-_test_history: deque = deque(maxlen=100)
+_test_history: deque[Any] = deque(maxlen=100)
 
 
 # Simple response models for start/stop
@@ -61,7 +61,7 @@ class StatusResponse(BaseModel):
 
 
 @router.post("/start", response_model=StartResponse)
-async def start_load_test(config: LoadTestConfig) -> dict:
+async def start_load_test(config: LoadTestConfig) -> dict[str, Any]:
     """
     Start a new load test with the given configuration.
 
@@ -105,7 +105,7 @@ async def start_load_test(config: LoadTestConfig) -> dict:
 
 
 @router.post("/stop", response_model=StopResponse)
-async def stop_load_test(test_id: Optional[str] = None) -> dict:
+async def stop_load_test(test_id: Optional[str] = None) -> dict[str, Any]:
     """
     Stop a running load test.
 
@@ -131,7 +131,7 @@ async def stop_load_test(test_id: Optional[str] = None) -> dict:
 
 
 @router.get("/status", response_model=StatusResponse)
-async def get_load_test_status(test_id: Optional[str] = None) -> dict:
+async def get_load_test_status(test_id: Optional[str] = None) -> dict[str, Any]:
     """
     Get current status and intermediate results of a load test.
 
@@ -195,7 +195,7 @@ async def stream_load_test_results(test_id: Optional[str] = None) -> StreamingRe
 
 
 @router.get("/history")
-async def get_load_test_history(limit: int = 10) -> List[dict]:
+async def get_load_test_history(limit: int = 10) -> list[dict[str, Any]]:
     """
     Get list of recent load test runs and their final results.
 

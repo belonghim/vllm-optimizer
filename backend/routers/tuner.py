@@ -111,7 +111,7 @@ class TrialFrontendInfo(BaseModel):
 
 
 @router.post("/start", response_model=TuningStartResponse)
-async def start_tuning(request: TuningStartRequest) -> dict:
+async def start_tuning(request: TuningStartRequest) -> dict[str, Any]:
     """Start auto-tuning process."""
     if auto_tuner.is_running:
         return {
@@ -148,7 +148,7 @@ async def start_tuning(request: TuningStartRequest) -> dict:
 
 
 @router.get("/status", response_model=TunerStatusFrontendResponse)
-async def get_tuner_status() -> dict:
+async def get_tuner_status() -> TunerStatusFrontendResponse:
     """Get current auto-tuning status."""
     # Frontend-friendly status payload
     best_info = None
@@ -171,7 +171,7 @@ async def get_tuner_status() -> dict:
 
 
 @router.get("/trials", response_model=list[TrialFrontendInfo])
-async def get_tuning_trials(limit: int = 20) -> List[dict]:
+async def get_tuning_trials(limit: int = 20) -> list[TrialFrontendInfo]:
     """Get list of tuning trials."""
     trials = auto_tuner.trials[-limit:]
     return [
@@ -190,7 +190,7 @@ async def get_tuning_trials(limit: int = 20) -> List[dict]:
 
 
 @router.post("/stop")
-async def stop_tuning() -> dict:
+async def stop_tuning() -> dict[str, Any]:
     """Stop the running auto-tuning process."""
     if not auto_tuner.is_running:
         return {"success": False, "message": "No tuning is currently running."}
@@ -235,7 +235,7 @@ async def stream_tuner_events() -> StreamingResponse:
 
 
 @router.get("/importance")
-async def get_parameter_importance() -> dict:
+async def get_parameter_importance() -> dict[str, Any]:
     """Get parameter importance from tuning trials (actual implementation)."""
     # Use the AutoTuner's implementation which computes importances via Optuna
     # FAnova if enough trials have been run. Returns {} when not enough data.
@@ -243,7 +243,7 @@ async def get_parameter_importance() -> dict:
 
 
 @router.post("/apply-best", response_model=ApplyBestResponse)
-async def apply_best_parameters() -> dict:
+async def apply_best_parameters() -> ApplyBestResponse:
     """Apply the best parameters found by auto-tuning to vLLM deployment."""
     import os
     # If no best trial is available yet

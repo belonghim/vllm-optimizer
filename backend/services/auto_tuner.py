@@ -8,7 +8,7 @@ import os
 import time
 import math
 from .model_resolver import resolve_model_name
-from typing import Optional, List
+from typing import Optional, List, Any, cast
 from kubernetes import client as k8s_client, config as k8s_config
 from kubernetes.client.exceptions import ApiException
 from models.load_test import TuningConfig, TuningTrial, LoadTestConfig
@@ -18,15 +18,19 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 OPTUNA_AVAILABLE = True
 
 # Prometheus metrics integration (optional)
+_metrics_available: bool = False
+tuner_trials_total: Any = None
+tuner_best_score: Any = None
+tuner_trial_duration_seconds: Any = None
 try:
     from metrics.prometheus_metrics import (
-        tuner_trials_total,
-        tuner_best_score,
-        tuner_trial_duration_seconds,
+        tuner_trials_total,  # type: ignore[assignment]
+        tuner_best_score,  # type: ignore[assignment]
+        tuner_trial_duration_seconds,  # type: ignore[assignment]
     )
-    _METRICS_AVAILABLE = True
+    _metrics_available = True
 except ImportError:
-    _METRICS_AVAILABLE = False
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -54,14 +58,16 @@ class AutoTuner:
         self._trials: List[TuningTrial] = []
         self._best_trial: Optional[TuningTrial] = None
         self._running = False
-        self._study = None
+        self._study: Optional[optuna.Study] = None
+        self._direction: str = "maximize"
+        self._vllm_endpoint: str = ""
         self._config: Optional[TuningConfig] = None  # Set in start()
         self._k8s_available = False
         self._is_args_snapshot: list[str] | None = None
         self._last_rollback_trial: int | None = None
         self._pareto_front_size: int | None = None
         # SSE broadcasting primitives
-        self._subscribers: list[asyncio.Queue] = []
+        self._subscribers: list[asyncio.Queue[Any]] = []
         self._subscribers_lock: asyncio.Lock = asyncio.Lock()
         self._lock = asyncio.Lock()
         self._study_lock = asyncio.Lock()
@@ -100,7 +106,8 @@ class AutoTuner:
                     namespace=K8S_NAMESPACE,
                     plural="inferenceservices",
                 )
-                conditions = (inferenceservice or {}).get("status", {}).get("conditions", [])
+                _isvc: dict[str, Any] = cast(dict, inferenceservice) if inferenceservice else {}
+                conditions = _isvc.get("status", {}).get("conditions", [])
                 for c in conditions:
                     if c.get("type") == "Ready" and c.get("status") == "True":
                         logger.info(f"[AutoTuner] InferenceService '{VLLM_IS_NAME}' 준비 완료.")
@@ -121,14 +128,14 @@ class AutoTuner:
             logger.error(f"[AutoTuner] InferenceService '{VLLM_IS_NAME}' 시간 초과: {timeout}초.")
         return result
 
-    async def subscribe(self) -> asyncio.Queue:
+    async def subscribe(self) -> asyncio.Queue[Any]:
         """Subscribe to tuning events. Returns a queue that will receive events."""
-        q: asyncio.Queue = asyncio.Queue()
+        q: asyncio.Queue[Any] = asyncio.Queue()
         async with self._subscribers_lock:
             self._subscribers.append(q)
         return q
 
-    async def unsubscribe(self, q: asyncio.Queue) -> None:
+    async def unsubscribe(self, q: asyncio.Queue[Any]) -> None:
         """Unsubscribe from tuning events."""
         async with self._subscribers_lock:
             try:
