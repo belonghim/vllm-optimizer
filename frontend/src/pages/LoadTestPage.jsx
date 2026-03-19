@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useMockData } from "../contexts/MockDataContext";
-import { API, COLORS, font } from "../constants";
+import { API, COLORS } from "../constants";
 import MetricCard from "../components/MetricCard";
 import Chart from "../components/Chart";
 import { simulateLoadTest } from "../mockData";
@@ -83,14 +83,15 @@ function LoadTestPage() {
 
   const handleConfigChange = (key, value) => setConfig(c => ({ ...c, [key]: value }));
 
+  const progressFillStyle = { width: `${progress}%` };
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div className="flex-col-16">
       <LoadTestConfig config={config} onChange={handleConfigChange} onSubmit={start}
         onStop={stop} isRunning={status === "running"} status={status} />
 
       {isReconnecting && status === "running" && (
-        <div style={{ background: "rgba(255,180,0,0.08)", border: "1px solid rgba(255,180,0,0.4)",
-          color: "#ffb400", padding: "10px 16px", fontSize: 12, fontFamily: font.mono }}>
+        <div className="loadtest-reconnect-banner">
           ↺ SSE 재연결 중... ({retryCount}/3회 시도)
         </div>
       )}
@@ -98,20 +99,20 @@ function LoadTestPage() {
       <ErrorAlert message={error} className="error-alert--mb8" />
 
       {status === "running" && (
-        <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, padding: 20 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+        <div className="panel">
+          <div className="loadtest-progress-header">
             <span className="label">진행률</span>
-            <span style={{ fontSize: 11, color: COLORS.accent }}>{progress}%</span>
+            <span className="loadtest-progress-pct">{progress}%</span>
           </div>
           <div className="progress-bar">
-            <div className="progress-fill" style={{ width: `${progress}%` }} />
+            <div className="progress-fill" style={progressFillStyle} />
           </div>
         </div>
       )}
 
       {result && (
         <>
-          <div className="grid-4" style={{ gap: 1 }}>
+          <div className="grid-4 gap-1">
             <MetricCard label="Mean TPS" value={fmt(result.tps?.mean, 1)} unit="tok/s" color="amber" />
             <MetricCard label="TTFT Mean" value={fmt((result.ttft?.mean || 0) * 1000, 0)} unit="ms" color="cyan" />
             <MetricCard label="P99 Latency" value={fmt((result.latency?.p99 || 0) * 1000, 0)} unit="ms" color="red" />
@@ -120,7 +121,7 @@ function LoadTestPage() {
               unit="%" color="green" />
           </div>
 
-          <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, padding: 20 }}>
+          <div className="panel">
             <div className="section-title">Latency Distribution</div>
             <table className="table">
               <thead><tr><th>Metric</th><th>Value</th></tr></thead>
@@ -138,8 +139,8 @@ function LoadTestPage() {
                   ["Total TPS", `${fmt(result.tps?.total, 1)} tok/s`],
                 ].map(([k, v]) => (
                   <tr key={k}>
-                    <td style={{ color: COLORS.muted }}>{k}</td>
-                    <td style={{ color: COLORS.accent, fontFamily: font.mono }}>{v}</td>
+                    <td className="td-muted">{k}</td>
+                    <td className="td-accent-mono">{v}</td>
                   </tr>
                 ))}
               </tbody>
@@ -154,13 +155,13 @@ function LoadTestPage() {
           )}
 
           {status === "completed" && result && !isMockEnabled && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}>
+            <div className="loadtest-save-row">
               <button className="btn btn-primary" onClick={saveAsBenchmark}
                 disabled={isSaving || saveStatus === "ok"}>
                 {saveStatus === "ok" ? "✓ Saved" : isSaving ? "Saving..." : "⬆ Save as Benchmark"}
               </button>
               {saveStatus === "error" && (
-                <span style={{ color: COLORS.red, fontSize: 11, fontFamily: font.mono }}>
+                <span className="loadtest-save-error">
                   ✗ Save failed
                 </span>
               )}

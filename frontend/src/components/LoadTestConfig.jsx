@@ -1,10 +1,8 @@
-import { COLORS } from '../constants';
-
 function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status }) {
   return (
-    <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, padding: 20 }}>
+    <div className="panel">
       <div className="section-title">부하 테스트 설정</div>
-      <div className="grid-form" style={{ gap: 12 }}>
+      <div className="grid-form grid-form-compact">
         {[
           ["vLLM Endpoint", "endpoint", "text"],
           ["Model Name", "model", "text"],
@@ -26,9 +24,8 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status 
         <div>
           <label className="label">프롬프트 템플릿</label>
           <textarea
-            className="input"
+            className="input loadtest-config-textarea"
             rows={3}
-            style={{ resize: "vertical", fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}
             value={config.prompt_template}
             onChange={e => onChange("prompt_template", e.target.value)}
           />
@@ -47,15 +44,15 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status 
         </div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16 }}>
+      <div className="loadtest-stream-toggle">
         <input type="checkbox" id="stream" checked={config.stream}
           onChange={e => onChange("stream", e.target.checked)} />
-        <label htmlFor="stream" className="label" style={{ marginBottom: 0 }}>
+        <label htmlFor="stream" className="label label-no-mb">
           Streaming Mode (TTFT 측정 활성화)
         </label>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+      <div className="loadtest-config-actions">
         <button className="btn btn-primary" onClick={onSubmit} disabled={isRunning}>
           ▶ Run Load Test
         </button>

@@ -140,7 +140,7 @@ function TunerPage() {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div className="flex-col-16">
       <ErrorAlert message={error} className="error-alert--mb16" />
       <TunerConfigForm
         config={config}
