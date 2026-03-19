@@ -3,10 +3,9 @@ kind: ConfigMap
 metadata:
   name: vllm-optimizer-config
 data:
-  VLLM_ENDPOINT: "http://llm-ov-predictor.vllm.svc.cluster.local:8080"
-  VLLM_NAMESPACE: "vllm"
-  VLLM_DEPLOYMENT_NAME: "llm-ov"
-  VLLM_CONFIGMAP_NAME: "vllm-config"
+  K8S_NAMESPACE: "vllm"
+  K8S_DEPLOYMENT_NAME: "llm-ov-predictor"
+  K8S_CONFIGMAP_NAME: "vllm-config"
   # OpenShift Monitoring Stack — Thanos Querier
   PROMETHEUS_URL: "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091"
   PROMETHEUS_USE_TLS: "true"
@@ -15,7 +14,6 @@ data:
   APP_ENV: "production"
   LOG_LEVEL: "info"
   METRICS_INTERVAL_SEC: "2"
-  ALLOWED_ORIGINS: "https://vllm-optimizer-dev.apps.compact.jooan.local"
 ---
 apiVersion: v1
 kind: Secret
@@ -33,4 +31,6 @@ metadata:
 type: Opaque
 stringData:
   VLLM_API_KEY: ""
+  # ⚠️  WARNING: Replace this value with a cryptographically random secret in production.
+  # ⚠️  Generate with: python3 -c "import secrets; print(secrets.token_hex(32))"
   SECRET_KEY: "CHANGE_ME_IN_PRODUCTION"

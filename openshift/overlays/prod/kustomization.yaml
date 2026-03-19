@@ -45,4 +45,13 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/image
         value: quay.io/joopark/vllm-optimizer-frontend:1.0.0
-
+  - target:
+      kind: ConfigMap
+      name: vllm-optimizer-config
+    patch: |-
+      - op: add
+        path: /data/ALLOWED_ORIGINS
+        value: "https://vllm-optimizer.apps.example.com"
+      - op: add
+        path: /data/VLLM_ENDPOINT
+        value: "https://llm-ov-predictor.vllm.svc.cluster.local:8080"

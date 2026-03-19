@@ -1,0 +1,17 @@
+T13 PART 2: K8S_* env vars moved from Deployment hardcode to ConfigMap
+======================================================================
+File: openshift/base/02-config.yaml
+Change: Renamed ConfigMap keys from VLLM_* to K8S_* prefix.
+- Before: VLLM_NAMESPACE, VLLM_DEPLOYMENT_NAME, VLLM_CONFIGMAP_NAME
+- After: K8S_NAMESPACE, K8S_DEPLOYMENT_NAME, K8S_CONFIGMAP_NAME
+Values preserved: "vllm", "llm-ov-predictor", "vllm-config"
+
+File: openshift/base/03-backend.yaml
+Change: Removed hardcoded K8S_NAMESPACE, K8S_DEPLOYMENT_NAME, K8S_CONFIGMAP_NAME
+from Deployment container env list.
+- These are now sourced via envFrom -> configMapRef (existing).
+- Pod still receives these vars through ConfigMap injection.
+- Removed POD_NAME and POD_NAMESPACE — these remain as fieldRef (unchanged).
+
+Verification: oc kustomize openshift/overlays/dev > /dev/null 2>&1 → PASS
+Verification: oc kustomize openshift/overlays/prod > /dev/null 2>&1 → PASS
