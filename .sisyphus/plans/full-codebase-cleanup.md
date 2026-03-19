@@ -314,7 +314,7 @@ Max Concurrent: 7 (Wave 1)
 
 ---
 
-- [ ] 1. Decompose auto_tuner.py start() Method
+- [x] 1. Decompose auto_tuner.py start() Method
 
   **What to do**:
   - Read `auto_tuner.py:start()` (lines 157-382, 225 lines) and understand the sequential flow
@@ -498,7 +498,7 @@ Max Concurrent: 7 (Wave 1)
 
 ---
 
-- [ ] 3. Decompose load_engine.py run() Method
+- [x] 3. Decompose load_engine.py run() Method
 
   **What to do**:
   - Read `load_engine.py:run()` (lines 90-251, 161 lines) and understand the async request dispatch flow
@@ -848,7 +848,7 @@ Max Concurrent: 7 (Wave 1)
   - Files: All backend .py files with missing annotations
   - Pre-commit: `cd backend && python3 -m pytest tests/ -x -q -m "not integration"`
 
-- [ ] 7. Decompose TunerPage.jsx into Sub-Components
+- [x] 7. Decompose TunerPage.jsx into Sub-Components
 
   **What to do**:
   - Read `TunerPage.jsx` (441 lines) and identify logical sections
@@ -941,7 +941,7 @@ Max Concurrent: 7 (Wave 1)
 
 ---
 
-- [ ] 8. Decompose LoadTestPage.jsx with useLoadTestSSE Hook
+- [x] 8. Decompose LoadTestPage.jsx with useLoadTestSSE Hook
 
   **What to do**:
   - Read `LoadTestPage.jsx` (337 lines) and identify logical sections

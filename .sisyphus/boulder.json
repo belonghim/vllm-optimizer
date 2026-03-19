@@ -3,7 +3,15 @@
   "started_at": "2026-03-19T05:26:36.278Z",
   "session_ids": [
     "ses_2fb8decfcffeYsNZi6PpOyeG5Y",
-    "ses_2fb6f70efffeHA7GszsOUCgxvU"
+    "ses_2fb6f70efffeHA7GszsOUCgxvU",
+    "ses_2fb69d866ffeMoEKnuOpOmNQgb",
+    "ses_2fb6951c1ffeuJdZ0V2A3jhx4B",
+    "ses_2fb699fbaffeoXVNxIi1wXCZUB",
+    "ses_2fb690db7ffeuLOdIMQkcPs4Mu",
+    "ses_2fb375441ffey79TJlV5rj7SXT",
+    "ses_2fb2cfa43ffeW1nIiNeuiPM5a3",
+    "ses_2fafbbb4fffeXy02xZy7A4JuO9",
+    "ses_2fafb7663ffe7N3c5a04xjCeva"
   ],
   "plan_name": "full-codebase-cleanup",
   "agent": "atlas"

@@ -5,6 +5,7 @@ import MetricCard from "../components/MetricCard";
 import Chart from "../components/Chart";
 import { simulateLoadTest } from "../mockData";
 import LoadTestConfig from "../components/LoadTestConfig";
+import ErrorAlert from "../components/ErrorAlert";
 import { useLoadTestSSE } from "../hooks/useLoadTestSSE";
 
 const fmt = (n, d = 1) => (n == null ? "—" : Number(n).toFixed(d));
@@ -94,13 +95,7 @@ function LoadTestPage() {
         </div>
       )}
 
-      {error && (
-        <div style={{ border: `1px solid ${COLORS.red}`, color: COLORS.red,
-          padding: "10px 16px", fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 11, marginBottom: 8, background: "rgba(255,59,107,0.05)" }}>
-          ⚠ {error}
-        </div>
-      )}
+      <ErrorAlert message={error} className="error-alert--mb8" />
 
       {status === "running" && (
         <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, padding: 20 }}>

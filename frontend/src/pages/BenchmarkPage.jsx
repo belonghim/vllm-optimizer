@@ -3,6 +3,7 @@ import { API, COLORS } from "../constants";
 import { mockBenchmarks } from "../mockData";
 import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { useMockData } from "../contexts/MockDataContext";
+import ErrorAlert from "../components/ErrorAlert";
 
 const fmt = (n, d = 1) => (n == null ? "—" : Number(n).toFixed(d));
 
@@ -52,19 +53,7 @@ function BenchmarkPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {error && (
-        <div style={{
-          border: `1px solid ${COLORS.red}`,
-          color: COLORS.red,
-          padding: "10px 16px",
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 11,
-          marginBottom: 8,
-          background: "rgba(255,59,107,0.05)",
-        }}>
-          ⚠ {error}
-        </div>
-      )}
+      <ErrorAlert message={error} className="error-alert--mb8" />
       <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, padding: 20 }}>
         <div className="section-title">저장된 벤치마크</div>
         <table className="table">

@@ -4,6 +4,7 @@ import { useMockData } from "../contexts/MockDataContext";
 import { mockTrials } from "../mockData";
 import TunerConfigForm from "../components/TunerConfigForm";
 import TunerResults from "../components/TunerResults";
+import ErrorAlert from "../components/ErrorAlert";
 
 function TunerPage() {
   const { isMockEnabled } = useMockData();
@@ -140,19 +141,7 @@ function TunerPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {error && (
-        <div style={{
-          border: `1px solid ${COLORS.red}`,
-          color: COLORS.red,
-          padding: "10px 16px",
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 11,
-          marginBottom: 16,
-          background: "rgba(255,59,107,0.05)",
-        }}>
-          ⚠ {error}
-        </div>
-      )}
+      <ErrorAlert message={error} className="error-alert--mb16" />
       <TunerConfigForm
         config={config}
         onChange={handleConfigChange}

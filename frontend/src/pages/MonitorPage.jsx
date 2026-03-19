@@ -4,6 +4,7 @@ import { useMockData } from "../contexts/MockDataContext";
 import { API, COLORS, font } from "../constants";
 import MetricCard from "../components/MetricCard";
 import Chart from "../components/Chart";
+import ErrorAlert from "../components/ErrorAlert";
 import { buildGapFill } from "../utils/gapFill";
 
 const fmt = (n, d = 1) => (n == null ? "—" : Number(n).toFixed(d));
@@ -63,19 +64,7 @@ function MonitorPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-      {error && (
-        <div style={{
-          border: `1px solid ${COLORS.red}`,
-          color: COLORS.red,
-          padding: "10px 16px",
-          fontFamily: font.mono,
-          fontSize: 11,
-          margin: "0 0 8px",
-          background: "rgba(255,59,107,0.05)",
-        }}>
-          ⚠ {error}
-        </div>
-      )}
+      <ErrorAlert message={error} className="error-alert--m08" />
       <div className="grid-4" style={{ gap: 1 }}>
         <MetricCard label="Tokens / sec" value={fmt(metrics?.tps, 0)} unit="TPS" color="amber" />
         <MetricCard label="TTFT Mean" value={fmt(metrics?.ttft_mean, 0)} unit="ms" color="cyan" />

@@ -18,3 +18,12 @@
 - G4: Never narrow main.py:73 (intentionally broad startup guard)
 - G13: Ports 8000/8080 are architectural constants — don't parameterize
 - G14: Never change CSS values during migration — only move location
+
+## T7: TunerPage Decomposition Pattern
+- showAdvanced UI state stays in TunerPage (per "retain all useState" rule); passed down as prop + onToggleAdvanced handler
+- onChange(field, value) handler implemented as handleConfigChange in TunerPage using setConfig(c => ({ ...c, [field]: value }))
+- Complex array field (block_size_options) handled in TunerConfigForm: component computes new array, calls onChange("block_size_options", newArray)
+- scatterData computation moved into TunerResults since both trials + bestParams live there
+- fmt helper and PHASE_LABELS constant defined locally in the files that use them
+- TunerPage.jsx: 181 lines (was 441); TunerConfigForm.jsx: 197 lines; TunerResults.jsx: 111 lines
+- 45/45 tests pass unchanged — tests find buttons/inputs through TunerPage → TunerConfigForm render tree

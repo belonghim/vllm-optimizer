@@ -137,3 +137,14 @@ select.input option { background: var(--surface-color); }
 }
 .table tr:hover td { background: rgba(255,255,255,0.02); }
 @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+.error-alert {
+  border: 1px solid var(--red-color);
+  color: var(--red-color);
+  padding: 10px 16px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: rgba(255,59,107,0.05);
+}
+.error-alert--mb16 { margin-bottom: 16px; }
+.error-alert--mb8 { margin-bottom: 8px; }
+.error-alert--m08 { margin: 0 0 8px; }
