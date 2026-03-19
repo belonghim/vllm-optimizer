@@ -1,0 +1,23 @@
+T14 PART 2: VLLM_ENDPOINT moved to overlays
+==========================================
+File: openshift/base/02-config.yaml
+Change: Removed VLLM_ENDPOINT from base ConfigMap data.
+- Before: VLLM_ENDPOINT: "http://llm-ov-predictor.vllm.svc.cluster.local:8080" (line 6)
+- After: VLLM_ENDPOINT not present in base ConfigMap
+
+File: openshift/overlays/dev/kustomization.yaml
+Change: Added ConfigMap patch to inject VLLM_ENDPOINT for dev.
+Patch:
+  - op: add
+    path: /data/VLLM_ENDPOINT
+    value: "http://llm-ov-predictor.vllm.svc.cluster.local:8080"
+
+File: openshift/overlays/prod/kustomization.yaml
+Change: Added ConfigMap patch to inject VLLM_ENDPOINT for prod.
+Patch:
+  - op: add
+    path: /data/VLLM_ENDPOINT
+    value: "https://llm-ov-predictor.vllm.svc.cluster.local:8080"
+
+Verification: oc kustomize openshift/overlays/dev > /dev/null 2>&1 → PASS
+Verification: oc kustomize openshift/overlays/prod > /dev/null 2>&1 → PASS
