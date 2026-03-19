@@ -7,4 +7,3 @@ resources:
   - vllm-inferenceservice.yaml
   - 06-vllm-monitoring.yaml
   - vllm-networkpolicy.yaml
-  - vllm-config.yaml
