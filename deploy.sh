@@ -164,14 +164,14 @@ info_dry_run
 
 if [[ "$SKIP_BUILD" != "true" && "$DRY_RUN" != "true" ]]; then
   log "Starting container image build (backend) -> ${REGISTRY}/vllm-optimizer-backend:${IMAGE_TAG}"
-  podman build \
+  podman build --layers \
     --platform linux/amd64 \
     -t "${REGISTRY}/vllm-optimizer-backend:${IMAGE_TAG}" \
     "${PROJECT_ROOT}/backend"
   ok "Backend image built: ${REGISTRY}/vllm-optimizer-backend:${IMAGE_TAG}"
 
   log "Starting container image build (frontend) -> ${REGISTRY}/vllm-optimizer-frontend:${IMAGE_TAG}"
-  podman build \
+  podman build --layers \
     --platform linux/amd64 \
     -t "${REGISTRY}/vllm-optimizer-frontend:${IMAGE_TAG}" \
     "${PROJECT_ROOT}/frontend"

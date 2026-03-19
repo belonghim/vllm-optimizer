@@ -1,13 +1,15 @@
 {
-  "active_plan": "/home/user/project/vllm-optimizer/.sisyphus/plans/tuner-inferenceservice-migration.md",
-  "started_at": "2026-03-19T09:50:32.004Z",
-  "completed_at": "2026-03-19T12:00:00.000Z",
+  "active_plan": "/home/user/project/vllm-optimizer/.sisyphus/plans/fix-deploy-rollout-notfound.md",
+  "started_at": "2026-03-19T17:14:07.095Z",
+  "completed_at": "2026-03-20T02:25:00.000Z",
   "status": "completed",
-  "plan_name": "tuner-inferenceservice-migration",
+  "plan_name": "fix-deploy-rollout-notfound",
   "agent": "atlas",
   "commits": [
-    "3fd8157 refactor(yaml): convert ServingRuntime to generic template, move params to IS",
-    "a819563 refactor(auto_tuner,vllm_config): patch IS args instead of ConfigMap",
-    "9e92230 test,docs: update tests and AGENTS.md for IS-based tuning"
+    "0716b86 fix(deploy): skip rollout gracefully when deployment not found on fresh deploy"
+  ],
+  "session_ids": [
+    "ses_2f8eac5c7ffeUluUlabdQMqHma",
+    "ses_2f8e8263effere57eerJn3JOwH"
   ]
 }
