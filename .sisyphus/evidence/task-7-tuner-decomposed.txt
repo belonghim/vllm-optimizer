@@ -1,0 +1,3 @@
+TunerPage.jsx lines after: 181 (target ≤200) ✓
+TunerConfigForm.jsx lines: 197
+TunerResults.jsx lines: 111

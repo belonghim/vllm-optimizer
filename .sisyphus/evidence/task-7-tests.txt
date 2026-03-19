@@ -1,0 +1,4 @@
+ Test Files  8 passed (8)
+      Tests  45 passed (45)
+
+Pass count: 45 tests passed

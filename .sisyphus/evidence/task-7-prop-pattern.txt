@@ -1,0 +1,3 @@
+TunerConfigForm props: [config, onChange, onSubmit, onStop, onApplyBest, isRunning, hasBest, currentConfig, currentPhase, trialsCompleted, showAdvanced, onToggleAdvanced]
+TunerResults props: [trials, bestParams, status, isRunning, importance]
+config object pattern used: YES — config passed as single object, onChange(field, value) handler pattern used throughout
