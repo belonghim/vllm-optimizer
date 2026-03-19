@@ -105,6 +105,7 @@ vLLM Optimizer의 auto_tuner와 vllm_config 라우터가 ConfigMap 대신 KServe
 - **Tuner API**: `p99_latency` converted from seconds to milliseconds in all tuner responses
 
 ### Fixed
+- **백엔드 타입 에러 163개 전면 해소**: basedpyright LSP 에러 163개를 0개로 감소. `pyrightconfig.json` 추가로 `reportImplicitRelativeImport` 45개 일괄 억제; `auto_tuner.py`에 `Optional[optuna.Study]` 타입 주석·None 가드(`assert ... is not None`)·`cast(dict, ...)` 추가; `main.py`, `startup_metrics_shim.py`, `load_engine.py`, 4개 라우터 파일에 제네릭 타입 인자(`dict[str, Any]`, `Queue[Any]` 등) 보강; 테스트 파일 `_BASE_PAYLOAD: dict[str, Any]` 명시 및 `cast(FastAPI, client.app).routes` 패턴으로 수정. 런타임 동작 변경 없음.
 - **Latency 그래프 값 0 미렌더링 버그**: `metrics_collector.py`의 `get_history_dict()`에서 `ttft_mean`, `ttft_p99`, `latency_mean`, `latency_p99` 4개 필드에 `x or None` 패턴 사용. Python에서 `0 or None → None`(0은 falsy)이므로 latency가 0일 때 프론트엔드에 `null`이 전달되어 Latency(ms) 차트에 선이 렌더링되지 않던 문제. 직접 속성 참조로 교체하여 수정 (`m.mean_ttft_ms or None` → `m.mean_ttft_ms`).
 - **vLLM 파드가 자동 튜닝 중 재기동되지 않던 문제**: KServe RawDeployment 모드에서 IS annotation 패치가 파드를 재기동하지 않음. Deployment rollout restart로 교체하여 해결.
 - **헛튜닝 문제**: `MAX_NUM_BATCHED_TOKENS`, `BLOCK_SIZE`, `SWAP_SPACE`가 ConfigMap에는 기록되지만 vLLM 프로세스 args에 없어서 실제로 반영되지 않던 문제. vllm-runtime.yaml에 args 추가.
