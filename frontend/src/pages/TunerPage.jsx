@@ -15,6 +15,7 @@ function TunerPage() {
   const [currentPhase, setCurrentPhase] = useState(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [currentConfig, setCurrentConfig] = useState(null);
+  const [storageUri, setStorageUri] = useState(null);
   const [config, setConfig] = useState({
     objective: "balanced",
     n_trials: 20,
@@ -81,7 +82,12 @@ function TunerPage() {
     if (isMockEnabled) return;
     fetch(`${API}/vllm-config`)
       .then(r => r.json())
-      .then(data => { if (data.success) setCurrentConfig(data.data); })
+      .then(data => {
+        if (data.success) {
+          setCurrentConfig(data.data);
+          setStorageUri(data.storageUri ?? null);
+        }
+      })
       .catch(() => {});
   }, [isMockEnabled]);
 
@@ -98,6 +104,24 @@ function TunerPage() {
 
   const handleConfigChange = useCallback((field, value) => {
     setConfig(c => ({ ...c, [field]: value }));
+  }, []);
+
+  const handleSaveStorageUri = useCallback(async (newUri) => {
+    try {
+      const res = await fetch(`${API}/vllm-config`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storageUri: newUri }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(`storageUri 업데이트 실패: ${data.detail || res.status}`);
+        return;
+      }
+      setStorageUri(newUri);
+    } catch (err) {
+      setError(`storageUri 업데이트 실패: ${err.message}`);
+    }
   }, []);
 
   const start = async () => {
@@ -130,7 +154,7 @@ function TunerPage() {
       const res = await fetch(`${API}/tuner/apply-best`, { method: "POST" });
       const data = await res.json();
       if (data && data.success) {
-        alert("최적 파라미터를 Kubernetes ConfigMap에 적용했습니다.");
+        alert("최적 파라미터를 InferenceService에 적용했습니다.");
       } else {
         alert(`파라미터 적용 실패: ${data?.message || "Unknown error"}`);
       }
@@ -151,6 +175,8 @@ function TunerPage() {
         isRunning={status.running}
         hasBest={!!status.best}
         currentConfig={currentConfig}
+        storageUri={storageUri}
+        onSaveStorageUri={handleSaveStorageUri}
         currentPhase={currentPhase}
         trialsCompleted={status.trials_completed}
         showAdvanced={showAdvanced}

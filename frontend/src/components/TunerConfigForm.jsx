@@ -1,5 +1,7 @@
+import { useState, useEffect } from "react";
+
 const PHASE_LABELS = {
-  applying_config: "ConfigMap 업데이트 중...",
+  applying_config: "설정 업데이트 중...",
   restarting: "InferenceService 재시작 중...",
   waiting_ready: "Pod Ready 대기 중...",
   warmup: "Warmup 요청 전송 중...",
@@ -19,7 +21,15 @@ export default function TunerConfigForm({
   trialsCompleted,
   showAdvanced,
   onToggleAdvanced,
+  storageUri,
+  onSaveStorageUri,
 }) {
+  const [localStorageUri, setLocalStorageUri] = useState(storageUri ?? "");
+
+  useEffect(() => {
+    setLocalStorageUri(storageUri ?? "");
+  }, [storageUri]);
+
   return (
     <div className="panel">
       <div className="section-title">Bayesian Optimization 설정</div>
@@ -92,13 +102,33 @@ export default function TunerConfigForm({
         <div className="tuner-advanced-panel">
           {currentConfig && (
             <div className="tuner-current-config-box">
-              <div className="tuner-config-key-label">현재 vLLM 설정 (ConfigMap)</div>
+              <div className="tuner-config-key-label">현재 vLLM 설정</div>
               <div className="tuner-config-pairs">
                 {Object.entries(currentConfig).map(([k, v]) => (
                   <span key={k} className="tuner-config-pair">
                     {k}: <span className="tuner-config-pair-val">{String(v) || "(비어있음)"}</span>
                   </span>
                 ))}
+              </div>
+              {/* storageUri 표시/수정 */}
+              <div className="tuner-storageuri-row">
+                <span className="tuner-config-key-label">storageUri</span>
+                <input
+                  className="input"
+                  type="text"
+                  value={localStorageUri}
+                  onChange={e => setLocalStorageUri(e.target.value)}
+                  disabled={isRunning}
+                  placeholder="oci://registry/model"
+                  aria-label="storageUri"
+                />
+                <button
+                  className="btn btn-primary"
+                  onClick={() => onSaveStorageUri(localStorageUri)}
+                  disabled={isRunning || localStorageUri === storageUri}
+                >
+                  저장
+                </button>
               </div>
             </div>
           )}

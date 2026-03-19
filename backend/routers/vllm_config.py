@@ -74,7 +74,8 @@ def _config_dict_to_tuning_args(config: dict) -> list:
 
 
 class VllmConfigPatchRequest(BaseModel):
-    data: Dict[str, str]
+    data: Dict[str, str] = {}
+    storageUri: Optional[str] = None
 
 
 def _get_k8s_custom() -> Optional[object]:
@@ -104,9 +105,10 @@ async def get_vllm_config() -> dict:
             plural="inferenceservices",
             name=VLLM_IS_NAME,
         )
-        args = (is_obj.get("spec", {}).get("predictor", {})
-                .get("model", {}).get("args") or [])
-        return {"success": True, "data": _args_to_config_dict(args)}
+        model_spec = is_obj.get("spec", {}).get("predictor", {}).get("model", {})
+        args = model_spec.get("args") or []
+        storage_uri = model_spec.get("storageUri")
+        return {"success": True, "data": _args_to_config_dict(args), "storageUri": storage_uri}
     except K8sApiException as e:
         logger.error("[VllmConfig] Failed to read InferenceService: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -121,6 +123,9 @@ async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict:
             status_code=422,
             detail=f"Invalid config keys: {sorted(invalid_keys)}. Allowed: {sorted(ALLOWED_CONFIG_KEYS)}",
         )
+
+    if not request.data and request.storageUri is None:
+        return {"success": True, "updated_keys": [], "updated_storageUri": False}
 
     # 튜너 실행 중 체크
     try:
@@ -138,24 +143,31 @@ async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict:
         raise HTTPException(status_code=503, detail="Kubernetes not available")
 
     try:
-        is_obj = await asyncio.to_thread(
-            custom.get_namespaced_custom_object,
-            group="serving.kserve.io",
-            version="v1beta1",
-            namespace=K8S_NAMESPACE,
-            plural="inferenceservices",
-            name=VLLM_IS_NAME,
-        )
-        current_args = (is_obj.get("spec", {}).get("predictor", {})
-                        .get("model", {}).get("args") or [])
+        model_patch: dict = {}
 
-        # 정적 args (튜닝 파라미터 아닌 것) 보존
-        static_args = [a for a in current_args
-                       if not a.startswith(_TUNING_ARG_PREFIXES)]
+        if request.data:
+            is_obj = await asyncio.to_thread(
+                custom.get_namespaced_custom_object,
+                group="serving.kserve.io",
+                version="v1beta1",
+                namespace=K8S_NAMESPACE,
+                plural="inferenceservices",
+                name=VLLM_IS_NAME,
+            )
+            current_args = (is_obj.get("spec", {}).get("predictor", {})
+                            .get("model", {}).get("args") or [])
 
-        new_tuning_args = _config_dict_to_tuning_args(request.data)
+            # 정적 args (튜닝 파라미터 아닌 것) 보존
+            static_args = [a for a in current_args
+                           if not a.startswith(_TUNING_ARG_PREFIXES)]
 
-        patch_body = {"spec": {"predictor": {"model": {"args": static_args + new_tuning_args}}}}
+            new_tuning_args = _config_dict_to_tuning_args(request.data)
+            model_patch["args"] = static_args + new_tuning_args
+
+        if request.storageUri is not None:
+            model_patch["storageUri"] = request.storageUri
+
+        patch_body = {"spec": {"predictor": {"model": model_patch}}}
         await asyncio.to_thread(
             custom.patch_namespaced_custom_object,
             group="serving.kserve.io",
@@ -165,7 +177,11 @@ async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict:
             name=VLLM_IS_NAME,
             body=patch_body,
         )
-        return {"success": True, "updated_keys": list(request.data.keys())}
+        return {
+            "success": True,
+            "updated_keys": list(request.data.keys()),
+            "updated_storageUri": request.storageUri is not None,
+        }
     except K8sApiException as e:
         logger.error("[VllmConfig] Failed to patch InferenceService: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
