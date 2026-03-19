@@ -9,9 +9,8 @@ spec:
       modelFormat:
         name: vLLM
       runtime: vllm-openvino-runtime
+      storageUri: oci://quay.io/joopark/ai1/modelcar-phi-4-mini-instruct-int4-ov
       args:
-        - --model=/models/Phi-4-mini-instruct-int4-ov
-        - --served-model-name=Phi-4-mini-instruct-int4-ov
         - --max-num-seqs=256
         - --gpu-memory-utilization=0.90
         - --max-model-len=8192
@@ -23,10 +22,3 @@ spec:
         limits:
           cpu: "8"
           memory: "16Gi"
-      volumeMounts:
-        - name: models
-          mountPath: /models
-      volumes:
-        - name: models
-          persistentVolumeClaim:
-            claimName: model-pvc
