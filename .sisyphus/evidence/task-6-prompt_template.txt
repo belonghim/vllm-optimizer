@@ -1,0 +1,3 @@
+    prompt_template: "Hello, how are you?",
+                value={config.prompt_template}
+                onChange={e => setConfig(c => ({ ...c, prompt_template: e.target.value }))}

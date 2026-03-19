@@ -1,0 +1,2 @@
+from routers import load_test, metrics, benchmark, tuner, vllm_config
+app.include_router(vllm_config, prefix="/api/vllm-config", tags=["vllm-config"])

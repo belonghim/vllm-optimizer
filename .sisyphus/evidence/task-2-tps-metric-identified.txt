@@ -1,0 +1,4 @@
+IDENTIFIED_TPS_METRIC: vllm:generation_tokens_total
+QUERY: rate(vllm:generation_tokens_total[1m])
+REASON: This metric directly tracks the total number of generated tokens and is the standard for calculating token throughput (TPS) in vLLM. The query `rate(vllm:generation_tokens_total[1m])` correctly calculates the per-second rate over a 1-minute window. The query test showed it returns results.
+vllm:generation_tokens_total EXISTS: YES

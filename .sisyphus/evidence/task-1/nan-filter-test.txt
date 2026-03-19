@@ -1,0 +1,15 @@
+============================= test session starts ==============================
+platform linux -- Python 3.14.2, pytest-9.0.2, pluggy-1.6.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /home/user/project/vllm-optimizer
+configfile: pyproject.toml
+plugins: asyncio-1.3.0, anyio-4.12.1, cov-7.0.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 4 items
+
+tests/test_metrics_collector.py::TestMetricsCollectorNaNFiltering::test_fetch_prometheus_metric_filters_nan PASSED [ 25%]
+tests/test_metrics_collector.py::TestMetricsCollectorNaNFiltering::test_fetch_prometheus_metric_filters_positive_inf PASSED [ 50%]
+tests/test_metrics_collector.py::TestMetricsCollectorNaNFiltering::test_fetch_prometheus_metric_filters_negative_inf PASSED [ 75%]
+tests/test_metrics_collector.py::TestMetricsCollectorNaNFiltering::test_fetch_prometheus_metric_accepts_valid_values PASSED [100%]
+
+============================== 4 passed in 0.36s ===============================

@@ -1,0 +1,3 @@
+    model_name = os.getenv("VLLM_MODEL", "auto")
+        resolved = await asyncio.wait_for(
+        "resolved_model_name": resolved,

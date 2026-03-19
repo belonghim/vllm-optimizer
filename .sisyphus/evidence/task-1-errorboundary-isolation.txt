@@ -1,0 +1,12 @@
+Each tab component (p.Component) is wrapped within its own <ErrorBoundary> component inside the PAGES.map loop, ensuring error isolation for each tab.
+
+Relevant code snippet from frontend/src/App.jsx:
+```jsx
+        {PAGES.map(p => (
+          <div key={p.id} style={{ display: page === p.id ? undefined : 'none' }}>
+            <ErrorBoundary>
+              <p.Component />
+            </ErrorBoundary>
+          </div>
+        ))}
+```

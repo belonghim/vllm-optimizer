@@ -1,0 +1,6 @@
+Evidence for Task 1: OpenShift YAML adjustments
+- Could not complete kustomize build due to missing kustomize binary in environment (exit code: N/A)
+- Proposed commands to run locally:
+-   ./kustomize build openshift/dev-only/ > /tmp/kustomize-output.yaml 2>&1
+-   echo "exit: $?/`" >> .sisyphus/evidence/task-1-kustomize-build.txt
+-   grep -n "max-num-batched-tokens\|block-size\|swap-space\|enforce-eager" /tmp/kustomize-output.yaml >> .sisyphus/evidence/task-1-kustomize-build.txt

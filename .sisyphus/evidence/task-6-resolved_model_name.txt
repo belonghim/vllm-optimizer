@@ -1,0 +1,2 @@
+        if (data.resolved_model_name && data.resolved_model_name !== "auto") {
+          setConfig(c => ({ ...c, model: c.model === "auto" ? data.resolved_model_name : c.model }));

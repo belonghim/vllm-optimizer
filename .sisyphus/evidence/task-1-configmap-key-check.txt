@@ -1,0 +1,8 @@
+Evidence: ConfigMap key mapping after patch
+- ENABLE_ENFORCE_EAGER key present in vllm-config.yaml (unchanged): ENABLE_ENFORCE_EAGER: "true" (existing)
+- Patch applied via _apply_params now uses ENABLE_CHUNKED_PREFILL in patch_body for ConfigMap data
+- After patch, patch_namespaced_config_map called; body.data contains ENABLE_CHUNKED_PREFILL and does NOT include ENABLE_ENFORCE_EAGER
+Commands/Outputs:
+- Test ran: patch_namespaced_config_map.assert_called_once()
+- patch_body["data"] keys: MAX_NUM_SEQS, GPU_MEMORY_UTILIZATION, MAX_MODEL_LEN, ENABLE_CHUNKED_PREFILL
+- ENABLE_CHUNKED_PREFILL value: "true" when enable_chunked_prefill is True

@@ -1,0 +1,19 @@
+============================= test session starts ==============================
+platform linux -- Python 3.14.2, pytest-9.0.2, pluggy-1.6.0
+rootdir: /home/user/project/vllm-optimizer
+configfile: pyproject.toml
+plugins: asyncio-1.3.0, anyio-4.12.1, cov-7.0.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 5 items
+
+<Dir vllm-optimizer>
+  <Package backend>
+    <Package tests>
+      <Module test_load_engine_run.py>
+        <Coroutine test_run_collects_all_results_when_tasks_complete_during_sleep>
+        <Coroutine test_run_counter_matches_result_count>
+        <Coroutine test_run_no_valueerror_when_all_tasks_done_instantly>
+        <Coroutine test_run_failed_requests_counted_correctly>
+        <Coroutine test_run_no_duplicate_results>
+
+========================== 5 tests collected in 0.04s ==========================

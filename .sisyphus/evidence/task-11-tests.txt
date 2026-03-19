@@ -1,0 +1,5 @@
+          
+    @app.on_event("shutdown")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+34 passed, 4 warnings in 34.33s

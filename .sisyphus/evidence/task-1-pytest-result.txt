@@ -1,0 +1,5 @@
+Evidence: Pytest results for backend/test_tuner.py
+- Command: cd backend && python3 -m pytest tests/test_tuner.py -x -q -m "not integration"
+- Result: 13 passed, 4 warnings in 4.20s
+- Notable: All targeted tuner tests passed, including new test_apply_params_uses_correct_configmap_keys
+- Warnings relate to deprecation in FastAPI startup/shutdown events (unrelated to changes)

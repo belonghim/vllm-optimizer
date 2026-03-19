@@ -1,0 +1,5 @@
+ALLOWED_CONFIG_KEYS = {
+    invalid_keys = set(request.data.keys()) - ALLOWED_CONFIG_KEYS
+            status_code=422,
+            detail=f"Invalid config keys: {sorted(invalid_keys)}. Allowed: {sorted(ALLOWED_CONFIG_KEYS)}",
+            raise HTTPException(status_code=409, detail="Tuner is running, cannot modify config")

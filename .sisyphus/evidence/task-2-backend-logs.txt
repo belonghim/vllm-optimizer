@@ -1,0 +1,3 @@
+2026-03-15 13:12:16 [WARNING] services.metrics_collector: [MetricsCollector] Metrics not available: mean_ttft_ms
+2026-03-15 13:12:18 [WARNING] services.metrics_collector: [MetricsCollector] Metrics not available: mean_e2e_latency_ms
+2026-03-15 13:12:20 [WARNING] services.metrics_collector: [MetricsCollector] Metrics not available: mean_ttft_ms, p99_ttft_ms, p99_e2e_latency_ms

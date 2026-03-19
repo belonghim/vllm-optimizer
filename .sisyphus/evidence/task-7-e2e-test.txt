@@ -1,0 +1,14 @@
+backend/tests/integration/performance/test_pod_restart.py
+    python3 -m pytest backend/tests/integration/performance/test_pod_restart.py -v -m integration
+VLLM_POD_LABEL = os.getenv("VLLM_POD_LABEL", "app=isvc.llm-ov-predictor")
+def _get_pod_uids(namespace: str, label: str) -> set[str]:
+    """oc get pods로 현재 vLLM 파드 UID 목록 반환."""
+def _wait_for_pod_restart(
+    namespace: str, label: str, original_uids: set[str], timeout: int = 300
+    """파드 UID가 변경될 때까지 대기. 모든 original UID가 사라지면 성공."""
+        current_uids = _get_pod_uids(namespace, label)
+        if current_uids and current_uids.isdisjoint(original_uids):
+def test_pod_restart_on_tuner_apply(
+    python3 -m pytest backend/tests/integration/performance/test_pod_restart.py -v -m integration
+@pytest.mark.integration
+@pytest.mark.integration

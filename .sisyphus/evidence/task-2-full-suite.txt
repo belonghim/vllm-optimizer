@@ -1,0 +1,102 @@
+============================= test session starts ==============================
+platform linux -- Python 3.14.2, pytest-9.0.2, pluggy-1.6.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /home/user/project/vllm-optimizer
+configfile: pyproject.toml
+plugins: asyncio-1.3.0, anyio-4.12.1, cov-7.0.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 67 items / 8 deselected / 59 selected
+
+backend/tests/test_benchmark.py::test_benchmark_list_empty PASSED        [  1%]
+backend/tests/test_benchmark.py::test_benchmark_save_get_and_delete_in_one PASSED [  3%]
+backend/tests/test_benchmark.py::test_by_model_empty PASSED              [  5%]
+backend/tests/test_benchmark.py::test_by_model_grouping PASSED           [  6%]
+backend/tests/test_benchmark.py::test_by_model_gpu_efficiency PASSED     [  8%]
+backend/tests/test_benchmark.py::test_by_model_gpu_zero PASSED           [ 10%]
+backend/tests/test_dev_integration.py::test_dev_integration_metrics_endpoint PASSED [ 11%]
+backend/tests/test_dev_integration.py::test_dev_integration_metrics_format_headers PASSED [ 13%]
+backend/tests/test_dev_integration.py::test_dev_integration_metrics_endpoint_multihost PASSED [ 15%]
+backend/tests/test_dev_integration.py::test_dev_integration_metrics_endpoint_multihost_parallel PASSED [ 16%]
+backend/tests/test_dev_integration.py::test_dev_integration_smoke_http_metrics_endpoint PASSED [ 18%]
+backend/tests/test_dev_integration.py::test_dev_integration_metrics_endpoint_with_retries PASSED [ 20%]
+backend/tests/test_dev_metrics_endpoint.py::test_metrics_endpoint_plaintext PASSED [ 22%]
+backend/tests/test_dev_metrics_endpoint.py::test_metrics_endpoint_no_server_required PASSED [ 23%]
+backend/tests/test_integration_metrics_e2e.py::test_integration_metrics_endpoint_no_mock PASSED [ 25%]
+backend/tests/test_load_engine_run.py::test_run_collects_all_results_when_tasks_complete_during_sleep PASSED [ 27%]
+backend/tests/test_load_engine_run.py::test_run_counter_matches_result_count PASSED [ 28%]
+backend/tests/test_load_engine_run.py::test_run_no_valueerror_when_all_tasks_done_instantly PASSED [ 30%]
+backend/tests/test_load_engine_run.py::test_run_failed_requests_counted_correctly PASSED [ 32%]
+backend/tests/test_load_engine_run.py::test_run_no_duplicate_results PASSED [ 33%]
+backend/tests/test_load_test.py::test_load_test_start_endpoint PASSED    [ 35%]
+backend/tests/test_load_test.py::test_load_test_status_endpoint_defaults PASSED [ 37%]
+backend/tests/test_load_test.py::test_load_test_history_endpoint_returns_list PASSED [ 38%]
+backend/tests/test_load_test.py::test_startup_metrics_api_endpoint_returns_status PASSED [ 40%]
+backend/tests/test_load_test.py::test_startup_metrics_endpoint_triggers_collector PASSED [ 42%]
+backend/tests/test_load_test.py::test_compute_stats_includes_total_requested PASSED [ 44%]
+backend/tests/test_load_test.py::test_compute_stats_total_requested_defaults_to_zero PASSED [ 45%]
+backend/tests/test_metrics.py::test_metrics_latest_endpoint PASSED       [ 47%]
+backend/tests/test_metrics.py::test_metrics_history_endpoint_returns_list PASSED [ 49%]
+backend/tests/test_metrics.py::test_metrics_history_endpoint_handles_nan_gracefully PASSED [ 50%]
+backend/tests/test_metrics_collector.py::TestMetricsCollectorVersionDetection::test_detect_version_013x_gpu PASSED [ 52%]
+backend/tests/test_metrics_collector.py::TestMetricsCollectorVersionDetection::test_detect_version_013x_cpu PASSED [ 54%]
+backend/tests/test_metrics_collector.py::TestMetricsCollectorVersionDetection::test_detect_version_fallback_to_011x_on_empty_result PASSED [ 55%]
+backend/tests/test_metrics_collector.py::TestMetricsCollectorVersionDetection::test_detect_version_fallback_to_011x_on_exception PASSED [ 57%]
+backend/tests/test_metrics_collector.py::TestMetricsCollectorQuerySelection::test_queries_set_based_on_version_011x PASSED [ 59%]
+backend/tests/test_metrics_collector.py::TestMetricsCollectorQuerySelection::test_queries_set_based_on_version_013x PASSED [ 61%]
+backend/tests/test_metrics_collector.py::TestMetricsCollectorQuerySelection::test_queries_set_based_on_unknown_version_falls_back_to_011x PASSED [ 62%]
+backend/tests/test_metrics_collector.py::TestMetricsCollectorNaNFiltering::test_fetch_prometheus_metric_filters_nan PASSED [ 64%]
+backend/tests/test_metrics_collector.py::TestMetricsCollectorNaNFiltering::test_fetch_prometheus_metric_filters_positive_inf PASSED [ 66%]
+backend/tests/test_metrics_collector.py::TestMetricsCollectorNaNFiltering::test_fetch_prometheus_metric_filters_negative_inf PASSED [ 67%]
+backend/tests/test_metrics_collector.py::TestMetricsCollectorNaNFiltering::test_fetch_prometheus_metric_accepts_valid_values PASSED [ 69%]
+backend/tests/test_model_resolver.py::test_resolve_model_name_success PASSED [ 71%]
+backend/tests/test_model_resolver.py::test_resolve_model_name_fallback PASSED [ 72%]
+backend/tests/test_model_resolver.py::test_resolve_model_name_empty_data PASSED [ 74%]
+backend/tests/test_prometheus_metrics.py::test_metrics_empty_state PASSED [ 76%]
+backend/tests/test_prometheus_metrics.py::test_metrics_populated_state PASSED [ 77%]
+backend/tests/test_prometheus_metrics.py::test_metrics_name_presence PASSED [ 79%]
+backend/tests/test_service_monitor_config.py::test_service_monitor_path_and_backend_port PASSED [ 81%]
+backend/tests/test_stub.py::test_placeholder PASSED                      [ 83%]
+backend/tests/test_stub.py::test_fixture_usage PASSED                    [ 84%]
+backend/tests/test_stub.py::test_config_fixture PASSED                   [ 86%]
+backend/tests/test_tuner.py::test_tuner_status_endpoint PASSED           [ 88%]
+backend/tests/test_tuner.py::test_tuner_trials_endpoint_returns_list PASSED [ 89%]
+backend/tests/test_tuner.py::test_tuner_apply_best_response PASSED       [ 91%]
+backend/tests/test_tuner.py::test_tuner_start_endpoint PASSED            [ 93%]
+backend/tests/test_tuner.py::test_apply_params_patches_correct_annotation_location PASSED [ 94%]
+backend/tests/test_tuner.py::test_wait_for_ready_polls_inferenceservice_status PASSED [ 96%]
+backend/tests/test_tuner.py::test_wait_for_ready_times_out PASSED        [ 98%]
+backend/tests/test_tuner.py::test_start_reapplies_best_params_at_end PASSED [100%]
+
+=============================== warnings summary ===============================
+backend/startup_metrics_shim.py:33: 1 warning
+backend/tests/test_load_test.py: 10 warnings
+  /home/user/project/vllm-optimizer/backend/startup_metrics_shim.py:33: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+../../.local/lib/python3.14/site-packages/fastapi/applications.py:4599: 2 warnings
+backend/tests/test_load_test.py: 20 warnings
+  /home/user/.local/lib/python3.14/site-packages/fastapi/applications.py:4599: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)
+
+backend/startup_metrics_shim.py:48: 1 warning
+backend/tests/test_load_test.py: 10 warnings
+  /home/user/project/vllm-optimizer/backend/startup_metrics_shim.py:48: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================ 59 passed, 8 deselected, 44 warnings in 9.75s =================
