@@ -298,7 +298,9 @@ class MetricsCollector:
                 name=K8S_DEPLOYMENT,
                 namespace=K8S_NAMESPACE,
             ))
-            match_labels = deployment.spec.selector.match_labels or {}
+            spec = deployment.spec
+            selector = spec.selector if spec is not None else None
+            match_labels = selector.match_labels if selector is not None else {}
             label_selector = ",".join(f"{k}={v}" for k, v in match_labels.items())
             pods = self._k8s_core.list_namespaced_pod(
                 namespace=K8S_NAMESPACE,
@@ -317,7 +319,7 @@ class MetricsCollector:
                 "pod_count": pod_count,
                 "pod_ready": ready,
             }
-        except client.exceptions.ApiException:
+        except client.ApiException:
             return {}
 
     @property
