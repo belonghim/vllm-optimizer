@@ -6,7 +6,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.performance, pytest.mark.slow
 
 class TestAutoTuner:
 
-    def test_auto_tuner_completes_with_results(self, http_client, backup_restore_vllm_config, skip_if_overloaded, vllm_endpoint):
+    def test_auto_tuner_completes_with_results(self, http_client, backup_restore_is_args, skip_if_overloaded, vllm_endpoint):
         """AutoTuner 2 trial 실행 후 best_metric > 0 확인."""
 
 

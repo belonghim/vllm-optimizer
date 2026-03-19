@@ -138,7 +138,7 @@ async def test_apply_params_patches_correct_annotation_location(auto_tuner_insta
         "enable_chunked_prefill": True,
     }
 
-    await tuner._apply_params(params)
+    await tuner._apply_params(params, restart_only=True)
 
     mock_custom_api.patch_namespaced_custom_object.assert_called_once()
     call_args = mock_custom_api.patch_namespaced_custom_object.call_args
@@ -192,12 +192,7 @@ async def test_wait_for_ready_times_out(auto_tuner_instance, mock_k8s_clients):
 @pytest.mark.asyncio
 async def test_rollback_on_wait_for_ready_timeout(auto_tuner_instance, mock_k8s_clients):
     tuner = auto_tuner_instance
-    mock_core_api = mock_k8s_clients[1].return_value
     mock_custom_api = mock_k8s_clients[2].return_value
-
-    mock_cm = MagicMock()
-    mock_cm.data = {"MAX_NUM_SEQS": "64", "GPU_MEMORY_UTILIZATION": "0.8"}
-    mock_core_api.read_namespaced_config_map.return_value = mock_cm
 
     tuner._wait_for_ready = AsyncMock(return_value=False)
     tuner._evaluate = AsyncMock(return_value=(10.0, 10.0, 0.1))
@@ -206,8 +201,8 @@ async def test_rollback_on_wait_for_ready_timeout(auto_tuner_instance, mock_k8s_
 
     await tuner.start(config, "http://mock:8080")
 
-    patch_calls = mock_core_api.patch_namespaced_config_map.call_args_list
-    assert len(patch_calls) >= 2, "Expected at least 2 ConfigMap patches (apply + rollback)"
+    patch_calls = mock_custom_api.patch_namespaced_custom_object.call_args_list
+    assert len(patch_calls) >= 2, "Expected at least 2 IS patches (apply + rollback)"
 
     assert tuner._last_rollback_trial == 0
 
@@ -215,7 +210,6 @@ async def test_rollback_on_wait_for_ready_timeout(auto_tuner_instance, mock_k8s_
 @pytest.mark.asyncio
 async def test_start_reapplies_best_params_at_end(auto_tuner_instance, mock_k8s_clients):
     tuner = auto_tuner_instance
-    mock_core_api = mock_k8s_clients[1].return_value
     mock_custom_api = mock_k8s_clients[2].return_value
 
     # Mock _evaluate to return increasing scores
@@ -239,16 +233,20 @@ async def test_start_reapplies_best_params_at_end(auto_tuner_instance, mock_k8s_
     # First two calls are for trials, last call is for best params with restart_only=True
     assert tuner._apply_params.call_count == config.n_trials + 1
     
-    # Verify the last call to _apply_params was with restart_only=True
     last_call_args, last_call_kwargs = tuner._apply_params.call_args_list[-1]
-    assert last_call_kwargs.get("restart_only") is True
+    assert last_call_kwargs.get("restart_only") is None or last_call_kwargs.get("restart_only") is False
     assert last_call_args[0] == tuner._best_trial.params
 
-    # Verify ConfigMap was patched for trials, but not for the final best params reapplication
-    # The _apply_params mock wraps the original, so we can check the internal mock_core_api calls
-    # The number of configmap patches should be equal to n_trials
-    assert mock_core_api.patch_namespaced_config_map.call_count == config.n_trials
-    
+    last_patch_call = mock_custom_api.patch_namespaced_custom_object.call_args_list[-1]
+    patch_body = last_patch_call[1]["body"]
+    patched_args = patch_body["spec"]["predictor"]["model"]["args"]
+    expected_tuning_args = []
+    expected_tuning_args.append(f"--max-num-seqs={tuner._best_trial.params['max_num_seqs']}")
+    expected_tuning_args.append(f"--gpu-memory-utilization={tuner._best_trial.params['gpu_memory_utilization']}")
+    expected_tuning_args.append(f"--max-num-batched-tokens={tuner._best_trial.params['max_num_batched_tokens']}")
+    for expected_arg in expected_tuning_args:
+        assert any(expected_arg in arg for arg in patched_args), f"Expected {expected_arg} in patched args: {patched_args}"
+
     # IS patch should be called once per trial + once for final best params reapplication
     assert mock_custom_api.patch_namespaced_custom_object.call_count == config.n_trials + 1
 
@@ -398,7 +396,17 @@ def test_tuner_trials_item_shape_with_data(client):
 @pytest.mark.asyncio
 async def test_apply_params_uses_correct_configmap_keys(auto_tuner_instance, mock_k8s_clients):
     tuner = auto_tuner_instance
-    mock_core_api = mock_k8s_clients[1].return_value
+    mock_custom_api = mock_k8s_clients[2].return_value
+
+    mock_custom_api.get_namespaced_custom_object.return_value = {
+        "spec": {
+            "predictor": {
+                "model": {
+                    "args": []
+                }
+            }
+        }
+    }
 
     params = {
         "max_num_seqs": 128,
@@ -409,16 +417,12 @@ async def test_apply_params_uses_correct_configmap_keys(auto_tuner_instance, moc
 
     await tuner._apply_params(params)
 
-    mock_core_api.patch_namespaced_config_map.assert_called_once()
-    call_args = mock_core_api.patch_namespaced_config_map.call_args
-    patch_data = call_args.kwargs["body"]["data"]
+    mock_custom_api.patch_namespaced_custom_object.assert_called_once()
+    call_args = mock_custom_api.patch_namespaced_custom_object.call_args
+    patch_args = call_args.kwargs["body"]["spec"]["predictor"]["model"]["args"]
 
-    # enable_chunked_prefill should map to ENABLE_CHUNKED_PREFILL
-    assert "ENABLE_CHUNKED_PREFILL" in patch_data
-    assert patch_data["ENABLE_CHUNKED_PREFILL"] == "true"
-
-    assert "ENABLE_ENFORCE_EAGER" in patch_data
-    assert patch_data["ENABLE_ENFORCE_EAGER"] == ""
+    # enable_chunked_prefill should map to --enable-chunked-prefill
+    assert "--enable-chunked-prefill" in patch_args
 
 def test_importance_returns_empty_when_no_trials(client):
     """When no trials have been run, /importance should return {}"""
@@ -522,7 +526,17 @@ def test_suggest_params_empty_model_len_no_crash(auto_tuner_instance):
 @pytest.mark.asyncio
 async def test_apply_params_includes_new_configmap_keys(auto_tuner_instance, mock_k8s_clients):
     tuner = auto_tuner_instance
-    mock_core_api = mock_k8s_clients[1].return_value
+    mock_custom_api = mock_k8s_clients[2].return_value
+
+    mock_custom_api.get_namespaced_custom_object.return_value = {
+        "spec": {
+            "predictor": {
+                "model": {
+                    "args": []
+                }
+            }
+        }
+    }
 
     params = {
         "max_num_seqs": 128,
@@ -535,15 +549,13 @@ async def test_apply_params_includes_new_configmap_keys(auto_tuner_instance, moc
 
     await tuner._apply_params(params)
     
-    mock_core_api.patch_namespaced_config_map.assert_called_once()
-    call_args = mock_core_api.patch_namespaced_config_map.call_args
-    patch_data = call_args.kwargs["body"]["data"]
+    mock_custom_api.patch_namespaced_custom_object.assert_called_once()
+    call_args = mock_custom_api.patch_namespaced_custom_object.call_args
+    patch_args = call_args.kwargs["body"]["spec"]["predictor"]["model"]["args"]
     
-    assert "MAX_NUM_BATCHED_TOKENS" in patch_data
-    assert patch_data["MAX_NUM_BATCHED_TOKENS"] == "512"
-    assert "BLOCK_SIZE" in patch_data
-    assert patch_data["BLOCK_SIZE"] == "16"
-    assert "SWAP_SPACE" not in patch_data
+    assert "--max-num-batched-tokens=512" in patch_args
+    assert "--block-size=16" in patch_args
+    assert "--enable-chunked-prefill" not in patch_args
 
 
 @pytest.mark.asyncio
@@ -781,9 +793,8 @@ def test_stop_endpoint_returns_failure_when_not_running(client):
 
 @pytest.mark.asyncio
 async def test_rollback_to_snapshot_no_snapshot_returns_false(auto_tuner_instance):
-    """_rollback_to_snapshot should return False when no CM snapshot is available"""
     tuner = auto_tuner_instance
-    tuner._cm_snapshot = None
+    tuner._is_args_snapshot = None
     result = await tuner._rollback_to_snapshot(trial_num=0)
     assert result is False
 
@@ -863,9 +874,18 @@ async def test_broadcast_trial_start_event_for_each_trial(auto_tuner_instance, m
 
 @pytest.mark.asyncio
 async def test_apply_params_swap_space_configmap_key(auto_tuner_instance, mock_k8s_clients):
-    """swap_space param should map to SWAP_SPACE ConfigMap key"""
     tuner = auto_tuner_instance
-    mock_core_api = mock_k8s_clients[1].return_value
+    mock_custom_api = mock_k8s_clients[2].return_value
+
+    mock_custom_api.get_namespaced_custom_object.return_value = {
+        "spec": {
+            "predictor": {
+                "model": {
+                    "args": []
+                }
+            }
+        }
+    }
 
     params = {
         "max_num_seqs": 64,
@@ -877,10 +897,9 @@ async def test_apply_params_swap_space_configmap_key(auto_tuner_instance, mock_k
 
     await tuner._apply_params(params)
 
-    call_args = mock_core_api.patch_namespaced_config_map.call_args
-    patch_data = call_args.kwargs["body"]["data"]
-    assert "SWAP_SPACE" in patch_data
-    assert patch_data["SWAP_SPACE"] == "4.0"
+    call_args = mock_custom_api.patch_namespaced_custom_object.call_args
+    patch_args = call_args.kwargs["body"]["spec"]["predictor"]["model"]["args"]
+    assert "--swap-space=4.0" in patch_args
 
 
 @pytest.mark.asyncio
@@ -916,7 +935,17 @@ async def test_pruned_trials_not_counted_as_best_trial(auto_tuner_instance, mock
 @pytest.mark.asyncio
 async def test_chunked_prefill_false_writes_empty_string(auto_tuner_instance, mock_k8s_clients):
     tuner = auto_tuner_instance
-    mock_core_api = mock_k8s_clients[1].return_value
+    mock_custom_api = mock_k8s_clients[2].return_value
+
+    mock_custom_api.get_namespaced_custom_object.return_value = {
+        "spec": {
+            "predictor": {
+                "model": {
+                    "args": []
+                }
+            }
+        }
+    }
 
     params = {
         "max_num_seqs": 64,
@@ -929,22 +958,32 @@ async def test_chunked_prefill_false_writes_empty_string(auto_tuner_instance, mo
 
     await tuner._apply_params(params)
 
-    call_args = mock_core_api.patch_namespaced_config_map.call_args
-    patch_data = call_args.kwargs["body"]["data"]
+    call_args = mock_custom_api.patch_namespaced_custom_object.call_args
+    patch_args = call_args.kwargs["body"]["spec"]["predictor"]["model"]["args"]
 
-    assert patch_data["ENABLE_CHUNKED_PREFILL"] == ""
+    assert "--enable-chunked-prefill" not in patch_args
 
-    mock_core_api.patch_namespaced_config_map.reset_mock()
+    mock_custom_api.patch_namespaced_custom_object.reset_mock()
     params_true = {**params, "enable_chunked_prefill": True}
     await tuner._apply_params(params_true)
-    patch_data_true = mock_core_api.patch_namespaced_config_map.call_args.kwargs["body"]["data"]
-    assert patch_data_true["ENABLE_CHUNKED_PREFILL"] == "true"
+    patch_args_true = mock_custom_api.patch_namespaced_custom_object.call_args.kwargs["body"]["spec"]["predictor"]["model"]["args"]
+    assert "--enable-chunked-prefill" in patch_args_true
 
 
 @pytest.mark.asyncio
 async def test_enforce_eager_writes_correct_values(auto_tuner_instance, mock_k8s_clients):
     tuner = auto_tuner_instance
-    mock_core_api = mock_k8s_clients[1].return_value
+    mock_custom_api = mock_k8s_clients[2].return_value
+
+    mock_custom_api.get_namespaced_custom_object.return_value = {
+        "spec": {
+            "predictor": {
+                "model": {
+                    "args": []
+                }
+            }
+        }
+    }
 
     params_false = {
         "max_num_seqs": 64,
@@ -956,14 +995,14 @@ async def test_enforce_eager_writes_correct_values(auto_tuner_instance, mock_k8s
     }
 
     await tuner._apply_params(params_false)
-    patch_data_false = mock_core_api.patch_namespaced_config_map.call_args.kwargs["body"]["data"]
-    assert patch_data_false["ENABLE_ENFORCE_EAGER"] == ""
+    patch_args_false = mock_custom_api.patch_namespaced_custom_object.call_args.kwargs["body"]["spec"]["predictor"]["model"]["args"]
+    assert "--enforce-eager" not in patch_args_false
 
-    mock_core_api.patch_namespaced_config_map.reset_mock()
+    mock_custom_api.patch_namespaced_custom_object.reset_mock()
     params_true = {**params_false, "enable_enforce_eager": True}
     await tuner._apply_params(params_true)
-    patch_data_true = mock_core_api.patch_namespaced_config_map.call_args.kwargs["body"]["data"]
-    assert patch_data_true["ENABLE_ENFORCE_EAGER"] == "true"
+    patch_args_true = mock_custom_api.patch_namespaced_custom_object.call_args.kwargs["body"]["spec"]["predictor"]["model"]["args"]
+    assert "--enforce-eager" in patch_args_true
 
 
 def test_suggest_params_includes_enforce_eager(auto_tuner_instance):
@@ -1036,7 +1075,7 @@ async def test_rollback_uses_inferenceservice_annotation(auto_tuner_instance, mo
     tuner = auto_tuner_instance
     mock_custom_api = mock_k8s_clients[2].return_value
 
-    tuner._cm_snapshot = {"MAX_NUM_SEQS": "64"}
+    tuner._is_args_snapshot = ["--max-num-seqs=64"]
 
     await tuner._rollback_to_snapshot(0)
 
@@ -1045,7 +1084,7 @@ async def test_rollback_uses_inferenceservice_annotation(auto_tuner_instance, mo
     assert call_args.kwargs["name"] == VLLM_IS_NAME
     assert call_args.kwargs["namespace"] == K8S_NAMESPACE
     patch_body = call_args.kwargs["body"]
-    assert "serving.kserve.io/restartedAt" in patch_body["spec"]["predictor"]["annotations"]
+    assert patch_body["spec"]["predictor"]["model"]["args"] == tuner._is_args_snapshot
 
 
 def test_config_has_resolved_model_name(client):

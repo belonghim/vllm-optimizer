@@ -25,22 +25,32 @@ def _get_vllm_config_globals(client: TestClient, method: str | None = None):
     return None
 
 
+_MOCK_IS = {
+    "spec": {"predictor": {"model": {"args": [
+        "--model=/models/test",
+        "--max-num-seqs=256",
+        "--gpu-memory-utilization=0.90",
+        "--max-model-len=8192",
+        "--max-num-batched-tokens=2048",
+    ]}}}
+}
+
+
 def test_get_vllm_config_returns_data(client_with_vllm_config):
-    mock_core = MagicMock()
-    mock_core.read_namespaced_config_map.return_value = MagicMock(
-        data={"MAX_NUM_SEQS": "256", "GPU_MEMORY_UTILIZATION": "0.90"}
-    )
+    mock_custom = MagicMock()
+    mock_custom.get_namespaced_custom_object.return_value = _MOCK_IS
 
     handler_globals = _get_vllm_config_globals(client_with_vllm_config)
     if handler_globals is None:
         pytest.skip("Route /api/vllm-config not found")
 
-    with patch.dict(handler_globals, {"_get_k8s_core": lambda: mock_core}):
+    with patch.dict(handler_globals, {"_get_k8s_custom": lambda: mock_custom}):
         resp = client_with_vllm_config.get("/api/vllm-config")
         assert resp.status_code == 200
         data = resp.json()
         assert data["success"] is True
         assert "MAX_NUM_SEQS" in data["data"]
+        assert data["data"]["MAX_NUM_SEQS"] == "256"
 
 
 def test_patch_vllm_config_invalid_key_422(client):
@@ -49,14 +59,15 @@ def test_patch_vllm_config_invalid_key_422(client):
 
 
 def test_patch_vllm_config_valid_key(client):
-    mock_core = MagicMock()
-    mock_core.patch_namespaced_config_map.return_value = MagicMock()
+    mock_custom = MagicMock()
+    mock_custom.get_namespaced_custom_object.return_value = _MOCK_IS
+    mock_custom.patch_namespaced_custom_object.return_value = MagicMock()
 
     handler_globals = _get_vllm_config_globals(client, method="PATCH")
     if handler_globals is None:
         pytest.skip("PATCH /api/vllm-config route not found")
 
-    with patch.dict(handler_globals, {"_get_k8s_core": lambda: mock_core}):
+    with patch.dict(handler_globals, {"_get_k8s_custom": lambda: mock_custom}):
         resp = client.patch("/api/vllm-config", json={"data": {"MAX_NUM_SEQS": "512"}})
         assert resp.status_code == 200
         data = resp.json()

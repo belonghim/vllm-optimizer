@@ -54,27 +54,25 @@ def warm_up_vllm(http_client: httpx.Client) -> None:
         pytest.fail(f"vLLM optimizer backend unreachable after warm-up: {e}")
 
 
-@pytest.fixture(scope="function")
-def backup_restore_vllm_config() -> Iterator[dict[str, object] | None]:
-    """테스트 전 vLLM ConfigMap 백업, 테스트 후 복원."""
-    backup: dict[str, object] | None = None
-    try:
-        result: subprocess.CompletedProcess[str] = subprocess.run(
-            ["oc", "get", "configmap", "vllm-config", "-n", VLLM_NAMESPACE, "-o", "json"],
-            capture_output=True, text=True, timeout=30
-        )
-        if result.returncode == 0:
-            backup = cast(dict[str, object], json.loads(result.stdout))
-    except Exception:
-        pass
+@pytest.fixture(autouse=True)
+async def backup_restore_is_args(backend_url: str) -> None:
+    result = subprocess.run(
+        ["oc", "get", "inferenceservice", "llm-ov", "-n", VLLM_NAMESPACE,
+         "-o", "jsonpath={.spec.predictor.model.args}"],
+        capture_output=True, text=True
+    )
+    original_args = result.stdout.strip() if result.returncode == 0 else None
 
-    yield backup
+    yield
 
-    if backup:
+    if original_args is not None:
         try:
-            _ = subprocess.run(
-                ["oc", "apply", "-f", "-", "-n", VLLM_NAMESPACE],
-                input=json.dumps(backup), capture_output=True, text=True, timeout=30
+            args_list = json.loads(original_args) if original_args else []
+            patch_body = json.dumps({"spec": {"predictor": {"model": {"args": args_list}}}})
+            subprocess.run(
+                ["oc", "patch", "inferenceservice", "llm-ov", "-n", VLLM_NAMESPACE,
+                 "--type=merge", f"--patch={patch_body}"],
+                capture_output=True
             )
         except Exception:
             pass

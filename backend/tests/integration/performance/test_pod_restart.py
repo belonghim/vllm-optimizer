@@ -52,7 +52,7 @@ def _wait_for_pod_restart(
 @pytest.mark.integration
 def test_pod_restart_on_tuner_apply(
     http_client: httpx.Client,
-    _backup_restore_vllm_config: dict[str, object] | None,
+    _backup_restore_is_args: None,
 ):
     """
     자동 파라미터 튜닝 1 trial 실행 후 vLLM 파드 UID 변경 검증.
@@ -115,7 +115,7 @@ def test_pod_restart_on_tuner_apply(
 @pytest.mark.integration
 def test_vllm_config_patch_via_api(
     http_client: httpx.Client,
-    _backup_restore_vllm_config: dict[str, object] | None,
+    _backup_restore_is_args: None,
 ):
     """
     /api/vllm-config PATCH로 ConfigMap 수정 후 값 확인.

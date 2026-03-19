@@ -113,7 +113,6 @@ vllm-optimizer/
     ├── dev-only/                    # vllm-optimizer 통합 검증용 vLLM 자원
     │   ├── 06-vllm-monitoring.yaml
     │   ├── kustomization.yaml
-    │   ├── vllm-config.yaml
     │   ├── vllm-inferenceservice.yaml
     │   ├── vllm-networkpolicy.yaml
     │   ├── vllm-rbac.yaml
@@ -191,7 +190,7 @@ spec:
 | `K8S_NAMESPACE` | K8s Pod 조회 대상 네임스페이스 | `vllm` |
 | `K8S_DEPLOYMENT_NAME` | vLLM Deployment 이름 (KServe: `{isvc}-predictor`). **MetricsCollector의 pod listing 및 auto-tuner의 Deployment rollout restart에 사용.** | `llm-ov-predictor` |
 | `VLLM_DEPLOYMENT_NAME` | KServe InferenceService 이름. **auto-tuner의 IS 이름 참조에 사용.** `K8S_DEPLOYMENT_NAME`과 혼동 금지. | `llm-ov` |
-| `K8S_CONFIGMAP_NAME` | vLLM ConfigMap 이름 | `vllm-config` |
+
 | `VLLM_ENDPOINT` | vLLM 추론 엔드포인트 (테스트용) | `http://llm-ov-predictor.vllm.svc.cluster.local:8080` |
 | `VLLM_MODEL` | vLLM 모델명. `/api/config`의 `vllm_model_name` 반환에 사용. | `Qwen2.5-Coder-3B-Instruct-int4-ov` |
 
@@ -509,6 +508,9 @@ oc import-image vllm-optimizer-backend:latest \
 ### auto_tuner model="auto" 사용 금지
 - `/v1/models` 엔드포인트에서 동적 해석 필수
 - `model_resolver.py`의 `resolve_model_name()` 함수 사용 (이미 auto_tuner에 통합됨)
+
+### IS args 아키텍처
+- auto_tuner와 vllm_config API는 InferenceService spec.predictor.model.args를 직접 패치합니다.
 
 ---
 
