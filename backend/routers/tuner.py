@@ -9,7 +9,7 @@ import uuid
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Any, Optional
+from typing import Any, Optional, List
 from datetime import datetime
 
 from models.load_test import TuningConfig
@@ -111,7 +111,7 @@ class TrialFrontendInfo(BaseModel):
 
 
 @router.post("/start", response_model=TuningStartResponse)
-async def start_tuning(request: TuningStartRequest):
+async def start_tuning(request: TuningStartRequest) -> dict:
     """Start auto-tuning process."""
     if auto_tuner.is_running:
         return {
@@ -148,7 +148,7 @@ async def start_tuning(request: TuningStartRequest):
 
 
 @router.get("/status", response_model=TunerStatusFrontendResponse)
-async def get_tuner_status():
+async def get_tuner_status() -> dict:
     """Get current auto-tuning status."""
     # Frontend-friendly status payload
     best_info = None
@@ -171,7 +171,7 @@ async def get_tuner_status():
 
 
 @router.get("/trials", response_model=list[TrialFrontendInfo])
-async def get_tuning_trials(limit: int = 20):
+async def get_tuning_trials(limit: int = 20) -> List[dict]:
     """Get list of tuning trials."""
     trials = auto_tuner.trials[-limit:]
     return [
@@ -190,7 +190,7 @@ async def get_tuning_trials(limit: int = 20):
 
 
 @router.post("/stop")
-async def stop_tuning():
+async def stop_tuning() -> dict:
     """Stop the running auto-tuning process."""
     if not auto_tuner.is_running:
         return {"success": False, "message": "No tuning is currently running."}
@@ -198,7 +198,7 @@ async def stop_tuning():
     return {"success": True, "message": "Tuning stopped."}
 
 @router.get("/stream")
-async def stream_tuner_events():
+async def stream_tuner_events() -> StreamingResponse:
     """Stream tuning events via Server-Sent Events (SSE)."""
     async def event_generator():
         q = await auto_tuner.subscribe()
@@ -235,7 +235,7 @@ async def stream_tuner_events():
 
 
 @router.get("/importance")
-async def get_parameter_importance():
+async def get_parameter_importance() -> dict:
     """Get parameter importance from tuning trials (actual implementation)."""
     # Use the AutoTuner's implementation which computes importances via Optuna
     # FAnova if enough trials have been run. Returns {} when not enough data.
@@ -243,7 +243,7 @@ async def get_parameter_importance():
 
 
 @router.post("/apply-best", response_model=ApplyBestResponse)
-async def apply_best_parameters():
+async def apply_best_parameters() -> dict:
     """Apply the best parameters found by auto-tuning to vLLM deployment."""
     import os
     # If no best trial is available yet

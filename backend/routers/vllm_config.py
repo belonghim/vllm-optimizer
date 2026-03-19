@@ -3,7 +3,7 @@ import asyncio
 import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Dict
+from typing import Dict, Optional
 from kubernetes.client.exceptions import ApiException as K8sApiException
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ class VllmConfigPatchRequest(BaseModel):
     data: Dict[str, str]
 
 
-def _get_k8s_core():
+def _get_k8s_core() -> Optional[Any]:
     try:
         from kubernetes import client, config as k8s_config
         try:
@@ -43,7 +43,7 @@ def _get_k8s_core():
 
 
 @router.get("")
-async def get_vllm_config():
+async def get_vllm_config() -> dict:
     core = await asyncio.to_thread(_get_k8s_core)
     if core is None:
         raise HTTPException(status_code=503, detail="Kubernetes not available")
@@ -60,7 +60,7 @@ async def get_vllm_config():
 
 
 @router.patch("")
-async def patch_vllm_config(request: VllmConfigPatchRequest):
+async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict:
     # 키 유효성 검증
     invalid_keys = set(request.data.keys()) - ALLOWED_CONFIG_KEYS
     if invalid_keys:

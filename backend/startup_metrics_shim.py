@@ -4,7 +4,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def register(app):
+def register(app) -> None:
     try:
         from services.shared import metrics_collector as collector
     except Exception:  # intentional: fail-open
@@ -31,11 +31,11 @@ def register(app):
         return False
 
     @app.on_event("startup")
-    async def _start_metrics_collector():
+    async def _start_metrics_collector() -> None:
         _ensure_metrics_task()
 
     @app.post("/startup_metrics", tags=["startup_metrics"])
-    async def _startup_metrics_endpoint():
+    async def _startup_metrics_endpoint() -> dict:
         started = _ensure_metrics_task()
         task = task_holder["task"]
         running = task is not None and not task.done()
@@ -46,7 +46,7 @@ def register(app):
         }
 
     @app.on_event("shutdown")
-    async def _shutdown_metrics_collector():
+    async def _shutdown_metrics_collector() -> None:
         try:
             collector.stop()
         except Exception as e:  # intentional: non-critical

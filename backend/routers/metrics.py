@@ -4,6 +4,7 @@ Metrics Router - vLLM Optimizer API
 Provides endpoints for retrieving real-time and historical metrics.
 """
 from fastapi import APIRouter
+from fastapi.responses import PlainTextResponse
 from datetime import datetime, timezone
 from typing import List, Optional
 
@@ -116,7 +117,7 @@ async def get_metrics_history(
 
 
 @router.get("")
-async def get_prometheus_metrics():
+async def get_prometheus_metrics() -> PlainTextResponse:
     """
     Expose Prometheus metrics for OpenShift Monitoring.
 

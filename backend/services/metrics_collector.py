@@ -115,7 +115,7 @@ class MetricsCollector:
     _k8s_apps: client.AppsV1Api
     _k8s_core: client.CoreV1Api
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._latest = None
         self._history = deque(maxlen=self._max_history)
         self._running = False
@@ -145,7 +145,7 @@ class MetricsCollector:
         except OSError:
             return None
 
-    def _init_k8s(self):
+    def _init_k8s(self) -> None:
         try:
             try:
                 config.load_incluster_config()
@@ -157,7 +157,7 @@ class MetricsCollector:
         except Exception as e:  # intentional: non-critical
             logger.error(f"[MetricsCollector] K8s 초기화 실패 (모의 데이터 사용): {e}")
 
-    async def start_collection(self, interval: float = 2.0):
+    async def start_collection(self, interval: float = 2.0) -> None:
         await self._post_init() # Initialize current_queries after version detection
         self._running = True
         while self._running:
@@ -167,7 +167,7 @@ class MetricsCollector:
                 logger.error(f"[MetricsCollector] 수집 오류: {e}")
             await asyncio.sleep(interval)
 
-    def stop(self):
+    def stop(self) -> None:
         self._running = False
 
     @property

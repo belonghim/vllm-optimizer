@@ -38,7 +38,7 @@ VLLM_IS_NAME = os.getenv("VLLM_DEPLOYMENT_NAME") or "llm-ov"
 
 
 class AutoTuner:
-    def __init__(self, metrics_collector, load_engine):
+    def __init__(self, metrics_collector, load_engine) -> None:
         self._metrics = metrics_collector
         self._load_engine = load_engine
         self._trials: List[TuningTrial] = []
@@ -62,7 +62,7 @@ class AutoTuner:
         self._best_score_history: list[float] = []
         self._init_k8s()
 
-    def _init_k8s(self):
+    def _init_k8s(self) -> None:
         try:
             try:
                 k8s_config.load_incluster_config()
@@ -120,7 +120,7 @@ class AutoTuner:
             self._subscribers.append(q)
         return q
 
-    async def unsubscribe(self, q: asyncio.Queue):
+    async def unsubscribe(self, q: asyncio.Queue) -> None:
         """Unsubscribe from tuning events."""
         async with self._subscribers_lock:
             try:
@@ -387,7 +387,7 @@ class AutoTuner:
             },
         })
 
-    async def stop(self):
+    async def stop(self) -> None:
         async with self._lock:
             self._running = False
 

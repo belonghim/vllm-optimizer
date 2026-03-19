@@ -104,7 +104,7 @@ app.include_router(vllm_config, prefix="/api/vllm-config", tags=["vllm-config"])
 
 
 @app.get("/health", tags=["health"])
-async def health_check(request: Request):
+async def health_check(request: Request) -> dict:
     """Health check with dependency validation.
     Query param: deep=1 enables full connectivity checks (slow)."""
     health = {"status": "healthy", "dependencies": {}}
@@ -139,7 +139,7 @@ async def health_check(request: Request):
 
 
 @app.get("/api/config", tags=["config"])
-async def get_frontend_config():
+async def get_frontend_config() -> dict:
     """Return server-side configuration for frontend defaults."""
     endpoint = os.getenv("VLLM_ENDPOINT", "http://localhost:8000")
     model_name = os.getenv("VLLM_MODEL", "auto")
@@ -158,7 +158,7 @@ async def get_frontend_config():
 
 
 @app.get("/", tags=["root"])
-async def root():
+async def root() -> dict:
     """Root endpoint with API information."""
     return {
         "message": "vLLM Optimizer API",

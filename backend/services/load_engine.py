@@ -33,7 +33,7 @@ class LoadTestState:
 
 
 class LoadTestEngine:
-    def __init__(self):
+    def __init__(self) -> None:
         self._state: LoadTestState = LoadTestState()
         self._stop_event: asyncio.Event = asyncio.Event()
         self._subscribers: list[asyncio.Queue] = []
@@ -57,7 +57,7 @@ class LoadTestEngine:
             self._subscribers.append(q)
         return q
 
-    async def unsubscribe(self, q: asyncio.Queue):
+    async def unsubscribe(self, q: asyncio.Queue) -> None:
         async with self._subscribers_lock:
             self._subscribers.remove(q)
 
@@ -227,7 +227,7 @@ class LoadTestEngine:
                 await self._broadcast({"type": "progress", "data": stats})
         return await self._finalize_results(metric_samples, sample_stop, sampling_task)
 
-    async def stop(self):
+    async def stop(self) -> None:
         self._stop_event.set()
         async with self._state_lock:
             self._state.status = LoadTestStatus.STOPPED

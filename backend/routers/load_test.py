@@ -5,7 +5,7 @@ Provides endpoints for starting, stopping, and monitoring load tests.
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import json
 import asyncio
 import uuid
@@ -61,7 +61,7 @@ class StatusResponse(BaseModel):
 
 
 @router.post("/start", response_model=StartResponse)
-async def start_load_test(config: LoadTestConfig):
+async def start_load_test(config: LoadTestConfig) -> dict:
     """
     Start a new load test with the given configuration.
 
@@ -105,7 +105,7 @@ async def start_load_test(config: LoadTestConfig):
 
 
 @router.post("/stop", response_model=StopResponse)
-async def stop_load_test(test_id: Optional[str] = None):
+async def stop_load_test(test_id: Optional[str] = None) -> dict:
     """
     Stop a running load test.
 
@@ -131,7 +131,7 @@ async def stop_load_test(test_id: Optional[str] = None):
 
 
 @router.get("/status", response_model=StatusResponse)
-async def get_load_test_status(test_id: Optional[str] = None):
+async def get_load_test_status(test_id: Optional[str] = None) -> dict:
     """
     Get current status and intermediate results of a load test.
 
@@ -157,7 +157,7 @@ async def get_load_test_status(test_id: Optional[str] = None):
 
 
 @router.get("/stream")
-async def stream_load_test_results(test_id: Optional[str] = None):
+async def stream_load_test_results(test_id: Optional[str] = None) -> StreamingResponse:
     """
     Server-Sent Events (SSE) endpoint for real-time load test results.
 
@@ -195,7 +195,7 @@ async def stream_load_test_results(test_id: Optional[str] = None):
 
 
 @router.get("/history")
-async def get_load_test_history(limit: int = 10):
+async def get_load_test_history(limit: int = 10) -> List[dict]:
     """
     Get list of recent load test runs and their final results.
 
