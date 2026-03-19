@@ -5,7 +5,6 @@ metadata:
 data:
   K8S_NAMESPACE: "vllm"
   K8S_DEPLOYMENT_NAME: "llm-ov-predictor"
-  K8S_CONFIGMAP_NAME: "vllm-config"
   # OpenShift Monitoring Stack — Thanos Querier
   PROMETHEUS_URL: "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091"
   PROMETHEUS_USE_TLS: "true"

@@ -33,8 +33,19 @@ logger = logging.getLogger(__name__)
 
 K8S_NAMESPACE = os.getenv("K8S_NAMESPACE", "default")
 K8S_DEPLOYMENT = os.getenv("K8S_DEPLOYMENT_NAME", "vllm-deployment")
-K8S_CONFIGMAP = os.getenv("K8S_CONFIGMAP_NAME", "vllm-config")
 VLLM_IS_NAME = os.getenv("VLLM_DEPLOYMENT_NAME") or "llm-ov"
+
+# Tuning parameter prefixes for arg filtering (static args preserved)
+TUNING_ARG_PREFIXES = (
+    "--max-num-seqs",
+    "--gpu-memory-utilization",
+    "--max-model-len",
+    "--max-num-batched-tokens",
+    "--block-size",
+    "--swap-space",
+    "--enable-chunked-prefill",
+    "--enforce-eager",
+)
 
 
 class AutoTuner:
@@ -47,7 +58,7 @@ class AutoTuner:
         self._study = None
         self._config: Optional[TuningConfig] = None  # Set in start()
         self._k8s_available = False
-        self._cm_snapshot: dict | None = None
+        self._is_args_snapshot: list[str] | None = None
         self._last_rollback_trial: int | None = None
         self._pareto_front_size: int | None = None
         # SSE broadcasting primitives
@@ -69,7 +80,6 @@ class AutoTuner:
             except k8s_config.ConfigException:
                 k8s_config.load_kube_config()
             self._k8s_apps = k8s_client.AppsV1Api()
-            self._k8s_core = k8s_client.CoreV1Api()
             self._k8s_custom = k8s_client.CustomObjectsApi()
             self._k8s_available = True
         except k8s_config.ConfigException as e:
@@ -267,7 +277,7 @@ class AutoTuner:
         return direction, study
 
     async def _apply_trial_params(self, trial, trial_num: int, params: dict) -> bool:
-        """ConfigMap 파라미터 적용. 실패 시 Optuna FAIL 처리 후 False 반환."""
+        """InferenceService args 업데이트. 실패 시 Optuna FAIL 처리 후 False 반환."""
         await self._broadcast({
             "type": "phase",
             "data": {"trial_id": trial_num, "phase": "applying_config"},
@@ -291,7 +301,7 @@ class AutoTuner:
         return True
 
     async def _rollback_config(self, trial_num: int) -> bool:
-        """ConfigMap rollback (_rollback_to_snapshot의 named alias)."""
+        """InferenceService args rollback (_rollback_to_snapshot의 named alias)."""
         return await self._rollback_to_snapshot(trial_num)
 
     async def _run_trial_evaluation(self, trial) -> tuple:
@@ -368,7 +378,7 @@ class AutoTuner:
             logger.info(
                 f"[AutoTuner] 튜닝 완료. 최적 파라미터로 InferenceService 재설정: {self._best_trial.params}"
             )
-            await self._apply_params(self._best_trial.params, restart_only=True)
+            await self._apply_params(self._best_trial.params)
             await self._wait_for_ready()
         await self._broadcast({
             "type": "tuning_complete",
@@ -453,8 +463,46 @@ class AutoTuner:
 
         return params
 
+    def _params_to_args(self, params: dict) -> list[str]:
+        """Convert tuning params to vLLM command-line args list."""
+        args: list[str] = []
+
+        # max_num_seqs
+        if "max_num_seqs" in params:
+            args.append(f"--max-num-seqs={params['max_num_seqs']}")
+
+        # gpu_memory_utilization
+        if "gpu_memory_utilization" in params:
+            args.append(f"--gpu-memory-utilization={params['gpu_memory_utilization']}")
+
+        # max_model_len
+        if "max_model_len" in params:
+            args.append(f"--max-model-len={params['max_model_len']}")
+
+        # max_num_batched_tokens
+        if "max_num_batched_tokens" in params:
+            args.append(f"--max-num-batched-tokens={params['max_num_batched_tokens']}")
+
+        # block_size (optional)
+        if "block_size" in params:
+            args.append(f"--block-size={params['block_size']}")
+
+        # swap_space (optional)
+        if "swap_space" in params:
+            args.append(f"--swap-space={params['swap_space']}")
+
+        # enable_chunked_prefill (bool)
+        if params.get("enable_chunked_prefill"):
+            args.append("--enable-chunked-prefill")
+
+        # enable_enforce_eager (bool)
+        if params.get("enable_enforce_eager"):
+            args.append("--enforce-eager")
+
+        return args
+
     async def _apply_params(self, params: dict, restart_only: bool = False) -> dict:
-        """ConfigMap 업데이트 → Deployment 재시작"""
+        """InferenceService args 업데이트 → 자동 재시작"""
         if not self._k8s_available:
             logger.info(f"[AutoTuner] K8s 없음 — 파라미터 적용 시뮬레이션: {params}")
             return {"success": True}
@@ -462,42 +510,56 @@ class AutoTuner:
         try:
             async with self._k8s_lock:
                 if not restart_only:
-                    # ConfigMap 업데이트
-                    logger.info(f"[AutoTuner] ConfigMap '{K8S_CONFIGMAP}' in namespace '{K8S_NAMESPACE}'")
-                    current_cm = await asyncio.to_thread(self._k8s_core.read_namespaced_config_map,
-                                                         name=K8S_CONFIGMAP,
-                                                         namespace=K8S_NAMESPACE)
-                    self._cm_snapshot = dict(current_cm.data or {})
-                    
-                    config_data = {
-                        "MAX_NUM_SEQS": str(params["max_num_seqs"]),
-                        "GPU_MEMORY_UTILIZATION": str(
-                            params["gpu_memory_utilization"]
-                        ),
-                        "MAX_MODEL_LEN": str(params["max_model_len"]),
-                        "ENABLE_CHUNKED_PREFILL": "true" if params["enable_chunked_prefill"] else "",
-                        "ENABLE_ENFORCE_EAGER": "true" if params.get("enable_enforce_eager") else "",
+                    # Get current IS args and take snapshot
+                    logger.info(f"[AutoTuner] InferenceService '{VLLM_IS_NAME}' in namespace '{K8S_NAMESPACE}'")
+                    isvc = await asyncio.to_thread(
+                        self._k8s_custom.get_namespaced_custom_object,
+                        group="serving.kserve.io",
+                        version="v1beta1",
+                        name=VLLM_IS_NAME,
+                        namespace=K8S_NAMESPACE,
+                        plural="inferenceservices",
+                    )
+                    # Snapshot current args
+                    current_args = (isvc.get("spec", {}).get("predictor", {}).get("model", {}).get("args") or [])
+                    self._is_args_snapshot = list(current_args)
+
+                    # Convert params to tuning args
+                    tuning_args = self._params_to_args(params)
+
+                    # Filter out existing tuning args from current args to preserve static args
+                    static_args = [
+                        arg for arg in self._is_args_snapshot
+                        if not any(arg.startswith(prefix) for prefix in TUNING_ARG_PREFIXES)
+                    ]
+
+                    # New args = static args + tuning args
+                    new_args = static_args + tuning_args
+
+                    # Patch IS with new args
+                    patch_body = {
+                        "spec": {
+                            "predictor": {
+                                "model": {
+                                    "args": new_args
+                                }
+                            }
+                        }
                     }
-
-                    if "max_num_batched_tokens" in params:
-                        config_data[
-                            "MAX_NUM_BATCHED_TOKENS"
-                        ] = str(params["max_num_batched_tokens"])
-                    if "block_size" in params:
-                        config_data["BLOCK_SIZE"] = str(params["block_size"])
-                    if "swap_space" in params:
-                        config_data["SWAP_SPACE"] = str(params["swap_space"])
-
-                    patch_body = {"data": config_data}
-                    
-                    await asyncio.to_thread(self._k8s_core.patch_namespaced_config_map,
-                                             name=K8S_CONFIGMAP,
-                                             namespace=K8S_NAMESPACE,
-                                             body=patch_body)
-                    logger.info(f"[AutoTuner] ConfigMap '{K8S_CONFIGMAP}' patched successfully.")
-
-                try:
-                    name = VLLM_IS_NAME
+                    await asyncio.to_thread(
+                        self._k8s_custom.patch_namespaced_custom_object,
+                        group="serving.kserve.io",
+                        version="v1beta1",
+                        namespace=K8S_NAMESPACE,
+                        plural="inferenceservices",
+                        name=VLLM_IS_NAME,
+                        body=patch_body,
+                    )
+                    logger.info(f"[AutoTuner] InferenceService '{VLLM_IS_NAME}' args patched successfully: {tuning_args}")
+                else:
+                    # restart_only: no args change, just let KServe auto-restart via spec change
+                    # Actually, we need to trigger restart. Since we're not changing args,
+                    # we need to use annotation to force restart.
                     restart_body = {
                         "spec": {
                             "predictor": {
@@ -515,38 +577,31 @@ class AutoTuner:
                         version="v1beta1",
                         namespace=K8S_NAMESPACE,
                         plural="inferenceservices",
-                        name=name,
+                        name=VLLM_IS_NAME,
                         body=restart_body,
                     )
-                    logger.info(f"[AutoTuner] InferenceService '{name}' restarted in '{K8S_NAMESPACE}'.")
-                except ApiException as e:
-                    logger.error(f"[AutoTuner] InferenceService restart failed: {e}")
-                    return {"success": False, "error": f"InferenceService restart failed: {e}"}
+                    logger.info(f"[AutoTuner] InferenceService '{VLLM_IS_NAME}' restarted (annotation only).")
 
             return {"success": True}
+        except ApiException as e:
+            logger.error(f"[AutoTuner] InferenceService args patch failed: {e}")
+            return {"success": False, "error": f"InferenceService args patch failed: {e}"}
         except Exception as e:  # intentional: K8s operation fallback
             logger.error(f"[AutoTuner] 파라미터 적용 실패: {e}")
             return {"success": False, "error": str(e)}
 
     async def _rollback_to_snapshot(self, trial_num: int) -> bool:
-        if not self._k8s_available or self._cm_snapshot is None:
+        if not self._k8s_available or self._is_args_snapshot is None:
             logger.warning("[AutoTuner] Rollback requested but no snapshot available (trial %d)", trial_num)
             return False
         try:
             async with self._k8s_lock:
-                await asyncio.to_thread(
-                    self._k8s_core.patch_namespaced_config_map,
-                    name=K8S_CONFIGMAP,
-                    namespace=K8S_NAMESPACE,
-                    body={"data": self._cm_snapshot},
-                )
-                rollback_restart_body = {
+                # Restore args from snapshot
+                patch_body = {
                     "spec": {
                         "predictor": {
-                            "annotations": {
-                                "serving.kserve.io/restartedAt": datetime.datetime.now(
-                                    datetime.timezone.utc
-                                ).isoformat()
+                            "model": {
+                                "args": self._is_args_snapshot
                             }
                         }
                     }
@@ -558,8 +613,9 @@ class AutoTuner:
                     namespace=K8S_NAMESPACE,
                     plural="inferenceservices",
                     name=VLLM_IS_NAME,
-                    body=rollback_restart_body,
+                    body=patch_body,
                 )
+                # No annotation needed — args change triggers automatic restart
             self._last_rollback_trial = trial_num
             logger.info("[AutoTuner] Rollback to snapshot completed for trial %d", trial_num)
             return True
