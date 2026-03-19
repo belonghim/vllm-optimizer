@@ -17,3 +17,16 @@ Appended entries for .gitignore updates:
 - htmlcov/
 - *.log
 - frontend/dist/
+
+## Task 5: except Exception narrowing (2026-03-19)
+- Pattern for grep-based verification: `# intentional: xxx` inline on the `except` line (not inside the block)
+- `grep -v "# intentional"` filters the whole line, so comment must be on same line as `except Exception`
+- Exception mapping applied:
+  - File I/O: `except OSError:` (metrics_collector `_load_token`)
+  - K8s API calls: `except client.exceptions.ApiException:` / `K8sApiException` (added module-level import to vllm_config.py)
+  - asyncio.wait_for timeout: `except asyncio.TimeoutError:` (main.py `/api/config`)
+  - K8s config loading (startup/fallback pattern): `# intentional: non-critical`
+  - httpx + data parsing mixed try blocks: kept `Exception # intentional: non-critical` (narrowing httpx-only would let KeyError/JSONDecodeError escape)
+  - Load test dispatch errors: `# intentional: non-critical` (any exception → RequestResult failure)
+- `from kubernetes.client.exceptions import ApiException as K8sApiException` safe at module level even when client init is deferred
+- `.sisyphus/` is in .gitignore; use `git add -f` for evidence files

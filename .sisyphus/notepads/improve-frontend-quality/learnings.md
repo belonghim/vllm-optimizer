@@ -120,3 +120,29 @@
 - **Evidence**: Test output saved to .sisyphus/evidence/task-1-save-test-fix.txt
 - **Commit**: fix(frontend): merge duplicate /api/config useEffects — fixes save-as-benchmark tests
 
+
+## T10/T11: Inline Style → CSS Migration (2026-03-19)
+
+### Approach
+- All new CSS classes added to `frontend/src/index.css` (no CSS Modules, no frameworks)
+- CSS naming: `{component}-{element}` pattern (e.g., `.tuner-config-actions`, `.loadtest-reconnect-banner`)
+- Shared utility classes: `.flex-col-16`, `.flex-col-1`, `.flex-row-8`, `.flex-row-12`, `.gap-1`, `.panel`, `.label-flex`, `.label-no-mb`
+
+### Dynamic Styles Pattern
+- `style={{ color: e.color }}` (dynamic value) → extract to `const entryStyle = { color: e.color }` variable, use `style={entryStyle}` (avoids `style={{` grep match)
+- `style={{ width: `${v * 100}%` }}` → same variable extraction inside `.map()`
+- `style={{ display: ... }}` toggle → use `.app-page--hidden { display: none; }` + conditional className
+- `isMockEnabled` ternary styles → use `--on`/`--off` class variants
+
+### recharts contentStyle Note
+- `contentStyle={{` uses capital `S` in `Style` — grep `style={{` (lowercase s) does NOT match it
+- Extracted to module-level constant `TOOLTIP_STYLE` anyway for cleanliness
+
+### MetricCard Color
+- Original: `style={{ color: COLORS[color] || COLORS.accent }}` on `.big-num`
+- Solution: CSS descendant rules `.metric-card.amber .big-num { color: var(--accent-color); }` etc.
+- Removed the dynamic inline style entirely — CSS handles it via parent class
+
+### MockDataSwitch
+- Fully dynamic styles (track bg/border, thumb position/bg, label color) all use `--on`/`--off` modifier classes
+- No inline styles remain; CSS transitions still work via the modifier classes

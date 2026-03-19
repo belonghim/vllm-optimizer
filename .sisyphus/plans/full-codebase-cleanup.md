@@ -73,13 +73,13 @@ Eliminate tech debt across all layers of the vLLM Optimizer application while pr
 - `openshift/overlays/dev/` and `prod/` — environment-specific values
 
 ### Definition of Done
-- [ ] `cd backend && python3 -m pytest tests/ -x -q -m "not integration"` — same pass count as baseline
-- [ ] `cd frontend && npx vitest run` — same pass count as baseline
-- [ ] `./kustomize build openshift/overlays/dev > /dev/null` — exit 0
-- [ ] `./kustomize build openshift/overlays/prod > /dev/null` — exit 0
-- [ ] `grep -r "except Exception" backend/routers/ backend/services/ --include="*.py" | grep -v test | grep -v "# intentional"` — 0 matches (excluding main.py startup)
-- [ ] No function in auto_tuner.py or load_engine.py exceeds 60 lines
-- [ ] `grep -r 'style={{' frontend/src/ --include="*.jsx" --include="*.js"` — 0 matches
+- [x] `cd backend && python3 -m pytest tests/ -x -q -m "not integration"` — same pass count as baseline
+- [x] `cd frontend && npx vitest run` — same pass count as baseline
+- [x] `./kustomize build openshift/overlays/dev > /dev/null` — exit 0
+- [x] `./kustomize build openshift/overlays/prod > /dev/null` — exit 0
+- [x] `grep -r "except Exception" backend/routers/ backend/services/ --include="*.py" | grep -v test | grep -v "# intentional"` — 0 matches (excluding main.py startup)
+- [x] No function in auto_tuner.py or load_engine.py exceeds 60 lines
+- [x] `grep -r 'style={{' frontend/src/ --include="*.jsx" --include="*.js"` — 0 matches
 
 ### Must Have
 - Zero test regressions (existing pass count preserved)
@@ -421,7 +421,7 @@ Max Concurrent: 7 (Wave 1)
 
 ---
 
-- [ ] 2. Decompose auto_tuner.py _evaluate() Method
+- [x] 2. Decompose auto_tuner.py _evaluate() Method
 
   **What to do**:
   - Read `auto_tuner.py:_evaluate()` (lines 574-655, 81 lines) and understand the warmup + probe flow
@@ -585,7 +585,7 @@ Max Concurrent: 7 (Wave 1)
   - Files: `backend/services/load_engine.py`
   - Pre-commit: `cd backend && python3 -m pytest tests/test_load_test.py -v --tb=short`
 
-- [ ] 4. Narrow Exception Handling in auto_tuner.py
+- [x] 4. Narrow Exception Handling in auto_tuner.py
 
   **What to do**:
   - Identify all `except Exception` blocks in `auto_tuner.py` (~9 blocks, excluding test files)
@@ -678,7 +678,7 @@ Max Concurrent: 7 (Wave 1)
 
 ---
 
-- [ ] 5. Narrow Exception Handling in Remaining Backend Files
+- [x] 5. Narrow Exception Handling in Remaining Backend Files
 
   **What to do**:
   - Narrow `except Exception` blocks in these files using the same exception type mapping as T4:
@@ -771,7 +771,7 @@ Max Concurrent: 7 (Wave 1)
 
 ---
 
-- [ ] 6. Add Return Type Annotations to All Backend Functions
+- [x] 6. Add Return Type Annotations to All Backend Functions
 
   **What to do**:
   - Add return type annotations to all backend functions that are missing them (~12 functions)
@@ -1031,7 +1031,7 @@ Max Concurrent: 7 (Wave 1)
 
 ---
 
-- [ ] 9. Extract ErrorAlert Component and Begin CSS Migration
+- [x] 9. Extract ErrorAlert Component and Begin CSS Migration
 
   **What to do**:
   - Create `frontend/src/components/ErrorAlert.jsx` — A reusable error display component
@@ -1127,7 +1127,7 @@ Max Concurrent: 7 (Wave 1)
   - Files: `frontend/src/components/ErrorAlert.jsx`, `frontend/src/pages/TunerPage.jsx`, `frontend/src/pages/LoadTestPage.jsx`, `frontend/src/pages/MonitorPage.jsx`, `frontend/src/pages/BenchmarkPage.jsx`, `frontend/src/index.css`
   - Pre-commit: `cd frontend && npx vitest run`
 
-- [ ] 10. Migrate Inline Styles to CSS — TunerPage and LoadTestPage
+- [x] 10. Migrate Inline Styles to CSS — TunerPage and LoadTestPage
 
   **What to do**:
   - In `TunerPage.jsx` (and extracted TunerConfigForm.jsx, TunerResults.jsx):
@@ -1217,7 +1217,7 @@ Max Concurrent: 7 (Wave 1)
 
 ---
 
-- [ ] 11. Migrate Inline Styles to CSS — Remaining Components
+- [x] 11. Migrate Inline Styles to CSS — Remaining Components
 
   **What to do**:
   - Migrate all remaining inline `style={{}}` to CSS classes in `index.css`:
@@ -1306,7 +1306,7 @@ Max Concurrent: 7 (Wave 1)
 
 ---
 
-- [ ] 12. Add Accessibility — ARIA Labels and Live Regions
+- [x] 12. Add Accessibility — ARIA Labels and Live Regions
 
   **What to do**:
   - Add ARIA attributes across ALL frontend components following this checklist:
@@ -1426,7 +1426,7 @@ Max Concurrent: 7 (Wave 1)
   - Files: All frontend component and page files
   - Pre-commit: `cd frontend && npx vitest run`
 
-- [ ] 13. Kustomize: Parameterize Environment Variables and ALLOWED_ORIGINS
+- [x] 13. Kustomize: Parameterize Environment Variables and ALLOWED_ORIGINS
 
   **What to do**:
   - Move `ALLOWED_ORIGINS` from `openshift/base/02-config.yaml` ConfigMap to overlay-specific patches:
@@ -1527,7 +1527,7 @@ Max Concurrent: 7 (Wave 1)
 
 ---
 
-- [ ] 14. Kustomize: Resolve SECRET_KEY and Parameterize VLLM_ENDPOINT
+- [x] 14. Kustomize: Resolve SECRET_KEY and Parameterize VLLM_ENDPOINT
 
   **What to do**:
   - **SECRET_KEY resolution**:
@@ -1626,19 +1626,19 @@ Max Concurrent: 7 (Wave 1)
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
   Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
   Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
   Run `cd backend && python3 -m pytest tests/ -x -q -m "not integration"` + `cd frontend && npx vitest run`. Review all changed files for: broad exceptions remaining, inline styles remaining, missing type annotations, console.log in prod, unused imports. Check AI slop: excessive comments, over-abstraction, generic names.
   Output: `Backend Tests [PASS/FAIL] | Frontend Tests [PASS/FAIL] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
   Start from clean state. Verify all QA scenarios from every task — follow exact steps, capture evidence. Test cross-task integration (decomposed components rendering correctly, CSS classes applying correctly, ARIA attributes present on correct elements). Save to `.sisyphus/evidence/final-qa/`.
   Output: `Scenarios [N/N pass] | Integration [N/N] | Edge Cases [N tested] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
   For each task: read "What to do", read actual diff (git log/diff). Verify 1:1 — everything in spec was built (no missing), nothing beyond spec was built (no creep). Check "Must NOT do" compliance for all 14 guardrails. Detect cross-task contamination. Flag unaccounted changes.
   Output: `Tasks [N/N compliant] | Guardrails [14/14 clean] | Contamination [CLEAN/N issues] | VERDICT`
 
@@ -1698,11 +1698,11 @@ grep -rn 'aria-label\|aria-live\|aria-labelledby' frontend/src/ --include="*.jsx
 ```
 
 ### Final Checklist
-- [ ] All "Must Have" items present and verified
-- [ ] All 14 "Must NOT Have" guardrails confirmed clean
-- [ ] All tests pass with same count as baseline
-- [ ] Kustomize overlays build successfully
-- [ ] No inline styles in frontend
-- [ ] No broad exceptions in production backend
-- [ ] No monster functions (>60 lines) in backend services
-- [ ] ARIA attributes on all interactive elements
+- [x] All "Must Have" items present and verified
+- [x] All 14 "Must NOT Have" guardrails confirmed clean
+- [x] All tests pass with same count as baseline
+- [x] Kustomize overlays build successfully
+- [x] No inline styles in frontend
+- [x] No broad exceptions in production backend
+- [x] No monster functions (>60 lines) in backend services
+- [x] ARIA attributes on all interactive elements

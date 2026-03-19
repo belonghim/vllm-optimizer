@@ -27,3 +27,30 @@
 - fmt helper and PHASE_LABELS constant defined locally in the files that use them
 - TunerPage.jsx: 181 lines (was 441); TunerConfigForm.jsx: 197 lines; TunerResults.jsx: 111 lines
 - 45/45 tests pass unchanged — tests find buttons/inputs through TunerPage → TunerConfigForm render tree
+
+## [2026-03-19] Task 4 — except Exception narrowing in auto_tuner.py
+
+### Mapping applied
+- `k8s_config.load_incluster_config()` → `k8s_config.ConfigException` (inner init)
+- `_init_k8s` outer → `k8s_config.ConfigException` (wraps config loading)
+- `_wait_for_ready` K8s GET → `ApiException` (import: `from kubernetes.client.exceptions import ApiException`)
+- `_apply_params` IS restart inner → `ApiException`
+- `_rollback_to_snapshot` → `ApiException`
+- `get_importance` Optuna checks → `optuna.exceptions.OptunaError`
+
+### Kept broad with `# intentional`
+- Line 260: SQLite/Optuna storage init — SQLAlchemy errors too diverse
+- Lines 319/354: Prometheus metrics emit — non-critical, any type can fail
+- Line 364: Pareto front update — non-critical internal
+- Line 536: `_apply_params` outer fallback — test mock uses `Exception`, must stay broad
+- Line 612: warmup load engine — non-critical, various error types possible
+
+### Key gotcha: test compatibility
+`test_apply_params_returns_failure_when_is_patch_throws` uses `side_effect = Exception(...)` 
+(not ApiException). Narrowing line 531 (inner IS restart) to `ApiException` is safe because
+the plain `Exception` propagates to the outer line 536 `except Exception`, which still returns
+`{"success": False, "error": "..."}`. Test still passes because "InferenceService" is in the error string.
+
+### Import added
+`from kubernetes.client.exceptions import ApiException` — `k8s_client.exceptions.ApiException` 
+submodule not auto-loaded by `from kubernetes import client as k8s_client`.
