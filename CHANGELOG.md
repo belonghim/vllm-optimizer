@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-19] - Tuner: ConfigMap → InferenceService Args Migration
+
+**Status**: Completed
+
+vLLM Optimizer의 auto_tuner와 vllm_config 라우터가 ConfigMap 대신 KServe InferenceService `spec.predictor.model.args`를 직접 조정하도록 전면 마이그레이션.
+
+### Changed (Infrastructure)
+- **ServingRuntime** (`openshift/dev-only/vllm-runtime.yaml`): ODH 표준 generic template으로 전환. `command: [python, -m, vllm.entrypoints.openai.api_server]` + `args: [--port=8080]` 고정. `envFrom: configMapRef` 완전 제거.
+- **InferenceService** (`openshift/dev-only/vllm-inferenceservice.yaml`): `spec.predictor.model.args`에 모든 vLLM 파라미터 추가 (`--model`, `--served-model-name`, `--max-num-seqs=256`, `--gpu-memory-utilization=0.90`, `--max-model-len=8192`, `--max-num-batched-tokens=2048`).
+- **ConfigMap 삭제** (`openshift/dev-only/vllm-config.yaml`): 제거됨. IS args가 유일한 파라미터 소스.
+- **RBAC** (`openshift/dev-only/vllm-rbac.yaml`): `configmaps` 규칙 제거, `apiGroups: ["v1"]` → `[""]` 버그 수정.
+- **base ConfigMap** (`openshift/base/02-config.yaml`): `K8S_CONFIGMAP_NAME` 환경변수 제거.
+
+### Changed (Backend)
+- **auto_tuner.py**: `_apply_params()`가 ConfigMap 대신 IS `spec.predictor.model.args` patch. KServe spec 변경 시 자동 재기동. `_cm_snapshot` → `_is_args_snapshot: list[str]`. `_finalize_tuning()`에서 best params를 IS args로 올바르게 기록.
+- **vllm_config.py 라우터**: GET/PATCH endpoint가 ConfigMap 대신 IS args 읽기/쓰기. `_args_to_config_dict()` / `_config_dict_to_tuning_args()` 변환 유틸리티 추가.
+
+### Changed (Tests)
+- `test_tuner.py`: ConfigMap mock → IS args mock으로 전면 교체.
+- `test_vllm_config.py`: IS args 기반 GET/PATCH 테스트.
+- `tests/integration/performance/conftest.py`: `backup_restore_vllm_config` → `backup_restore_is_args` fixture.
+
+### Changed (Docs)
+- **AGENTS.md**: IS args 아키텍처 설명 추가, `vllm-config.yaml` 디렉토리 구조 참조 제거.
+
+---
+
 ## [2026-03-19] - Full Codebase Tech Debt Cleanup
 
 **Status**: Completed
