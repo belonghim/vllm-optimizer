@@ -181,7 +181,7 @@ class AutoTuner:
                 async with self._study_lock:
                     trial = self._study.ask()
                 params = self._suggest_params(trial, config)
-                        _trial_start = time.monotonic()
+                _trial_start = time.monotonic()
 
                 await self._broadcast({
                     "type": "trial_start",
