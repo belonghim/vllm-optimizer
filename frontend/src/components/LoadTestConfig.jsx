@@ -16,6 +16,7 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status 
             <input
               className="input"
               type={type}
+              aria-label={label}
               value={config[key]}
               onChange={e => onChange(key, type === "number" ? +e.target.value : e.target.value)}
             />
@@ -25,6 +26,7 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status 
           <label className="label">프롬프트 템플릿</label>
           <textarea
             className="input loadtest-config-textarea"
+            aria-label="프롬프트 템플릿"
             rows={3}
             value={config.prompt_template}
             onChange={e => onChange("prompt_template", e.target.value)}
@@ -38,6 +40,7 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status 
             step="0.1"
             min="0"
             max="2"
+            aria-label="Temperature"
             value={config.temperature}
             onChange={e => onChange("temperature", +e.target.value)}
           />

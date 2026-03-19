@@ -39,7 +39,7 @@ export default function TunerResults({ trials, bestParams, status, isRunning, im
       )}
 
       {scatterData.length > 0 && (
-        <div className="panel">
+        <div className="panel" aria-label="Trial 분포 차트 (TPS vs P99 Latency)">
           <div className="section-title">Trial 분포 (TPS vs P99 Latency)</div>
           <ResponsiveContainer width="100%" height={240}>
             <ScatterChart margin={{ top: 8, right: 8, bottom: 8, left: -8 }}>
@@ -70,7 +70,7 @@ export default function TunerResults({ trials, bestParams, status, isRunning, im
       )}
 
       {status.best_score_history && status.best_score_history.length > 1 && (
-          <div className="panel">
+          <div className="panel" aria-label="최적 점수 수렴 차트">
               <div className="section-title">최적 점수 수렴</div>
               <ResponsiveContainer width="100%" height={180}>
                   <LineChart

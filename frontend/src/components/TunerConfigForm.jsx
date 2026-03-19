@@ -26,7 +26,7 @@ export default function TunerConfigForm({
       <div className="grid-form grid-form-compact">
         <div>
           <label className="label">최적화 목표</label>
-          <select className="input" value={config.objective}
+          <select className="input" aria-label="최적화 목표" value={config.objective}
             onChange={e => onChange("objective", e.target.value)}>
             <option value="tps">최대 처리량 (TPS)</option>
             <option value="latency">최소 레이턴시</option>
@@ -36,24 +36,24 @@ export default function TunerConfigForm({
         </div>
         <div>
           <label className="label">Trial 수</label>
-          <input className="input" type="number" value={config.n_trials}
+          <input className="input" type="number" aria-label="Trial 수" value={config.n_trials}
             onChange={e => onChange("n_trials", +e.target.value)} />
         </div>
         <div>
           <label className="label">max_num_seqs 범위</label>
           <div className="flex-row-8">
-            <input className="input" type="number" placeholder="Min" value={config.max_num_seqs_min}
+            <input className="input" type="number" placeholder="Min" aria-label="max_num_seqs 최솟값" value={config.max_num_seqs_min}
               onChange={e => onChange("max_num_seqs_min", +e.target.value)} />
-            <input className="input" type="number" placeholder="Max" value={config.max_num_seqs_max}
+            <input className="input" type="number" placeholder="Max" aria-label="max_num_seqs 최댓값" value={config.max_num_seqs_max}
               onChange={e => onChange("max_num_seqs_max", +e.target.value)} />
           </div>
         </div>
         <div>
           <label className="label">GPU Memory Util 범위</label>
           <div className="flex-row-8">
-            <input className="input" type="number" step="0.01" placeholder="Min" value={config.gpu_memory_min}
+            <input className="input" type="number" step="0.01" placeholder="Min" aria-label="GPU Memory Util 최솟값" value={config.gpu_memory_min}
               onChange={e => onChange("gpu_memory_min", +e.target.value)} />
-            <input className="input" type="number" step="0.01" placeholder="Max" value={config.gpu_memory_max}
+            <input className="input" type="number" step="0.01" placeholder="Max" aria-label="GPU Memory Util 최댓값" value={config.gpu_memory_max}
               onChange={e => onChange("gpu_memory_max", +e.target.value)} />
           </div>
         </div>
@@ -106,18 +106,18 @@ export default function TunerConfigForm({
             <div>
               <label className="label">max_model_len 범위</label>
               <div className="flex-row-8">
-                <input className="input" type="number" placeholder="Min" value={config.max_model_len_min}
+                <input className="input" type="number" placeholder="Min" aria-label="max_model_len 최솟값" value={config.max_model_len_min}
                   onChange={e => onChange("max_model_len_min", +e.target.value)} />
-                <input className="input" type="number" placeholder="Max" value={config.max_model_len_max}
+                <input className="input" type="number" placeholder="Max" aria-label="max_model_len 최댓값" value={config.max_model_len_max}
                   onChange={e => onChange("max_model_len_max", +e.target.value)} />
               </div>
             </div>
             <div>
               <label className="label">max_num_batched_tokens 범위</label>
               <div className="flex-row-8">
-                <input className="input" type="number" placeholder="Min" value={config.max_num_batched_tokens_min}
+                <input className="input" type="number" placeholder="Min" aria-label="max_num_batched_tokens 최솟값" value={config.max_num_batched_tokens_min}
                   onChange={e => onChange("max_num_batched_tokens_min", +e.target.value)} />
-                <input className="input" type="number" placeholder="Max" value={config.max_num_batched_tokens_max}
+                <input className="input" type="number" placeholder="Max" aria-label="max_num_batched_tokens 최댓값" value={config.max_num_batched_tokens_max}
                   onChange={e => onChange("max_num_batched_tokens_max", +e.target.value)} />
               </div>
             </div>
@@ -150,26 +150,26 @@ export default function TunerConfigForm({
               </label>
               {config.include_swap_space && (
                 <div className="tuner-swap-space-row">
-                  <input className="input" type="number" step="0.5" placeholder="Min GB" value={config.swap_space_min}
+                  <input className="input" type="number" step="0.5" placeholder="Min GB" aria-label="swap_space 최솟값 (GB)" value={config.swap_space_min}
                     onChange={e => onChange("swap_space_min", +e.target.value)} />
-                  <input className="input" type="number" step="0.5" placeholder="Max GB" value={config.swap_space_max}
+                  <input className="input" type="number" step="0.5" placeholder="Max GB" aria-label="swap_space 최댓값 (GB)" value={config.swap_space_max}
                     onChange={e => onChange("swap_space_max", +e.target.value)} />
                 </div>
               )}
             </div>
             <div>
               <label className="label">평가 요청 수</label>
-              <input className="input" type="number" value={config.eval_requests}
+              <input className="input" type="number" aria-label="평가 요청 수" value={config.eval_requests}
                 onChange={e => onChange("eval_requests", +e.target.value)} />
             </div>
             <div>
               <label className="label">평가 동시 요청</label>
-              <input className="input" type="number" value={config.eval_concurrency}
+              <input className="input" type="number" aria-label="평가 동시 요청" value={config.eval_concurrency}
                 onChange={e => onChange("eval_concurrency", +e.target.value)} />
             </div>
             <div>
               <label className="label">평가 RPS</label>
-              <input className="input" type="number" value={config.eval_rps}
+              <input className="input" type="number" aria-label="평가 RPS" value={config.eval_rps}
                 onChange={e => onChange("eval_rps", +e.target.value)} />
             </div>
           </div>
@@ -177,7 +177,7 @@ export default function TunerConfigForm({
       )}
 
       {isRunning && currentPhase && (
-        <div className="tuner-phase-indicator">
+        <div className="tuner-phase-indicator" aria-live="polite" aria-atomic="true">
           Trial {(currentPhase.trial_id ?? 0) + 1}: {PHASE_LABELS[currentPhase.phase] || currentPhase.phase}
         </div>
       )}

@@ -91,7 +91,7 @@ function LoadTestPage() {
         onStop={stop} isRunning={status === "running"} status={status} />
 
       {isReconnecting && status === "running" && (
-        <div className="loadtest-reconnect-banner">
+        <div className="loadtest-reconnect-banner" aria-live="assertive" role="alert">
           ↺ SSE 재연결 중... ({retryCount}/3회 시도)
         </div>
       )}
@@ -99,7 +99,7 @@ function LoadTestPage() {
       <ErrorAlert message={error} className="error-alert--mb8" />
 
       {status === "running" && (
-        <div className="panel">
+        <div className="panel" aria-live="polite" aria-label="부하 테스트 진행 상황">
           <div className="loadtest-progress-header">
             <span className="label">진행률</span>
             <span className="loadtest-progress-pct">{progress}%</span>

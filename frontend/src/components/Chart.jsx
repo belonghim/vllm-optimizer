@@ -23,7 +23,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 function Chart({ data, lines, title, height = 180 }) {
   return (
-    <div className="chart-container">
+    <div className="chart-container" aria-label={title}>
       <div className="section-title">{title}</div>
       <ResponsiveContainer width="100%" height={height}>
         <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>

@@ -17,7 +17,7 @@ class ErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="error-boundary-container">
+        <div role="alert" className="error-boundary-container">
           <div className="error-boundary-icon">⚠</div>
           <h2 className="error-boundary-title">
             Something went wrong

@@ -35,9 +35,11 @@ export default function App() {
           </div>
         </div>
 
-        <nav className="app-header-nav">
+        <nav className="app-header-nav" role="tablist" aria-label="페이지 네비게이션">
           {PAGES.map(p => (
             <button key={p.id} className={`nav-btn ${page === p.id ? "active" : ""}`}
+              role="tab"
+              aria-selected={page === p.id}
               onClick={() => handleSetPage(p.id)}>
               {p.label}
             </button>
@@ -48,7 +50,7 @@ export default function App() {
           <MockDataSwitch />
           <div className="app-header-divider" />
           <div className="app-header-status-dot" />
-          <span className="app-header-status-text">CONNECTED</span>
+          <span className="app-header-status-text" aria-live="assertive" aria-atomic="true">CONNECTED</span>
         </div>
       </header>
 

@@ -66,7 +66,7 @@ function BenchmarkPage() {
               <tr key={b.id} onClick={() => toggle(b.id)}
                 className={selected.includes(b.id) ? 'benchmark-row benchmark-row--selected' : 'benchmark-row'}>
                 <td>
-                  <input type="checkbox" checked={selected.includes(b.id)} readOnly />
+                  <input type="checkbox" checked={selected.includes(b.id)} readOnly aria-label={`벤치마크 ${b.name} 선택`} />
                 </td>
                 <td className="td-text">{b.name}</td>
                 <td className="td-cyan">{b.config?.model || "—"}</td>

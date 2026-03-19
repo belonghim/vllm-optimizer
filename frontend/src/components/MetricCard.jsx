@@ -1,6 +1,6 @@
 function MetricCard({ label, value, unit, color = "amber", delta }) {
   return (
-    <div className={`metric-card ${color}`}>
+    <div className={`metric-card ${color}`} aria-label={`Metric: ${label}`}>
       <div className="label">{label}</div>
       <div className="big-num">
         {value ?? "—"}
