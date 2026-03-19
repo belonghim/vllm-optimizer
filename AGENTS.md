@@ -237,6 +237,18 @@ oc apply -k openshift/overlays/dev
 oc apply -k openshift/overlays/prod
 ```
 
+### Kustomize 검증 (로컬 kustomize 바이너리 사용 금지)
+로컬 `./kustomize` 바이너리는 사용하지 않는다. kustomization 변경사항 검증은 반드시 `oc` 명령어로 한다.
+```bash
+# Dry-run으로 YAML 렌더링 검증 (클러스터 연결 필요 없음)
+oc apply -k openshift/overlays/dev --dry-run=client
+oc apply -k openshift/overlays/prod --dry-run=client
+
+# 또는 렌더링 결과만 확인
+oc kustomize openshift/overlays/dev
+oc kustomize openshift/overlays/prod
+```
+
 ---
 
 ## 코드 작성 가이드라인
