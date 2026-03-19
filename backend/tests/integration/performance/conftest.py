@@ -4,6 +4,7 @@ import time
 import subprocess
 from collections.abc import Iterator
 from typing import cast
+from collections.abc import AsyncIterator
 
 import pytest
 import httpx
@@ -11,7 +12,7 @@ import httpx
 BACKEND_URL = os.getenv("PERF_TEST_BACKEND_URL", "http://vllm-optimizer-backend.vllm-optimizer-dev.svc.cluster.local:8000")
 VLLM_NAMESPACE = os.getenv("VLLM_NAMESPACE", "vllm")
 VLLM_ENDPOINT = os.getenv("VLLM_ENDPOINT", "http://llm-ov-predictor.vllm.svc.cluster.local:8080")
-VLLM_MODEL = os.getenv("VLLM_MODEL", "Qwen2.5-Coder-3B-Instruct-int4-ov")
+VLLM_MODEL = os.getenv("VLLM_MODEL", "Phi-4-mini-instruct-int4-ov")
 OPTIMIZER_NAMESPACE = os.getenv("OPTIMIZER_NAMESPACE", "vllm-optimizer-dev")
 
 
@@ -55,7 +56,7 @@ def warm_up_vllm(http_client: httpx.Client) -> None:
 
 
 @pytest.fixture(autouse=True)
-async def backup_restore_is_args(backend_url: str) -> None:
+async def backup_restore_is_args() -> AsyncIterator[None]:
     result = subprocess.run(
         ["oc", "get", "inferenceservice", "llm-ov", "-n", VLLM_NAMESPACE,
          "-o", "jsonpath={.spec.predictor.model.args}"],

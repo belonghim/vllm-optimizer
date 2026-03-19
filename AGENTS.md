@@ -192,7 +192,7 @@ spec:
 | `VLLM_DEPLOYMENT_NAME` | KServe InferenceService 이름. **auto-tuner의 IS 이름 참조에 사용.** `K8S_DEPLOYMENT_NAME`과 혼동 금지. | `llm-ov` |
 
 | `VLLM_ENDPOINT` | vLLM 추론 엔드포인트 (테스트용) | `http://llm-ov-predictor.vllm.svc.cluster.local:8080` |
-| `VLLM_MODEL` | vLLM 모델명. `/api/config`의 `vllm_model_name` 반환에 사용. | `Qwen2.5-Coder-3B-Instruct-int4-ov` |
+| `VLLM_MODEL` | vLLM 모델명. served-model-name이 IS 이름(llm-ov)으로 해석됨. | llm-ov |
 
 ---
 
@@ -322,7 +322,10 @@ securityContext:
 - **InferenceService**: `llm-ov` (namespace: `vllm`)
 - **KServe가 생성하는 Deployment**: `llm-ov-predictor`
 - **Pod label**: `app=isvc.llm-ov-predictor` (KServe 자동 생성 패턴)
-- **모델**: `Qwen2.5-Coder-3B-Instruct-int4-ov` (CPU/OpenVINO)
+- **모델**: Phi-4-mini-instruct-int4-ov (CPU/OpenVINO)
+- **모델 마운트 방식**: storageUri(OCI) 방식
+- **storageUri**: oci://quay.io/joopark/ai1/modelcar-phi-4-mini-instruct-int4-ov
+- **served-model-name**: IS에서 제거됨, Runtime의 {{.Name}}이 llm-ov로 해석
 - **추론 엔드포인트**: `http://llm-ov-predictor.vllm.svc.cluster.local:8080`
 - **API**: `/v1/completions`, `/v1/models` (OpenAI 호환)
 
@@ -361,7 +364,7 @@ BACKEND_POD=$(oc get pod -n $NS -l app=vllm-optimizer-backend -o name | head -1)
 oc exec -n $NS $BACKEND_POD -- env \
   PERF_TEST_BACKEND_URL=http://localhost:8000 \
   VLLM_ENDPOINT=http://llm-ov-predictor.vllm.svc.cluster.local:8080 \
-  VLLM_MODEL=Qwen2.5-Coder-3B-Instruct-int4-ov \
+  VLLM_MODEL=Phi-4-mini-instruct-int4-ov \
   VLLM_NAMESPACE=vllm \
   OPTIMIZER_NAMESPACE=vllm-optimizer-dev \
   python3 -m pytest /app/tests/integration/performance/ -v --tb=short -m "integration"
@@ -499,11 +502,8 @@ oc import-image vllm-optimizer-backend:latest \
 - 수동 확인: `oc rollout restart deployment/llm-ov-predictor -n vllm`
 - **주의**: KServe InferenceService 이름(`llm-ov`, `VLLM_DEPLOYMENT_NAME`)과 Deployment 이름(`llm-ov-predictor`, `K8S_DEPLOYMENT_NAME`)은 다름. 파드 재기동에는 Deployment 이름 사용.
 
-### auto_tuner ConfigMap 수정 후 vLLM 설정 미반영
-- `envFrom`으로 마운트된 ConfigMap은 Pod 재기동 없이는 환경변수가 갱신되지 않음
-- auto_tuner의 trial 실행 중 rollout restart 성공 여부를 백엔드 로그로 확인
-- 수동 적용: `oc rollout restart deployment/llm-ov-predictor -n vllm`
-- 현재 Pod 환경변수 확인: `oc exec <pod> -n vllm -- env | grep MAX_NUM_SEQS`
+### IS args 아키텍처
+- auto_tuner와 vllm_config API는 InferenceService spec.predictor.model.args를 직접 패치합니다.
 
 ### auto_tuner model="auto" 사용 금지
 - `/v1/models` 엔드포인트에서 동적 해석 필수
