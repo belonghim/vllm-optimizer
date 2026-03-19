@@ -30,7 +30,6 @@ vllm-optimizer/
 ├── CHANGELOG.md
 ├── deploy.sh                    # OpenShift 배포 스크립트
 ├── nginx.conf                   # 루트 레벨 nginx 설정 (프론트엔드용)
-├── kustomize                    # 로컬 kustomize 바이너리
 ├── baseline.dev.json            # 성능 테스트 기준값
 ├── pyproject.toml               # pytest 설정 (markers, asyncio)
 │

@@ -9,6 +9,10 @@
 - Vitest has no global setup file — tests import jest-dom manually per file
 - T13 and T14 both touch 02-config.yaml — run sequentially or merge carefully
 
+## Kustomize Binary
+- `./kustomize` binary was missing from repo. Installed v5.8.1 and committed.
+- Both dev and prod overlays build successfully with the new binary.
+
 ## Count Corrections (from Metis review)
 - Exception blocks: ~14 total (not 35+)
   - auto_tuner.py: 9
