@@ -364,7 +364,7 @@ BACKEND_POD=$(oc get pod -n $NS -l app=vllm-optimizer-backend -o name | head -1)
 oc exec -n $NS $BACKEND_POD -- env \
   PERF_TEST_BACKEND_URL=http://localhost:8000 \
   VLLM_ENDPOINT=http://llm-ov-predictor.vllm.svc.cluster.local:8080 \
-  VLLM_MODEL=Phi-4-mini-instruct-int4-ov \
+  VLLM_MODEL=llm-ov \
   VLLM_NAMESPACE=vllm \
   OPTIMIZER_NAMESPACE=vllm-optimizer-dev \
   python3 -m pytest /app/tests/integration/performance/ -v --tb=short -m "integration"
