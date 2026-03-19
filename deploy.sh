@@ -99,6 +99,12 @@ compare_and_rollout() {
     log "[WARN] compare_and_rollout called with missing arguments"; return 0
   fi
 
+  # Check if deployment exists (e.g., first-time deploy before kustomize apply)
+  if ! oc get deployment "$deployment_name" -n "$_namespace" &>/dev/null; then
+    log "[INFO] Deployment $deployment_name not found in $_namespace; skipping rollout (will be created by kustomize)"
+    return 0
+  fi
+
   # get new digest from provided image reference
   local new_digest
   new_digest=$(get_image_digest "$new_image_ref" 2>/dev/null || true)
