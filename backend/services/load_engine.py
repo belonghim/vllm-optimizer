@@ -10,6 +10,7 @@ import psutil
 
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any
 
 from models.load_test import LoadTestConfig, RequestResult
 
@@ -36,7 +37,7 @@ class LoadTestEngine:
     def __init__(self) -> None:
         self._state: LoadTestState = LoadTestState()
         self._stop_event: asyncio.Event = asyncio.Event()
-        self._subscribers: list[asyncio.Queue] = []
+        self._subscribers: list[asyncio.Queue[Any]] = []
         self._state_lock: asyncio.Lock = asyncio.Lock()
         self._subscribers_lock: asyncio.Lock = asyncio.Lock()
 
@@ -51,17 +52,17 @@ class LoadTestEngine:
             return time.time() - self._state.start_time
         return 0.0
 
-    async def subscribe(self) -> asyncio.Queue:
-        q: asyncio.Queue = asyncio.Queue()
+    async def subscribe(self) -> asyncio.Queue[Any]:
+        q: asyncio.Queue[Any] = asyncio.Queue[Any]()
         async with self._subscribers_lock:
             self._subscribers.append(q)
         return q
 
-    async def unsubscribe(self, q: asyncio.Queue) -> None:
+    async def unsubscribe(self, q: asyncio.Queue[Any]) -> None:
         async with self._subscribers_lock:
             self._subscribers.remove(q)
 
-    async def _broadcast(self, data: dict):
+    async def _broadcast(self, data: dict[str, Any]):
         async with self._subscribers_lock:
             targets = list(self._subscribers)
         for q in targets:
@@ -151,7 +152,7 @@ class LoadTestEngine:
                     error=str(e),
                 )
 
-    async def _process_completed_tasks(self, done_tasks: set[asyncio.Task], processed_tasks: set[asyncio.Task]):
+    async def _process_completed_tasks(self, done_tasks: set[asyncio.Task[Any]], processed_tasks: set[asyncio.Task[Any]]):
         """Process completed asyncio tasks, collect results, update state, broadcast."""
         for t in done_tasks:
             result = await t
@@ -165,7 +166,7 @@ class LoadTestEngine:
             stats = self._compute_stats()
             await self._broadcast({"type": "progress", "data": stats})
 
-    async def _finalize_results(self, metric_samples: list[dict[str, float]], sample_stop: asyncio.Event, sampling_task: asyncio.Task) -> dict:
+    async def _finalize_results(self, metric_samples: list[dict[str, float]], sample_stop: asyncio.Event, sampling_task: asyncio.Task[Any]) -> dict[str, Any]:
         """Finalize test: set status, stop sampling, compute final stats, broadcast, return."""
         async with self._state_lock:
             self._state.status = LoadTestStatus.COMPLETED
@@ -188,11 +189,11 @@ class LoadTestEngine:
         await self._broadcast({"type": "completed", "data": final_stats})
         return final_stats
 
-    async def run(self, config: LoadTestConfig) -> dict:
+    async def run(self, config: LoadTestConfig) -> dict[str, Any]:
         """부하 테스트 실행 — 실시간 결과 yield"""
         semaphore, metric_samples, sample_stop, sampling_task, interval = self._init_run_state(config)
         tasks = []
-        processed_tasks: set[asyncio.Task] = set()
+        processed_tasks: set[asyncio.Task[Any]] = set()
         for i in range(config.total_requests):
             if self._stop_event.is_set():
                 break
@@ -232,7 +233,7 @@ class LoadTestEngine:
         async with self._state_lock:
             self._state.status = LoadTestStatus.STOPPED
 
-    def _compute_stats(self) -> dict:
+    def _compute_stats(self) -> dict[str, Any]:
         results = self._state.results
         if not results:
             return {}

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -10,9 +11,9 @@ def register(app) -> None:
     except Exception:  # intentional: fail-open
         return
 
-    task_holder = {"task": None}
+    task_holder: dict[str, Optional[asyncio.Task[Any]]] = {"task": None}
 
-    def _on_task_done(task: asyncio.Task) -> None:
+    def _on_task_done(task: asyncio.Task[Any]) -> None:
         """Log if the metrics collection task dies unexpectedly."""
         if not task.cancelled() and task.exception():
             logger.error("[StartupShim] Metrics collection task died: %s", task.exception())
@@ -35,7 +36,7 @@ def register(app) -> None:
         _ensure_metrics_task()
 
     @app.post("/startup_metrics", tags=["startup_metrics"])
-    async def _startup_metrics_endpoint() -> dict:
+    async def _startup_metrics_endpoint() -> dict[str, Any]:
         started = _ensure_metrics_task()
         task = task_holder["task"]
         running = task is not None and not task.done()
@@ -54,7 +55,8 @@ def register(app) -> None:
             logger.debug("[StartupShim] Ignoring exception during shutdown: %s", e)
         if task_holder["task"] is not None:
             try:
-                await task_holder["task"]
+                _pending = task_holder["task"]
+                await _pending
             except Exception as e:  # intentional: non-critical
                 # intentional: ignore exceptions while awaiting task completion
                 logger.debug("[StartupShim] Ignoring exception while awaiting task: %s", e)

@@ -10,6 +10,7 @@ import os
 import time
 import asyncio
 
+from typing import Any, Union
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -103,11 +104,11 @@ app.include_router(tuner, prefix="/api/tuner", tags=["tuner"])
 app.include_router(vllm_config, prefix="/api/vllm-config", tags=["vllm-config"])
 
 
-@app.get("/health", tags=["health"])
-async def health_check(request: Request) -> dict:
+@app.get("/health", tags=["health"], response_model=None)
+async def health_check(request: Request) -> Union[dict[str, Any], JSONResponse]:
     """Health check with dependency validation.
     Query param: deep=1 enables full connectivity checks (slow)."""
-    health = {"status": "healthy", "dependencies": {}}
+    health: dict[str, Any] = {"status": "healthy", "dependencies": {}}
     deep_check = request.query_params.get("deep") == "1"
 
     health["timestamp"] = time.time()
@@ -139,7 +140,7 @@ async def health_check(request: Request) -> dict:
 
 
 @app.get("/api/config", tags=["config"])
-async def get_frontend_config() -> dict:
+async def get_frontend_config() -> dict[str, Any]:
     """Return server-side configuration for frontend defaults."""
     endpoint = os.getenv("VLLM_ENDPOINT", "http://localhost:8000")
     model_name = os.getenv("VLLM_MODEL", "auto")
@@ -158,7 +159,7 @@ async def get_frontend_config() -> dict:
 
 
 @app.get("/", tags=["root"])
-async def root() -> dict:
+async def root() -> dict[str, Any]:
     """Root endpoint with API information."""
     return {
         "message": "vLLM Optimizer API",
