@@ -1,9 +1,11 @@
 {
-  "active_plan": "/home/user/project/vllm-optimizer/.sisyphus/plans/auto-tuner-improvement.md",
-  "started_at": "2026-03-14T11:21:11.502Z",
+  "active_plan": null,
+  "completed_plan": "/home/user/project/vllm-optimizer/.sisyphus/plans/fix-metric-name-collision.md",
+  "completed_at": "2026-03-15T15:10:00.000Z",
   "session_ids": [
-    "ses_31413fd25ffez4Z2qilp0KPVet"
+    "ses_30e3569ecffecQfFgvrfzpLB3Y"
   ],
-  "plan_name": "auto-tuner-improvement",
+  "plan_name": "fix-metric-name-collision",
+  "status": "completed",
   "agent": "atlas"
 }
