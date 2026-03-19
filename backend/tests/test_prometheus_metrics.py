@@ -1,4 +1,5 @@
 import types
+from typing import Any
 from ..metrics import prometheus_metrics as pm
 import pytest
 from fastapi import FastAPI
@@ -21,7 +22,7 @@ def client():
     return TestClient(app)
 
 
-def _mock_collector_state(state: dict):
+def _mock_collector_state(state: dict[str, Any]):
     """Helper to patch MetricsCollector to return a deterministic state."""
     class DummyCollector:
         def __init__(self):

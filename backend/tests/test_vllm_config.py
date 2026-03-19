@@ -16,7 +16,7 @@ def client_with_vllm_config(client):
 
 
 def _get_vllm_config_globals(client: TestClient, method: str | None = None):
-    for route in client.app.routes:
+    for route in client.app.routes:  # type: ignore[attr-defined]
         if getattr(route, "path", None) != "/api/vllm-config":
             continue
         if method and method not in route.methods:

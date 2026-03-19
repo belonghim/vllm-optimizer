@@ -99,8 +99,8 @@ def test_by_model_empty(client):
 
 
 def test_by_model_grouping(client):
-    client.post("/api/benchmark/save", json={**_BASE_PAYLOAD, "name": "run-A"})
-    payload_b = {**_BASE_PAYLOAD, "name": "run-B", "config": {**_BASE_PAYLOAD["config"], "model": "model-B"}}
+    client.post("/api/benchmark/save", json={**_BASE_PAYLOAD, "name": "run-A"})  # type: ignore[arg-type]
+    payload_b = {**_BASE_PAYLOAD, "name": "run-B", "config": {**_BASE_PAYLOAD["config"], "model": "model-B"}}  # type: ignore[arg-type]
     client.post("/api/benchmark/save", json=payload_b)
 
     resp = client.get("/api/benchmark/by-model")
@@ -122,7 +122,7 @@ def test_by_model_gpu_efficiency(client):
 
 def test_by_model_gpu_zero(client):
     payload = {
-        **_BASE_PAYLOAD,
+        **_BASE_PAYLOAD,  # type: ignore[arg-type]
         "result": {**_BASE_PAYLOAD["result"], "gpu_utilization_avg": 0.0},
     }
     client.post("/api/benchmark/save", json=payload)

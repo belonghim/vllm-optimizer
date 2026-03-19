@@ -20,7 +20,7 @@ def save_baseline(env: str, metrics: dict[str, Any]) -> None:
         json.dump(metrics, f, indent=2)
 
 
-def compare_metrics(baseline: dict[str, Any], current: dict[str, Any]) -> dict[str, dict]:
+def compare_metrics(baseline: dict[str, Any], current: dict[str, Any]) -> dict[str, dict[str, Any]]:
     result = {}
     for key in baseline:
         if key in current and isinstance(baseline[key], (int, float)) and isinstance(current[key], (int, float)):
