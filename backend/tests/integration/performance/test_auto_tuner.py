@@ -37,8 +37,8 @@ class TestAutoTuner:
         else:
             pytest.fail("AutoTuner did not complete within 600 seconds")
 
-        assert status.get("best_metric") is not None
-        assert status["best_metric"] > 0
+        assert status.get("best") is not None, f"best is None: {status}"
+        assert status["best"].get("tps", 0) > 0, f"best.tps not > 0: {status['best']}"
 
         trials_resp = http_client.get("/api/tuner/trials")
         assert trials_resp.status_code == 200
