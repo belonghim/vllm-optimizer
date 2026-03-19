@@ -2,6 +2,45 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-19] - Full Codebase Tech Debt Cleanup
+
+**Status**: Completed
+
+코드베이스 전반의 기술 부채를 해소하는 리팩터링. 기능 변경 없이 유지보수성, 가독성, 접근성을 개선.
+
+### Refactored (Backend)
+- **auto_tuner.py `start()` 분해**: 225줄 → 58줄. `_init_tuning_state`, `_apply_trial_params`, `_wait_for_isvc_ready`, `_run_trial_evaluation`, `_handle_trial_result`, `_finalize_tuning`, `_emit_trial_metrics`, `_update_pareto_front`, `_setup_study`, `_rollback_config` 10개 private 메서드 추출
+- **`_evaluate()` 분해**: warmup/probe 단계를 `_run_warmup_load`, `_run_probe_load`로 분리
+- **`load_engine.py run()` 분해**: 161줄 → `_dispatch_request`, `_process_completed_tasks`, `_finalize_results`로 분리. `asyncio.wait(FIRST_COMPLETED)` 패턴 보존
+- **예외 처리 구체화**: 전체 백엔드에서 `except Exception` → `ApiException`, `httpx.HTTPStatusError`, `asyncio.TimeoutError` 등 구체적 타입으로 교체. 의도적 broad catch는 `# intentional` 주석 명시
+- **반환 타입 어노테이션**: 9개 파일 전체 public/async 함수에 `-> ReturnType` 추가
+- **import 정리**: 미사용 `import inspect` 제거, 인라인 `import time` → 모듈 레벨로 이동
+
+### Refactored (Frontend)
+- **TunerPage 분해**: 441줄 → 181줄. `TunerConfigForm.jsx`, `TunerResults.jsx` 분리
+- **LoadTestPage 분해**: 337줄 → 180줄. `LoadTestConfig.jsx`, `useLoadTestSSE.js` 훅 분리 (EventSource 라이프사이클 캡슐화)
+- **ErrorAlert 컴포넌트 추출**: 4개 페이지에 중복된 인라인 에러 div → 단일 컴포넌트
+- **인라인 스타일 제거**: `style={{` 107개 → 0개. `index.css`에 152개 named CSS 클래스로 이전
+- **접근성(a11y) 추가**: ARIA 속성 2개 → 34개. `role="tablist"`, `role="tab"`, `role="alert"`, `aria-live`, `aria-label` 전 컴포넌트 적용
+
+### Refactored (Infrastructure)
+- **Kustomize 파라미터화**: `ALLOWED_ORIGINS`, `VLLM_ENDPOINT`를 base ConfigMap에서 제거 → dev/prod overlay 패치로 이동
+- **SECRET_KEY 경고 주석**: 평문 기본값에 교체 안내 주석 추가
+- **AGENTS.md 업데이트**: kustomize 바이너리 금지, `oc` 명령어로만 검증하도록 명시
+
+### Verification
+- Backend: 117 passed (베이스라인 동일)
+- Frontend: 45 passed (베이스라인 동일)
+- Kustomize dev/prod: `oc kustomize` 성공 (30 resources each)
+- F1 Plan Compliance: APPROVE | F2 Code Quality: APPROVE | F3 Manual QA: APPROVE | F4 Scope Fidelity: APPROVE
+
+### Scope
+- 15개 구현 태스크 (T0-T14) + 4개 최종 검증 (F1-F4) 완료
+- 20개 커밋
+- 14개 가드레일 전부 준수 (asyncio.wait 보존, CSS 프레임워크 미사용, 포트 상수 유지 등)
+
+---
+
 ## [Unreleased]
 
 ### Added
