@@ -4,6 +4,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Dict
+from kubernetes.client.exceptions import ApiException as K8sApiException
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +34,10 @@ def _get_k8s_core():
         from kubernetes import client, config as k8s_config
         try:
             k8s_config.load_incluster_config()
-        except Exception:
+        except Exception:  # intentional: non-critical
             k8s_config.load_kube_config()
         return client.CoreV1Api()
-    except Exception as e:
+    except Exception as e:  # intentional: non-critical
         logger.warning("[VllmConfig] K8s client not available: %s", e)
         return None
 
@@ -53,7 +54,7 @@ async def get_vllm_config():
             namespace=K8S_NAMESPACE,
         )
         return {"success": True, "data": cm.data or {}}
-    except Exception as e:
+    except K8sApiException as e:
         logger.error("[VllmConfig] Failed to read ConfigMap: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -76,7 +77,7 @@ async def patch_vllm_config(request: VllmConfigPatchRequest):
             raise HTTPException(status_code=409, detail="Tuner is running, cannot modify config")
     except HTTPException:
         raise
-    except Exception:
+    except Exception:  # intentional: non-critical
         pass  # auto_tuner 접근 불가 시 진행
 
     core = await asyncio.to_thread(_get_k8s_core)
@@ -92,6 +93,6 @@ async def patch_vllm_config(request: VllmConfigPatchRequest):
             body=patch_body,
         )
         return {"success": True, "updated_keys": list(request.data.keys())}
-    except Exception as e:
+    except K8sApiException as e:
         logger.error("[VllmConfig] Failed to patch ConfigMap: %s", e)
         raise HTTPException(status_code=500, detail=str(e))

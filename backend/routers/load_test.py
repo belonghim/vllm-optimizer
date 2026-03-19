@@ -87,7 +87,7 @@ async def start_load_test(config: LoadTestConfig):
                 "result": result,
                 "timestamp": time_module.time(),
             })
-        except Exception as e:
+        except Exception as e:  # intentional: non-critical
             logger.error("[LoadTest] Error: %s", e)
         finally:
             _active_test_task = None

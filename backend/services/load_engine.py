@@ -78,7 +78,7 @@ class LoadTestEngine:
                     resp = await client.get("http://localhost:8000/api/metrics/latest")
                     if resp.status_code == 200:
                         gpu = resp.json().get("gpu_util", 0.0)
-            except Exception:
+            except Exception:  # intentional: non-critical
                 # GPU metrics fetch, non-critical
                 pass
             samples.append({"cpu": cpu, "gpu": gpu})
@@ -143,7 +143,7 @@ class LoadTestEngine:
                     output_tokens=output_tokens,
                     tps=output_tokens / latency if latency > 0 else 0,
                 )
-            except Exception as e:
+            except Exception as e:  # intentional: non-critical
                 return RequestResult(
                     req_id=request_id,
                     success=False,
@@ -210,7 +210,7 @@ class LoadTestEngine:
             for fut in asyncio.as_completed(remaining_tasks):
                 try:
                     result = await fut
-                except Exception as e:
+                except Exception as e:  # intentional: non-critical
                     result = RequestResult(
                         req_id=-1,
                         success=False,

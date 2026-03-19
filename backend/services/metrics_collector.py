@@ -142,19 +142,19 @@ class MetricsCollector:
                 return f.read().strip()
         except FileNotFoundError:
             return None
-        except Exception:
+        except OSError:
             return None
 
     def _init_k8s(self):
         try:
             try:
                 config.load_incluster_config()
-            except Exception:
+            except Exception:  # intentional: non-critical
                 config.load_kube_config()
             self._k8s_apps = client.AppsV1Api()
             self._k8s_core = client.CoreV1Api()
             self._k8s_available = True
-        except Exception as e:
+        except Exception as e:  # intentional: non-critical
             logger.error(f"[MetricsCollector] K8s 초기화 실패 (모의 데이터 사용): {e}")
 
     async def start_collection(self, interval: float = 2.0):
@@ -163,7 +163,7 @@ class MetricsCollector:
         while self._running:
             try:
                 await self._collect()
-            except Exception as e:
+            except Exception as e:  # intentional: non-critical
                 logger.error(f"[MetricsCollector] 수집 오류: {e}")
             await asyncio.sleep(interval)
 
@@ -208,7 +208,7 @@ class MetricsCollector:
         try:
             from metrics.prometheus_metrics import metrics_collection_duration_metric
             metrics_collection_duration_metric.observe(duration)
-        except Exception:
+        except Exception:  # intentional: non-critical
             # non-critical: metrics collection duration histogram failed to record
             pass
 
@@ -228,7 +228,7 @@ class MetricsCollector:
                 if math.isnan(value) or math.isinf(value):
                     return metric_name, None
                 return metric_name, round(value, 3)
-        except Exception:
+        except Exception:  # intentional: non-critical
             pass
         return metric_name, None
 
@@ -274,7 +274,7 @@ class MetricsCollector:
                 if data["status"] == "success" and data["data"]["result"]:
                     logger.info("[MetricsCollector] Detected vLLM version: 0.13.x (GPU node)")
                     return "0.13.x"
-            except Exception as e:
+            except Exception as e:  # intentional: non-critical
                 logger.warning(f"[MetricsCollector] GPU metric probe failed: {e}")
 
             try:
@@ -286,7 +286,7 @@ class MetricsCollector:
                 if data["status"] == "success" and data["data"]["result"]:
                     logger.info("[MetricsCollector] Detected vLLM version: 0.13.x-cpu (CPU/OpenVINO node)")
                     return "0.13.x-cpu"
-            except Exception as e:
+            except Exception as e:  # intentional: non-critical
                 logger.warning(f"[MetricsCollector] KV cache metric probe failed: {e}")
 
         logger.info("[MetricsCollector] Detected vLLM version: 0.11.x (fallback)")
@@ -317,7 +317,7 @@ class MetricsCollector:
                 "pod_count": pod_count,
                 "pod_ready": ready,
             }
-        except Exception:
+        except client.exceptions.ApiException:
             return {}
 
     @property

@@ -26,6 +26,6 @@ async def resolve_model_name(endpoint: str, fallback: str = "auto") -> str:
                     model_name = models_data[0]["id"]
                     logger.info("[ModelResolver] Resolved model name: %s", model_name)
                     return model_name
-    except Exception as e:
+    except Exception as e:  # intentional: non-critical
         logger.warning("[ModelResolver] Failed to resolve model name, using '%s': %s", fallback, e)
     return fallback

@@ -60,7 +60,7 @@ async def check_prometheus_health() -> bool:
                 params={"query": query},
             )
             return resp.status_code == 200
-    except Exception:
+    except Exception:  # intentional: non-critical
         return False
 
 
@@ -70,7 +70,7 @@ async def check_prometheus_health() -> bool:
 try:
     from startup_metrics_shim import register
     register(app)
-except Exception as e:
+except Exception as e:  # intentional: fail-open
     logger.debug("Startup shim not loaded: %s", e)
 
 # Configure CORS — read from ALLOWED_ORIGINS env var (comma-separated), fall back to localhost defaults
@@ -116,7 +116,7 @@ async def health_check(request: Request):
         try:
             prom_ok = await check_prometheus_health()
             health["dependencies"]["prometheus"] = "healthy" if prom_ok else "unhealthy"
-        except Exception:
+        except Exception:  # intentional: non-critical
             health["dependencies"]["prometheus"] = "unhealthy"
 
         try:
@@ -124,7 +124,7 @@ async def health_check(request: Request):
             v1 = client.CoreV1Api()
             v1.list_namespaced_pod(namespace=os.getenv("POD_NAMESPACE", "default"), limit=1)
             health["dependencies"]["kubernetes"] = "healthy"
-        except Exception:
+        except Exception:  # intentional: non-critical
             health["dependencies"]["kubernetes"] = "unhealthy"
 
     all_healthy = all(v == "healthy" for v in health["dependencies"].values())
@@ -147,7 +147,7 @@ async def get_frontend_config():
         resolved = await asyncio.wait_for(
             resolve_model_name(endpoint), timeout=3.0
         )
-    except Exception:
+    except asyncio.TimeoutError:
         resolved = model_name
     return {
         "vllm_endpoint": endpoint,

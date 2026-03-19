@@ -1,0 +1,6 @@
+63:    except Exception:  # intentional: non-critical
+73:except Exception as e:  # intentional: fail-open
+119:        except Exception:  # intentional: non-critical
+127:        except Exception:  # intentional: non-critical
+
+main.py line 73 preserved with # intentional: fail-open

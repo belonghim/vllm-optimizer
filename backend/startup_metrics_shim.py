@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 def register(app):
     try:
         from services.shared import metrics_collector as collector
-    except Exception:
+    except Exception:  # intentional: fail-open
         return
 
     task_holder = {"task": None}
@@ -49,12 +49,12 @@ def register(app):
     async def _shutdown_metrics_collector():
         try:
             collector.stop()
-        except Exception as e:
+        except Exception as e:  # intentional: non-critical
             # intentional: shutdown cleanup
             logger.debug("[StartupShim] Ignoring exception during shutdown: %s", e)
         if task_holder["task"] is not None:
             try:
                 await task_holder["task"]
-            except Exception as e:
+            except Exception as e:  # intentional: non-critical
                 # intentional: ignore exceptions while awaiting task completion
                 logger.debug("[StartupShim] Ignoring exception while awaiting task: %s", e)
