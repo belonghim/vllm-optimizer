@@ -1,0 +1,22 @@
+# task-3-tests.txt
+backend/tests/test_load_test.py: 20 warnings
+  /home/user/.local/lib/python3.14/site-packages/fastapi/applications.py:4599: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)
+
+backend/tests/test_load_test.py: 10 warnings
+  /home/user/project/vllm-optimizer/backend/startup_metrics_shim.py:48: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings/index.html
+======================== 9 passed, 40 warnings in 1.00s ========================
+Pass count: 9 passed

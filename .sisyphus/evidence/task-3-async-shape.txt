@@ -1,0 +1,4 @@
+# task-3-async-shape.txt
+asyncio.wait present: YES
+FIRST_COMPLETED present: YES
+asyncio.gather present: NO

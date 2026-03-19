@@ -87,117 +87,124 @@ class LoadTestEngine:
                     return
                 await asyncio.sleep(1)
 
-    async def run(self, config: LoadTestConfig) -> dict:
-        """부하 테스트 실행 — 실시간 결과 yield"""
+    def _init_run_state(self, config: LoadTestConfig):
+        """Initialize run state, stats tracking, and result containers."""
         self._state = LoadTestState(
             status=LoadTestStatus.RUNNING,
             start_time=time.time(),
             total_requests=config.total_requests,
         )
         self._stop_event.clear()
-
         semaphore = asyncio.Semaphore(config.concurrency)
-        tasks = []
-        # Track which tasks have been processed to avoid dropping results finishing during sleep
-        processed_tasks: set[asyncio.Task] = set()
-
-        # CPU/GPU metric sampling
-        _metric_samples: list[dict[str, float]] = []
-        _sample_stop = asyncio.Event()
-        _sampling_task = asyncio.create_task(self._sample_metrics(_metric_samples, _sample_stop))
-
-        # RPS 제어를 위한 토큰 버킷
+        metric_samples = []
+        sample_stop = asyncio.Event()
+        sampling_task = asyncio.create_task(self._sample_metrics(metric_samples, sample_stop))
         interval = 1.0 / config.rps if config.rps > 0 else 0
+        return semaphore, metric_samples, sample_stop, sampling_task, interval
 
-        async def single_request(req_id: int) -> RequestResult:
-            async with semaphore:
-                payload = {
-                    "model": config.model,
-                    "prompt": config.prompt_template,
-                    "max_tokens": config.max_tokens,
-                    "temperature": config.temperature,
-                }
+    async def _dispatch_request(self, config: LoadTestConfig, semaphore: asyncio.Semaphore, request_id: int) -> RequestResult:
+        """Send a single async HTTP request."""
+        async with semaphore:
+            payload = {
+                "model": config.model,
+                "prompt": config.prompt_template,
+                "max_tokens": config.max_tokens,
+                "temperature": config.temperature,
+            }
+            t0 = time.time()
+            ttft = None
+            output_tokens = 0
+            try:
+                async with httpx.AsyncClient(timeout=120) as client:
+                    if config.stream:
+                        async with client.stream(
+                            "POST",
+                            f"{config.endpoint}/v1/completions",
+                            json={**payload, "stream": True},
+                        ) as resp:
+                            async for chunk in resp.aiter_lines():
+                                if chunk.startswith("data: ") and chunk != "data: [DONE]":
+                                    if ttft is None:
+                                        ttft = time.time() - t0
+                                    output_tokens += 1
+                    else:
+                        resp = await client.post(
+                            f"{config.endpoint}/v1/completions",
+                            json=payload,
+                        )
+                        data = resp.json()
+                        output_tokens = data["usage"]["completion_tokens"]
+                latency = time.time() - t0
+                return RequestResult(
+                    req_id=request_id,
+                    success=True,
+                    latency=latency,
+                    ttft=ttft,
+                    output_tokens=output_tokens,
+                    tps=output_tokens / latency if latency > 0 else 0,
+                )
+            except Exception as e:
+                return RequestResult(
+                    req_id=request_id,
+                    success=False,
+                    latency=time.time() - t0,
+                    error=str(e),
+                )
 
-                t0 = time.time()
-                ttft = None
-                output_tokens = 0
+    async def _process_completed_tasks(self, done_tasks: set[asyncio.Task], processed_tasks: set[asyncio.Task]):
+        """Process completed asyncio tasks, collect results, update state, broadcast."""
+        for t in done_tasks:
+            result = await t
+            processed_tasks.add(t)
+            async with self._state_lock:
+                self._state.results.append(result)
+                if result.success:
+                    self._state.completed_requests += 1
+                else:
+                    self._state.failed_requests += 1
+            stats = self._compute_stats()
+            await self._broadcast({"type": "progress", "data": stats})
 
-                try:
-                    async with httpx.AsyncClient(timeout=120) as client:
-                        if config.stream:
-                            # Streaming — TTFT 측정
-                            async with client.stream(
-                                "POST",
-                                f"{config.endpoint}/v1/completions",
-                                json={**payload, "stream": True},
-                            ) as resp:
-                                async for chunk in resp.aiter_lines():
-                                    if chunk.startswith("data: ") and chunk != "data: [DONE]":
-                                        if ttft is None:
-                                            ttft = time.time() - t0
-                                        output_tokens += 1
-                        else:
-                            resp = await client.post(
-                                f"{config.endpoint}/v1/completions",
-                                json=payload,
-                            )
-                            data = resp.json()
-                            output_tokens = data["usage"]["completion_tokens"]
+    async def _finalize_results(self, metric_samples: list[dict[str, float]], sample_stop: asyncio.Event, sampling_task: asyncio.Task) -> dict:
+        """Finalize test: set status, stop sampling, compute final stats, broadcast, return."""
+        async with self._state_lock:
+            self._state.status = LoadTestStatus.COMPLETED
+        sample_stop.set()
+        sampling_task.cancel()
+        try:
+            await sampling_task
+        except asyncio.CancelledError:
+            pass
+        final_stats = self._compute_stats()
+        if metric_samples:
+            cpu_values = [s["cpu"] for s in metric_samples]
+            gpu_values = [s["gpu"] for s in metric_samples]
+            final_stats["backend_cpu_avg"] = round(sum(cpu_values) / len(cpu_values), 2)
+            final_stats["gpu_utilization_avg"] = round(sum(gpu_values) / len(gpu_values), 2)
+        else:
+            final_stats["backend_cpu_avg"] = 0.0
+            final_stats["gpu_utilization_avg"] = 0.0
+        final_stats["tokens_per_sec"] = final_stats.get("tps", {}).get("mean", 0.0)
+        await self._broadcast({"type": "completed", "data": final_stats})
+        return final_stats
 
-                    latency = time.time() - t0
-                    return RequestResult(
-                        req_id=req_id,
-                        success=True,
-                        latency=latency,
-                        ttft=ttft,
-                        output_tokens=output_tokens,
-                        tps=output_tokens / latency if latency > 0 else 0,
-                    )
-
-                except Exception as e:
-                    return RequestResult(
-                        req_id=req_id,
-                        success=False,
-                        latency=time.time() - t0,
-                        error=str(e),
-                    )
-
-        # 요청 생성 루프
+    async def run(self, config: LoadTestConfig) -> dict:
+        """부하 테스트 실행 — 실시간 결과 yield"""
+        semaphore, metric_samples, sample_stop, sampling_task, interval = self._init_run_state(config)
+        tasks = []
+        processed_tasks: set[asyncio.Task] = set()
         for i in range(config.total_requests):
             if self._stop_event.is_set():
                 break
-
-            task = asyncio.create_task(single_request(i))
+            task = asyncio.create_task(self._dispatch_request(config, semaphore, i))
             tasks.append(task)
-            # Process any completed tasks without blocking future submissions
             to_check = [t for t in tasks if t not in processed_tasks]
             if to_check:
-                done, _ = await asyncio.wait(
-                    to_check,
-                    timeout=0,
-                    return_when=asyncio.FIRST_COMPLETED,
-                )
-                for t in done:
-                    result = await t
-                    processed_tasks.add(t)
-                    async with self._state_lock:
-                        self._state.results.append(result)
-                        if result.success:
-                            self._state.completed_requests += 1
-                        else:
-                            self._state.failed_requests += 1
-
-                    # 실시간 통계 계산
-                    stats = self._compute_stats()
-                    await self._broadcast({
-                        "type": "progress",
-                        "data": stats,
-                    })
-
+                done, _ = await asyncio.wait(to_check, timeout=0, return_when=asyncio.FIRST_COMPLETED)
+                await self._process_completed_tasks(done, processed_tasks)
             if interval > 0:
                 await asyncio.sleep(interval)
-
-        # 남은 태스크 완료 대기
+        # Process remaining tasks
         remaining_tasks = [t for t in tasks if t not in processed_tasks]
         if remaining_tasks:
             for fut in asyncio.as_completed(remaining_tasks):
@@ -216,39 +223,9 @@ class LoadTestEngine:
                         self._state.completed_requests += 1
                     else:
                         self._state.failed_requests += 1
-
                 stats = self._compute_stats()
-                await self._broadcast({
-                    "type": "progress",
-                    "data": stats,
-                })
-
-        async with self._state_lock:
-            self._state.status = LoadTestStatus.COMPLETED
-
-        # Stop sampling task
-        _sample_stop.set()
-        _sampling_task.cancel()
-        try:
-            await _sampling_task
-        except asyncio.CancelledError:
-            pass
-
-        final_stats = self._compute_stats()
-
-        if _metric_samples:
-            cpu_values: list[float] = [s["cpu"] for s in _metric_samples]
-            gpu_values: list[float] = [s["gpu"] for s in _metric_samples]
-            final_stats["backend_cpu_avg"] = round(sum(cpu_values) / len(cpu_values), 2)
-            final_stats["gpu_utilization_avg"] = round(sum(gpu_values) / len(gpu_values), 2)
-        else:
-            final_stats["backend_cpu_avg"] = 0.0
-            final_stats["gpu_utilization_avg"] = 0.0
-
-        final_stats["tokens_per_sec"] = final_stats.get("tps", {}).get("mean", 0.0)
-
-        await self._broadcast({"type": "completed", "data": final_stats})
-        return final_stats
+                await self._broadcast({"type": "progress", "data": stats})
+        return await self._finalize_results(metric_samples, sample_stop, sampling_task)
 
     async def stop(self):
         self._stop_event.set()
