@@ -2,6 +2,7 @@
 부하 테스트 엔진 — 동시 요청, RPS 제어, 실시간 결과 스트리밍
 """
 import asyncio
+import json
 import time
 import os
 import httpx
@@ -118,16 +119,29 @@ class LoadTestEngine:
             try:
                 async with httpx.AsyncClient(timeout=120) as client:
                     if config.stream:
+                        usage_tokens = 0
                         async with client.stream(
                             "POST",
                             f"{config.endpoint}/v1/completions",
-                            json={**payload, "stream": True},
+                            json={
+                                **payload,
+                                "stream": True,
+                                "stream_options": {"include_usage": True},
+                            },
                         ) as resp:
                             async for chunk in resp.aiter_lines():
                                 if chunk.startswith("data: ") and chunk != "data: [DONE]":
                                     if ttft is None:
                                         ttft = time.time() - t0
                                     output_tokens += 1
+                                    try:
+                                        data = json.loads(chunk[6:])
+                                        if data.get("usage") and data["usage"].get("completion_tokens"):
+                                            usage_tokens = data["usage"]["completion_tokens"]
+                                    except (json.JSONDecodeError, KeyError):
+                                        pass
+                        if usage_tokens:
+                            output_tokens = usage_tokens
                     else:
                         resp = await client.post(
                             f"{config.endpoint}/v1/completions",
