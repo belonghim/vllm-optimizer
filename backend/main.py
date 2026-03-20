@@ -52,8 +52,24 @@ except Exception as e:  # intentional: fail-open
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # ── Storage initialization (fail-open) ──
+    try:
+        from services.shared import storage
+        await storage.initialize()
+        logger.info("[Lifespan] Storage initialized")
+    except Exception as e:
+        logger.warning("[Lifespan] Storage initialization failed (continuing): %s", e)
+
     async with _create_lifespan(app)(app):
         yield
+
+    # ── Storage shutdown (fail-open) ──
+    try:
+        from services.shared import storage
+        await storage.close()
+        logger.info("[Lifespan] Storage closed")
+    except Exception as e:
+        logger.debug("[Lifespan] Storage close failed (non-critical): %s", e)
 
 app = FastAPI(
     title="vLLM Optimizer API",

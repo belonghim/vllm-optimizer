@@ -1,14 +1,38 @@
 import pytest
 from fastapi.testclient import TestClient
 from typing import Any
+import asyncio
+import sys
 
-from ..main import app
-from ..models.load_test import LoadTestConfig, LoadTestResult, LatencyStats, TpsStats
-from ..models.load_test import Benchmark
+
+@pytest.fixture(autouse=True)
+def setup_test_storage(monkeypatch):
+    """Setup in-memory storage for each test."""
+    from services.storage import Storage
+    from services import shared
+
+    test_storage = Storage(":memory:")
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(test_storage.initialize())
+
+    monkeypatch.setattr(shared, "storage", test_storage)
+
+    benchmark_module = sys.modules.get("routers.benchmark")
+    if benchmark_module is not None:
+        monkeypatch.setattr(benchmark_module, "storage", test_storage)
+
+    yield test_storage
+
+    loop.run_until_complete(test_storage.close())
+    loop.close()
 
 
 @pytest.fixture
 def client():
+    """Create test client."""
+    from main import app
     return TestClient(app)
 
 
@@ -17,6 +41,7 @@ def test_benchmark_list_empty(client):
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, list)
+    assert len(data) == 0
 
 
 def test_benchmark_save_get_and_delete_in_one(client):
@@ -58,17 +83,6 @@ def test_benchmark_save_get_and_delete_in_one(client):
     assert resp3.status_code == 200
     data3 = resp3.json()
     assert data3.get("status") == "deleted"
-
-
-import pytest
-from routers.benchmark import benchmark_storage
-
-
-@pytest.fixture(autouse=True)
-def clear_storage():
-    benchmark_storage.clear()
-    yield
-    benchmark_storage.clear()
 
 
 _BASE_PAYLOAD: dict[str, Any] = {

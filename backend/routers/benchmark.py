@@ -4,35 +4,30 @@ Provides endpoints for saving, retrieving, and managing benchmark results.
 """
 from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any
-from datetime import datetime, timezone
 from models.load_test import Benchmark
+from services.shared import storage
 
 router = APIRouter()
-
-# In-memory storage stub (will be replaced with database in future)
-benchmark_storage: List[Benchmark] = []
 
 
 @router.get("/list", response_model=List[Benchmark])
 async def list_benchmarks() -> List[Benchmark]:
     """Get list of all saved benchmarks."""
-    return benchmark_storage
+    return await storage.list_benchmarks()
 
 
 @router.post("/save", response_model=Benchmark)
 async def save_benchmark(benchmark: Benchmark) -> Benchmark:
     """Save a benchmark result for later comparison."""
-    benchmark.id = len(benchmark_storage) + 1
-    benchmark.timestamp = datetime.now(timezone.utc).timestamp()
-    benchmark_storage.append(benchmark)
-    return benchmark
+    return await storage.save_benchmark(benchmark)
 
 
 @router.get("/by-model", response_model=Dict[str, Any])
 async def benchmarks_by_model() -> Dict[str, Any]:
     """Get benchmarks grouped by model name, with GPU efficiency calculated."""
+    benchmarks = await storage.list_benchmarks()
     groups: Dict[str, list[Any]] = {}
-    for b in benchmark_storage:
+    for b in benchmarks:
         model_key = (b.config.model if b.config else None) or "unknown"
         gpu_efficiency = None
         if b.result and b.result.gpu_utilization_avg and b.result.gpu_utilization_avg > 0:
@@ -48,21 +43,20 @@ async def benchmarks_by_model() -> Dict[str, Any]:
 @router.get("/{benchmark_id}", response_model=Benchmark)
 async def get_benchmark(benchmark_id: int) -> Benchmark:
     """Retrieve a specific benchmark by ID."""
-    for benchmark in benchmark_storage:
-        if benchmark.id == benchmark_id:
-            return benchmark
-    raise HTTPException(status_code=404, detail=f"Benchmark {benchmark_id} not found")
+    benchmark = await storage.get_benchmark(benchmark_id)
+    if benchmark is None:
+        raise HTTPException(status_code=404, detail=f"Benchmark {benchmark_id} not found")
+    return benchmark
 
 
 @router.delete("/{benchmark_id}")
 async def delete_benchmark(benchmark_id: int) -> Dict[str, Any]:
     """Delete a saved benchmark."""
-    for i, benchmark in enumerate(benchmark_storage):
-        if benchmark.id == benchmark_id:
-            del benchmark_storage[i]
-            return {
-                "status": "deleted",
-                "benchmark_id": benchmark_id,
-                "message": "Benchmark deleted successfully"
-            }
-    raise HTTPException(status_code=404, detail=f"Benchmark {benchmark_id} not found")
+    deleted = await storage.delete_benchmark(benchmark_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Benchmark {benchmark_id} not found")
+    return {
+        "status": "deleted",
+        "benchmark_id": benchmark_id,
+        "message": "Benchmark deleted successfully"
+    }

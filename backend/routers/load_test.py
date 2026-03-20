@@ -11,7 +11,6 @@ import asyncio
 import os
 import uuid
 import logging
-from collections import deque
 import time as time_module
 
 from models.load_test import (
@@ -24,6 +23,7 @@ from models.load_test import (
 
 from services.load_engine import load_engine, LoadTestStatus
 from services.model_resolver import resolve_model_name
+from services.shared import storage
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -32,9 +32,6 @@ logger = logging.getLogger(__name__)
 _active_test_task: Optional[asyncio.Task[Any]] = None
 _current_config: Optional[LoadTestConfig] = None
 _test_lock = asyncio.Lock()
-
-# In-memory history store (max 100 entries, no persistence)
-_test_history: deque[Any] = deque(maxlen=100)
 
 
 # Simple response models for start/stop
@@ -92,12 +89,16 @@ async def start_load_test(config: LoadTestConfig) -> dict[str, Any]:
         global _active_test_task
         try:
             result = await load_engine.run(config)
-            _test_history.appendleft({
+            entry = {
                 "test_id": test_id,
                 "config": config.model_dump(),
                 "result": result,
                 "timestamp": time_module.time(),
-            })
+            }
+            try:
+                await storage.save_load_test(entry)
+            except Exception as e:
+                logger.warning("[LoadTest] Failed to persist history (fail-open): %s", e)
         except Exception as e:  # intentional: non-critical
             logger.error("[LoadTest] Error: %s", e)
         finally:
@@ -214,4 +215,8 @@ async def get_load_test_history(limit: int = 10) -> list[dict[str, Any]]:
     - Sorted by most recent first
     - Limit parameter controls number of results returned
     """
-    return list(_test_history)[:limit]
+    try:
+        return await storage.get_load_test_history(limit=limit)
+    except Exception as e:
+        logger.warning("[LoadTest] Failed to retrieve history (fail-open): %s", e)
+        return []

@@ -15,6 +15,7 @@ from datetime import datetime
 from models.load_test import TuningConfig
 from services.shared import metrics_collector, load_engine
 from services.auto_tuner import AutoTuner
+from services.shared import storage
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -119,7 +120,10 @@ async def start_tuning(request: TuningStartRequest) -> dict[str, Any]:
             "message": "Tuning is already running. Wait for it to complete or stop it first.",
             "tuning_id": None,
         }
-    # Convert flat request to TuningConfig
+    try:
+        await storage.clear_trials()
+    except Exception as e:
+        logger.warning("[Tuner] Failed to clear trials from storage before new session: %s", e)
     config = TuningConfig(
         max_num_seqs_range=(request.max_num_seqs_min, request.max_num_seqs_max),
         gpu_memory_utilization_range=(request.gpu_memory_min, request.gpu_memory_max),
@@ -173,7 +177,13 @@ async def get_tuner_status() -> TunerStatusFrontendResponse:
 @router.get("/trials", response_model=list[TrialFrontendInfo])
 async def get_tuning_trials(limit: int = 20) -> list[TrialFrontendInfo]:
     """Get list of tuning trials."""
-    trials = auto_tuner.trials[-limit:]
+    try:
+        all_trials = await storage.get_trials()
+        if not all_trials:
+            all_trials = auto_tuner.trials
+    except Exception:
+        all_trials = auto_tuner.trials
+    trials = all_trials[-limit:]
     return [
         TrialFrontendInfo(
             id=t.trial_id,

@@ -12,6 +12,7 @@ from typing import Optional, List, Any, cast
 from kubernetes import client as k8s_client, config as k8s_config
 from kubernetes.client.exceptions import ApiException
 from models.load_test import TuningConfig, TuningTrial, LoadTestConfig  # pyright: ignore[reportImplicitRelativeImport]
+from services.shared import storage  # pyright: ignore[reportImplicitRelativeImport]
 
 import optuna
 optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -361,6 +362,10 @@ class AutoTuner:
             async with self._lock:
                 self._trials.append(t)
                 self._best_score_history.append(self._best_trial.score if self._best_trial else 0)
+            try:
+                await storage.save_trial(t)
+            except Exception as e:
+                logger.warning("[AutoTuner] Failed to persist trial %d to storage: %s", trial_num, e)
             await self._emit_trial_metrics(trial_start, "pruned")
             await self._broadcast({"type": "trial_complete", "data": {
                 "trial_id": trial_num, "score": score, "tps": tps,
@@ -387,6 +392,10 @@ class AutoTuner:
                (direction == "minimize" and score < self._best_trial.score):
                 self._best_trial = t
             self._best_score_history.append(self._best_trial.score if self._best_trial else score)
+        try:
+            await storage.save_trial(t)
+        except Exception as e:
+            logger.warning("[AutoTuner] Failed to persist trial %d to storage: %s", trial_num, e)
         await self._emit_trial_metrics(trial_start, "completed")
         if self._config.objective == "pareto":
             await self._update_pareto_front()

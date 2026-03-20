@@ -136,6 +136,18 @@ def _ensure_kubernetes(monkeypatch: pytest.MonkeyPatch) -> None:
         client_module = types.ModuleType("kubernetes.client")
         sys.modules["kubernetes.client"] = client_module
 
+    # Stub kubernetes.client.exceptions module with ApiException
+    exceptions_module = sys.modules.get("kubernetes.client.exceptions")
+    if exceptions_module is None:
+        exceptions_module = types.ModuleType("kubernetes.client.exceptions")
+        sys.modules["kubernetes.client.exceptions"] = exceptions_module
+
+    # Define a stub ApiException class
+    class _StubApiException(Exception):
+        pass
+
+    monkeypatch.setattr(exceptions_module, "ApiException", _StubApiException, raising=False)
+
     kubernetes_module.config = config_module
     kubernetes_module.client = client_module
 
@@ -169,6 +181,7 @@ def _install_stub_metrics_collector_modules() -> list[str]:
     stub_collector_instance = _StubMetricsCollector()
     load_engine_module = importlib.import_module("services.load_engine")
     backend_load_engine_module = importlib.import_module("backend.services.load_engine")
+    from services.storage import Storage
     for module_name, load_engine_target in (
         ("services.shared", load_engine_module),
         ("backend.services.shared", backend_load_engine_module),
@@ -178,6 +191,8 @@ def _install_stub_metrics_collector_modules() -> list[str]:
         stub_any.metrics_collector = stub_collector_instance
         stub_any.MetricsCollector = _StubMetricsCollector
         stub_any.load_engine = load_engine_target
+        stub_any.Storage = Storage
+        stub_any.storage = Storage(":memory:")
         sys.modules[module_name] = stub_module
         injected_names.append(module_name)
 
@@ -221,7 +236,7 @@ def _reload_app(monkeypatch: pytest.MonkeyPatch) -> FastAPI:
     load_test_module_any = cast(Any, load_test_module)
     load_test_module_any._active_test_task = None
     load_test_module_any._current_config = None
-    load_test_module_any._test_history.clear()
+    # Note: _test_history was removed and replaced with persistent storage
 
     return app
 

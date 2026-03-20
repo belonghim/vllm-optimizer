@@ -1,3 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vllm-optimizer-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -92,10 +103,15 @@ spec:
           volumeMounts:
             - name: tmp-dir
               mountPath: /tmp
+            - name: vllm-optimizer-data
+              mountPath: /data
       volumes:
         - name: tmp-dir
           emptyDir:
             sizeLimit: 100Mi
+        - name: vllm-optimizer-data
+          persistentVolumeClaim:
+            claimName: vllm-optimizer-data
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -134,7 +150,7 @@ spec:
     kind: Deployment
     name: vllm-optimizer-backend
   minReplicas: 1
-  maxReplicas: 5
+  maxReplicas: 1  # RWO PVC requires single replica
   metrics:
     - type: Resource
       resource:
