@@ -12,7 +12,7 @@ from typing import Optional, List, Any, cast
 from kubernetes import client as k8s_client, config as k8s_config
 from kubernetes.client.exceptions import ApiException
 from models.load_test import TuningConfig, TuningTrial, LoadTestConfig  # pyright: ignore[reportImplicitRelativeImport]
-from services.shared import storage  # pyright: ignore[reportImplicitRelativeImport]
+from services.shared import runtime_config, storage  # pyright: ignore[reportImplicitRelativeImport]
 
 import optuna
 optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -35,9 +35,18 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-K8S_NAMESPACE = os.getenv("K8S_NAMESPACE", "default")
-K8S_DEPLOYMENT = os.getenv("K8S_DEPLOYMENT_NAME", "vllm-deployment")
-VLLM_IS_NAME = os.getenv("VLLM_DEPLOYMENT_NAME") or "llm-ov"
+
+def _get_k8s_namespace() -> str:
+    namespace = runtime_config.vllm_namespace
+    return namespace if namespace and namespace != "vllm-lab-dev" else "default"
+
+
+def _get_vllm_is_name() -> str:
+    return runtime_config.vllm_is_name or "llm-ov"
+
+K8S_NAMESPACE = _get_k8s_namespace()
+K8S_DEPLOYMENT = _get_vllm_is_name()
+VLLM_IS_NAME = _get_vllm_is_name()
 
 # Tuning parameter prefixes for arg filtering (static args preserved)
 TUNING_ARG_PREFIXES = (
@@ -93,7 +102,9 @@ class AutoTuner:
             logger.warning("K8s client unavailable: %s", e)
 
     async def _wait_for_ready(self, timeout: int = 300, interval: int = 5) -> bool:
-        logger.info(f"[AutoTuner] InferenceService '{VLLM_IS_NAME}' 준비 대기 중...")
+        namespace = _get_k8s_namespace()
+        is_name = _get_vllm_is_name()
+        logger.info(f"[AutoTuner] InferenceService '{is_name}' 준비 대기 중...")
         wait_start = time.monotonic()
         start_time = asyncio.get_event_loop().time()
         result = False
@@ -104,15 +115,15 @@ class AutoTuner:
                     self._k8s_custom.get_namespaced_custom_object,
                     group="serving.kserve.io",
                     version="v1beta1",
-                    name=VLLM_IS_NAME,
-                    namespace=K8S_NAMESPACE,
+                    name=is_name,
+                    namespace=namespace,
                     plural="inferenceservices",
                 )
                 _isvc: dict[str, Any] = cast(dict[str, Any], inferenceservice) if inferenceservice else {}
                 conditions = _isvc.get("status", {}).get("conditions", [])
                 for c in conditions:
                     if c.get("type") == "Ready" and c.get("status") == "True":
-                        logger.info(f"[AutoTuner] InferenceService '{VLLM_IS_NAME}' 준비 완료.")
+                        logger.info(f"[AutoTuner] InferenceService '{is_name}' 준비 완료.")
                         result = True
                         break
                 if result:
@@ -127,7 +138,7 @@ class AutoTuner:
         self._total_wait_seconds += wait_duration
 
         if not result:
-            logger.error(f"[AutoTuner] InferenceService '{VLLM_IS_NAME}' 시간 초과: {timeout}초.")
+            logger.error(f"[AutoTuner] InferenceService '{is_name}' 시간 초과: {timeout}초.")
         return result
 
     async def subscribe(self) -> asyncio.Queue[Any]:
@@ -545,13 +556,15 @@ class AutoTuner:
 
         try:
             async with self._k8s_lock:
-                logger.info(f"[AutoTuner] InferenceService '{VLLM_IS_NAME}' in namespace '{K8S_NAMESPACE}'")
+                namespace = _get_k8s_namespace()
+                is_name = _get_vllm_is_name()
+                logger.info(f"[AutoTuner] InferenceService '{is_name}' in namespace '{namespace}'")
                 isvc = await asyncio.to_thread(
                     self._k8s_custom.get_namespaced_custom_object,
                     group="serving.kserve.io",
                     version="v1beta1",
-                    name=VLLM_IS_NAME,
-                    namespace=K8S_NAMESPACE,
+                    name=is_name,
+                    namespace=namespace,
                     plural="inferenceservices",
                 )
                 _isvc2: dict[str, Any] = cast(dict[str, Any], isvc) if isvc else {}
@@ -582,12 +595,12 @@ class AutoTuner:
                     self._k8s_custom.patch_namespaced_custom_object,
                     group="serving.kserve.io",
                     version="v1beta1",
-                    namespace=K8S_NAMESPACE,
+                    namespace=namespace,
                     plural="inferenceservices",
-                    name=VLLM_IS_NAME,
+                    name=is_name,
                     body=patch_body,
                 )
-                logger.info(f"[AutoTuner] InferenceService '{VLLM_IS_NAME}' args patched successfully: {tuning_args}")
+                logger.info(f"[AutoTuner] InferenceService '{is_name}' args patched successfully: {tuning_args}")
 
             return {"success": True}
         except ApiException as e:
@@ -603,6 +616,8 @@ class AutoTuner:
             return False
         try:
             async with self._k8s_lock:
+                namespace = _get_k8s_namespace()
+                is_name = _get_vllm_is_name()
                 # Restore args from snapshot
                 patch_body = {
                     "spec": {
@@ -617,9 +632,9 @@ class AutoTuner:
                     self._k8s_custom.patch_namespaced_custom_object,
                     group="serving.kserve.io",
                     version="v1beta1",
-                    namespace=K8S_NAMESPACE,
+                    namespace=namespace,
                     plural="inferenceservices",
-                    name=VLLM_IS_NAME,
+                    name=is_name,
                     body=patch_body,
                 )
                 # No annotation needed — args change triggers automatic restart

@@ -182,6 +182,7 @@ def _install_stub_metrics_collector_modules() -> list[str]:
     load_engine_module = importlib.import_module("services.load_engine")
     backend_load_engine_module = importlib.import_module("backend.services.load_engine")
     from services.storage import Storage
+    from services.runtime_config import RuntimeConfig
     for module_name, load_engine_target in (
         ("services.shared", load_engine_module),
         ("backend.services.shared", backend_load_engine_module),
@@ -193,6 +194,7 @@ def _install_stub_metrics_collector_modules() -> list[str]:
         stub_any.load_engine = load_engine_target
         stub_any.Storage = Storage
         stub_any.storage = Storage(":memory:")
+        stub_any.runtime_config = RuntimeConfig()
         sys.modules[module_name] = stub_module
         injected_names.append(module_name)
 

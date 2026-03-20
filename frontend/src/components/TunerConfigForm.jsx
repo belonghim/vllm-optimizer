@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { API } from "../constants";
 
 const PHASE_LABELS = {
   applying_config: "설정 업데이트 중...",
@@ -25,6 +26,72 @@ export default function TunerConfigForm({
   onSaveStorageUri,
 }) {
   const [localStorageUri, setLocalStorageUri] = useState(storageUri ?? "");
+  const [showVllmSettings, setShowVllmSettings] = useState(false);
+  const [vllmSettings, setVllmSettings] = useState({
+    vllm_endpoint: "",
+    vllm_namespace: "",
+    vllm_is_name: "",
+  });
+  const [vllmSettingsOriginal, setVllmSettingsOriginal] = useState({
+    vllm_endpoint: "",
+    vllm_namespace: "",
+    vllm_is_name: "",
+  });
+  const [vllmSettingsMessage, setVllmSettingsMessage] = useState(null);
+  const [vllmSettingsSaving, setVllmSettingsSaving] = useState(false);
+
+  // Load vLLM settings on mount
+  useEffect(() => {
+    fetch(`${API}/config`)
+      .then(r => r.json())
+      .then(data => {
+        const settings = {
+          vllm_endpoint: data.vllm_endpoint || "",
+          vllm_namespace: data.vllm_namespace || "",
+          vllm_is_name: data.vllm_is_name || "",
+        };
+        setVllmSettings(settings);
+        setVllmSettingsOriginal(settings);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleVllmSettingChange = (field, value) => {
+    setVllmSettings(prev => ({ ...prev, [field]: value }));
+    setVllmSettingsMessage(null);
+  };
+
+  const handleSaveVllmSettings = async () => {
+    setVllmSettingsSaving(true);
+    setVllmSettingsMessage(null);
+    try {
+      const res = await fetch(`${API}/config`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(vllmSettings),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setVllmSettingsMessage({ type: "error", text: data.detail || `HTTP ${res.status}` });
+        return;
+      }
+      setVllmSettingsOriginal({ ...vllmSettings });
+      setVllmSettingsMessage({ type: "success", text: "설정이 저장되었습니다." });
+      // Also update parent config's vllm_endpoint
+      if (vllmSettings.vllm_endpoint) {
+        onChange("vllm_endpoint", vllmSettings.vllm_endpoint);
+      }
+    } catch (err) {
+      setVllmSettingsMessage({ type: "error", text: `저장 실패: ${err.message}` });
+    } finally {
+      setVllmSettingsSaving(false);
+    }
+  };
+
+  const vllmSettingsChanged =
+    vllmSettings.vllm_endpoint !== vllmSettingsOriginal.vllm_endpoint ||
+    vllmSettings.vllm_namespace !== vllmSettingsOriginal.vllm_namespace ||
+    vllmSettings.vllm_is_name !== vllmSettingsOriginal.vllm_is_name;
 
   useEffect(() => {
     setLocalStorageUri(storageUri ?? "");
@@ -88,6 +155,69 @@ export default function TunerConfigForm({
           {trialsCompleted} / {config.n_trials} trials
         </span>
       </div>
+
+      <div className="tuner-advanced-toggle-wrap">
+        <button
+          className="btn btn-advanced"
+          onClick={() => setShowVllmSettings(v => !v)}
+        >
+          vLLM 설정 {showVllmSettings ? "▲" : "▼"}
+        </button>
+      </div>
+
+      {showVllmSettings && (
+        <div className="tuner-advanced-panel">
+          <div className="grid-form grid-form-compact">
+            <div>
+              <label className="label">vLLM Endpoint</label>
+              <input
+                className="input"
+                type="text"
+                value={vllmSettings.vllm_endpoint}
+                onChange={e => handleVllmSettingChange("vllm_endpoint", e.target.value)}
+                placeholder="http://llm-ov-predictor.vllm.svc.cluster.local:8080"
+                aria-label="vLLM Endpoint"
+              />
+            </div>
+            <div>
+              <label className="label">Namespace</label>
+              <input
+                className="input"
+                type="text"
+                value={vllmSettings.vllm_namespace}
+                onChange={e => handleVllmSettingChange("vllm_namespace", e.target.value)}
+                placeholder="vllm"
+                aria-label="vLLM Namespace"
+              />
+            </div>
+            <div>
+              <label className="label">InferenceService Name</label>
+              <input
+                className="input"
+                type="text"
+                value={vllmSettings.vllm_is_name}
+                onChange={e => handleVllmSettingChange("vllm_is_name", e.target.value)}
+                placeholder="llm-ov"
+                aria-label="InferenceService Name"
+              />
+            </div>
+          </div>
+          <div className="tuner-vllm-settings-actions">
+            <button
+              className="btn btn-primary"
+              onClick={handleSaveVllmSettings}
+              disabled={vllmSettingsSaving || !vllmSettingsChanged}
+            >
+              {vllmSettingsSaving ? "저장 중..." : "저장"}
+            </button>
+            {vllmSettingsMessage && (
+              <span className={`tuner-vllm-settings-msg tuner-vllm-settings-msg--${vllmSettingsMessage.type}`}>
+                {vllmSettingsMessage.text}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="tuner-advanced-toggle-wrap">
         <button

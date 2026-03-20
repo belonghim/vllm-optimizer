@@ -1,4 +1,3 @@
-import os
 import asyncio
 import logging
 from fastapi import APIRouter, HTTPException
@@ -6,13 +5,20 @@ from pydantic import BaseModel
 from typing import Any, Dict, Optional, cast
 from kubernetes.client import CustomObjectsApi
 from kubernetes.client.exceptions import ApiException as K8sApiException
+from services.shared import runtime_config
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-K8S_NAMESPACE = os.getenv("K8S_NAMESPACE", "default")
-VLLM_IS_NAME = os.getenv("VLLM_DEPLOYMENT_NAME") or "llm-ov"
+
+def _get_k8s_namespace() -> str:
+    namespace = runtime_config.vllm_namespace
+    return namespace if namespace and namespace != "vllm-lab-dev" else "default"
+
+
+def _get_vllm_is_name() -> str:
+    return runtime_config.vllm_is_name or "llm-ov"
 
 ALLOWED_CONFIG_KEYS = {
     "MAX_NUM_SEQS",
@@ -98,14 +104,16 @@ async def get_vllm_config() -> dict[str, Any]:
     if _custom is None:
         raise HTTPException(status_code=503, detail="Kubernetes not available")
     _api = _custom
+    namespace = _get_k8s_namespace()
+    is_name = _get_vllm_is_name()
     try:
         is_obj = cast(dict[str, Any], await asyncio.to_thread(
             _api.get_namespaced_custom_object,
             group="serving.kserve.io",
             version="v1beta1",
-            namespace=K8S_NAMESPACE,
+            namespace=namespace,
             plural="inferenceservices",
-            name=VLLM_IS_NAME,
+            name=is_name,
         ))
         model_spec: dict[str, Any] = is_obj.get("spec", {}).get("predictor", {}).get("model", {})  # type: ignore[index]
         args = model_spec.get("args") or []
@@ -144,6 +152,8 @@ async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict[str, Any]:
     if custom is None:
         raise HTTPException(status_code=503, detail="Kubernetes not available")
     _api = custom
+    namespace = _get_k8s_namespace()
+    is_name = _get_vllm_is_name()
     try:
         model_patch: dict[str, Any] = {}
 
@@ -152,9 +162,9 @@ async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict[str, Any]:
                 _api.get_namespaced_custom_object,
                 group="serving.kserve.io",
                 version="v1beta1",
-                namespace=K8S_NAMESPACE,
+                namespace=namespace,
                 plural="inferenceservices",
-                name=VLLM_IS_NAME,
+                name=is_name,
             ))
             current_args: list[str] = (is_obj.get("spec", {}).get("predictor", {})  # type: ignore[index]
                             .get("model", {}).get("args") or [])
@@ -174,9 +184,9 @@ async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict[str, Any]:
             _api.patch_namespaced_custom_object,
             group="serving.kserve.io",
             version="v1beta1",
-            namespace=K8S_NAMESPACE,
+            namespace=namespace,
             plural="inferenceservices",
-            name=VLLM_IS_NAME,
+            name=is_name,
             body=patch_body,
         )
         return {

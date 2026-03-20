@@ -8,6 +8,7 @@ import asyncio
 import httpx
 import math
 import os
+import importlib
 from collections import deque
 from dataclasses import dataclass
 from typing import Any, cast
@@ -18,11 +19,16 @@ from metrics.prometheus_metrics import update_metrics
 logger = logging.getLogger(__name__)
 
 PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091")
-K8S_NAMESPACE = os.getenv("K8S_NAMESPACE", "default")
 K8S_DEPLOYMENT = os.getenv("K8S_DEPLOYMENT_NAME", "vllm-deployment")
 
 GPU_MEMORY_USAGE_METRIC = "vllm:gpu_memory_usage_bytes"
 KV_CACHE_USAGE_METRIC = "vllm:kv_cache_usage_perc"
+
+
+def _get_k8s_namespace() -> str:
+    shared_services = importlib.import_module("services.shared")
+    namespace = shared_services.runtime_config.vllm_namespace
+    return namespace if namespace and namespace != "vllm-lab-dev" else "default"
 
 @dataclass
 class VLLMMetrics:
@@ -131,7 +137,7 @@ class MetricsCollector:
         # This needs to be async, so we call it after __init__
         version = await self._detect_version()
         self._version = version
-        queries = _build_queries(K8S_NAMESPACE)
+        queries = _build_queries(_get_k8s_namespace())
         self._current_queries = queries.get(version, queries["0.11.x"])
 
     def _load_token(self) -> str | None:
@@ -294,16 +300,17 @@ class MetricsCollector:
 
     def _query_kubernetes(self) -> dict[str, int]:
         try:
+            namespace = _get_k8s_namespace()
             deployment = cast(V1Deployment, self._k8s_apps.read_namespaced_deployment(
                 name=K8S_DEPLOYMENT,
-                namespace=K8S_NAMESPACE,
+                namespace=namespace,
             ))
             spec = deployment.spec
             selector = spec.selector if spec is not None else None
             match_labels = selector.match_labels if selector is not None else {}
             label_selector = ",".join(f"{k}={v}" for k, v in match_labels.items())
             pods = self._k8s_core.list_namespaced_pod(
-                namespace=K8S_NAMESPACE,
+                namespace=namespace,
                 label_selector=label_selector,
             )
             ready = sum(

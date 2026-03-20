@@ -8,7 +8,6 @@ and mounts placeholder routers for the vLLM optimizer backend.
 import logging
 import os
 import time
-import asyncio
 from contextlib import asynccontextmanager
 
 from typing import Any, Union
@@ -16,7 +15,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from kubernetes import config, client
+from kubernetes import config as k8s_config, client
 
 
 
@@ -149,8 +148,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from routers import load_test, metrics, benchmark, tuner, vllm_config
-from services.model_resolver import resolve_model_name
+from routers import load_test, metrics, benchmark, tuner, vllm_config, config as config_router
 
 # Mount routers under /api prefix with route-specific paths
 # Note: routers are imported directly as APIRouter instances, not modules
@@ -159,6 +157,7 @@ app.include_router(metrics, prefix="/api/metrics", tags=["metrics"])
 app.include_router(benchmark, prefix="/api/benchmark", tags=["benchmark"])
 app.include_router(tuner, prefix="/api/tuner", tags=["tuner"])
 app.include_router(vllm_config, prefix="/api/vllm-config", tags=["vllm-config"])
+app.include_router(config_router)
 
 
 @app.get("/health", tags=["health"], response_model=None)
@@ -178,7 +177,7 @@ async def health_check(request: Request) -> Union[dict[str, Any], JSONResponse]:
             health["dependencies"]["prometheus"] = "unhealthy"
 
         try:
-            config.load_incluster_config()
+            k8s_config.load_incluster_config()
             v1 = client.CoreV1Api()
             v1.list_namespaced_pod(namespace=os.getenv("POD_NAMESPACE", "default"), limit=1)
             health["dependencies"]["kubernetes"] = "healthy"
@@ -194,25 +193,6 @@ async def health_check(request: Request) -> Union[dict[str, Any], JSONResponse]:
 
 
 
-
-
-@app.get("/api/config", tags=["config"])
-async def get_frontend_config() -> dict[str, Any]:
-    """Return server-side configuration for frontend defaults."""
-    endpoint = os.getenv("VLLM_ENDPOINT", "http://localhost:8000")
-    model_name = os.getenv("VLLM_MODEL", "auto")
-    try:
-        resolved = await asyncio.wait_for(
-            resolve_model_name(endpoint), timeout=3.0
-        )
-    except asyncio.TimeoutError:
-        resolved = model_name
-    return {
-        "vllm_endpoint": endpoint,
-        "vllm_namespace": os.getenv("VLLM_NAMESPACE", "vllm"),
-        "vllm_model_name": model_name,
-        "resolved_model_name": resolved,
-    }
 
 
 @app.get("/", tags=["root"])
