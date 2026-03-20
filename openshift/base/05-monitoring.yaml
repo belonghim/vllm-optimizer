@@ -210,6 +210,8 @@ spec:
         - port: 8000
 
 ---
+# ── NetworkPolicy: Frontend (oauth-proxy + nginx) ─────────────────────────────
+# podSelector만 사용하여 모든 포트 허용 (8080 nginx, 4180 oauth-proxy)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -221,26 +223,20 @@ spec:
   policyTypes:
     - Ingress
   ingress:
-    # allow-from-same-namespace
+    # allow-from-same-namespace (모든 포트)
     - from:
         - podSelector: {}
-      ports:
-        - port: 8080
-    # allow-from-openshift-ingress
+    # allow-from-openshift-ingress (모든 포트 - Route에서 4180 접근)
     - from:
         - namespaceSelector:
             matchLabels:
               network.openshift.io/policy-group: ingress
-      ports:
-        - port: 8080
-    # allow-from-openshift-monitoring
+    # allow-from-openshift-monitoring (모든 포트)
     - from:
         - namespaceSelector:
             matchLabels:
               network.openshift.io/policy-group: monitoring
-      ports:
-        - port: 8080
-    # allow-from-kube-apiserver-operator
+    # allow-from-kube-apiserver-operator (모든 포트)
     - from:
         - namespaceSelector:
             matchExpressions:
@@ -249,5 +245,3 @@ spec:
                 values:
                   - openshift-kube-apiserver-operator
                   - kube-apiserver-operator
-      ports:
-        - port: 8080

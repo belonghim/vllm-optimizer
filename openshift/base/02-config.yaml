@@ -33,3 +33,13 @@ stringData:
   # ⚠️  WARNING: Replace this value with a cryptographically random secret in production.
   # ⚠️  Generate with: python3 -c "import secrets; print(secrets.token_hex(32))"
   SECRET_KEY: "CHANGE_ME_IN_PRODUCTION"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: oauth-proxy-cookie-secret
+type: Opaque
+data:
+  # 16바이트 랜덤 시크릿 (AES-128 암호화용)
+  # 프로덕션에서는 반드시 교체: dd if=/dev/urandom bs=16 count=1 | base64
+  cookie-secret: 6CG06aAcaIOgTsd/dmyfFw==

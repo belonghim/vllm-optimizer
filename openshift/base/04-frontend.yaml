@@ -29,6 +29,9 @@ spec:
         app: vllm-optimizer-frontend
         app.kubernetes.io/name: vllm-optimizer-frontend
         app.kubernetes.io/part-of: vllm-optimizer
+      annotations:
+        # OpenShift가 이미지스트림 이름을 자동으로 해석하도록 설정
+        alpha.image.policy.openshift.io/resolve-names: "*"
     spec:
       serviceAccountName: vllm-optimizer-frontend
       imagePullSecrets:
@@ -88,6 +91,63 @@ spec:
             - name: nginx-run
               mountPath: /var/run
 
+        - name: oauth-proxy
+          image: "oauth-proxy:v4.4"
+          imagePullPolicy: IfNotPresent
+          args:
+            - -upstream=http://localhost:8080
+            - -http-address=0.0.0.0:4180
+            - -https-address=
+            - -cookie-secret-file=/etc/oauth-proxy/cookie-secret
+            - -openshift-service-account=vllm-optimizer-frontend
+            - -provider=openshift
+            - -upstream-flush=0s
+            - -cookie-refresh=1h
+            - -email-domain=*
+            - -skip-auth-regex=^/health$
+
+          # OAuth Proxy도 readiness 체크 필요 - Service가 4180 포트를 사용하므로
+          readinessProbe:
+            httpGet:
+              path: /oauth/healthz
+              port: 4180
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+
+          livenessProbe:
+            httpGet:
+              path: /oauth/healthz
+              port: 4180
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            failureThreshold: 3
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - name: proxy
+              containerPort: 4180
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "32Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+          volumeMounts:
+            - name: cookie-secret
+              mountPath: /etc/oauth-proxy
+              readOnly: true
+            - name: tmp-session
+              mountPath: /tmp
+
       volumes:
         - name: tmp-nginx
           emptyDir:
@@ -98,6 +158,17 @@ spec:
         - name: nginx-run
           emptyDir:
             sizeLimit: 10Mi
+        # OAuth Proxy: cookie-secret from Secret
+        - name: cookie-secret
+          secret:
+            secretName: oauth-proxy-cookie-secret
+            items:
+              - key: cookie-secret
+                path: cookie-secret
+        # OAuth Proxy: /tmp session storage (readOnlyRootFilesystem compatibility)
+        - name: tmp-session
+          emptyDir:
+            sizeLimit: 50Mi
 
       affinity:
         podAntiAffinity:
@@ -152,7 +223,7 @@ spec:
   ports:
     - name: http
       port: 8080
-      targetPort: 8080
+      targetPort: 4180
   type: ClusterIP
 
 ---
@@ -182,7 +253,7 @@ spec:
     name: vllm-optimizer-frontend
     weight: 100
   port:
-    targetPort: http
+    targetPort: 4180
   tls:
     # Edge: Route에서 TLS 종료, Pod까지는 HTTP
     termination: edge

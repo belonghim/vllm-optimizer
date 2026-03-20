@@ -19,6 +19,8 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: vllm-optimizer-frontend
+  annotations:
+    serviceaccounts.openshift.io/oauth-redirectreference.primary: '{"kind":"OAuthRedirectReference","apiVersion":"v1","reference":{"kind":"Route","name":"vllm-optimizer"}}'
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -65,6 +67,19 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: vllm-optimizer-backend
+    namespace: "vllm-optimizer"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vllm-optimizer-auth-delegator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: vllm-optimizer-frontend
     namespace: "vllm-optimizer"
 ---
 # OpenShift SCC: non-root + arbitrary UID
