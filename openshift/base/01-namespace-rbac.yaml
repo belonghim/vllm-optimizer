@@ -91,7 +91,7 @@ allowHostNetwork: false
 allowHostPorts: false
 allowHostPID: false
 allowHostIPC: false
-readOnlyRootFilesystem: false
+readOnlyRootFilesystem: true
 seLinuxContext:
   type: MustRunAs
 seccompProfiles: ["runtime/default"]
