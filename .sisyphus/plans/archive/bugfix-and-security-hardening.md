@@ -154,7 +154,7 @@ Wave FINAL (After ALL tasks — 3 parallel reviews):
 
 ## TODOs
 
-- [ ] 0. Capture Test Baselines
+- [x] 0. Capture Test Baselines
 
   **What to do**:
   - Run backend unit tests and record pass count
@@ -193,7 +193,7 @@ Wave FINAL (After ALL tasks — 3 parallel reviews):
   ```
 
   **Evidence to Capture:**
-  - [ ] .sisyphus/evidence/cqi-task-0-baselines.md
+  - [x] .sisyphus/evidence/cqi-task-0-baselines.md
 
   **Commit**: NO
 
@@ -262,9 +262,9 @@ Wave FINAL (After ALL tasks — 3 parallel reviews):
   ```
 
   **Evidence to Capture:**
-  - [ ] .sisyphus/evidence/cqi-task-1-stream-options.txt
-  - [ ] .sisyphus/evidence/cqi-task-1-token-parsing.txt
-  - [ ] .sisyphus/evidence/cqi-task-1-tests.txt
+  - [x] .sisyphus/evidence/cqi-task-1-stream-options.txt
+  - [x] .sisyphus/evidence/cqi-task-1-token-parsing.txt
+  - [x] .sisyphus/evidence/cqi-task-1-tests.txt
 
   **Commit**: YES
   - Message: `fix(load-engine): parse actual token count from vLLM SSE streaming response`
@@ -331,8 +331,8 @@ Wave FINAL (After ALL tasks — 3 parallel reviews):
   ```
 
   **Evidence to Capture:**
-  - [ ] .sisyphus/evidence/cqi-task-2-timeouts.txt
-  - [ ] .sisyphus/evidence/cqi-task-2-tests.txt
+  - [x] .sisyphus/evidence/cqi-task-2-timeouts.txt
+  - [x] .sisyphus/evidence/cqi-task-2-tests.txt
 
   **Commit**: YES
   - Message: `fix(backend): add timeout to all resolve_model_name calls`
@@ -397,8 +397,8 @@ Wave FINAL (After ALL tasks — 3 parallel reviews):
   ```
 
   **Evidence to Capture:**
-  - [ ] .sisyphus/evidence/cqi-task-3-stop-lock.txt
-  - [ ] .sisyphus/evidence/cqi-task-3-tests.txt
+  - [x] .sisyphus/evidence/cqi-task-3-stop-lock.txt
+  - [x] .sisyphus/evidence/cqi-task-3-tests.txt
 
   **Commit**: YES
   - Message: `fix(tuner): protect stop endpoint with lock to prevent race condition`
@@ -455,8 +455,8 @@ Wave FINAL (After ALL tasks — 3 parallel reviews):
   ```
 
   **Evidence to Capture:**
-  - [ ] .sisyphus/evidence/cqi-task-4-gauge.txt
-  - [ ] .sisyphus/evidence/cqi-task-4-tests.txt
+  - [x] .sisyphus/evidence/cqi-task-4-gauge.txt
+  - [x] .sisyphus/evidence/cqi-task-4-tests.txt
 
   **Commit**: YES
   - Message: `fix(prometheus): replace Counter with Gauge for rate metrics`
@@ -510,8 +510,8 @@ Wave FINAL (After ALL tasks — 3 parallel reviews):
   ```
 
   **Evidence to Capture:**
-  - [ ] .sisyphus/evidence/cqi-task-5-scc.txt
-  - [ ] .sisyphus/evidence/cqi-task-5-kustomize.txt
+  - [x] .sisyphus/evidence/cqi-task-5-scc.txt
+  - [x] .sisyphus/evidence/cqi-task-5-kustomize.txt
 
   **Commit**: YES
   - Message: `fix(scc): set readOnlyRootFilesystem to true`
@@ -577,9 +577,9 @@ Wave FINAL (After ALL tasks — 3 parallel reviews):
   ```
 
   **Evidence to Capture:**
-  - [ ] .sisyphus/evidence/cqi-task-6-no-onevent.txt
-  - [ ] .sisyphus/evidence/cqi-task-6-lifespan.txt
-  - [ ] .sisyphus/evidence/cqi-task-6-tests.txt
+  - [x] .sisyphus/evidence/cqi-task-6-no-onevent.txt
+  - [x] .sisyphus/evidence/cqi-task-6-lifespan.txt
+  - [x] .sisyphus/evidence/cqi-task-6-tests.txt
 
   **Commit**: YES
   - Message: `refactor(shim): migrate from deprecated on_event to lifespan pattern`
@@ -627,8 +627,8 @@ Wave FINAL (After ALL tasks — 3 parallel reviews):
   ```
 
   **Evidence to Capture:**
-  - [ ] .sisyphus/evidence/cqi-task-7-psutil.txt
-  - [ ] .sisyphus/evidence/cqi-task-7-tests.txt
+  - [x] .sisyphus/evidence/cqi-task-7-psutil.txt
+  - [x] .sisyphus/evidence/cqi-task-7-tests.txt
 
   **Commit**: YES
   - Message: `fix(load-engine): wrap psutil cpu_percent with asyncio.to_thread`
@@ -687,8 +687,8 @@ Wave FINAL (After ALL tasks — 3 parallel reviews):
   ```
 
   **Evidence to Capture:**
-  - [ ] .sisyphus/evidence/cqi-task-8-guard.txt
-  - [ ] .sisyphus/evidence/cqi-task-8-tests.txt
+  - [x] .sisyphus/evidence/cqi-task-8-guard.txt
+  - [x] .sisyphus/evidence/cqi-task-8-tests.txt
 
   **Commit**: YES
   - Message: `fix(load-test): add concurrent test prevention with asyncio.Lock`
@@ -741,8 +741,8 @@ Wave FINAL (After ALL tasks — 3 parallel reviews):
   ```
 
   **Evidence to Capture:**
-  - [ ] .sisyphus/evidence/cqi-task-9-csp.txt
-  - [ ] .sisyphus/evidence/cqi-task-9-existing.txt
+  - [x] .sisyphus/evidence/cqi-task-9-csp.txt
+  - [x] .sisyphus/evidence/cqi-task-9-existing.txt
 
   **Commit**: YES
   - Message: `feat(nginx): add Content-Security-Policy header`
@@ -801,13 +801,13 @@ grep "readOnlyRootFilesystem: true" openshift/base/01-namespace-rbac.yaml  # fou
 ```
 
 ### Final Checklist
-- [ ] All tests pass (120 passed)
-- [ ] Kustomize dev/prod build success
-- [ ] All resolve_model_name calls have timeouts
-- [ ] Streaming token counting uses vLLM usage field
-- [ ] Prometheus rate metrics use Gauge
-- [ ] No deprecated on_event in production code
-- [ ] CSP header in nginx
-- [ ] readOnlyRootFilesystem: true
-- [ ] Load test concurrent guard active
-- [ ] Tuner stop race condition fixed
+- [x] All tests pass (120 passed)
+- [x] Kustomize dev/prod build success
+- [x] All resolve_model_name calls have timeouts
+- [x] Streaming token counting uses vLLM usage field
+- [x] Prometheus rate metrics use Gauge
+- [x] No deprecated on_event in production code
+- [x] CSP header in nginx
+- [x] readOnlyRootFilesystem: true
+- [x] Load test concurrent guard active
+- [x] Tuner stop race condition fixed
