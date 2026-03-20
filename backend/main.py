@@ -60,8 +60,23 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("[Lifespan] Storage initialization failed (continuing): %s", e)
 
+    try:
+        from services.shared import storage_health_monitor
+        storage_health_monitor.start()
+        logger.info("[Lifespan] Storage health monitor started")
+    except Exception as e:
+        logger.warning("[Lifespan] Storage health monitor start failed (continuing): %s", e)
+
     async with _create_lifespan(app)(app):
         yield
+
+    # ── Storage health monitor shutdown (fail-open) ──
+    try:
+        from services.shared import storage_health_monitor
+        storage_health_monitor.stop()
+        logger.info("[Lifespan] Storage health monitor stopped")
+    except Exception as e:
+        logger.debug("[Lifespan] Storage health monitor stop failed (non-critical): %s", e)
 
     # ── Storage shutdown (fail-open) ──
     try:

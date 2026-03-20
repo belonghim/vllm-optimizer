@@ -11,6 +11,7 @@ import os
 from services.metrics_collector import MetricsCollector
 from services.load_engine import load_engine  # re-export existing singleton
 from services.storage import Storage
+from services.storage_health import StorageHealthMonitor
 
 # ── Singleton MetricsCollector ──
 # startup_metrics_shim.py calls start_collection() on this instance.
@@ -22,3 +23,5 @@ metrics_collector = MetricsCollector()
 # main.py lifespan calls storage.initialize() on startup and storage.close() on shutdown.
 # Default path: /data/app.db (PVC mount). Use :memory: for testing.
 storage = Storage(os.getenv("STORAGE_PATH", "/data/app.db"))
+
+storage_health_monitor = StorageHealthMonitor(storage)

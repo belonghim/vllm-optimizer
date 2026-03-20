@@ -7,8 +7,12 @@ Provides persistent storage for:
 - Tuner trials (Bayesian optimization results)
 """
 import logging
+import asyncio
+import os
+import shutil
 import aiosqlite
 from typing import Optional, List
+from datetime import datetime
 
 from models.load_test import (
     Benchmark,
@@ -39,17 +43,82 @@ class Storage:
         WAL mode allows concurrent reads while writing.
         busy_timeout prevents SQLITE_BUSY errors under contention.
         """
-        try:
-            self._conn = await aiosqlite.connect(self._db_path)
-            # Enable WAL mode for better concurrency
-            await self._conn.execute("PRAGMA journal_mode=WAL")
-            # Set busy timeout to 5 seconds to handle contention
-            await self._conn.execute("PRAGMA busy_timeout=5000")
-            await self._create_tables()
-            logger.info("[Storage] Initialized SQLite database at %s", self._db_path)
-        except Exception as e:
-            logger.error("[Storage] Failed to initialize database: %s", e)
-            raise
+        max_attempts = 3
+        last_error: Optional[Exception] = None
+
+        for attempt in range(1, max_attempts + 1):
+            db_exists = self._db_path != ":memory:" and await asyncio.to_thread(
+                os.path.exists, self._db_path
+            )
+
+            try:
+                self._conn = await aiosqlite.connect(self._db_path)
+
+                if db_exists:
+                    integrity_result = "ok"
+                    try:
+                        cursor = await self._conn.execute("PRAGMA integrity_check")
+                        row = await cursor.fetchone()
+                        integrity_result = row[0] if row and row[0] else "unknown"
+                    except Exception as integrity_error:
+                        integrity_result = f"error: {integrity_error}"
+
+                    if integrity_result != "ok":
+                        logger.warning(
+                            "[Storage] Integrity check failed for %s: %s",
+                            self._db_path,
+                            integrity_result,
+                        )
+                        await self._conn.close()
+                        self._conn = None
+
+                        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+                        backup_path = f"{self._db_path}.corrupted.{timestamp}"
+                        try:
+                            await asyncio.to_thread(shutil.move, self._db_path, backup_path)
+                            logger.warning(
+                                "[Storage] Backed up corrupted database to %s",
+                                backup_path,
+                            )
+                        except Exception as backup_error:
+                            logger.error(
+                                "[Storage] Failed to backup corrupted database %s: %s",
+                                self._db_path,
+                                backup_error,
+                            )
+                            raise
+
+                        continue
+
+                # Enable WAL mode for better concurrency
+                await self._conn.execute("PRAGMA journal_mode=WAL")
+                # Set busy timeout to 5 seconds to handle contention
+                await self._conn.execute("PRAGMA busy_timeout=5000")
+
+                await self._create_tables()
+                logger.info("[Storage] Initialized SQLite database at %s", self._db_path)
+                return
+            except Exception as e:
+                last_error = e
+                logger.error(
+                    "[Storage] Failed to initialize database (attempt %s/%s): %s",
+                    attempt,
+                    max_attempts,
+                    e,
+                )
+
+                if self._conn is not None:
+                    try:
+                        await self._conn.close()
+                    except Exception:
+                        pass
+                    self._conn = None
+
+                if attempt == max_attempts:
+                    break
+
+        assert last_error is not None
+        raise last_error
 
     async def _create_tables(self) -> None:
         """Create tables if they don't exist."""
@@ -385,6 +454,149 @@ class Storage:
             logger.info("[Storage] Cleared all tuner trials")
         except Exception as e:
             logger.error("[Storage] Failed to clear trials: %s", e)
+
+    # ==================== Prune Methods ====================
+
+    async def prune_load_test_history(self, keep_count: int = 1000) -> int:
+        """
+        Delete old load test history records, keeping only the newest keep_count.
+
+        Args:
+            keep_count: Number of newest records to retain (default: 1000)
+
+        Returns:
+            Number of records deleted
+        """
+        if self._conn is None:
+            logger.error("[Storage] Cannot prune load test history: database not initialized")
+            return 0
+
+        try:
+            # Get the timestamp threshold: keep records newer than the keep_count-th newest
+            cursor = await self._conn.execute(
+                """
+                SELECT timestamp FROM load_test_history
+                ORDER BY timestamp DESC
+                LIMIT 1 OFFSET ?
+                """,
+                (keep_count - 1,),
+            )
+            row = await cursor.fetchone()
+
+            if row is None:
+                # Not enough records to prune
+                logger.debug("[Storage] No load test history to prune (count <= %s)", keep_count)
+                return 0
+
+            threshold = row[0]
+
+            # Count records to be deleted
+            count_cursor = await self._conn.execute(
+                "SELECT COUNT(*) FROM load_test_history WHERE timestamp < ?",
+                (threshold,),
+            )
+            count_row = await count_cursor.fetchone()
+            delete_count = count_row[0] if count_row else 0
+
+            if delete_count == 0:
+                return 0
+
+            await self._conn.execute(
+                "DELETE FROM load_test_history WHERE timestamp < ?",
+                (threshold,),
+            )
+            await self._conn.commit()
+            logger.info("[Storage] Pruned %s load test history records (keep_count=%s)", delete_count, keep_count)
+            return delete_count
+        except Exception as e:
+            logger.error("[Storage] Failed to prune load test history: %s", e)
+            return 0
+
+    async def prune_benchmarks(self, keep_count: int = 100) -> int:
+        """
+        Delete old benchmark records, keeping only the newest keep_count.
+
+        Args:
+            keep_count: Number of newest records to retain (default: 100)
+
+        Returns:
+            Number of records deleted
+        """
+        if self._conn is None:
+            logger.error("[Storage] Cannot prune benchmarks: database not initialized")
+            return 0
+
+        try:
+            # Get the timestamp threshold: keep records newer than the keep_count-th newest
+            cursor = await self._conn.execute(
+                """
+                SELECT timestamp FROM benchmarks
+                ORDER BY timestamp DESC
+                LIMIT 1 OFFSET ?
+                """,
+                (keep_count - 1,),
+            )
+            row = await cursor.fetchone()
+
+            if row is None:
+                # Not enough records to prune
+                logger.debug("[Storage] No benchmarks to prune (count <= %s)", keep_count)
+                return 0
+
+            threshold = row[0]
+
+            # Count records to be deleted
+            count_cursor = await self._conn.execute(
+                "SELECT COUNT(*) FROM benchmarks WHERE timestamp < ?",
+                (threshold,),
+            )
+            count_row = await count_cursor.fetchone()
+            delete_count = count_row[0] if count_row else 0
+
+            if delete_count == 0:
+                return 0
+
+            await self._conn.execute(
+                "DELETE FROM benchmarks WHERE timestamp < ?",
+                (threshold,),
+            )
+            await self._conn.commit()
+            logger.info("[Storage] Pruned %s benchmark records (keep_count=%s)", delete_count, keep_count)
+            return delete_count
+        except Exception as e:
+            logger.error("[Storage] Failed to prune benchmarks: %s", e)
+            return 0
+
+    async def checkpoint_wal(self) -> bool:
+        """
+        Execute PRAGMA wal_checkpoint(TRUNCATE) to checkpoint and truncate WAL file.
+
+        This forces all WAL changes to be written to the main database file
+        and truncates the WAL file to zero bytes, preventing unbounded growth.
+
+        Returns:
+            True if checkpoint succeeded, False otherwise.
+        """
+        if self._conn is None:
+            logger.error("[Storage] Cannot checkpoint WAL: database not initialized")
+            return False
+
+        try:
+            cursor = await self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            row = await cursor.fetchone()
+            if row:
+                wal_mode, pages_written, pages_moved = row
+                logger.info(
+                    "[Storage] WAL checkpoint completed: "
+                    "mode=%s pages_written=%s pages_moved=%s",
+                    wal_mode,
+                    pages_written,
+                    pages_moved,
+                )
+            return True
+        except Exception as e:
+            logger.error("[Storage] Failed to checkpoint WAL: %s", e)
+            return False
 
 
 # Use `from services.shared import storage` instead.
