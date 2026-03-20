@@ -25,6 +25,15 @@ patches:
         path: /subjects/0/namespace
         value: vllm-optimizer-dev
   - target:
+      group: rbac.authorization.k8s.io
+      version: v1
+      kind: ClusterRoleBinding
+      name: vllm-optimizer-monitoring-view
+    patch: |-
+      - op: replace
+        path: /subjects/0/namespace
+        value: vllm-optimizer-dev
+  - target:
       kind: Deployment
       name: vllm-optimizer-backend
     patch: |-
