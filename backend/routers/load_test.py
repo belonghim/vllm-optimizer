@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 # In-memory state for active test (in production, use proper state management)
 _active_test_task: Optional[asyncio.Task[Any]] = None
 _current_config: Optional[LoadTestConfig] = None
+_test_lock = asyncio.Lock()
 
 # In-memory history store (max 100 entries, no persistence)
 _test_history: deque[Any] = deque(maxlen=100)
@@ -71,7 +72,11 @@ async def start_load_test(config: LoadTestConfig) -> dict[str, Any]:
     - Test runs asynchronously; use /status or /stream to monitor progress
     """
     global _active_test_task, _current_config
-    
+
+    async with _test_lock:
+        if _active_test_task is not None and not _active_test_task.done():
+            raise HTTPException(status_code=409, detail="A load test is already running.")
+
     test_id = str(uuid.uuid4())
 
     if config.model == "auto":
