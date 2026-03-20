@@ -73,7 +73,7 @@ class LoadTestEngine:
         """Background task: sample CPU and GPU metrics every 30 seconds."""
         proc = psutil.Process(os.getpid())
         while not stop_event.is_set():
-            cpu = proc.cpu_percent()
+            cpu = await asyncio.to_thread(proc.cpu_percent)
             gpu = 0.0
             try:
                 async with httpx.AsyncClient(timeout=5) as client:
