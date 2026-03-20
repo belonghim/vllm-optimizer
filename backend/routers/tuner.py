@@ -192,10 +192,7 @@ async def get_tuning_trials(limit: int = 20) -> list[TrialFrontendInfo]:
 @router.post("/stop")
 async def stop_tuning() -> dict[str, Any]:
     """Stop the running auto-tuning process."""
-    if not auto_tuner.is_running:
-        return {"success": False, "message": "No tuning is currently running."}
-    await auto_tuner.stop()
-    return {"success": True, "message": "Tuning stopped."}
+    return await auto_tuner.stop()
 
 @router.get("/stream")
 async def stream_tuner_events() -> StreamingResponse:

@@ -413,9 +413,12 @@ class AutoTuner:
             },
         })
 
-    async def stop(self) -> None:
+    async def stop(self) -> dict[str, Any]:
         async with self._lock:
+            if not self._running:
+                return {"success": False, "message": "No tuning is currently running."}
             self._running = False
+        return {"success": True, "message": "Tuning stopped."}
 
     def _suggest_params(self, trial, config: TuningConfig) -> dict[str, Any]:
         params: dict[str, Any] = {}
