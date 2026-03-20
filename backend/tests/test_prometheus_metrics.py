@@ -70,8 +70,8 @@ def test_metrics_populated_state(client):
         body = resp.text
         # New optimizer-prefixed names must appear
         new_names = [
-            'vllm_optimizer_request_success_total',
-            'vllm_optimizer_generation_tokens_total',
+            'vllm_optimizer_requests_per_second',
+            'vllm_optimizer_tokens_per_second',
             'vllm_optimizer_num_requests_running',
             'vllm_optimizer_num_requests_waiting',
         ]
@@ -86,8 +86,8 @@ def test_metrics_name_presence(client):
         assert resp.status_code == 200
         text = resp.text
         required = [
-            'vllm_optimizer_request_success_total',
-            'vllm_optimizer_generation_tokens_total',
+            'vllm_optimizer_requests_per_second',
+            'vllm_optimizer_tokens_per_second',
             'vllm_optimizer_num_requests_running',
             'vllm_optimizer_num_requests_waiting',
             'vllm_optimizer_gpu_cache_usage_perc',
