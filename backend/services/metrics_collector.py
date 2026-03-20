@@ -28,7 +28,7 @@ KV_CACHE_USAGE_METRIC = "vllm:kv_cache_usage_perc"
 def _get_k8s_namespace() -> str:
     shared_services = importlib.import_module("services.shared")
     namespace = shared_services.runtime_config.vllm_namespace
-    return namespace if namespace and namespace != "vllm-lab-dev" else "default"
+    return namespace if namespace else "default"
 
 @dataclass
 class VLLMMetrics:

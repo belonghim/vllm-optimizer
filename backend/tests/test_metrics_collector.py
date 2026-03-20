@@ -101,19 +101,19 @@ class TestMetricsCollectorQuerySelection:
         with patch.object(mock_metrics_collector, '_detect_version', return_value="0.11.x"):
             await mock_metrics_collector._post_init()
             assert mock_metrics_collector._version == "0.11.x"
-            assert mock_metrics_collector._current_queries == _build_queries("default")["0.11.x"]
+            assert mock_metrics_collector._current_queries == _build_queries("vllm-lab-dev")["0.11.x"]
 
     async def test_queries_set_based_on_version_013x(self, mock_metrics_collector: MetricsCollector):
         with patch.object(mock_metrics_collector, '_detect_version', return_value="0.13.x"):
             await mock_metrics_collector._post_init()
             assert mock_metrics_collector._version == "0.13.x"
-            assert mock_metrics_collector._current_queries == _build_queries("default")["0.13.x"]
+            assert mock_metrics_collector._current_queries == _build_queries("vllm-lab-dev")["0.13.x"]
 
     async def test_queries_set_based_on_unknown_version_falls_back_to_011x(self, mock_metrics_collector: MetricsCollector):
         with patch.object(mock_metrics_collector, '_detect_version', return_value="99.99.x"):
             await mock_metrics_collector._post_init()
             assert mock_metrics_collector._version == "99.99.x"
-            assert mock_metrics_collector._current_queries == _build_queries("default")["0.11.x"]
+            assert mock_metrics_collector._current_queries == _build_queries("vllm-lab-dev")["0.11.x"]
 
     async def test_queries_contain_namespace_filter(self, mock_metrics_collector: MetricsCollector):
         with patch.object(mock_metrics_collector, '_detect_version', return_value="0.13.x-cpu"):
