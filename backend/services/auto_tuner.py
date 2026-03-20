@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 def _get_k8s_namespace() -> str:
     namespace = runtime_config.vllm_namespace
-    return namespace if namespace and namespace != "vllm-lab-dev" else "default"
+    return namespace if namespace else "default"
 
 
 def _get_vllm_is_name() -> str:
