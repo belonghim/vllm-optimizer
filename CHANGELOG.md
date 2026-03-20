@@ -2,6 +2,47 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-20] - Bug Fixes & Security Hardening
+
+**Status**: Completed
+
+코드 감사에서 발견된 CRITICAL 2건 + HIGH 4건 + MEDIUM 4건 이슈 수정. 기존 기능 및 API 계약을 보존하면서 실제 버그와 보안 약점을 해결.
+
+### Fixed (Backend — CRITICAL)
+- **스트리밍 토큰 카운팅 수정** (`load_engine.py`): SSE 청크 수가 아닌 vLLM 응답의 `usage.completion_tokens`로 정확한 토큰 수 계산. `stream_options.include_usage=True` 추가, 구형 vLLM용 청크 카운트 폴백 유지.
+- **resolve_model_name 타임아웃 추가** (`load_test.py`, `auto_tuner.py`): 두 호출 모두 `asyncio.wait_for(timeout=3.0)` + `os.getenv("VLLM_MODEL")` 폴백 적용. `main.py` 패턴과 통일.
+
+### Fixed (Backend — HIGH)
+- **튜너 중지 레이스 컨디션** (`tuner.py`, `auto_tuner.py`): `is_running` 체크를 `self._lock` 내부로 이동. 동시 `/stop` 요청 시 check-then-act 레이스 제거.
+- **Prometheus 메트릭 타입 수정** (`prometheus_metrics.py`): `request_success_total_metric`, `generation_tokens_total_metric` Counter → `request_rate_metric`, `token_rate_metric` Gauge로 변경. `.inc(rate)` → `.set(rate)`. Rate 값에 적합한 타입.
+- **SCC readOnlyRootFilesystem 강화** (`01-namespace-rbac.yaml`): `false` → `true`. 기존 emptyDir 볼륨(/tmp, /var/cache/nginx, /var/run)이 writable 경로를 이미 커버.
+
+### Fixed/Refactored (Backend — MEDIUM)
+- **FastAPI lifespan 마이그레이션** (`startup_metrics_shim.py`, `main.py`): deprecated `@app.on_event("startup"/"shutdown")` → `@asynccontextmanager` lifespan 패턴. `/startup_metrics` POST 라우트 보존. fail-open 패턴으로 shim 미설치 시 noop lifespan 사용.
+- **psutil 블로킹 호출 수정** (`load_engine.py`): `proc.cpu_percent()` → `await asyncio.to_thread(proc.cpu_percent)`. async 이벤트 루프 블로킹 방지.
+- **부하 테스트 동시 실행 방지** (`load_test.py`): `_test_lock = asyncio.Lock()` 추가, 동시 실행 시 HTTP 409 Conflict 반환.
+
+### Fixed (Infrastructure — MEDIUM)
+- **nginx CSP 헤더 추가** (`frontend/nginx.conf`): `Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; ..."`. Vite 빌드 React SPA 호환 (unsafe-inline 허용).
+
+### Verification
+- Backend: 120 passed (동일 유지)
+- Kustomize dev/prod: `oc apply --dry-run=client` 성공
+- F1 Plan Compliance: APPROVE | F2 Code Quality: APPROVE | F3 Scope Fidelity: APPROVE
+
+### Commits
+- `be7e4f2` fix(load-engine): parse actual token count from vLLM SSE streaming response
+- `df7c621` fix(backend): add timeout to all resolve_model_name calls
+- `7525898` fix(tuner): protect stop endpoint with lock to prevent race condition
+- `8c47c26` fix(prometheus): replace Counter with Gauge for rate metrics
+- `ff34866` fix(scc): set readOnlyRootFilesystem to true
+- `f6b74be` refactor(shim): migrate from deprecated on_event to lifespan pattern
+- `dc6ade5` fix(load-engine): wrap psutil cpu_percent with asyncio.to_thread
+- `4f53de4` fix(load-test): add concurrent test prevention with asyncio.Lock
+- `1fa1538` feat(nginx): add Content-Security-Policy header
+
+---
+
 ## [2026-03-19] - Tuner: ConfigMap → InferenceService Args Migration
 
 **Status**: Completed
