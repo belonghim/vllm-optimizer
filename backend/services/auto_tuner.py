@@ -715,7 +715,12 @@ class AutoTuner:
         trial_num: int = 0,
     ) -> tuple[float, float, float]:
         """부하 테스트 실행 후 점수 반환 (fast probe + full evaluation)"""
-        model_name = await resolve_model_name(endpoint)
+        try:
+            model_name = await asyncio.wait_for(
+                resolve_model_name(endpoint), timeout=3.0
+            )
+        except asyncio.TimeoutError:
+            model_name = os.getenv("VLLM_MODEL", "auto")
         _trial_id = trial.number if trial is not None and hasattr(trial, "number") else trial_num
 
         if config.warmup_requests > 0:

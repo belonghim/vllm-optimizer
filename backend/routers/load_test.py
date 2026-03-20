@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 import json
 import asyncio
+import os
 import uuid
 import logging
 from collections import deque
@@ -74,7 +75,12 @@ async def start_load_test(config: LoadTestConfig) -> dict[str, Any]:
     test_id = str(uuid.uuid4())
 
     if config.model == "auto":
-        config.model = await resolve_model_name(config.endpoint)
+        try:
+            config.model = await asyncio.wait_for(
+                resolve_model_name(config.endpoint), timeout=3.0
+            )
+        except asyncio.TimeoutError:
+            config.model = os.getenv("VLLM_MODEL", "auto")
 
     # Run test in background task
     async def run_test():
