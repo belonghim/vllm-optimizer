@@ -13,7 +13,10 @@ def test_service_monitor_path_and_backend_port():
 
     with backend_yaml.open() as f:
         docs2 = list(yaml.safe_load_all(f))
-    backend_data = docs2[0] if docs2 else {}
+    backend_data = next(
+        (doc for doc in docs2 if doc.get('kind') == 'Deployment'),
+        {}
+    )
 
     endpoints = []
     if isinstance(monitor_data.get('spec', {}), dict):

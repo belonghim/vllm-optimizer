@@ -12,7 +12,7 @@ import os
 import shutil
 import aiosqlite
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 
 from models.load_test import (
     Benchmark,
@@ -72,7 +72,7 @@ class Storage:
                         await self._conn.close()
                         self._conn = None
 
-                        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+                        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
                         backup_path = f"{self._db_path}.corrupted.{timestamp}"
                         try:
                             await asyncio.to_thread(shutil.move, self._db_path, backup_path)

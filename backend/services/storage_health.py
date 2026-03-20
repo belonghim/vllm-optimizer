@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Protocol
 
 from metrics.storage_metrics import (
@@ -214,7 +214,7 @@ class StorageHealthMonitor:
 
         if checkpoint_ok:
             try:
-                storage_last_checkpoint_timestamp.set(datetime.utcnow().timestamp())
+                storage_last_checkpoint_timestamp.set(datetime.now(timezone.utc).timestamp())
             except Exception as e:
                 logger.error(
                     "[StorageHealthMonitor] Failed to update storage_last_checkpoint_timestamp metric: %s",
