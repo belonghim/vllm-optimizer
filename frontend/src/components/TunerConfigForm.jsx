@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { API } from "../constants";
+import TunerProgressBar from "./TunerProgressBar";
 
 const PHASE_LABELS = {
   applying_config: "설정 업데이트 중...",
@@ -155,6 +156,15 @@ export default function TunerConfigForm({
           {trialsCompleted} / {config.n_trials} trials
         </span>
       </div>
+      
+      {(isRunning || trialsCompleted > 0) && (
+        <TunerProgressBar
+          isRunning={isRunning}
+          trialsCompleted={trialsCompleted}
+          totalTrials={config.n_trials}
+          currentPhase={currentPhase}
+        />
+      )}
 
       <div className="tuner-advanced-toggle-wrap">
         <button
