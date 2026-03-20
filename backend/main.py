@@ -9,6 +9,7 @@ import logging
 import os
 import time
 import asyncio
+from contextlib import asynccontextmanager
 
 from typing import Any, Union
 from fastapi import FastAPI, Request
@@ -28,13 +29,40 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+
+# Load optional startup shim for MetricsCollector (Dev-friendly)
+try:
+    import startup_metrics_shim as startup_metrics_shim_module
+
+    _create_lifespan = startup_metrics_shim_module.create_lifespan
+    register_shim = startup_metrics_shim_module.register
+except Exception as e:  # intentional: fail-open
+    logger.debug("Startup shim not loaded: %s", e)
+
+    def register_shim(app: FastAPI) -> None:
+        return None
+
+    def _create_lifespan(app):
+        @asynccontextmanager
+        async def _noop_lifespan(app):
+            yield
+
+        return _noop_lifespan
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with _create_lifespan(app)(app):
+        yield
+
 app = FastAPI(
     title="vLLM Optimizer API",
     description="Backend API for vLLM performance optimization and load testing",
     version="0.1.0",
     docs_url="/docs",
     redoc_url="/redoc",
-    openapi_url="/openapi.json"
+    openapi_url="/openapi.json",
+    lifespan=lifespan,
 )
 
 # Helper function for Prometheus connectivity check
@@ -67,12 +95,10 @@ async def check_prometheus_health() -> bool:
 
 
 
-# Load optional startup shim for MetricsCollector (Dev-friendly)
 try:
-    from startup_metrics_shim import register
-    register(app)
+    register_shim(app)
 except Exception as e:  # intentional: fail-open
-    logger.debug("Startup shim not loaded: %s", e)
+    logger.debug("Startup shim route registration failed: %s", e)
 
 # Configure CORS — read from ALLOWED_ORIGINS env var (comma-separated), fall back to localhost defaults
 _default_origins = [
