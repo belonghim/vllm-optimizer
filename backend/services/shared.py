@@ -12,6 +12,12 @@ from services.metrics_collector import MetricsCollector
 from services.load_engine import load_engine  # re-export existing singleton
 from services.storage import Storage
 from services.storage_health import StorageHealthMonitor
+from services.runtime_config import RuntimeConfig
+
+# ── Singleton RuntimeConfig ──
+# In-memory runtime settings with environment variable defaults.
+# Provides getter/setter for vllm_namespace, vllm_endpoint, vllm_is_name.
+runtime_config = RuntimeConfig()
 
 # ── Singleton MetricsCollector ──
 # startup_metrics_shim.py calls start_collection() on this instance.
