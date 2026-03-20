@@ -254,3 +254,47 @@ select.input option { background: var(--surface-color); }
 .error-boundary-title { color: var(--red-color); margin-bottom: 8px; }
 .error-boundary-msg { color: var(--muted-color); max-width: 480px; margin: 0 auto 24px; }
 .error-boundary-btn { background: var(--accent-color); color: var(--bg-color); border: none; padding: 8px 24px; cursor: pointer; font-family: var(--font-mono); font-weight: 700; font-size: 13px; }
+
+/* Tuner Progress Bar Styles */
+.tuner-progress-container {
+  margin-top: 12px;
+}
+
+.tuner-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+
+.tuner-progress-pct {
+  color: var(--accent-color);
+  font-weight: 600;
+}
+
+.tuner-progress-phase {
+  color: var(--cyan-color);
+  font-size: 10px;
+}
+
+/* Extend existing progress bar styles */
+.progress-bar {
+  height: 4px;
+  background: var(--border-color);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  transition: width 0.4s ease;
+  background: linear-gradient(90deg, var(--accent-color), var(--cyan-color));
+  border-radius: 2px;
+}
+
+.progress-fill--completed {
+  background: linear-gradient(90deg, var(--green-color), var(--cyan-color));
+  box-shadow: 0 0 8px rgba(0, 255, 135, 0.5);
+}
