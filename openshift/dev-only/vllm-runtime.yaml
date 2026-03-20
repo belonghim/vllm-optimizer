@@ -2,7 +2,7 @@ apiVersion: serving.kserve.io/v1alpha1
 kind: ServingRuntime
 metadata:
   name: vllm-openvino-runtime
-  namespace: vllm
+  namespace: vllm-lab-dev
   annotations:
     opendatahub.io/recommended-accelerators: '["amd64-x86/cpu"]'
     opendatahub.io/runtime-version: v0.14.1

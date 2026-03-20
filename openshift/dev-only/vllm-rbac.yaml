@@ -2,7 +2,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: vllm-optimizer-backend-role
-  namespace: vllm
+  namespace: vllm-lab-dev
 rules:
 - apiGroups: ["apps"]
   resources: ["deployments"]
@@ -22,7 +22,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: vllm-optimizer-backend-rb
-  namespace: vllm
+  namespace: vllm-lab-dev
 subjects:
 - kind: ServiceAccount
   name: vllm-optimizer-backend

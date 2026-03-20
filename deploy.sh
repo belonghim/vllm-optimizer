@@ -10,7 +10,7 @@ PROJECT_ROOT="$SCRIPT_DIR"
 ENV="${1:-dev}"
 DRY_RUN=false
 SKIP_BUILD=false
-VLLM_NAMESPACE="${VLLM_NAMESPACE:-vllm}" # Default vLLM namespace
+VLLM_NAMESPACE="${VLLM_NAMESPACE:-vllm-lab-dev}" # Default vLLM namespace
 
 # Parse flags
 for arg in "$@"; do
@@ -28,7 +28,7 @@ for arg in "$@"; do
       echo "  REGISTRY=${REGISTRY:-quay.io/joopark}"
       echo "  IMAGE_TAG (dev) => dev  |  (prod) => 1.0.0"
       echo "  NAMESPACE (dev) => vllm-optimizer-dev | (prod) => vllm-optimizer-prod"
-      echo "  VLLM_NAMESPACE (default) => vllm"
+      echo "  VLLM_NAMESPACE (default) => vllm-lab-dev"
       echo ""
       echo "Examples:"
       echo "  $0 dev --dry-run         # Preview dev deployment"

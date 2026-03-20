@@ -2,7 +2,7 @@ apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
   name: llm-ov
-  namespace: vllm
+  namespace: vllm-lab-dev
 spec:
   predictor:
     model:
