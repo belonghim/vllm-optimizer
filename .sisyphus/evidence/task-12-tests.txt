@@ -1,8 +1,8 @@
-  
-          Read more about it in the
-          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
-          
-    @app.on_event("shutdown")
 
--- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-36 passed, 4 warnings in 34.53s
+ ✓ src/pages/LoadTestPage.test.jsx (15 tests) 501ms
+
+ Test Files  8 passed (8)
+      Tests  45 passed (45)
+   Start at  09:02:36
+   Duration  3.41s (transform 794ms, setup 949ms, collect 3.39s, tests 1.21s, environment 8.73s, prepare 2.06s)
+

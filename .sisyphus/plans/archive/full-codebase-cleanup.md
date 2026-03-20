@@ -305,7 +305,7 @@ Max Concurrent: 7 (Wave 1)
   ```
 
   **Evidence to Capture:**
-  - [ ] .sisyphus/evidence/task-0-baselines.md — all baseline measurements
+  - [x] .sisyphus/evidence/task-0-baselines.md — all baseline measurements
 
   **Commit**: YES
   - Message: `chore: capture test and code quality baselines before cleanup`
@@ -410,9 +410,9 @@ Max Concurrent: 7 (Wave 1)
   ```
 
   **Evidence to Capture:**
-  - [ ] .sisyphus/evidence/task-1-start-decomposed.txt
-  - [ ] .sisyphus/evidence/task-1-tests.txt
-  - [ ] .sisyphus/evidence/task-1-sideeffect-order.txt
+  - [x] .sisyphus/evidence/task-1-start-decomposed.txt
+  - [x] .sisyphus/evidence/task-1-tests.txt
+  - [x] .sisyphus/evidence/task-1-sideeffect-order.txt
 
   **Commit**: YES
   - Message: `refactor(auto-tuner): decompose start() into focused private methods`
@@ -488,8 +488,8 @@ Max Concurrent: 7 (Wave 1)
   ```
 
   **Evidence to Capture:**
-  - [ ] .sisyphus/evidence/task-2-evaluate-decomposed.txt
-  - [ ] .sisyphus/evidence/task-2-tests.txt
+  - [x] .sisyphus/evidence/task-2-evaluate-decomposed.txt
+  - [x] .sisyphus/evidence/task-2-tests.txt
 
   **Commit**: YES
   - Message: `refactor(auto-tuner): decompose _evaluate() into warmup and probe phases`
@@ -576,9 +576,9 @@ Max Concurrent: 7 (Wave 1)
   ```
 
   **Evidence to Capture:**
-  - [ ] .sisyphus/evidence/task-3-run-decomposed.txt
-  - [ ] .sisyphus/evidence/task-3-async-shape.txt
-  - [ ] .sisyphus/evidence/task-3-tests.txt
+  - [x] .sisyphus/evidence/task-3-run-decomposed.txt
+  - [x] .sisyphus/evidence/task-3-async-shape.txt
+  - [x] .sisyphus/evidence/task-3-tests.txt
 
   **Commit**: YES
   - Message: `refactor(load-engine): decompose run() into init, process, finalize methods`
@@ -667,9 +667,9 @@ Max Concurrent: 7 (Wave 1)
   ```
 
   **Evidence to Capture:**
-  - [ ] .sisyphus/evidence/task-4-exceptions.txt
-  - [ ] .sisyphus/evidence/task-4-tests.txt
-  - [ ] .sisyphus/evidence/task-4-imports.txt
+  - [x] .sisyphus/evidence/task-4-exceptions.txt
+  - [x] .sisyphus/evidence/task-4-tests.txt
+  - [x] .sisyphus/evidence/task-4-imports.txt
 
   **Commit**: YES
   - Message: `refactor(auto-tuner): narrow except Exception to specific types`
@@ -760,9 +760,9 @@ Max Concurrent: 7 (Wave 1)
   ```
 
   **Evidence to Capture:**
-  - [ ] .sisyphus/evidence/task-5-all-exceptions.txt
-  - [ ] .sisyphus/evidence/task-5-main-preserved.txt
-  - [ ] .sisyphus/evidence/task-5-tests.txt
+  - [x] .sisyphus/evidence/task-5-all-exceptions.txt
+  - [x] .sisyphus/evidence/task-5-main-preserved.txt
+  - [x] .sisyphus/evidence/task-5-tests.txt
 
   **Commit**: YES
   - Message: `refactor(backend): narrow remaining broad exception blocks`
@@ -840,8 +840,8 @@ Max Concurrent: 7 (Wave 1)
   ```
 
   **Evidence to Capture:**
-  - [ ] .sisyphus/evidence/task-6-annotations.txt
-  - [ ] .sisyphus/evidence/task-6-tests.txt
+  - [x] .sisyphus/evidence/task-6-annotations.txt
+  - [x] .sisyphus/evidence/task-6-tests.txt
 
   **Commit**: YES
   - Message: `refactor(backend): add return type annotations to all functions`
@@ -930,9 +930,9 @@ Max Concurrent: 7 (Wave 1)
   ```
 
   **Evidence to Capture:**
-  - [ ] .sisyphus/evidence/task-7-tuner-decomposed.txt
-  - [ ] .sisyphus/evidence/task-7-prop-pattern.txt
-  - [ ] .sisyphus/evidence/task-7-tests.txt
+  - [x] .sisyphus/evidence/task-7-tuner-decomposed.txt
+  - [x] .sisyphus/evidence/task-7-prop-pattern.txt
+  - [x] .sisyphus/evidence/task-7-tests.txt
 
   **Commit**: YES
   - Message: `refactor(frontend): decompose TunerPage into sub-components`
@@ -1020,9 +1020,9 @@ Max Concurrent: 7 (Wave 1)
   ```
 
   **Evidence to Capture:**
-  - [ ] .sisyphus/evidence/task-8-loadtest-decomposed.txt
-  - [ ] .sisyphus/evidence/task-8-sse-hook.txt
-  - [ ] .sisyphus/evidence/task-8-tests.txt
+  - [x] .sisyphus/evidence/task-8-loadtest-decomposed.txt
+  - [x] .sisyphus/evidence/task-8-sse-hook.txt
+  - [x] .sisyphus/evidence/task-8-tests.txt
 
   **Commit**: YES
   - Message: `refactor(frontend): decompose LoadTestPage with useLoadTestSSE hook`
@@ -1118,9 +1118,9 @@ Max Concurrent: 7 (Wave 1)
   ```
 
   **Evidence to Capture:**
-  - [ ] .sisyphus/evidence/task-9-erroralert.txt
-  - [ ] .sisyphus/evidence/task-9-no-inline-error.txt
-  - [ ] .sisyphus/evidence/task-9-tests.txt
+  - [x] .sisyphus/evidence/task-9-erroralert.txt
+  - [x] .sisyphus/evidence/task-9-no-inline-error.txt
+  - [x] .sisyphus/evidence/task-9-tests.txt
 
   **Commit**: YES
   - Message: `refactor(frontend): extract ErrorAlert component, remove duplicate inline error divs`
@@ -1206,9 +1206,9 @@ Max Concurrent: 7 (Wave 1)
   ```
 
   **Evidence to Capture:**
-  - [ ] .sisyphus/evidence/task-10-inline-styles.txt
-  - [ ] .sisyphus/evidence/task-10-css-classes.txt
-  - [ ] .sisyphus/evidence/task-10-tests.txt
+  - [x] .sisyphus/evidence/task-10-inline-styles.txt
+  - [x] .sisyphus/evidence/task-10-css-classes.txt
+  - [x] .sisyphus/evidence/task-10-tests.txt
 
   **Commit**: YES
   - Message: `refactor(frontend): migrate TunerPage and LoadTestPage inline styles to CSS`
@@ -1295,9 +1295,9 @@ Max Concurrent: 7 (Wave 1)
   ```
 
   **Evidence to Capture:**
-  - [ ] .sisyphus/evidence/task-11-zero-inline.txt
-  - [ ] .sisyphus/evidence/task-11-css-coverage.txt
-  - [ ] .sisyphus/evidence/task-11-tests.txt
+  - [x] .sisyphus/evidence/task-11-zero-inline.txt
+  - [x] .sisyphus/evidence/task-11-css-coverage.txt
+  - [x] .sisyphus/evidence/task-11-tests.txt
 
   **Commit**: YES
   - Message: `refactor(frontend): migrate remaining inline styles to CSS classes`
@@ -1415,11 +1415,11 @@ Max Concurrent: 7 (Wave 1)
   ```
 
   **Evidence to Capture:**
-  - [ ] .sisyphus/evidence/task-12-aria-count.txt
-  - [ ] .sisyphus/evidence/task-12-buttons.txt
-  - [ ] .sisyphus/evidence/task-12-erroralert-role.txt
-  - [ ] .sisyphus/evidence/task-12-tabs.txt
-  - [ ] .sisyphus/evidence/task-12-tests.txt
+  - [x] .sisyphus/evidence/task-12-aria-count.txt
+  - [x] .sisyphus/evidence/task-12-buttons.txt
+  - [x] .sisyphus/evidence/task-12-erroralert-role.txt
+  - [x] .sisyphus/evidence/task-12-tabs.txt
+  - [x] .sisyphus/evidence/task-12-tests.txt
 
   **Commit**: YES
   - Message: `feat(a11y): add ARIA labels and live regions across all components`
@@ -1515,10 +1515,10 @@ Max Concurrent: 7 (Wave 1)
   ```
 
   **Evidence to Capture:**
-  - [ ] .sisyphus/evidence/task-13-allowed-origins.txt
-  - [ ] .sisyphus/evidence/task-13-configmap-refs.txt
-  - [ ] .sisyphus/evidence/task-13-kustomize-build.txt
-  - [ ] .sisyphus/evidence/task-13-ports-preserved.txt
+  - [x] .sisyphus/evidence/task-13-allowed-origins.txt
+  - [x] .sisyphus/evidence/task-13-configmap-refs.txt
+  - [x] .sisyphus/evidence/task-13-kustomize-build.txt
+  - [x] .sisyphus/evidence/task-13-ports-preserved.txt
 
   **Commit**: YES
   - Message: `refactor(kustomize): parameterize env vars and move ALLOWED_ORIGINS to overlays`
@@ -1610,10 +1610,10 @@ Max Concurrent: 7 (Wave 1)
   ```
 
   **Evidence to Capture:**
-  - [ ] .sisyphus/evidence/task-14-secret-warning.txt
-  - [ ] .sisyphus/evidence/task-14-vllm-endpoint.txt
-  - [ ] .sisyphus/evidence/task-14-kustomize-build.txt
-  - [ ] .sisyphus/evidence/task-14-secret-preserved.txt
+  - [x] .sisyphus/evidence/task-14-secret-warning.txt
+  - [x] .sisyphus/evidence/task-14-vllm-endpoint.txt
+  - [x] .sisyphus/evidence/task-14-kustomize-build.txt
+  - [x] .sisyphus/evidence/task-14-secret-preserved.txt
 
   **Commit**: YES
   - Message: `refactor(kustomize): resolve SECRET_KEY warning and parameterize VLLM_ENDPOINT`
