@@ -55,7 +55,7 @@ function LoadTestPage() {
   const saveAsBenchmark = async () => {
     if (isSaving || !result) return;
     setIsSaving(true); setSaveStatus(null);
-    const name = `${config.model} @ ${new Date().toLocaleDateString()}`;
+    const name = `${config.model}-${Math.floor(Date.now() / 1000)}`;
     try {
       const resp = await fetch(`${API}/benchmark/save`, {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -118,13 +118,22 @@ function LoadTestPage() {
 
       {result && (
         <>
-          <div className="grid-4 gap-1">
+          <div className="grid-5 gap-1">
             <MetricCard label="Mean TPS" value={fmt(result.tps?.mean, 1)} unit="tok/s" color="amber" />
             <MetricCard label="TTFT Mean" value={fmt((result.ttft?.mean || 0) * 1000, 0)} unit="ms" color="cyan" />
             <MetricCard label="P99 Latency" value={fmt((result.latency?.p99 || 0) * 1000, 0)} unit="ms" color="red" />
             <MetricCard label="Success Rate"
               value={result.total ? fmt((result.success / result.total) * 100, 1) : "—"}
               unit="%" color="green" />
+            <MetricCard label="GPU Eff."
+              value={result.metrics_target_matched === false ? (
+                <span title="GPU metrics mismatch">N/A</span>
+              ) : (
+                result.gpu_utilization_avg > 0
+                  ? (result.tps.mean / result.gpu_utilization_avg).toFixed(1)
+                  : "—"
+              )}
+              unit="tok/s/%" color="purple" />
           </div>
 
           <div className="panel">
@@ -143,6 +152,13 @@ function LoadTestPage() {
                   ["TTFT Mean", `${fmt((result.ttft?.mean || 0) * 1000, 0)} ms`],
                   ["TTFT P95", `${fmt((result.ttft?.p95 || 0) * 1000, 0)} ms`],
                   ["Total TPS", `${fmt(result.tps?.total, 1)} tok/s`],
+                  ["GPU Efficiency", result.metrics_target_matched === false ? (
+                    <span title="GPU metrics mismatch">N/A</span>
+                  ) : (
+                    result.gpu_utilization_avg > 0
+                      ? `${(result.tps.mean / result.gpu_utilization_avg).toFixed(1)} tok/s/%`
+                      : "—"
+                  )],
                 ].map(([k, v]) => (
                   <tr key={k}>
                     <td className="td-muted">{k}</td>

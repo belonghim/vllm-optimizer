@@ -28,12 +28,12 @@ The vLLM Optimizer uses several environment variables for configuration. These a
 | :------------ | :---------- | :------ |
 | `REGISTRY` | The container image registry where images are stored. | `quay.io/joopark` |
 | `IMAGE_TAG` | The tag to apply to the built container images. | `1.0.0` |
-| `VLLM_NAMESPACE` | The OpenShift namespace where the vLLM service is deployed. | `vllm` |
+| `VLLM_NAMESPACE` | The OpenShift namespace where the vLLM service is deployed. | `vllm-lab-dev` (dev), `vllm-lab-prod` (prod) |
 | `PROMETHEUS_URL` | The internal URL for the Thanos Querier service within OpenShift Monitoring. This is used by the backend to query metrics. | `https://thanos-querier.openshift-monitoring.svc.cluster.local:9091` |
-| `K8S_NAMESPACE` | The Kubernetes namespace where vLLM pods are to be queried. | `vllm` |
+| `K8S_NAMESPACE` | The Kubernetes namespace where vLLM pods are to be queried. | `vllm-lab-dev` (dev), `vllm-lab-prod` (prod) |
 | `K8S_DEPLOYMENT_NAME` | **Crucial**: This must be the actual Deployment name created by KServe for your vLLM InferenceService (e.g., `llm-ov-predictor`), not the InferenceService name itself (`llm-ov`). | `llm-ov-predictor` |
-| `K8S_CONFIGMAP_NAME` | The name of the ConfigMap used by the vLLM service. | `vllm-config` |
-| `VLLM_ENDPOINT` | The internal inference endpoint for the vLLM service, used for testing and load generation. | `http://llm-ov-predictor.vllm.svc.cluster.local:8080` |
+| `VLLM_DEPLOYMENT_NAME` | The KServe InferenceService name. Used by auto-tuner for IS name reference. Do not confuse with `K8S_DEPLOYMENT_NAME`. | `llm-ov` |
+| `VLLM_ENDPOINT` | The internal inference endpoint for the vLLM service, used for testing and load generation. | `http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080` |
 | `VLLM_MODEL` | The name of the vLLM model being used for testing. | `Qwen2.5-Coder-3B-Instruct-int4-ov` |
 
 ## Build & Push Images
@@ -70,7 +70,7 @@ The `deploy.sh` script simplifies the build, push, and deployment process.
     ```bash
     export REGISTRY="quay.io/joopark"
     export IMAGE_TAG="1.0.0"
-    export VLLM_NAMESPACE="vllm"
+    export VLLM_NAMESPACE="vllm-lab-dev"  # Dev: vllm-lab-dev, Prod: vllm-lab-prod
     ```
 
 2.  **Deploy to Development Environment:**
@@ -138,17 +138,17 @@ oc exec -it $(oc get pod -l app=vllm-optimizer-backend -n $NS -o name | head -1)
 
 ## RBAC & SCC Configuration
 
-The vLLM Optimizer requires specific Role-Based Access Control (RBAC) and Security Context Constraints (SCC) to operate correctly within OpenShift.
+The vLLM Optimizer requires specific Role-Based Access Control (RBAC) to operate correctly within OpenShift.
 
 *   **ServiceAccount**: The `vllm-optimizer-backend` ServiceAccount is defined in `openshift/base/01-namespace-rbac.yaml`.
-*   **Custom SCC**: A custom SCC named `vllm-optimizer-scc` is also defined in `01-namespace-rbac.yaml` to ensure non-root execution and other security best practices.
+*   **SCC**: vLLM Optimizer uses OpenShift's default `restricted-v2` SCC, which is automatically applied. No custom SCC is required.
 *   **ClusterRoleBinding for Thanos**: To allow the vLLM Optimizer backend to query the OpenShift Monitoring Stack (Thanos Querier), a `ClusterRoleBinding` for the `cluster-monitoring-view` ClusterRole is applied in `openshift/base/05-monitoring.yaml`.
 
-**Troubleshooting SCC Issues:**
-If you encounter SCC-related errors, you might need to manually add the SCC to the ServiceAccount:
+**Verifying SCC:**
+To confirm the correct SCC is applied to your pods:
 ```bash
-oc adm policy add-scc-to-user vllm-optimizer-scc \
-  -z vllm-optimizer-backend -n vllm-optimizer-dev
+oc describe pod -l app=vllm-optimizer-backend -n vllm-optimizer-dev | grep -i scc
+# Expected: openshift.io/scc: restricted-v2
 ```
 
 ## Tekton CI/CD Pipeline

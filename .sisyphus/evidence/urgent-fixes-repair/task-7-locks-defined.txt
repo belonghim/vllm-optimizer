@@ -1,2 +1,0 @@
-39:        self._state_lock = asyncio.Lock()
-40:        self._subscribers_lock = asyncio.Lock()

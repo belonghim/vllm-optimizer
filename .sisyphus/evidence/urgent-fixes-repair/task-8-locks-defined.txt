@@ -1,3 +1,0 @@
-32:        self._lock = asyncio.Lock()
-33:        self._study_lock = asyncio.Lock()
-34:        self._k8s_lock = asyncio.Lock()

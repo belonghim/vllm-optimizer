@@ -164,7 +164,8 @@ async def test_rollback_on_wait_for_ready_timeout(auto_tuner_instance, mock_k8s_
     tuner = auto_tuner_instance
     mock_custom_api = mock_k8s_clients[2].return_value
 
-    tuner._wait_for_ready = AsyncMock(return_value=False)
+    # First call is pre-tuning health check (should pass), second call is trial (should fail)
+    tuner._wait_for_ready = AsyncMock(side_effect=[True, False])
     tuner._evaluate = AsyncMock(return_value=(10.0, 10.0, 0.1))
 
     config = TuningConfig(n_trials=1, eval_requests=5, warmup_requests=0)
@@ -635,7 +636,8 @@ async def test_warmstart_enqueues_previous_best(auto_tuner_instance, mock_k8s_cl
             )
 
 
-def test_importance_returns_empty_for_pareto_mode(auto_tuner_instance):
+@pytest.mark.asyncio
+async def test_importance_returns_empty_for_pareto_mode(auto_tuner_instance):
     """get_importance() should return {} for multi-objective study"""
     import optuna
 
@@ -646,7 +648,7 @@ def test_importance_returns_empty_for_pareto_mode(auto_tuner_instance):
     )
     tuner._trials = [object()] * 10
 
-    result = tuner.get_importance()
+    result = await tuner.get_importance()
     assert result == {}, f"Expected empty dict for Pareto mode, got: {result}"
 
 

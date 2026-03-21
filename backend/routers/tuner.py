@@ -54,8 +54,8 @@ class ApplyBestResponse(BaseModel):
 class TuningStartRequest(BaseModel):
     """Request to start auto-tuning (flat schema matching frontend)"""
     objective: str = "balanced"
-    n_trials: int = 20
-    eval_requests: int = 200
+    n_trials: int = 10
+    eval_requests: int = 100
     vllm_endpoint: str = ""
     max_num_seqs_min: int = 64
     max_num_seqs_max: int = 512
@@ -70,7 +70,7 @@ class TuningStartRequest(BaseModel):
     include_swap_space: bool = False
     swap_space_min: float = 1.0
     swap_space_max: float = 8.0
-    eval_concurrency: int = 32
+    eval_concurrency: int = 16
     eval_rps: int = 20
 
 
@@ -142,8 +142,10 @@ async def start_tuning(request: TuningStartRequest) -> dict[str, Any]:
     vllm_endpoint = request.vllm_endpoint or os.getenv("VLLM_ENDPOINT", "http://localhost:8000")
     tuning_id = str(uuid.uuid4())
     import asyncio
-    task = asyncio.create_task(auto_tuner.start(config, vllm_endpoint))
-    task.add_done_callback(lambda t: logger.error("[AutoTuner] Task failed: %s", t.exception()) if t.exception() else None)
+    auto_tuner._current_task = asyncio.create_task(auto_tuner.start(config, vllm_endpoint))
+    auto_tuner._current_task.add_done_callback(
+        lambda t: logger.error("[AutoTuner] Task failed: %s", t.exception()) if t.exception() else None
+    )
     return {
         "success": True,
         "message": f"Tuning started with {request.n_trials} trials",
@@ -246,7 +248,7 @@ async def get_parameter_importance() -> dict[str, Any]:
     """Get parameter importance from tuning trials (actual implementation)."""
     # Use the AutoTuner's implementation which computes importances via Optuna
     # FAnova if enough trials have been run. Returns {} when not enough data.
-    return auto_tuner.get_importance()
+    return await auto_tuner.get_importance()
 
 
 @router.post("/apply-best", response_model=ApplyBestResponse)

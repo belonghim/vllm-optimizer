@@ -1,5 +1,0 @@
-ERROR tests/test_load_test.py::test_load_test_status_endpoint_defaults - Modu...
-ERROR tests/test_load_test.py::test_load_test_history_endpoint_returns_list
-ERROR tests/test_load_test.py::test_startup_metrics_api_endpoint_returns_status
-ERROR tests/test_load_test.py::test_startup_metrics_endpoint_triggers_collector
-4 passed, 5 errors in 0.55s

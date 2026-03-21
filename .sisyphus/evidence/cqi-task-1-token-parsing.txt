@@ -1,8 +1,0 @@
-122:                        usage_tokens = 0
-138:                                        data = json.loads(chunk[6:])
-139:                                        if data.get("usage") and data["usage"].get("completion_tokens"):
-140:                                            usage_tokens = data["usage"]["completion_tokens"]
-143:                        if usage_tokens:
-144:                            output_tokens = usage_tokens
-151:                        output_tokens = data["usage"]["completion_tokens"]
-PASS: dual approach - usage field parsing + chunk count fallback

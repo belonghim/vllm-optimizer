@@ -5,6 +5,7 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status 
       <div className="grid-form grid-form-compact">
         {[
           ["vLLM Endpoint", "endpoint", "text"],
+          ["Model", "model", "text"],
           ["Total Requests", "total_requests", "number"],
           ["Concurrency", "concurrency", "number"],
           ["RPS (0=unlimited)", "rps", "number"],
@@ -17,6 +18,7 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status 
               type={type}
               aria-label={label}
               value={config[key]}
+              placeholder={key === "model" ? "auto (자동 탐지)" : undefined}
               onChange={e => onChange(key, type === "number" ? +e.target.value : e.target.value)}
             />
           </div>

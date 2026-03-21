@@ -1,7 +1,0 @@
-        ca_path = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
-        verify = ca_path if os.path.exists(ca_path) else True
-
---
-        ca_path = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
-        verify = ca_path if os.path.exists(ca_path) else True
-

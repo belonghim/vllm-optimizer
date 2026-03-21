@@ -11,9 +11,32 @@ import psutil
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, TYPE_CHECKING
+from urllib.parse import urlparse
 
 from models.load_test import LoadTestConfig, RequestResult
+
+if TYPE_CHECKING:
+    from services.runtime_config import RuntimeConfig
+
+
+def _normalize_url(url: str) -> str:
+    """
+    Normalize URL for comparison: lowercase scheme/host/path, remove trailing slash.
+    
+    Args:
+        url: The URL to normalize (e.g., "http://server:8080/v1/")
+        
+    Returns:
+        Normalized URL (e.g., "http://server:8080/v1")
+    """
+    if not url:
+        return ""
+    parsed = urlparse(url.rstrip("/"))
+    normalized_netloc = parsed.netloc.lower() if parsed.netloc else ""
+    normalized_scheme = parsed.scheme.lower() if parsed.scheme else ""
+    normalized_path = parsed.path.lower() if parsed.path else ""
+    return f"{normalized_scheme}://{normalized_netloc}{normalized_path}"
 
 
 class LoadTestStatus(str, Enum):
@@ -180,8 +203,16 @@ class LoadTestEngine:
             stats = self._compute_stats()
             await self._broadcast({"type": "progress", "data": stats})
 
-    async def _finalize_results(self, metric_samples: list[dict[str, float]], sample_stop: asyncio.Event, sampling_task: asyncio.Task[Any]) -> dict[str, Any]:
+    async def _finalize_results(
+        self, 
+        config: LoadTestConfig,
+        metric_samples: list[dict[str, float]], 
+        sample_stop: asyncio.Event, 
+        sampling_task: asyncio.Task[Any]
+    ) -> dict[str, Any]:
         """Finalize test: set status, stop sampling, compute final stats, broadcast, return."""
+        from services.shared import runtime_config  # Import locally to avoid circular dependency
+        
         async with self._state_lock:
             self._state.status = LoadTestStatus.COMPLETED
         sample_stop.set()
@@ -191,14 +222,27 @@ class LoadTestEngine:
         except asyncio.CancelledError:
             pass
         final_stats = self._compute_stats()
+        
+        # Check if load test target matches monitored vLLM endpoint
+        test_endpoint = config.endpoint if config.endpoint else runtime_config.vllm_endpoint
+        monitored_endpoint = runtime_config.vllm_endpoint
+        endpoints_match = _normalize_url(test_endpoint) == _normalize_url(monitored_endpoint)
+        
         if metric_samples:
             cpu_values = [s["cpu"] for s in metric_samples]
             gpu_values = [s["gpu"] for s in metric_samples]
             final_stats["backend_cpu_avg"] = round(sum(cpu_values) / len(cpu_values), 2)
-            final_stats["gpu_utilization_avg"] = round(sum(gpu_values) / len(gpu_values), 2)
+            
+            # Only include GPU metrics if target matches monitored endpoint
+            if endpoints_match:
+                final_stats["gpu_utilization_avg"] = round(sum(gpu_values) / len(gpu_values), 2)
+            else:
+                final_stats["gpu_utilization_avg"] = None
         else:
             final_stats["backend_cpu_avg"] = 0.0
-            final_stats["gpu_utilization_avg"] = 0.0
+            final_stats["gpu_utilization_avg"] = None if not endpoints_match else 0.0
+        
+        final_stats["metrics_target_matched"] = endpoints_match
         final_stats["tokens_per_sec"] = final_stats.get("tps", {}).get("mean", 0.0)
         await self._broadcast({"type": "completed", "data": final_stats})
         return final_stats
@@ -240,7 +284,7 @@ class LoadTestEngine:
                         self._state.failed_requests += 1
                 stats = self._compute_stats()
                 await self._broadcast({"type": "progress", "data": stats})
-        return await self._finalize_results(metric_samples, sample_stop, sampling_task)
+        return await self._finalize_results(config, metric_samples, sample_stop, sampling_task)
 
     async def stop(self) -> None:
         self._stop_event.set()

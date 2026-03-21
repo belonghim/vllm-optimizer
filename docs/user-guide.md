@@ -147,7 +147,7 @@ oc get route vllm-optimizer -n vllm-optimizer-dev
 | 필드 | 설명 | 기본값 |
 |:-----|:-----|:-----|
 | 최적화 목표 | 튜닝의 목표를 선택합니다. | 균형 (TPS / Latency) |
-| Trial 수 | Optuna가 탐색할 파라미터 조합의 총 개수입니다. | 20 |
+| Trial 수 | Optuna가 탐색할 파라미터 조합의 총 개수입니다. | 10 |
 | max_num_seqs 범위 | vLLM의 `max_num_seqs` 파라미터(동시 처리 시퀀스 수)를 탐색할 최소/최대 범위입니다. | 32 ~ 256 |
 | GPU Memory Util 범위 | vLLM의 `gpu_memory_utilization` 파라미터(GPU 메모리 사용률)를 탐색할 최소/최대 범위입니다. | 0.8 ~ 0.95 |
 
@@ -161,17 +161,17 @@ oc get route vllm-optimizer -n vllm-optimizer-dev
 | swap_space 포함 | CPU 스왑 메모리 사용 여부 및 크기 범위 (GB) |
 | 평가 요청 수 / 동시 요청 / RPS | 각 trial의 성능 측정에 사용할 부하 테스트 설정 |
 
-**현재 vLLM 설정**: 고급 설정 섹션 상단에 현재 vllm-config ConfigMap 값이 읽기 전용으로 표시됩니다.
+**현재 vLLM 설정**: 고급 설정 섹션 상단에 현재 InferenceService args 값이 읽기 전용으로 표시됩니다.
 
 ### 실행
 
 1. `최적화 목표`와 각 파라미터의 `탐색 범위`를 지정합니다. 더 많은 파라미터를 탐색하려면 "고급 설정 ▼"을 펼치십시오.
 2. **▶ Start Tuning** 버튼을 클릭하여 자동 튜닝을 시작합니다.
-3. `N / M trials` 형식으로 Trial 진행 상황이 표시되며, 각 trial의 현재 단계(ConfigMap 업데이트 → 파드 재기동 → 평가)가 실시간으로 표시됩니다.
+3. `N / M trials` 형식으로 Trial 진행 상황이 표시되며, 각 trial의 현재 단계(args 업데이트 → 파드 재기동 → 메트릭 안정화 → 평가)가 실시간으로 표시됩니다.
 4. 튜닝이 진행되면서 최적의 파라미터 조합이 발견되면 **최적 파라미터 발견** 섹션이 화면에 나타납니다.
 5. **■ Stop** 버튼을 클릭하여 언제든지 튜닝을 중도 중단할 수 있습니다.
 
-> ℹ️ **참고**: 각 trial은 vLLM 파드를 재기동(`kubectl rollout restart` 동일)하므로 **파드당 수십 초~수 분**이 소요됩니다. 20 trial 기준 총 소요 시간은 환경에 따라 30분~2시간 이상일 수 있습니다.
+> ℹ️ **참고**: 각 trial은 vLLM 파드를 재기동(`kubectl rollout restart` 동일)하므로 **파드당 수십 초~수 분**이 소요됩니다. 또한 파드 준비 완료 후 메트릭 안정화를 위해 30초의 쿨다운이 추가됩니다. 10 trial 기준 총 소요 시간은 환경에 따라 30분~1시간 이상일 수 있습니다.
 
 ### 결과 화면
 
@@ -182,16 +182,16 @@ oc get route vllm-optimizer -n vllm-optimizer-dev
 
 ### 최적 파라미터 적용
 
-> ⚠️ **주의**: **✓ Apply Best Params** 버튼은 자동 튜닝을 통해 발견된 최적 파라미터를 Kubernetes ConfigMap에 직접 적용하고, vLLM 파드를 재기동합니다. 이 작업은 즉시 vLLM 설정에 반영되며, **되돌리기 기능이 없습니다**. 적용 전에 현재 ConfigMap 값을 별도로 기록해 두는 것을 강력히 권장합니다.
+> ⚠️ **주의**: **✓ Apply Best Params** 버튼은 자동 튜닝을 통해 발견된 최적 파라미터를 InferenceService args에 직접 적용하고, vLLM 파드를 재기동합니다. 이 작업은 즉시 vLLM 설정에 반영되며, **되돌리기 기능이 없습니다**. 적용 전에 현재 InferenceService args를 별도로 기록해 두는 것을 강력히 권장합니다.
 > ```bash
-> oc get configmap vllm-config -n vllm -o yaml
+> oc get inferenceservice llm-ov -n vllm-lab-dev -o jsonpath='{.spec.predictor.model.args}'
 > ```
 
 ### vllm-config 직접 편집
 
-대시보드의 고급 설정 섹션에서 현재 ConfigMap 값을 확인하고, `/api/vllm-config` API를 통해 직접 수정할 수도 있습니다 (튜닝 없이 값만 변경).
+대시보드의 고급 설정 섹션에서 현재 InferenceService args 값을 확인하고, `/api/vllm-config` API를 통해 직접 수정할 수도 있습니다 (튜닝 없이 값만 변경).
 ```bash
-# ConfigMap 현재 값 조회 (API)
+# InferenceService 현재 값 조회 (API)
 curl http://<backend>/api/vllm-config
 
 # 특정 값 수정 (허용 키만 가능)
@@ -199,7 +199,7 @@ curl -X PATCH http://<backend>/api/vllm-config \
   -H 'Content-Type: application/json' \
   -d '{"data": {"MAX_NUM_SEQS": "128"}}'
 ```
-> ℹ️ **참고**: ConfigMap만 수정하면 vLLM 파드가 자동으로 재기동되지 않습니다. 새 값을 적용하려면 파드를 수동으로 재기동하거나 자동 튜닝을 통해 적용하십시오.
+> ℹ️ **참고**: API를 통해 값만 수정하면 vLLM 파드가 자동으로 재기동되지 않습니다. 새 값을 적용하려면 파드를 수동으로 재기동하거나 자동 튜닝을 통해 적용하십시오.
 
 ## 7. 자주 묻는 질문 (FAQ)
 
@@ -210,16 +210,16 @@ curl -X PATCH http://<backend>/api/vllm-config \
 
 **Q2. 부하 테스트가 시작되지 않습니다.**
 - A: `vLLM Endpoint`가 올바르게 설정되었는지 확인하십시오.
-  - 내부 클러스터 URL 형식은 `http://llm-ov-predictor.vllm.svc.cluster.local:8080`과 같습니다.
+  - 내부 클러스터 URL 형식은 `http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080`과 같습니다.
   - 브라우저에서 직접 접근하는 경우, 클러스터 내부 URL은 사용할 수 없습니다. OpenShift Route URL을 사용해야 합니다.
 
 **Q3. 벤치마크 테이블이 비어 있습니다.**
 - A: `부하 테스트` 탭에서 부하 테스트를 먼저 실행하십시오. 테스트가 완료되면 그 결과가 자동으로 저장되어 이 탭에 표시됩니다.
 
 **Q4. ✓ Apply Best Params를 클릭했는데 되돌리고 싶습니다.**
-- A: ConfigMap을 수동으로 복원해야 합니다. 다음 명령어를 사용하여 ConfigMap을 편집하거나, 이전에 저장해 둔 YAML 파일을 재적용하십시오.
+- A: InferenceService args를 수동으로 복원해야 합니다. 다음 명령어를 사용하여 이전에 저장해 둔 args를 재적용하십시오:
   ```bash
-  oc edit configmap vllm-config -n vllm
+  oc patch inferenceservice llm-ov -n vllm-lab-dev --type='json' -p='[{"op": "replace", "path": "/spec/predictor/model/args", "value": ["이전", "args", "값"]}]'
   ```
 
 **Q5. 자동 파라미터 튜닝 후 다른 기능이 느려졌습니다.**

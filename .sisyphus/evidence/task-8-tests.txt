@@ -1,8 +1,0 @@
-# task-8-tests.txt
- Test Files  8 passed (8)
-      Tests  45 passed (45)
-   Start at  14:44:56
-   Duration  5.61s
-
-Pass count: 45 tests passed (same as baseline)
-Note: pre-existing act() warnings — not new, same as baseline

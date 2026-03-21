@@ -1,1 +1,0 @@
-            targets = list(self._subscribers)

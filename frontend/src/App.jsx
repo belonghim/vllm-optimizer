@@ -9,9 +9,9 @@ import ClusterConfigBar from "./components/ClusterConfigBar";
 
 const PAGES = [
   { id: "monitor", label: "실시간 모니터링", Component: MonitorPage },
+  { id: "tuner", label: "자동 파라미터 튜닝", Component: TunerPage },
   { id: "loadtest", label: "부하 테스트", Component: LoadTestPage },
   { id: "benchmark", label: "벤치마크 비교", Component: BenchmarkPage },
-  { id: "tuner", label: "자동 파라미터 튜닝", Component: TunerPage },
 ];
 
 export default function App() {
@@ -55,13 +55,13 @@ export default function App() {
         </div>
       </header>
 
-      <ClusterConfigBar />
+      {(page === "monitor" || page === "tuner") && <ClusterConfigBar />}
 
       <main className="app-main">
         {PAGES.map(p => (
           <div key={p.id} className={page === p.id ? undefined : 'app-page--hidden'}>
             <ErrorBoundary>
-              <p.Component />
+              <p.Component isActive={page === p.id} />
             </ErrorBoundary>
           </div>
         ))}

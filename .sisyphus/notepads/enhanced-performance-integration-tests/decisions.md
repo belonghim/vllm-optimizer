@@ -1,2 +1,0 @@
-- 2026-03-07: Favored explicit typing (collections.abc.Iterator, cast) and structured guard clauses in perf fixtures to keep basedpyright clean while preserving provided logic.
-- 2026-03-07: Asserted the skip/back-up fixtures in the new tests to avoid unused-parameter noise and kept the `/api/load_test` prefix that matches `backend/main.py` router wiring.

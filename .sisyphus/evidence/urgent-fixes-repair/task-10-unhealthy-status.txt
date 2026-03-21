@@ -1,1 +1,0 @@
-240:        return JSONResponse(status_code=503, content=health)

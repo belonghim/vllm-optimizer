@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-21] - Auto Tuner Stability & Cluster Load Optimization
+
+**Status**: Completed
+
+Auto Tuner의 JSON 파싱 오류, Stop 버튼 미작동 문제를 수정하고, OpenShift 클러스터 부하를 최적화하며, RBAC 권한을 최소화.
+
+### Fixed (Backend — CRITICAL)
+- **튜너 JSON 파싱 오류** (`auto_tuner.py`, `tuner.py`): `/tuner/importance` 엔드포인트의 `optuna.importance.get_param_importances()` 호출이 동기 블로킹으로 이벤트 루프를 차단하던 문제 수정. `async def`로 변경하고 `await asyncio.to_thread()`로 래핑.
+- **Stop 버튼 미작동** (`auto_tuner.py`): `_running` 플래그가 트라이얼 루프 시작에서만 체크되어 `_wait_for_ready()` (최대 300초 대기) 중 취소가 불가능하던 문제 수정. `asyncio.Event`를 사용한 협력적 취소 메커니즘 구현.
+
+### Fixed (Frontend)
+- **튜너 조회 실패 시 전체 페이지 오류** (`TunerPage.jsx`): `Promise.all` 대신 `Promise.allSettled` 사용하여 개별 엔드포인트 실패 시에도 부분 데이터 표시. `safeFetch` 헬퍼로 JSON 파싱 오류 처리.
+
+### Changed (Backend)
+- **기본값 최적화** (`load_test.py`, `tuner.py`): 클러스터 부하 감소를 위해 기본값 조정 — `n_trials`: 20→10, `warmup_requests`: 50→20, `eval_requests`: 200→100, `eval_concurrency`: 32→16.
+- **트라이얼 간 쿨다운** (`auto_tuner.py`): IS Ready 확인 후 30초 대기 추가. Prometheus 메트릭 안정화 보장.
+- **사전 헬스체크** (`auto_tuner.py`): 튜닝 시작 전 IS Ready 상태 확인. 준비되지 않으면 튜닝 시작 거부.
+- **레이스 컨디션 방지** (`auto_tuner.py`): `start()`에서 이전 실행 취소 대기 로직 추가. `get_importance()`의 예외 처리를 `OptunaError` → `Exception`으로 확장.
+
+### Changed (Infrastructure)
+- **RBAC 권한 최소화** (`01-namespace-rbac.yaml`): 미사용 리소스(`replicasets`, `pods/log`, `services`, `endpoints`, `horizontalpodautoscalers`, `routes`) 및 동사(`watch`, `update`) 제거. 최소 권한 원칙 적용.
+
+### Changed (Frontend)
+- **기본값 동기화** (`TunerPage.jsx`): 백엔드와 동일한 기본값 적용 — `n_trials`: 10, `eval_requests`: 100, `eval_concurrency`: 16.
+
+### Verification
+- Backend: 164 passed
+- Frontend: 빌드 성공
+- Kustomize: `oc apply --dry-run=client` 성공
+
+---
+
 ## [2026-03-20] - Bug Fixes & Security Hardening
 
 **Status**: Completed

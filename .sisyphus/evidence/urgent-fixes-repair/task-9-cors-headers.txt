@@ -1,4 +1,0 @@
-29:            add_header Access-Control-Allow-Origin $http_origin always;
-37:                add_header Access-Control-Allow-Origin $http_origin;
-30:            add_header Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE" always;
-38:                add_header Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE";

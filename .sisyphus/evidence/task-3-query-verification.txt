@@ -1,5 +1,0 @@
-TPS query: sum(rate(vllm:generation_tokens_total[1m]))
-RPS query: sum(rate(vllm:request_success_total[1m]))
-0.11.x TPS (should be unchanged): rate(vllm:generation_tokens_total[1m])
-0.13.x GPU TPS (should be unchanged): sum(rate(vllm:num_generated_tokens[1m]))
-ALL CHECKS PASSED

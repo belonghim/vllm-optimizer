@@ -73,9 +73,9 @@ NS=vllm-optimizer-dev
 BACKEND_POD=$(oc get pod -n $NS -l app=vllm-optimizer-backend -o name | head -1)
 oc exec -n $NS $BACKEND_POD -- env \
   PERF_TEST_BACKEND_URL=http://localhost:8000 \
-  VLLM_ENDPOINT=http://llm-ov-predictor.vllm.svc.cluster.local:8080 \
+  VLLM_ENDPOINT=http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080 \
   VLLM_MODEL=Qwen2.5-Coder-3B-Instruct-int4-ov \
-  VLLM_NAMESPACE=vllm \
+  VLLM_NAMESPACE=vllm-lab-dev \
   OPTIMIZER_NAMESPACE=vllm-optimizer-dev \
   python3 -m pytest /app/tests/integration/performance/ -v --tb=short -m "integration"
 ```
@@ -235,6 +235,6 @@ oc logs -l app=vllm-optimizer-backend -n vllm-optimizer-dev | grep "StartupShim"
 | Action | Command |
 |--------|---------|
 | Run unit tests | `cd backend && python3 -m pytest tests/ -x -q -m "not integration"` |
-| Run integration test (in-cluster) | `NS=vllm-optimizer-dev; BACKEND_POD=$(oc get pod -n $NS -l app=vllm-optimizer-backend -o name | head -1); oc exec -n $NS $BACKEND_POD -- env PERF_TEST_BACKEND_URL=http://localhost:8000 VLLM_ENDPOINT=http://llm-ov-predictor.vllm.svc.cluster.local:8080 VLLM_MODEL=Qwen2.5-Coder-3B-Instruct-int4-ov VLLM_NAMESPACE=vllm OPTIMIZER_NAMESPACE=vllm-optimizer-dev python3 -m pytest /app/tests/integration/performance/ -v --tb=short -m "integration"` |
+| Run integration test (in-cluster) | `NS=vllm-optimizer-dev; BACKEND_POD=$(oc get pod -n $NS -l app=vllm-optimizer-backend -o name | head -1); oc exec -n $NS $BACKEND_POD -- env PERF_TEST_BACKEND_URL=http://localhost:8000 VLLM_ENDPOINT=http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080 VLLM_MODEL=Qwen2.5-Coder-3B-Instruct-int4-ov VLLM_NAMESPACE=vllm-lab-dev OPTIMIZER_NAMESPACE=vllm-optimizer-dev python3 -m pytest /app/tests/integration/performance/ -v --tb=short -m "integration"` |
 | Local endpoint check | `curl -s http://localhost:8000/api/metrics | head -30` |
 | Get Thanos token | `TOKEN=$(oc create token vllm-optimizer-backend -n vllm-optimizer-dev)` |

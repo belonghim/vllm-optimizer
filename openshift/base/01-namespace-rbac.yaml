@@ -23,40 +23,6 @@ metadata:
     serviceaccounts.openshift.io/oauth-redirectreference.primary: '{"kind":"OAuthRedirectReference","apiVersion":"v1","reference":{"kind":"Route","name":"vllm-optimizer"}}'
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: vllm-optimizer-controller
-rules:
-  - apiGroups: ["apps"]
-    resources: ["deployments","replicasets"]
-    verbs: ["get","list","watch","patch","update"]
-  - apiGroups: ["serving.kserve.io"]
-    resources: ["inferenceservices"]
-    verbs: ["get","list","watch","patch","update"]
-  - apiGroups: [""]
-    resources: ["pods","pods/log","services","endpoints"]
-    verbs: ["get","list","watch","patch","update"]
-  - apiGroups: ["autoscaling"]
-    resources: ["horizontalpodautoscalers"]
-    verbs: ["get","list","watch","patch","update"]
-  - apiGroups: ["route.openshift.io"]
-    resources: ["routes"]
-    verbs: ["get","list","watch"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: vllm-optimizer-controller
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: vllm-optimizer-controller
-subjects:
-  - kind: ServiceAccount
-    name: vllm-optimizer-backend
-    namespace: "vllm-optimizer"
----
-apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: vllm-optimizer-monitoring-view
@@ -81,39 +47,4 @@ subjects:
   - kind: ServiceAccount
     name: vllm-optimizer-frontend
     namespace: "vllm-optimizer"
----
-# OpenShift SCC: non-root + arbitrary UID
-apiVersion: security.openshift.io/v1
-kind: SecurityContextConstraints
-metadata:
-  name: vllm-optimizer-scc
-allowPrivilegedContainer: false
-allowPrivilegeEscalation: false
-runAsUser:
-  type: MustRunAsNonRoot
-supplementalGroups:
-  type: MustRunAs
-  ranges:
-    - min: 1
-      max: 65535
-fsGroup:
-  type: MustRunAs
-  ranges:
-    - min: 1
-      max: 65535
-volumes: [configMap, emptyDir, secret, projected, persistentVolumeClaim]
-allowHostNetwork: false
-allowHostPorts: false
-allowHostPID: false
-allowHostIPC: false
-readOnlyRootFilesystem: true
-seLinuxContext:
-  type: MustRunAs
-seccompProfiles: ["runtime/default"]
-allowedCapabilities: []
-defaultAddCapabilities: []
-requiredDropCapabilities: [ALL]
-users:
-  - system:serviceaccount:vllm-optimizer-${DEPLOY_ENV}:vllm-optimizer-backend
-  - system:serviceaccount:vllm-optimizer-${DEPLOY_ENV}:vllm-optimizer-frontend
-groups: []
+

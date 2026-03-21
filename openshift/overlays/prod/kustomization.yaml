@@ -16,16 +16,6 @@ patches:
         path: /metadata/name
         value: vllm-optimizer-prod
   - target:
-      group: rbac.authorization.k8s.io
-      version: v1
-      kind: ClusterRoleBinding
-      name: vllm-optimizer-controller
-    patch: |-
-      - op: replace
-        path: /subjects/0/namespace
-        value: vllm-optimizer-prod
-
-  - target:
       kind: Deployment
       name: vllm-optimizer-backend
     patch: |-
@@ -66,4 +56,4 @@ patches:
         value: "https://vllm-optimizer.apps.example.com"
       - op: add
         path: /data/VLLM_ENDPOINT
-        value: "https://llm-ov-predictor.vllm.svc.cluster.local:8080"
+        value: "https://llm-ov-predictor.vllm-lab-prod.svc.cluster.local:8080"

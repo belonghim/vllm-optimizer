@@ -1,3 +1,0 @@
-  VLLM_ENDPOINT: "http://llm-ov-predictor.vllm.svc.cluster.local:8080"
-  VLLM_NAMESPACE: "vllm"
-  VLLM_DEPLOYMENT_NAME: "llm-ov"

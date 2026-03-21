@@ -36,9 +36,9 @@ cd backend && python3 -m pytest tests/ -x -q -m "not integration"
 | 변수 | 설명 | 기본값 |
 |:-----|:-----|:--------|
 | `PERF_TEST_BACKEND_URL` | Backend URL | `http://vllm-optimizer-backend.vllm-optimizer-dev.svc.cluster.local:8000` |
-| `VLLM_ENDPOINT` | vLLM completions endpoint | `http://llm-ov-predictor.vllm.svc.cluster.local:8080` |
+| `VLLM_ENDPOINT` | vLLM completions endpoint | `http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080` |
 | `VLLM_MODEL` | vLLM 모델명 | `Qwen2.5-Coder-3B-Instruct-int4-ov` |
-| `VLLM_NAMESPACE` | vLLM 네임스페이스 | `vllm` |
+| `VLLM_NAMESPACE` | vLLM 네임스페이스 | `vllm-lab-dev` |
 | `OPTIMIZER_NAMESPACE` | Optimizer 네임스페이스 | `vllm-optimizer-dev` |
 | `PERF_BASELINE_FILE` | Baseline JSON 경로 | `baseline.dev.json` |
 | `VLLM_POD_LABEL` | vLLM 파드 식별 레이블 (`test_pod_restart.py`) | `app=isvc.llm-ov-predictor` |
@@ -61,9 +61,9 @@ NS=vllm-optimizer-dev
 BACKEND_POD=$(oc get pod -n $NS -l app=vllm-optimizer-backend -o name | head -1)
 oc exec -n $NS $BACKEND_POD -- env \
   PERF_TEST_BACKEND_URL=http://localhost:8000 \
-  VLLM_ENDPOINT=http://llm-ov-predictor.vllm.svc.cluster.local:8080 \
+  VLLM_ENDPOINT=http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080 \
   VLLM_MODEL=Qwen2.5-Coder-3B-Instruct-int4-ov \
-  VLLM_NAMESPACE=vllm \
+  VLLM_NAMESPACE=vllm-lab-dev \
   OPTIMIZER_NAMESPACE=vllm-optimizer-dev \
   python3 -m pytest /app/tests/integration/performance/ -v --tb=short -m "integration"
 ```
@@ -119,5 +119,5 @@ pytest -m "not slow"
   ```
 - **네트워크 연결**: vLLM Optimizer 백엔드 Pod에서 vLLM 서비스 엔드포인트로의 네트워크 연결이 가능한지 확인하십시오.
   ```bash
-  oc exec -it <backend-pod-name> -n vllm-optimizer-dev -- curl -v http://llm-ov-predictor.vllm.svc.cluster.local:8080/v1/models
+  oc exec -it <backend-pod-name> -n vllm-optimizer-dev -- curl -v http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080/v1/models
   ```

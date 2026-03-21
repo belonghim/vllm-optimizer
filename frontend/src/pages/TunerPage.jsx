@@ -20,7 +20,7 @@ function TunerPage() {
   const [storageUri, setStorageUri] = useState(null);
   const [config, setConfig] = useState({
     objective: "balanced",
-    n_trials: 20,
+    n_trials: 10,
     vllm_endpoint: "",
     max_num_seqs_min: 64, max_num_seqs_max: 512,
     gpu_memory_min: 0.80, gpu_memory_max: 0.95,
@@ -29,9 +29,9 @@ function TunerPage() {
     block_size_options: [8, 16, 32],
     include_swap_space: false,
     swap_space_min: 1.0, swap_space_max: 8.0,
-    eval_concurrency: 32,
+    eval_concurrency: 16,
     eval_rps: 20,
-    eval_requests: 200,
+    eval_requests: 100,
   });
 
   const fetchStatus = useCallback(async () => {
@@ -40,16 +40,42 @@ function TunerPage() {
       setError(null);
       return;
     }
-    try {
-      const [s, t, imp] = await Promise.all([
-        fetch(`${API}/tuner/status`).then(r => r.json()),
-        fetch(`${API}/tuner/trials`).then(r => r.json()),
-        fetch(`${API}/tuner/importance`).then(r => r.json()),
-      ]);
-      setStatus(s); setTrials(t); setImportance(imp);
+
+    const safeFetch = async (url) => {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) return null;
+        return await response.json();
+      } catch (err) {
+        console.warn(`Fetch failed for ${url}:`, err);
+        return null;
+      }
+    };
+
+    const results = await Promise.allSettled([
+      safeFetch(`${API}/tuner/status`),
+      safeFetch(`${API}/tuner/trials`),
+      safeFetch(`${API}/tuner/importance`),
+    ]);
+
+    const s = results[0].status === "fulfilled" ? results[0].value : null;
+    const t = results[1].status === "fulfilled" ? results[1].value : null;
+    const imp = results[2].status === "fulfilled" ? results[2].value : null;
+
+    if (s) setStatus(s);
+    if (t) setTrials(t);
+    if (imp) setImportance(imp);
+
+    if (!s && !t && !imp) {
+      setError("튜너 모든 API 조회 실패 (상태, 시도, 중요도)");
+    } else if (!s || !t || !imp) {
+      const failed = [];
+      if (!s) failed.push("상태");
+      if (!t) failed.push("시도");
+      if (!imp) failed.push("중요도");
+      setError(`주의: 일부 튜너 정보를 가져오지 못했습니다 (${failed.join(", ")})`);
+    } else {
       setError(null);
-    } catch (err) {
-      setError(`튜너 조회 실패: ${err.message}`);
     }
   }, [isMockEnabled]);
 

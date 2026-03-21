@@ -24,8 +24,8 @@ Before diving into specific issues, use this checklist to quickly narrow down th
 4.  **Thanos Connectivity**: Can the backend connect to Thanos Querier?
     -   Check backend logs for `Thanos connection failed` or `403` errors.
     -   Manually test Thanos query: See "Useful Debug Commands" section.
-5.  **vLLM Pods**: Are the vLLM inference pods running and healthy in the `vllm` namespace?
-    -   `oc get pods -n vllm`
+5.  **vLLM Pods**: Are the vLLM inference pods running and healthy in the `vllm-lab-dev` namespace?
+    -   `oc get pods -n vllm-lab-dev`
 
 ---
 
@@ -35,19 +35,21 @@ Before diving into specific issues, use this checklist to quickly narrow down th
 
 **Symptom**: Backend or frontend pods fail to start with `Error: container has runAsNonRoot and image has non-numeric user (user: root)` or similar `securityContext` related errors.
 
-**Cause**: The OpenShift Security Context Constraints (SCC) are preventing the container from running with the necessary permissions. The `vllm-optimizer-scc` is not bound to the service account.
+**Cause**: The container image is incorrectly configured to run as root. vLLM Optimizer uses OpenShift's default `restricted-v2` SCC, which enforces non-root execution.
 
 **Diagnosis**:
 1.  Check pod logs for `permission denied` or `runAsNonRoot` errors.
-2.  Describe the failing pod and look for `securityContext` related warnings or errors:
+2.  Verify the current SCC applied to the pod:
     `oc describe pod -l app=vllm-optimizer-backend -n vllm-optimizer-dev | grep -i scc`
+    Expected: `openshift.io/scc: restricted-v2`
 
-**Fix**: Bind the custom SCC to the service account used by the backend.
-```bash
-oc adm policy add-scc-to-user vllm-optimizer-scc \
-  -z vllm-optimizer-backend -n vllm-optimizer-dev
+**Fix**: Ensure your Dockerfile uses a non-root user and sets proper file permissions:
+```dockerfile
+# Correct pattern for OpenShift
+RUN chgrp -R 0 /app && chmod -R g+rwX /app
+USER 1001
 ```
-(Replace `vllm-optimizer-backend` with `vllm-optimizer-frontend` if the frontend pod is affected.)
+No custom SCC binding is required. OpenShift's `restricted-v2` SCC is automatically applied.
 
 ### 2. Image Pull Failure
 
@@ -95,7 +97,7 @@ oc apply -f openshift/base/05-monitoring.yaml -n vllm-optimizer-dev
     -   If `collector_version` is `unknown`, Thanos connection failed (see issue 3).
     -   If `pods=0`, MetricsCollector cannot find vLLM pods.
 2.  **Verify `K8S_DEPLOYMENT_NAME`**: The `K8S_DEPLOYMENT_NAME` environment variable might be set incorrectly. KServe creates a Deployment with a specific naming convention.
-    -   `oc get deployment -n vllm`
+     -   `oc get deployment -n vllm-lab-dev`
     -   Look for the deployment name corresponding to your KServe InferenceService (e.g., `llm-ov-predictor` for `llm-ov`).
     -   The `K8S_DEPLOYMENT_NAME` should be `llm-ov-predictor`, not `llm-ov`.
 
@@ -113,8 +115,8 @@ oc apply -f openshift/base/05-monitoring.yaml -n vllm-optimizer-dev
 
 **Diagnosis**:
 1.  Observe test output for `SKIPPED` messages related to `skip_if_overloaded`.
-2.  Check the health and resource usage of the vLLM pods in the `vllm` namespace.
-    `oc get pods -n vllm`
+2.  Check the health and resource usage of the vLLM pods in the `vllm-lab-dev` namespace.
+    `oc get pods -n vllm-lab-dev`
 
 **Fix**:
 1.  **Wait**: The `skip_if_overloaded` fixture waits up to 120 seconds for the latency to normalize. If tests are consistently skipped, ensure the vLLM cluster has sufficient resources and is not genuinely overloaded.
@@ -169,7 +171,7 @@ TOKEN=$(oc create token vllm-optimizer-backend -n vllm-optimizer-dev)
 **Cause**: The vLLM inference service is running, but no actual inference requests have been sent to it. MetricsCollector relies on Prometheus metrics, which are only updated when vLLM processes requests.
 
 **Diagnosis**:
-1.  Verify vLLM pods are running: `oc get pods -n vllm`.
+1.  Verify vLLM pods are running: `oc get pods -n vllm-lab-dev`.
 2.  Check vLLM logs for any incoming request activity.
 3.  Manually send a test inference request to the vLLM endpoint.
 
@@ -220,10 +222,10 @@ These commands can help diagnose issues in your OpenShift cluster.
     oc exec -it $(oc get pod -l app=vllm-optimizer-backend -n vllm-optimizer-dev -o name | head -1) \
       -n vllm-optimizer-dev -- curl -X POST localhost:8000/startup_metrics
     ```
--   **vLLM Deployment Name Verification**: `oc get deployment -n vllm`
--   **vLLM Pod Status**: `oc get pods -n vllm`
--   **vllm-config ConfigMap 조회**: `oc get configmap vllm-config -n vllm -o yaml`
--   **Deployment Rollout 상태 확인**: `oc rollout status deployment/llm-ov-predictor -n vllm`
+-   **vLLM Deployment Name Verification**: `oc get deployment -n vllm-lab-dev`
+-   **vLLM Pod Status**: `oc get pods -n vllm-lab-dev`
+-   **InferenceService args 조회**: `oc get inferenceservice llm-ov -n vllm-lab-dev -o jsonpath='{.spec.predictor.model.args}'`
+-   **Deployment Rollout 상태 확인**: `oc rollout status deployment/llm-ov-predictor -n vllm-lab-dev`
 -   **vllm-config API 조회**: `curl http://localhost:8000/api/vllm-config`
 
 ---
@@ -234,53 +236,80 @@ These commands can help diagnose issues in your OpenShift cluster.
 
 **Symptom**: "Pod Ready 대기 중..." 메시지가 표시되고 300초 후 타임아웃, 또는 튜닝은 진행되지만 vLLM 설정이 실제로 변경되지 않음.
 
-**Cause**: 자동 튜너는 ConfigMap 수정 후 `llm-ov-predictor` Deployment의 pod template annotation을 직접 패치하여 rollout restart를 트리거합니다. 이 과정이 실패하는 주요 원인은:
-1. `K8S_DEPLOYMENT_NAME` 환경변수가 올바른 Deployment 이름(`llm-ov-predictor`)으로 설정되지 않은 경우
-2. 백엔드 ServiceAccount에 `llm-ov-predictor` Deployment 패치 권한이 없는 경우
+**Cause**: 자동 튜너는 InferenceService `spec.predictor.model.args`를 직접 패치합니다. 이 과정이 실패하는 주요 원인은:
+1. `VLLM_DEPLOYMENT_NAME` 환경변수가 올바른 InferenceService 이름(`llm-ov`)으로 설정되지 않은 경우
+2. 백엔드 ServiceAccount에 `inferenceservices/patch` 권한이 없는 경우
 
 **Diagnosis**:
-1. 백엔드 로그에서 `Deployment 재시작 실패` 오류 확인:
+1. 백엔드 로그에서 `InferenceService args patch failed` 오류 확인:
    ```bash
-   oc logs -l app=vllm-optimizer-backend -n vllm-optimizer-dev | grep -i "deployment\|restart\|rollout"
+   oc logs -l app=vllm-optimizer-backend -n vllm-optimizer-dev | grep -i "inferenceservice\|patch\|args"
    ```
-2. Deployment 이름 확인:
+2. InferenceService 이름 확인:
    ```bash
-   oc get deployment -n vllm
-   # 예: llm-ov-predictor 가 있어야 함
+   oc get inferenceservice -n vllm-lab-dev
+   # 예: llm-ov 가 있어야 함
    ```
-3. 수동 rollout restart 테스트:
+3. 수동 args 패치 테스트:
    ```bash
-   oc rollout restart deployment/llm-ov-predictor -n vllm
-   oc rollout status deployment/llm-ov-predictor -n vllm
+   oc get inferenceservice llm-ov -n vllm-lab-dev -o jsonpath='{.spec.predictor.model.args}'
    ```
 
 **Fix**:
-1. `openshift/base/03-backend.yaml`에서 `K8S_DEPLOYMENT_NAME`이 `llm-ov-predictor`로 설정되어 있는지 확인:
+1. `openshift/base/03-backend.yaml`에서 `VLLM_DEPLOYMENT_NAME`이 `llm-ov`로 설정되어 있는지 확인:
    ```yaml
-   - name: K8S_DEPLOYMENT_NAME
-     value: "llm-ov-predictor"
+   - name: VLLM_DEPLOYMENT_NAME
+     value: "llm-ov"
    ```
-2. RBAC 권한 확인 — `openshift/base/01-namespace-rbac.yaml`의 ClusterRole에 `deployments/patch` 권한이 있어야 함.
+2. RBAC 권한 확인 — `openshift/base/01-namespace-rbac.yaml`의 ClusterRole에 `inferenceservices/patch` 권한이 있어야 함.
 
 ### 12. 자동 튜닝 후 파라미터가 vLLM에 반영되지 않음
 
-**Symptom**: 튜닝 완료 후 vLLM 성능 지표가 변하지 않음. ConfigMap은 수정됐지만 vLLM 프로세스가 이전 값을 사용하고 있음.
+**Symptom**: 튜닝 완료 후 vLLM 성능 지표가 변하지 않음. InferenceService args는 수정됐지만 vLLM 프로세스가 이전 값을 사용하고 있음.
 
-**Cause**: Kubernetes에서 `envFrom`으로 마운트된 ConfigMap은 Pod가 시작될 때 환경변수로 설정되며, ConfigMap이 변경되어도 실행 중인 Pod에는 반영되지 않습니다. **Pod를 반드시 재기동해야** 새 값이 적용됩니다.
+**Cause**: InferenceService args 변경 시 KServe가 자동으로 Deployment를 업데이트하고 파드를 재기동해야 합니다. 재기동이 완료되기 전에 튜닝이 종료된 경우, 새 값이 적용되지 않을 수 있습니다.
 
 **Diagnosis**:
-1. 현재 ConfigMap 값 확인:
+1. 현재 InferenceService args 확인:
    ```bash
-   oc get configmap vllm-config -n vllm -o yaml
+   oc get inferenceservice llm-ov -n vllm-lab-dev -o jsonpath='{.spec.predictor.model.args}'
    ```
-2. 현재 실행 중인 vLLM Pod의 환경변수 확인:
+2. 현재 실행 중인 vLLM Pod의 시작 명령어 확인:
    ```bash
-   oc exec -it $(oc get pod -n vllm -l app=isvc.llm-ov-predictor -o name | head -1) -n vllm -- env | grep MAX_NUM_SEQS
+   oc exec -it $(oc get pod -n vllm-lab-dev -l app=isvc.llm-ov-predictor -o name | head -1) -n vllm-lab-dev -- cat /proc/1/cmdline | tr '\0' ' '
    ```
    두 값이 다르다면 Pod 재기동이 필요합니다.
 
 **Fix**: 수동으로 파드 재기동:
 ```bash
-oc rollout restart deployment/llm-ov-predictor -n vllm
-oc rollout status deployment/llm-ov-predictor -n vllm
+oc rollout restart deployment/llm-ov-predictor -n vllm-lab-dev
+oc rollout status deployment/llm-ov-predictor -n vllm-lab-dev
 ```
+
+### 13. 튜너 JSON 파싱 오류 (튜너 조회 실패)
+
+**Symptom**: 대시보드에 "튜너 조회 실패: JSON.parse: unexpected character at line 1 column 1 of the JSON data" 오류가 표시됨.
+
+**Cause**: `/tuner/importance` 엔드포인트의 `optuna.importance.get_param_importances()` 호출이 동기 블로킹으로 이벤트 루프를 차단하여, 다른 API 요청이 타임아웃되거나 HTML 오류 페이지를 반환하는 문제.
+
+**Diagnosis**:
+1. 백엔드 로그에서 블로킹 호출 확인:
+   ```bash
+   oc logs -l app=vllm-optimizer-backend -n vllm-optimizer-dev | grep -i "importance\|blocking"
+   ```
+
+**Fix**: 이 문제는 v2026-03-21 릴리즈에서 수정되었습니다. `get_importance()`가 `asyncio.to_thread()`를 사용하여 비동기로 실행됩니다.
+
+### 14. 튜너 Stop 버튼이 작동하지 않음
+
+**Symptom**: 자동 튜닝 중 Stop 버튼을 클릭해도 튜닝이 중단되지 않음.
+
+**Cause**: `_running` 플래그가 트라이얼 루프 시작에서만 체크되어, `_wait_for_ready()` (최대 300초 대기) 중에는 취소가 불가능한 문제.
+
+**Diagnosis**:
+1. 백엔드 로그에서 취소 이벤트 확인:
+   ```bash
+   oc logs -l app=vllm-optimizer-backend -n vllm-optimizer-dev | grep -i "cancel\|stop"
+   ```
+
+**Fix**: 이 문제는 v2026-03-21 릴리즈에서 수정되었습니다. `asyncio.Event`를 사용한 협력적 취소 메커니즘이 구현되어, Stop 버튼 클릭 시 즉시 응답합니다.

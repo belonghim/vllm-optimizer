@@ -105,6 +105,7 @@ select.input option { background: var(--surface-color); }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; }
 .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; }
 .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1px; }
+.grid-5 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; gap: 1px; }
 .grid-form { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .section-title {
   font-family: var(--font-display);

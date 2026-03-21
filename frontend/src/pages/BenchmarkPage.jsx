@@ -9,13 +9,15 @@ const fmt = (n, d = 1) => (n == null ? "—" : Number(n).toFixed(d));
 
 const TOOLTIP_STYLE = { background: COLORS.surface, border: `1px solid ${COLORS.border}` };
 
-function BenchmarkPage() {
+function BenchmarkPage({ isActive }) {
   const [benchmarks, setBenchmarks] = useState([]);
   const [selected, setSelected] = useState([]);
   const [error, setError] = useState(null);
   const { isMockEnabled } = useMockData();
 
   useEffect(() => {
+    if (!isActive) return;
+
     if (isMockEnabled) {
       setBenchmarks(mockBenchmarks());
       setError(null);
@@ -33,7 +35,7 @@ function BenchmarkPage() {
       .catch(err => {
         setError(`벤치마크 조회 실패: ${err.message}`);
       });
-  }, [isMockEnabled]);
+  }, [isMockEnabled, isActive]);
 
   const toggle = (id) => setSelected(s =>
     s.includes(id) ? s.filter(x => x !== id) : [...s, id]
@@ -47,9 +49,10 @@ function BenchmarkPage() {
       ttft: (b.result?.ttft?.mean || 0) * 1000,
       p99: (b.result?.latency?.p99 || 0) * 1000,
       rps: b.result?.rps_actual || 0,
-      gpuEff: b.result?.gpu_utilization_avg > 0
+      gpuEff: b.result?.metrics_target_matched !== false && b.result?.gpu_utilization_avg > 0
         ? b.result.tps.mean / b.result.gpu_utilization_avg
         : 0,
+      metricsTargetMatched: b.result?.metrics_target_matched !== false,
     }));
 
   return (
@@ -70,14 +73,18 @@ function BenchmarkPage() {
                 </td>
                 <td className="td-text">{b.name}</td>
                 <td className="td-cyan">{b.config?.model || "—"}</td>
-                <td className="td-muted">{new Date(b.timestamp * 1000).toLocaleDateString()}</td>
+                <td className="td-muted">{new Date(b.timestamp * 1000).toLocaleString()}</td>
                 <td className="td-accent">{fmt(b.result?.tps?.mean, 1)}</td>
                 <td className="td-red">{fmt((b.result?.latency?.p99 || 0) * 1000, 0)}</td>
                 <td>{fmt(b.result?.rps_actual, 1)}</td>
                 <td className="td-green">
-                  {b.result?.gpu_utilization_avg > 0
-                    ? (b.result.tps.mean / b.result.gpu_utilization_avg).toFixed(1)
-                    : "—"}
+                  {b.result?.metrics_target_matched === false ? (
+                    <span title="GPU metrics mismatch">N/A</span>
+                  ) : (
+                    b.result?.gpu_utilization_avg > 0
+                      ? (b.result.tps.mean / b.result.gpu_utilization_avg).toFixed(1)
+                      : "—"
+                  )}
                 </td>
               </tr>
             ))}
@@ -121,7 +128,7 @@ function BenchmarkPage() {
             <div>
               <div className="label">GPU 효율 비교 (TPS/GPU%)</div>
               <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={compareData}>
+                <BarChart data={compareData.filter(d => d.metricsTargetMatched)}>
                   <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
                   <XAxis dataKey="name" tick={{ fontSize: 9, fill: COLORS.muted }} />
                   <YAxis tick={{ fontSize: 9, fill: COLORS.muted }} />

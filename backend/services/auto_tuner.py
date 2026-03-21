@@ -68,6 +68,7 @@ class AutoTuner:
         self._trials: List[TuningTrial] = []
         self._best_trial: Optional[TuningTrial] = None
         self._running = False
+        self._cancel_event = asyncio.Event()
         self._study: Optional[optuna.Study] = None
         self._direction: str = "maximize"
         self._vllm_endpoint: str = ""
@@ -87,6 +88,7 @@ class AutoTuner:
         self._total_wait_seconds: float = 0.0
         self._poll_count: int = 0
         self._best_score_history: list[float] = []
+        self._current_task: asyncio.Task[Any] | None = None
         self._init_k8s()
 
     def _init_k8s(self) -> None:
@@ -109,6 +111,10 @@ class AutoTuner:
         start_time = asyncio.get_event_loop().time()
         result = False
         while asyncio.get_event_loop().time() - start_time < timeout:
+            if self._cancel_event.is_set():
+                logger.info("[AutoTuner] 준비 대기가 취소되었습니다.")
+                break
+
             self._poll_count += 1
             try:
                 inferenceservice = await asyncio.to_thread(
@@ -131,14 +137,30 @@ class AutoTuner:
             except ApiException as e:
                 logger.warning(f"[AutoTuner] IS 상태 확인 오류: {e}")
 
-            await asyncio.sleep(interval)
+            try:
+                await asyncio.wait_for(self._cancel_event.wait(), timeout=interval)
+                logger.info("[AutoTuner] 준비 대기 중 취소 신호를 감지했습니다.")
+                break
+            except asyncio.TimeoutError:
+                await asyncio.sleep(0)
 
         wait_duration = time.monotonic() - wait_start
         self._wait_durations.append(round(wait_duration, 2))
         self._total_wait_seconds += wait_duration
 
-        if not result:
+        if not result and not self._cancel_event.is_set():
             logger.error(f"[AutoTuner] InferenceService '{is_name}' 시간 초과: {timeout}초.")
+
+        if result and not self._cancel_event.is_set():
+            cooldown = 30
+            logger.info(f"[AutoTuner] 메트릭 안정화를 위해 {cooldown}초 대기 중...")
+            try:
+                await asyncio.wait_for(self._cancel_event.wait(), timeout=cooldown)
+                logger.info("[AutoTuner] 쿨다운 중 취소 신호를 감지했습니다.")
+                return False
+            except asyncio.TimeoutError:
+                pass
+
         return result
 
     async def subscribe(self) -> asyncio.Queue[Any]:
@@ -199,11 +221,22 @@ class AutoTuner:
                 return {"error": "이미 튜닝이 실행 중입니다."}
             if not OPTUNA_AVAILABLE:
                 return {"error": "optuna 패키지가 필요합니다: pip install optuna"}
+            if self._cancel_event.is_set():
+                await asyncio.sleep(0.1)
+            self._cancel_event.clear()
             await self._init_tuning_state(config)
 
         self._vllm_endpoint = vllm_endpoint
         try:
+            logger.info("[AutoTuner] 튜닝 시작 전 InferenceService 상태 확인 중...")
+            if not await self._wait_for_ready(timeout=60, interval=5):
+                if self._cancel_event.is_set():
+                    return {"error": "튜닝이 취소되었습니다."}
+                return {"error": "InferenceService가 준비되지 않았습니다. 튜닝을 시작할 수 없습니다."}
+
             for trial_num in range(config.n_trials):
+                if self._cancel_event.is_set():
+                    break
                 if not self._running:
                     break
 
@@ -240,6 +273,21 @@ class AutoTuner:
                 )
                 if pruned:
                     continue
+
+            if self._cancel_event.is_set():
+                await self._broadcast({
+                    "type": "tuning_stopped",
+                    "data": {
+                        "total_trials": len(self._trials),
+                    },
+                })
+                return {
+                    "completed": False,
+                    "stopped": True,
+                    "best_params": self._best_trial.params if self._best_trial else {},
+                    "best_score": self._best_trial.score if self._best_trial else 0,
+                    "trials": len(self._trials),
+                }
 
             await self._finalize_tuning()
 
@@ -320,6 +368,9 @@ class AutoTuner:
         """IS 준비 대기. 실패 시 rollback 및 Optuna FAIL 처리 후 False 반환."""
         ready = await self._wait_for_ready()
         if not ready:
+            if self._cancel_event.is_set():
+                logger.info("[AutoTuner] Trial %d: wait cancelled", trial_num)
+                return False
             logger.warning("[AutoTuner] Trial %d: InferenceService not ready, rolling back", trial_num)
             await self._rollback_to_snapshot(trial_num)
             async with self._study_lock:
@@ -437,6 +488,7 @@ class AutoTuner:
         async with self._lock:
             if not self._running:
                 return {"success": False, "message": "No tuning is currently running."}
+            self._cancel_event.set()
             self._running = False
         return {"success": True, "message": "Tuning stopped."}
 
@@ -759,7 +811,7 @@ class AutoTuner:
 
         return score, tps, p99_lat
 
-    def get_importance(self) -> dict[str, Any]:
+    async def get_importance(self) -> dict[str, Any]:
         """파라미터 중요도 반환 (Optuna FAnova)"""
         if not self._study or len(self._trials) < 5:
             return {}
@@ -770,7 +822,10 @@ class AutoTuner:
         except optuna.exceptions.OptunaError as e:
             logger.debug("[AutoTuner] Multi-objective check failed: %s", e)
         try:
-            importance = optuna.importance.get_param_importances(self._study)
+            importance = await asyncio.to_thread(
+                optuna.importance.get_param_importances, self._study
+            )
             return dict(importance)
-        except optuna.exceptions.OptunaError:
+        except Exception as e:
+            logger.warning("[AutoTuner] get_importance failed: %s", e)
             return {}

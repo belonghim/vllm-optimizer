@@ -1,1 +1,0 @@
-    name: vllm-optimizer-frontend

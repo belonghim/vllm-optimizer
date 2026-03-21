@@ -1,8 +1,0 @@
-Evidence: Runtime args in vllm-runtime.yaml after patch
-- Before: ${ENABLE_ENFORCE_EAGER:+"--enforce-eager"} only
-- After: Added continuation with backslash and new arg ${ENABLE_CHUNKED_PREFILL:+"--enable-chunked-prefill"}
-- Snippet snippet from file:
-  ... --gpu-memory-utilization=${GPU_MEMORY_UTILIZATION:-0.90} \
-  ${ENABLE_ENFORCE_EAGER:+"--enforce-eager"} \
-  ${ENABLE_CHUNKED_PREFILL:+"--enable-chunked-prefill"}
-- Validation: The runtime arg line now supports enabling the new flag through the env var ENABLE_CHUNKED_PREFILL.
