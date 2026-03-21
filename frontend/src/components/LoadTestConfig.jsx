@@ -5,7 +5,6 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status 
       <div className="grid-form grid-form-compact">
         {[
           ["vLLM Endpoint", "endpoint", "text"],
-          ["Model Name", "model", "text"],
           ["Total Requests", "total_requests", "number"],
           ["Concurrency", "concurrency", "number"],
           ["RPS (0=unlimited)", "rps", "number"],

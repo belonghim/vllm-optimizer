@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useMockData } from "../contexts/MockDataContext";
+import { useClusterConfig } from "../contexts/ClusterConfigContext";
 import { API, COLORS } from "../constants";
 import MetricCard from "../components/MetricCard";
 import Chart from "../components/Chart";
@@ -11,8 +12,9 @@ import { useLoadTestSSE } from "../hooks/useLoadTestSSE";
 const fmt = (n, d = 1) => (n == null ? "—" : Number(n).toFixed(d));
 
 function LoadTestPage() {
+  const { endpoint: globalEndpoint, inferenceservice, isLoading: globalIsLoading } = useClusterConfig();
   const [config, setConfig] = useState({
-    endpoint: "", model: "auto", total_requests: 200, concurrency: 20,
+    endpoint: "", model: inferenceservice || "auto", total_requests: 200, concurrency: 20,
     rps: 10, max_tokens: 256, prompt_template: "Hello, how are you?",
     temperature: 0.7, stream: true,
   });
@@ -71,12 +73,16 @@ function LoadTestPage() {
   useEffect(() => { return () => disconnect(); }, [isMockEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    if (!globalIsLoading && globalEndpoint) {
+      setConfig(c => ({ ...c, endpoint: c.endpoint || globalEndpoint }));
+    }
+  }, [globalIsLoading, globalEndpoint]);
+
+  useEffect(() => {
     fetch(`${API}/config`).then(r => r.json()).then(data => {
       setConfig(c => ({
         ...c,
         ...(data.vllm_endpoint ? { endpoint: c.endpoint || data.vllm_endpoint } : {}),
-        ...(data.resolved_model_name && data.resolved_model_name !== "auto"
-          ? { model: c.model === "auto" ? data.resolved_model_name : c.model } : {}),
       }));
     }).catch(() => {});
   }, []);

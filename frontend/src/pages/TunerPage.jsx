@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { API, COLORS } from "../constants";
 import { useMockData } from "../contexts/MockDataContext";
+import { useClusterConfig } from "../contexts/ClusterConfigContext";
 import { mockTrials } from "../mockData";
 import TunerConfigForm from "../components/TunerConfigForm";
 import TunerResults from "../components/TunerResults";
@@ -8,6 +9,7 @@ import ErrorAlert from "../components/ErrorAlert";
 
 function TunerPage() {
   const { isMockEnabled } = useMockData();
+  const { endpoint, namespace, inferenceservice } = useClusterConfig();
   const [error, setError] = useState(null);
   const [status, setStatus] = useState({ running: false, trials_completed: 0 });
   const [trials, setTrials] = useState([]);
@@ -92,6 +94,12 @@ function TunerPage() {
   }, [isMockEnabled]);
 
   useEffect(() => {
+    if (endpoint) {
+      setConfig(c => ({ ...c, vllm_endpoint: c.vllm_endpoint || endpoint }));
+    }
+  }, [endpoint]);
+
+  useEffect(() => {
     fetch(`${API}/config`)
       .then(r => r.json())
       .then(data => {
@@ -129,7 +137,12 @@ function TunerPage() {
     try {
       const res = await fetch(`${API}/tuner/start`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(config),
+        body: JSON.stringify({
+          ...config,
+          vllm_endpoint: endpoint || config.vllm_endpoint,
+          vllm_namespace: namespace,
+          vllm_is_name: inferenceservice,
+        }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();

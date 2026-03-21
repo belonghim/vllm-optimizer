@@ -298,3 +298,64 @@ select.input option { background: var(--surface-color); }
   background: linear-gradient(90deg, var(--green-color), var(--cyan-color));
   box-shadow: 0 0 8px rgba(0, 255, 135, 0.5);
 }
+
+/* Cluster Config Bar */
+.cluster-config-bar {
+  padding: 12px 24px;
+  border-top: 0;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--surface-color);
+}
+.cluster-config-bar.loading .grid-form {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.cluster-config-bar .grid-form-compact {
+  grid-template-columns: 1fr 1fr 1fr auto;
+  align-items: flex-end;
+}
+.cluster-config-bar .label {
+  font-size: 9px;
+  margin-bottom: 4px;
+}
+.cluster-config-bar .input {
+  padding: 6px 10px;
+  font-size: 11px;
+}
+.cluster-config-bar .btn {
+  padding: 6px 16px;
+  height: 31px; /* match input height */
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.config-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 1px; /* Align with button */
+}
+.config-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+}
+.config-status.dirty {
+  color: var(--accent-color);
+}
+.config-status.saved {
+  color: var(--green-color);
+}
+.skeleton-input {
+  height: 31px;
+  background: var(--bg-color);
+  border-radius: 2px;
+}
+.skeleton-button {
+  height: 31px;
+  width: 90px;
+  background: var(--bg-color);
+  border-radius: 2px;
+}

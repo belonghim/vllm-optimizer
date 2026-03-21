@@ -5,6 +5,7 @@ import BenchmarkPage from "./pages/BenchmarkPage";
 import TunerPage from "./pages/TunerPage";
 import MockDataSwitch from "./components/MockDataSwitch";
 import ErrorBoundary from "./components/ErrorBoundary";
+import ClusterConfigBar from "./components/ClusterConfigBar";
 
 const PAGES = [
   { id: "monitor", label: "실시간 모니터링", Component: MonitorPage },
@@ -53,6 +54,8 @@ export default function App() {
           <span className="app-header-status-text" aria-live="assertive" aria-atomic="true">CONNECTED</span>
         </div>
       </header>
+
+      <ClusterConfigBar />
 
       <main className="app-main">
         {PAGES.map(p => (
