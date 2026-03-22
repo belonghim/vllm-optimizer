@@ -102,7 +102,7 @@ spec:
             - -openshift-service-account=vllm-optimizer-frontend
             - -provider=openshift
             - -upstream-flush=0s
-            - -cookie-refresh=1h
+            - -cookie-refresh=30m
             - -email-domain=*
             - -skip-auth-regex=^/health$
 
