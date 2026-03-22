@@ -315,6 +315,32 @@ def isolated_client(monkeypatch: pytest.MonkeyPatch):
 
 
 
+@pytest.fixture(autouse=True)
+def _mock_resolve_model_name() -> Any:
+    """Prevent real HTTP calls to vLLM /v1/models in unit tests."""
+    from unittest.mock import AsyncMock, patch as mock_patch
+    import sys
+
+    async def _fast_resolve(endpoint: str = "", fallback: str = "auto") -> str:
+        return fallback
+
+    targets = []
+    for mod_name in ("routers.config", "backend.routers.config"):
+        if mod_name in sys.modules:
+            targets.append(f"{mod_name}.resolve_model_name")
+
+    if not targets:
+        yield
+        return
+
+    patches = [mock_patch(t, new=_fast_resolve) for t in targets]
+    for p in patches:
+        p.start()
+    yield
+    for p in patches:
+        p.stop()
+
+
 @pytest.fixture
 def sample_fixture():
     """A minimal fixture for testing."""

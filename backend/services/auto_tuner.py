@@ -87,6 +87,7 @@ class AutoTuner:
         self._wait_durations: list[float] = []
         self._total_wait_seconds: float = 0.0
         self._poll_count: int = 0
+        self._cooldown_secs: int = 30
         self._best_score_history: list[float] = []
         self._current_task: asyncio.Task[Any] | None = None
         self._init_k8s()
@@ -152,7 +153,7 @@ class AutoTuner:
             logger.error(f"[AutoTuner] InferenceService '{is_name}' 시간 초과: {timeout}초.")
 
         if result and not self._cancel_event.is_set():
-            cooldown = 30
+            cooldown = self._cooldown_secs
             logger.info(f"[AutoTuner] 메트릭 안정화를 위해 {cooldown}초 대기 중...")
             try:
                 await asyncio.wait_for(self._cancel_event.wait(), timeout=cooldown)

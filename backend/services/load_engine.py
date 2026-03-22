@@ -5,19 +5,21 @@ import asyncio
 import json
 import time
 import os
+import logging
+import importlib
 import httpx
 import statistics
 import psutil
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, TYPE_CHECKING
+from typing import Any
 from urllib.parse import urlparse
 
 from models.load_test import LoadTestConfig, RequestResult
 
-if TYPE_CHECKING:
-    from services.runtime_config import RuntimeConfig
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_url(url: str) -> str:
@@ -127,6 +129,64 @@ class LoadTestEngine:
         interval = 1.0 / config.rps if config.rps > 0 else 0
         return semaphore, metric_samples, sample_stop, sampling_task, interval
 
+    async def _preflight_check(self, config: "LoadTestConfig") -> dict[str, Any]:
+        endpoint = (config.endpoint or "").rstrip("/")
+        models_url = f"{endpoint}/v1/models"
+
+        try:
+            async with httpx.AsyncClient(timeout=5.0, verify=False) as client:
+                response = await client.get(models_url)
+        except httpx.ConnectError as e:
+            return {
+                "success": False,
+                "error": f"vLLM 엔드포인트 연결 실패: {models_url} ({e})",
+                "error_type": "connection",
+            }
+        except httpx.TimeoutException as e:
+            return {
+                "success": False,
+                "error": f"vLLM 엔드포인트 응답 시간 초과: {models_url} ({e})",
+                "error_type": "timeout",
+            }
+        except httpx.RequestError as e:
+            return {
+                "success": False,
+                "error": f"vLLM 엔드포인트 요청 실패: {models_url} ({e})",
+                "error_type": "connection",
+            }
+
+        if response.status_code >= 400:
+            logger.warning(
+                "[LoadTest] Preflight endpoint reachable but returned HTTP %s for %s",
+                response.status_code,
+                models_url,
+            )
+            return {"success": True}
+
+        if config.model == "auto":
+            return {"success": True}
+
+        try:
+            model_data = response.json().get("data", [])
+        except (ValueError, AttributeError) as e:
+            logger.warning("[LoadTest] Failed to parse /v1/models response in preflight: %s", e)
+            return {"success": True}
+
+        available_models = [
+            str(item.get("id"))
+            for item in model_data
+            if isinstance(item, dict) and item.get("id")
+        ]
+        if config.model not in available_models:
+            available = ", ".join(available_models) if available_models else "없음"
+            return {
+                "success": False,
+                "error": f"모델 '{config.model}'을(를) 찾을 수 없습니다. 사용 가능한 모델: {available}",
+                "error_type": "model_not_found",
+            }
+
+        return {"success": True}
+
     async def _dispatch_request(self, config: LoadTestConfig, semaphore: asyncio.Semaphore, request_id: int) -> RequestResult:
         """Send a single async HTTP request."""
         async with semaphore:
@@ -189,11 +249,17 @@ class LoadTestEngine:
                     error=str(e),
                 )
 
-    async def _process_completed_tasks(self, done_tasks: set[asyncio.Task[Any]], processed_tasks: set[asyncio.Task[Any]]):
+    async def _process_completed_tasks(
+        self,
+        done_tasks: set[asyncio.Task[Any]],
+        processed_tasks: set[asyncio.Task[Any]],
+    ) -> list[RequestResult]:
         """Process completed asyncio tasks, collect results, update state, broadcast."""
+        processed_results: list[RequestResult] = []
         for t in done_tasks:
             result = await t
             processed_tasks.add(t)
+            processed_results.append(result)
             async with self._state_lock:
                 self._state.results.append(result)
                 if result.success:
@@ -202,6 +268,45 @@ class LoadTestEngine:
                     self._state.failed_requests += 1
             stats = self._compute_stats()
             await self._broadcast({"type": "progress", "data": stats})
+        return processed_results
+
+    async def _fail_run(
+        self,
+        error_data: dict[str, Any],
+        sample_stop: asyncio.Event,
+        sampling_task: asyncio.Task[Any],
+        pending_tasks: list[asyncio.Task[Any]],
+    ) -> dict[str, Any]:
+        error = str(error_data.get("error", "부하 테스트 실패"))
+        error_type = str(error_data.get("error_type", "unknown"))
+        await self._broadcast(
+            {
+                "type": "error",
+                "data": {
+                    "error": error,
+                    "error_type": error_type,
+                },
+            }
+        )
+        self._stop_event.set()
+        for task in pending_tasks:
+            if not task.done():
+                task.cancel()
+        if pending_tasks:
+            await asyncio.gather(*pending_tasks, return_exceptions=True)
+        sample_stop.set()
+        sampling_task.cancel()
+        try:
+            await sampling_task
+        except asyncio.CancelledError:
+            pass
+        async with self._state_lock:
+            self._state.status = LoadTestStatus.FAILED
+        return {
+            "success": False,
+            "error": error,
+            "error_type": error_type,
+        }
 
     async def _finalize_results(
         self, 
@@ -211,7 +316,8 @@ class LoadTestEngine:
         sampling_task: asyncio.Task[Any]
     ) -> dict[str, Any]:
         """Finalize test: set status, stop sampling, compute final stats, broadcast, return."""
-        from services.shared import runtime_config  # Import locally to avoid circular dependency
+        shared_module = importlib.import_module("services.shared")
+        runtime_config = shared_module.runtime_config
         
         async with self._state_lock:
             self._state.status = LoadTestStatus.COMPLETED
@@ -250,6 +356,36 @@ class LoadTestEngine:
     async def run(self, config: LoadTestConfig) -> dict[str, Any]:
         """부하 테스트 실행 — 실시간 결과 yield"""
         semaphore, metric_samples, sample_stop, sampling_task, interval = self._init_run_state(config)
+        preflight = await self._preflight_check(config)
+        if not preflight.get("success"):
+            return await self._fail_run(preflight, sample_stop, sampling_task, [])
+
+        first_batch_size = min(5, config.total_requests)
+        first_batch_results: dict[int, RequestResult] = {}
+        first_batch_checked = False
+
+        def _check_consecutive_failures(new_results: list[RequestResult]) -> dict[str, str] | None:
+            nonlocal first_batch_checked
+            if first_batch_checked or first_batch_size <= 0:
+                return None
+            for result in new_results:
+                if 0 <= result.req_id < first_batch_size:
+                    first_batch_results[result.req_id] = result
+            if len(first_batch_results) < first_batch_size:
+                return None
+            first_batch_checked = True
+            if all(not result.success for result in first_batch_results.values()):
+                common_error = "알 수 없는 오류"
+                for result in first_batch_results.values():
+                    if result.error:
+                        common_error = result.error
+                        break
+                return {
+                    "error": f"연속 {first_batch_size}개 요청 실패. 테스트를 중단합니다: {common_error}",
+                    "error_type": "consecutive_failure",
+                }
+            return None
+
         tasks = []
         processed_tasks: set[asyncio.Task[Any]] = set()
         for i in range(config.total_requests):
@@ -260,7 +396,10 @@ class LoadTestEngine:
             to_check = [t for t in tasks if t not in processed_tasks]
             if to_check:
                 done, _ = await asyncio.wait(to_check, timeout=0, return_when=asyncio.FIRST_COMPLETED)
-                await self._process_completed_tasks(done, processed_tasks)
+                processed_results = await self._process_completed_tasks(done, processed_tasks)
+                consecutive_failure = _check_consecutive_failures(processed_results)
+                if consecutive_failure:
+                    return await self._fail_run(consecutive_failure, sample_stop, sampling_task, tasks)
             if interval > 0:
                 await asyncio.sleep(interval)
         # Process remaining tasks
@@ -284,6 +423,9 @@ class LoadTestEngine:
                         self._state.failed_requests += 1
                 stats = self._compute_stats()
                 await self._broadcast({"type": "progress", "data": stats})
+                consecutive_failure = _check_consecutive_failures([result])
+                if consecutive_failure:
+                    return await self._fail_run(consecutive_failure, sample_stop, sampling_task, remaining_tasks)
         return await self._finalize_results(config, metric_samples, sample_stop, sampling_task)
 
     async def stop(self) -> None:
