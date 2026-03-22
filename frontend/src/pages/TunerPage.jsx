@@ -16,6 +16,7 @@ function TunerPage() {
   const [importance, setImportance] = useState({});
   const [currentPhase, setCurrentPhase] = useState(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [applyStatus, setApplyStatus] = useState(null);
   const [currentConfig, setCurrentConfig] = useState(null);
   const [storageUri, setStorageUri] = useState(null);
   const [config, setConfig] = useState({
@@ -47,7 +48,6 @@ function TunerPage() {
         if (!response.ok) return null;
         return await response.json();
       } catch (err) {
-        console.warn(`Fetch failed for ${url}:`, err);
         return null;
       }
     };
@@ -98,9 +98,7 @@ function TunerPage() {
           setCurrentPhase(null);
           fetchStatus();
         }
-      } catch (e) {
-        console.warn("SSE parse error:", e);
-      }
+      } catch (e) {}
     };
     es.onerror = () => { es.close(); };
     return () => { es.close(); };
@@ -179,22 +177,29 @@ function TunerPage() {
   };
 
   const applyBest = async () => {
+    setApplyStatus(null);
     try {
       const res = await fetch(`${API}/tuner/apply-best`, { method: "POST" });
       const data = await res.json();
       if (data && data.success) {
-        alert("최적 파라미터를 InferenceService에 적용했습니다.");
+        setApplyStatus("success");
+        setTimeout(() => setApplyStatus(null), 3000);
       } else {
-        alert(`파라미터 적용 실패: ${data?.message || "Unknown error"}`);
+        setError(`파라미터 적용 실패: ${data?.message || "Unknown error"}`);
       }
     } catch (err) {
-      alert(`파라미터 적용 실패: ${err.message}`);
+      setError(`파라미터 적용 실패: ${err.message}`);
     }
   };
 
   return (
     <div className="flex-col-16">
       <ErrorAlert message={error} className="error-alert--mb16" />
+      {applyStatus === "success" && (
+        <div className="success-msg" role="status">
+          최적 파라미터를 InferenceService에 적용했습니다.
+        </div>
+      )}
       <TunerConfigForm
         config={config}
         onChange={handleConfigChange}

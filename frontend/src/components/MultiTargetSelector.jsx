@@ -4,6 +4,8 @@ import { TARGET_COLORS } from "../constants";
 
 const fmt = (n, d = 1) => (n == null ? '—' : Number(n).toFixed(d));
 
+const TOTAL_COLUMNS = 13;
+
 export default function MultiTargetSelector({ targetStatuses = {}, targetStates = {} }) {
   const { targets, maxTargets, addTarget, removeTarget } = useClusterConfig();
   const [isAdding, setIsAdding] = useState(false);
@@ -21,12 +23,11 @@ export default function MultiTargetSelector({ targetStatuses = {}, targetStates 
 
   return (
     <div className="multi-target-selector panel" style={{ marginBottom: '1px', borderBottom: 'none' }}>
-      <div className="section-title" style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="section-title multi-target-header">
         <span>모니터링 대상 ({targets.length}/{maxTargets})</span>
         {!isAdding && (
           <button 
-            className="btn btn-primary" 
-            style={{ padding: '2px 8px', fontSize: '9px' }}
+            className="btn btn-primary multi-target-add-btn" 
             onClick={() => setIsAdding(true)}
             disabled={targets.length >= maxTargets}
             data-testid="add-target-btn"
@@ -36,7 +37,7 @@ export default function MultiTargetSelector({ targetStatuses = {}, targetStates 
         )}
       </div>
 
-      <div style={{ overflowX: 'auto' }}>
+      <div className="multi-target-overflow">
         <table className="monitor-table">
           <thead>
             <tr>
@@ -58,7 +59,7 @@ export default function MultiTargetSelector({ targetStatuses = {}, targetStates 
           <tbody>
             {targets.length === 0 ? (
               <tr>
-                <td colSpan={13} style={{ textAlign: 'center', color: 'var(--muted-color)', padding: '20px' }}>
+                <td colSpan={TOTAL_COLUMNS} className="multi-target-empty">
                   모니터링 대상을 추가하세요
                 </td>
               </tr>
@@ -73,7 +74,7 @@ export default function MultiTargetSelector({ targetStatuses = {}, targetStates 
 
                 return (
                   <tr key={key} data-testid={`target-row-${index}`}>
-                    <td className="target-name" style={{ borderLeft: `3px solid ${targetColor}` }}>
+                    <td className="target-name multi-target-color-cell" style={{ borderLeftColor: targetColor }}>
                       <div style={{ color: targetColor }}>
                         {target.inferenceService}
                         {!hasMonitoringLabel && (
@@ -115,11 +116,10 @@ export default function MultiTargetSelector({ targetStatuses = {}, targetStates 
                     )}
                     <td style={{ textAlign: 'right' }}>
                       {target.isDefault ? (
-                        <span className="tag tag-completed" style={{ fontSize: '8px' }}>기본</span>
+                        <span className="tag tag-completed multi-target-default-tag">기본</span>
                       ) : (
                         <button 
-                           className="btn btn-danger" 
-                           style={{ padding: '0 6px', height: '20px', fontSize: '12px', minWidth: '20px', border: 'none' }}
+                           className="btn btn-danger multi-target-delete-btn" 
                            onClick={() => removeTarget(target.namespace, target.inferenceService)}
                            data-testid="delete-btn"
                          >
@@ -133,30 +133,28 @@ export default function MultiTargetSelector({ targetStatuses = {}, targetStates 
             )}
             {isAdding && (
               <tr>
-                <td colSpan={11}>
+                <td colSpan={TOTAL_COLUMNS - 2}>
                   <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                     <input 
-                      className="input" 
+                      className="input multi-target-input" 
                       placeholder="Namespace" 
                       data-testid="namespace-input" 
                       value={newTarget.namespace}
                       onChange={(e) => setNewTarget(prev => ({ ...prev, namespace: e.target.value }))}
-                      style={{ fontSize: '10px', padding: '3px 6px', flex: 1 }} 
                     />
                     <input 
-                      className="input" 
+                      className="input multi-target-input" 
                       placeholder="InferenceService" 
                       data-testid="is-input" 
                       value={newTarget.inferenceService}
                       onChange={(e) => setNewTarget(prev => ({ ...prev, inferenceService: e.target.value }))}
-                      style={{ fontSize: '10px', padding: '3px 6px', flex: 1 }} 
                     />
                   </div>
                 </td>
                 <td colSpan={2}>
                   <div style={{ display: 'flex', gap: '4px' }}>
-                    <button className="btn btn-green" style={{ fontSize: '9px', padding: '2px 6px' }} onClick={handleAdd} data-testid="confirm-add-btn">확인</button>
-                    <button className="btn btn-danger" style={{ fontSize: '9px', padding: '2px 6px' }} onClick={() => setIsAdding(false)}>취소</button>
+                    <button className="btn btn-green multi-target-action-btn" onClick={handleAdd} data-testid="confirm-add-btn">확인</button>
+                    <button className="btn btn-danger multi-target-action-btn" onClick={() => setIsAdding(false)}>취소</button>
                   </div>
                 </td>
               </tr>

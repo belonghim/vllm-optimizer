@@ -442,3 +442,46 @@ select.input option { background: var(--surface-color); }
   color: var(--cyan-color);
   border-color: var(--cyan-color);
 }
+
+/* MultiTargetSelector styles */
+.multi-target-header {
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.multi-target-add-btn {
+  padding: 2px 8px;
+  font-size: 9px;
+}
+.multi-target-overflow {
+  overflow-x: auto;
+}
+.multi-target-empty {
+  text-align: center;
+  color: var(--muted-color);
+  padding: 20px;
+}
+.multi-target-color-cell {
+  border-left-width: 3px;
+  border-left-style: solid;
+}
+.multi-target-input {
+  font-size: 10px;
+  padding: 3px 6px;
+  flex: 1;
+}
+.multi-target-action-btn {
+  font-size: 9px;
+  padding: 2px 6px;
+}
+.multi-target-delete-btn {
+  padding: 0 6px;
+  height: 20px;
+  font-size: 12px;
+  min-width: 20px;
+  border: none;
+}
+.multi-target-default-tag {
+  font-size: 8px;
+}
