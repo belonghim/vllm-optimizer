@@ -242,23 +242,25 @@ function MonitorPage() {
       <MultiTargetSelector targetStatuses={targetStatuses} targetStates={targetStates} />
       <ErrorAlert message={error} className="error-alert--m08" />
       
-      {chartOrder
-        .filter(id => !hiddenCharts.includes(id))
-        .map(id => {
-          const def = CHART_DEFINITIONS.find(c => c.id === id);
-          if (!def) return null;
-          return (
-            <div key={id} className="grid-2 gap-1" aria-label={def.title}>
-              <Chart
-                data={mergedHistory}
-                title={def.title}
-                lines={chartLinesMap[id] || []}
-                onHide={() => hideChart(id)}
-              />
-            </div>
-          );
-        })
-      }
+      <div className="grid-2 gap-1">
+        {chartOrder
+          .filter(id => !hiddenCharts.includes(id))
+          .map(id => {
+            const def = CHART_DEFINITIONS.find(c => c.id === id);
+            if (!def) return null;
+            return (
+              <div key={id} aria-label={def.title}>
+                <Chart
+                  data={mergedHistory}
+                  title={def.title}
+                  lines={chartLinesMap[id] || []}
+                  onHide={() => hideChart(id)}
+                />
+              </div>
+            );
+          })
+        }
+      </div>
       {hiddenCharts.length > 0 && (
         <div className="hidden-charts-bar">
           <span className="hidden-charts-bar-label">숨긴 차트:</span>

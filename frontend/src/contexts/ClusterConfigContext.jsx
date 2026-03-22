@@ -103,8 +103,11 @@ export function ClusterConfigProvider({ children }) {
           ? [...prev.targets]
           : [{ namespace: "", inferenceService: "", isDefault: true }];
 
-        targets[0] = {
-          ...targets[0],
+        const defaultIdx = targets.findIndex(t => t.isDefault);
+        const idx = defaultIdx >= 0 ? defaultIdx : 0;
+
+        targets[idx] = {
+          ...targets[idx],
           [field === 'inferenceservice' ? 'inferenceService' : field]: value,
         };
         return { ...prev, targets };
