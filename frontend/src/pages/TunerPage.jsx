@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { API, COLORS } from "../constants";
+import { API } from "../constants";
 import { useMockData } from "../contexts/MockDataContext";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
 import { mockTrials } from "../mockData";
@@ -7,7 +7,7 @@ import TunerConfigForm from "../components/TunerConfigForm";
 import TunerResults from "../components/TunerResults";
 import ErrorAlert from "../components/ErrorAlert";
 
-function TunerPage() {
+function TunerPage({ isActive }) {
   const { isMockEnabled } = useMockData();
   const { endpoint, namespace, inferenceservice } = useClusterConfig();
   const [error, setError] = useState(null);
@@ -80,13 +80,18 @@ function TunerPage() {
   }, [isMockEnabled]);
 
   useEffect(() => {
+    if (!isActive) return;
+
     fetchStatus();
     const id = setInterval(fetchStatus, 3000);
     return () => clearInterval(id);
-  }, [fetchStatus]);
+  }, [isActive, fetchStatus]);
 
   useEffect(() => {
-    if (!status.running || isMockEnabled) return;
+    if (!isActive || !status.running) return;
+    if (isMockEnabled) return;
+
+    let retryCount = 0;
     const es = new EventSource(`${API}/tuner/stream`);
     es.onmessage = (event) => {
       try {
@@ -98,14 +103,26 @@ function TunerPage() {
           setCurrentPhase(null);
           fetchStatus();
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error("[TunerSSE] parse error:", e);
+      }
     };
-    es.onerror = () => { es.close(); };
+    es.onerror = () => {
+      if (es.readyState === EventSource.CONNECTING && retryCount < 3) {
+        retryCount += 1;
+        return;
+      }
+
+      es.close();
+      setError("튜너 SSE 연결 실패: 최대 재시도 횟수를 초과했습니다.");
+    };
     return () => { es.close(); };
-  }, [status.running, isMockEnabled, fetchStatus]);
+  }, [isActive, status.running, isMockEnabled, fetchStatus]);
 
   useEffect(() => {
+    if (!isActive) return;
     if (isMockEnabled) return;
+
     fetch(`${API}/vllm-config`)
       .then(r => r.json())
       .then(data => {
@@ -115,7 +132,7 @@ function TunerPage() {
         }
       })
       .catch(() => {});
-  }, [isMockEnabled]);
+  }, [isActive, isMockEnabled]);
 
   // ClusterConfigContext의 endpoint를 사용 (중복 /api/config 호출 제거)
   useEffect(() => {
@@ -171,7 +188,11 @@ function TunerPage() {
   };
 
   const stop = async () => {
-    await fetch(`${API}/tuner/stop`, { method: "POST" });
+    try {
+      await fetch(`${API}/tuner/stop`, { method: "POST" });
+    } catch (err) {
+      setError(`튜너 중지 실패: ${err.message}`);
+    }
     setCurrentPhase(null);
     fetchStatus();
   };
