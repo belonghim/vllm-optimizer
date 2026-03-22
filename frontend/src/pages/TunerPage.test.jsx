@@ -53,6 +53,6 @@ describe("TunerPage", () => {
 
   it("displays n_trials input field", () => {
     render(<TunerPage />);
-    expect(screen.getByDisplayValue("20")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("10")).toBeInTheDocument();
   });
 });
