@@ -136,6 +136,9 @@ class AutoTuner:
                 if result:
                     break
             except ApiException as e:
+                if e.status == 403:
+                    logger.error(f"[AutoTuner] IS 상태 확인 403 Forbidden: {e}. 즉시 중단.")
+                    break
                 logger.warning(f"[AutoTuner] IS 상태 확인 오류: {e}")
 
             try:
@@ -163,6 +166,44 @@ class AutoTuner:
                 pass
 
         return result
+
+    async def _preflight_check(self) -> dict[str, Any]:
+        if not self._k8s_available:
+            return {
+                "success": False,
+                "error": "K8s 클라이언트를 초기화할 수 없습니다. 클러스터 연결을 확인하세요.",
+                "error_type": "k8s_unavailable",
+            }
+        namespace = _get_k8s_namespace()
+        is_name = _get_vllm_is_name()
+        try:
+            await asyncio.to_thread(
+                self._k8s_custom.get_namespaced_custom_object,
+                group="serving.kserve.io",
+                version="v1beta1",
+                name=is_name,
+                namespace=namespace,
+                plural="inferenceservices",
+            )
+            return {"success": True}
+        except ApiException as e:
+            if e.status == 403:
+                return {
+                    "success": False,
+                    "error": "InferenceService 접근 권한이 없습니다 (403 Forbidden). Role/RoleBinding 설정을 확인하세요.",
+                    "error_type": "rbac",
+                }
+            if e.status == 404:
+                return {
+                    "success": False,
+                    "error": f"InferenceService '{is_name}'을(를) '{namespace}'에서 찾을 수 없습니다.",
+                    "error_type": "not_found",
+                }
+            return {
+                "success": False,
+                "error": f"K8s API 오류: {e}",
+                "error_type": "k8s_error",
+            }
 
     async def subscribe(self) -> asyncio.Queue[Any]:
         """Subscribe to tuning events. Returns a queue that will receive events."""
@@ -229,6 +270,18 @@ class AutoTuner:
 
         self._vllm_endpoint = vllm_endpoint
         try:
+            logger.info("[AutoTuner] 튜닝 시작 전 K8s 권한 사전 검증 중...")
+            preflight = await self._preflight_check()
+            if not preflight["success"]:
+                self._running = False
+                error_msg = preflight.get("error", "Preflight 검증 실패")
+                error_type = preflight.get("error_type", "preflight_error")
+                await self._broadcast({
+                    "type": "tuning_error",
+                    "data": {"error": error_msg, "error_type": error_type},
+                })
+                return {"error": error_msg, "error_type": error_type}
+
             logger.info("[AutoTuner] 튜닝 시작 전 InferenceService 상태 확인 중...")
             if not await self._wait_for_ready(timeout=60, interval=5):
                 if self._cancel_event.is_set():
@@ -362,6 +415,14 @@ class AutoTuner:
             async with self._study_lock:
                 assert self._study is not None
                 self._study.tell(trial, state=optuna.trial.TrialState.FAIL)
+            if apply_result.get("error_type") == "rbac":
+                error_msg = apply_result.get("error", "RBAC 권한 오류")
+                await self._broadcast({
+                    "type": "tuning_error",
+                    "data": {"error": error_msg, "error_type": "rbac"},
+                })
+                self._running = False
+                self._cancel_event.set()
             return False
         return True
 
@@ -604,8 +665,12 @@ class AutoTuner:
 
     async def _apply_params(self, params: dict[str, Any]) -> dict[str, Any]:
         if not self._k8s_available:
-            logger.info(f"[AutoTuner] K8s 없음 — 파라미터 적용 시뮬레이션: {params}")
-            return {"success": True}
+            logger.error("[AutoTuner] K8s 클라이언트가 초기화되지 않아 파라미터를 적용할 수 없습니다.")
+            return {
+                "success": False,
+                "error": "K8s 클라이언트가 초기화되지 않았습니다.",
+                "error_type": "k8s_unavailable",
+            }
 
         try:
             async with self._k8s_lock:
@@ -658,6 +723,12 @@ class AutoTuner:
             return {"success": True}
         except ApiException as e:
             logger.error(f"[AutoTuner] InferenceService args patch failed: {e}")
+            if e.status == 403:
+                return {
+                    "success": False,
+                    "error": "InferenceService 패치 권한 없음 (403 Forbidden)",
+                    "error_type": "rbac",
+                }
             return {"success": False, "error": f"InferenceService args patch failed: {e}"}
         except Exception as e:  # intentional: K8s operation fallback
             logger.error(f"[AutoTuner] 파라미터 적용 실패: {e}")
