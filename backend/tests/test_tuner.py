@@ -1072,3 +1072,97 @@ def test_config_vllm_model_name_not_deployment_name(client):
     data = resp.json()
     assert data.get("vllm_model_name") != "llm-ov-predictor"
     assert data.get("vllm_model_name") != "vllm-deployment"
+
+
+# ── Preflight & Circuit Breaker Error Scenario Tests ──────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_preflight_fails_when_k8s_unavailable(auto_tuner_instance):
+    tuner = auto_tuner_instance
+    tuner._k8s_available = False
+    config = TuningConfig(n_trials=2, eval_requests=5, warmup_requests=0)
+    result = await tuner.start(config, "http://mock:8080")
+    assert "error" in result
+    assert len(tuner.trials) == 0
+
+
+@pytest.mark.asyncio
+async def test_preflight_fails_on_rbac_403(auto_tuner_instance, mock_k8s_clients):
+    tuner = auto_tuner_instance
+    from kubernetes.client.exceptions import ApiException
+    mock_custom_api = mock_k8s_clients[2].return_value
+    mock_custom_api.get_namespaced_custom_object.side_effect = ApiException(status=403)
+    config = TuningConfig(n_trials=2, eval_requests=5, warmup_requests=0)
+    result = await tuner.start(config, "http://mock:8080")
+    assert "error" in result
+    assert result.get("error_type") == "rbac"
+    assert len(tuner.trials) == 0
+
+
+@pytest.mark.asyncio
+async def test_preflight_fails_on_is_not_found_404(auto_tuner_instance, mock_k8s_clients):
+    tuner = auto_tuner_instance
+    from kubernetes.client.exceptions import ApiException
+    mock_custom_api = mock_k8s_clients[2].return_value
+    mock_custom_api.get_namespaced_custom_object.side_effect = ApiException(status=404)
+    config = TuningConfig(n_trials=2, eval_requests=5, warmup_requests=0)
+    result = await tuner.start(config, "http://mock:8080")
+    assert "error" in result
+    assert result.get("error_type") == "not_found"
+    assert len(tuner.trials) == 0
+
+
+@pytest.mark.asyncio
+async def test_circuit_breaker_stops_on_consecutive_rbac_failure(auto_tuner_instance, mock_k8s_clients):
+    tuner = auto_tuner_instance
+    from kubernetes.client.exceptions import ApiException
+    tuner._preflight_check = AsyncMock(return_value={"success": True})
+    tuner._wait_for_ready = AsyncMock(return_value=True)
+    mock_custom_api = mock_k8s_clients[2].return_value
+    mock_custom_api.get_namespaced_custom_object.return_value = {
+        "spec": {"predictor": {"model": {"args": []}}}
+    }
+    mock_custom_api.patch_namespaced_custom_object.side_effect = ApiException(status=403)
+    config = TuningConfig(n_trials=3, eval_requests=5, warmup_requests=0)
+    await tuner.start(config, "http://mock:8080")
+    assert tuner._cancel_event.is_set()
+    assert len(tuner.trials) == 0
+
+
+@pytest.mark.asyncio
+async def test_sse_broadcasts_tuning_error_on_preflight_fail(auto_tuner_instance, mock_k8s_clients):
+    tuner = auto_tuner_instance
+    from kubernetes.client.exceptions import ApiException
+    mock_custom_api = mock_k8s_clients[2].return_value
+    mock_custom_api.get_namespaced_custom_object.side_effect = ApiException(status=403)
+    q = await tuner.subscribe()
+    config = TuningConfig(n_trials=2, eval_requests=5, warmup_requests=0)
+    await tuner.start(config, "http://mock:8080")
+    events = []
+    while not q.empty():
+        events.append(q.get_nowait())
+    tuning_error_events = [e for e in events if e.get("type") == "tuning_error"]
+    assert len(tuning_error_events) >= 1
+    assert tuning_error_events[0]["data"].get("error_type") == "rbac"
+
+
+@pytest.mark.asyncio
+async def test_wait_for_ready_stops_polling_on_403(auto_tuner_instance, mock_k8s_clients):
+    tuner = auto_tuner_instance
+    from kubernetes.client.exceptions import ApiException
+    mock_custom_api = mock_k8s_clients[2].return_value
+    mock_custom_api.get_namespaced_custom_object.side_effect = ApiException(status=403)
+    with patch('asyncio.sleep', new=AsyncMock()):
+        ready = await tuner._wait_for_ready(timeout=10, interval=1)
+    assert not ready
+    assert mock_custom_api.get_namespaced_custom_object.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_apply_params_returns_error_when_k8s_unavailable(auto_tuner_instance):
+    tuner = auto_tuner_instance
+    tuner._k8s_available = False
+    result = await tuner._apply_params({"max_num_seqs": 128})
+    assert result["success"] is False
+    assert "K8s" in result.get("error", "")

@@ -262,3 +262,153 @@ async def test_gather_phase_handles_exceptions_as_failed_results():
     assert len(events) == 2
 
     await engine.unsubscribe(q)
+
+
+async def test_preflight_fails_on_unreachable_endpoint():
+    import httpx
+    from unittest.mock import patch, AsyncMock, MagicMock
+    from services.load_engine import LoadTestEngine, LoadTestStatus
+    from models.load_test import LoadTestConfig
+
+    engine = LoadTestEngine()
+
+    with patch("services.load_engine.httpx.AsyncClient") as mock_cls:
+        mock_ctx = MagicMock()
+        mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
+        mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_ctx.get = AsyncMock(side_effect=httpx.ConnectError("Connection refused"))
+
+        config = LoadTestConfig(endpoint="http://nonexistent-host:9999", total_requests=10)
+        result = await engine.run(config)
+
+    assert result.get("success") is False
+    assert result.get("error_type") == "connection"
+    assert engine._state.status == LoadTestStatus.FAILED
+
+
+async def test_preflight_fails_on_nonexistent_model():
+    from unittest.mock import patch, AsyncMock, MagicMock
+    from services.load_engine import LoadTestEngine, LoadTestStatus
+    from models.load_test import LoadTestConfig
+
+    engine = LoadTestEngine()
+
+    with patch("services.load_engine.httpx.AsyncClient") as mock_cls:
+        mock_ctx = MagicMock()
+        mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
+        mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"data": [{"id": "real-model"}]}
+        mock_ctx.get = AsyncMock(return_value=mock_resp)
+
+        config = LoadTestConfig(endpoint="http://localhost:8080", model="wrong-model", total_requests=10)
+        result = await engine.run(config)
+
+    assert result.get("success") is False
+    assert result.get("error_type") == "model_not_found"
+    assert "wrong-model" in result.get("error", "")
+    assert "real-model" in result.get("error", "")
+
+
+async def test_preflight_skips_model_check_for_auto():
+    from unittest.mock import patch, AsyncMock, MagicMock
+    from services.load_engine import LoadTestEngine
+    from models.load_test import LoadTestConfig
+
+    engine = LoadTestEngine()
+
+    with patch("services.load_engine.httpx.AsyncClient") as mock_cls:
+        mock_ctx = MagicMock()
+        mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
+        mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"data": [{"id": "some-other-model"}]}
+        mock_ctx.get = AsyncMock(return_value=mock_resp)
+
+        config = LoadTestConfig(endpoint="http://localhost:8080", model="auto", total_requests=3)
+        result = await engine._preflight_check(config)
+
+    assert result["success"] is True
+
+
+async def test_consecutive_failures_abort_test_early():
+    from unittest.mock import patch, AsyncMock, MagicMock
+    from services.load_engine import LoadTestEngine, LoadTestStatus
+    from models.load_test import LoadTestConfig, RequestResult
+
+    engine = LoadTestEngine()
+
+    async def always_fail(config, semaphore, request_id):
+        return RequestResult(req_id=request_id, success=False, latency=0.1, error="Connection refused")
+
+    with patch("services.load_engine.httpx.AsyncClient") as mock_cls:
+        mock_ctx = MagicMock()
+        mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
+        mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"data": [{"id": "llm-ov"}]}
+        mock_ctx.get = AsyncMock(return_value=mock_resp)
+
+        with patch.object(engine, "_dispatch_request", side_effect=always_fail):
+            config = LoadTestConfig(endpoint="http://localhost:8080", model="llm-ov", total_requests=100)
+            result = await engine.run(config)
+
+    assert result.get("success") is False
+    assert result.get("error_type") == "consecutive_failure"
+    assert engine._state.status == LoadTestStatus.FAILED
+
+
+async def test_sse_broadcasts_error_on_preflight_fail():
+    import httpx
+    from unittest.mock import patch, AsyncMock, MagicMock
+    from services.load_engine import LoadTestEngine
+    from models.load_test import LoadTestConfig
+
+    engine = LoadTestEngine()
+    q = await engine.subscribe()
+
+    with patch("services.load_engine.httpx.AsyncClient") as mock_cls:
+        mock_ctx = MagicMock()
+        mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
+        mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_ctx.get = AsyncMock(side_effect=httpx.ConnectError("Connection refused"))
+
+        config = LoadTestConfig(endpoint="http://nonexistent:9999", total_requests=10)
+        await engine.run(config)
+
+    events = []
+    while not q.empty():
+        events.append(q.get_nowait())
+    error_events = [e for e in events if e.get("type") == "error"]
+    assert len(error_events) >= 1
+    assert error_events[0]["data"].get("error_type") == "connection"
+
+
+async def test_happy_path_unaffected_by_preflight():
+    from unittest.mock import patch, AsyncMock, MagicMock
+    from services.load_engine import LoadTestEngine, LoadTestStatus
+    from models.load_test import LoadTestConfig, RequestResult
+
+    engine = LoadTestEngine()
+
+    async def mock_dispatch(config, semaphore, request_id):
+        return RequestResult(req_id=request_id, success=True, latency=0.1, output_tokens=10, tps=100.0)
+
+    with patch("services.load_engine.httpx.AsyncClient") as mock_cls:
+        mock_ctx = MagicMock()
+        mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
+        mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"data": [{"id": "llm-ov"}]}
+        mock_ctx.get = AsyncMock(return_value=mock_resp)
+
+        with patch.object(engine, "_dispatch_request", side_effect=mock_dispatch):
+            config = LoadTestConfig(endpoint="http://localhost:8080", model="llm-ov", total_requests=5)
+            result = await engine.run(config)
+
+    assert engine._state.status == LoadTestStatus.COMPLETED
+    assert result.get("total") == 5 or result.get("success") != False

@@ -35,6 +35,9 @@ def _make_mock_httpx_client():
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=False)
     mock_client.post = _post
+    _preflight_resp = MagicMock()
+    _preflight_resp.status_code = 400
+    mock_client.get = AsyncMock(return_value=_preflight_resp)
     return mock_client
 
 
@@ -132,6 +135,9 @@ async def test_run_no_valueerror_when_all_tasks_done_instantly():
     instant_mock.__aenter__ = AsyncMock(return_value=instant_mock)
     instant_mock.__aexit__ = AsyncMock(return_value=False)
     instant_mock.post = _instant_post
+    _instant_preflight_resp = MagicMock()
+    _instant_preflight_resp.status_code = 400
+    instant_mock.get = AsyncMock(return_value=_instant_preflight_resp)
 
     with patch("httpx.AsyncClient", return_value=instant_mock):
         final_stats = await engine.run(config)
@@ -176,6 +182,9 @@ async def test_run_failed_requests_counted_correctly():
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=False)
     mock_client.post = _alternating_post
+    _alt_preflight_resp = MagicMock()
+    _alt_preflight_resp.status_code = 400
+    mock_client.get = AsyncMock(return_value=_alt_preflight_resp)
 
     with patch("httpx.AsyncClient", return_value=mock_client):
         await engine.run(config)
