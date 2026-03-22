@@ -1,5 +1,15 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
+
+function StatusIndicator({ isDirty, isSaved }) {
+  if (isSaved) {
+    return <span className="config-status saved">✓ Saved</span>;
+  }
+  if (isDirty) {
+    return <span className="config-status dirty">⚠ Unsaved</span>;
+  }
+  return null;
+}
 
 export default function ClusterConfigBar() {
   const { endpoint, namespace, inferenceservice, isLoading, updateConfig: updateContextConfig } = useClusterConfig();
@@ -28,22 +38,13 @@ export default function ClusterConfigBar() {
 
   const handleSave = () => {
     if (!isDirty) return;
+    // React 18: multiple setState calls in event handlers are automatically batched (single re-render)
     updateContextConfig('endpoint', localConfig.endpoint);
     updateContextConfig('namespace', localConfig.namespace);
     updateContextConfig('inferenceservice', localConfig.inferenceservice);
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 2000);
   };
-
-  const StatusIndicator = useMemo(() => {
-    if (isSaved) {
-      return <span className="config-status saved">✓ Saved</span>;
-    }
-    if (isDirty) {
-      return <span className="config-status dirty">⚠ Unsaved</span>;
-    }
-    return null;
-  }, [isDirty, isSaved]);
 
   if (isLoading) {
     return (
@@ -74,8 +75,8 @@ export default function ClusterConfigBar() {
           <input id="cfg-inferenceservice" type="text" className="input" value={localConfig.inferenceservice} onChange={(e) => handleInputChange('inferenceservice', e.target.value)} placeholder="e.g., llm-ov" />
         </div>
         <div className="config-actions">
-          {StatusIndicator}
-          <button className="btn btn-primary" onClick={handleSave} disabled={!isDirty}>
+           <StatusIndicator isDirty={isDirty} isSaved={isSaved} />
+           <button className="btn btn-primary" onClick={handleSave} disabled={!isDirty}>
             💾 Save
           </button>
         </div>

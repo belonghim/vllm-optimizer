@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { mockMetrics, mockHistory } from "../mockData";
 import { useMockData } from "../contexts/MockDataContext";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
@@ -132,12 +132,14 @@ function MonitorPage() {
       }
     };
 
-    const initialStates = {};
-    targets.forEach(t => {
-      const key = `${t.namespace}/${t.inferenceService}`;
-      initialStates[key] = targetStates[key] || { status: 'collecting' };
+    setTargetStates(prev => {
+      const initialStates = {};
+      targets.forEach(t => {
+        const key = `${t.namespace}/${t.inferenceService}`;
+        initialStates[key] = prev[key] || { status: 'collecting' };
+      });
+      return { ...prev, ...initialStates };
     });
-    setTargetStates(prev => ({ ...prev, ...initialStates }));
 
     fetchAllTargets();
     const id = setInterval(fetchAllTargets, 2000);
@@ -220,18 +222,18 @@ function MonitorPage() {
     };
   }, [targets, defaultKey]);
 
-  const hideChart = (id) => {
+  const hideChart = useCallback((id) => {
     const newHidden = [...hiddenCharts, id];
     setChartState(prev => ({ ...prev, hidden: newHidden }));
     saveChartConfig(chartOrder, newHidden);
-  };
+  }, [hiddenCharts, chartOrder]);
 
-  const showChart = (id) => {
+  const showChart = useCallback((id) => {
     const newOrder = [...chartOrder.filter(x => x !== id), id];
     const newHidden = hiddenCharts.filter(x => x !== id);
-    setChartState({ order: newOrder, hidden: newHidden });
+    setChartState(prev => ({ ...prev, order: newOrder, hidden: newHidden }));
     saveChartConfig(newOrder, newHidden);
-  };
+  }, [chartOrder, hiddenCharts]);
 
   return (
     <div className="flex-col-1">

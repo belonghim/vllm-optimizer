@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useMockData } from "../contexts/MockDataContext";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
 import { API, COLORS } from "../constants";
@@ -8,6 +8,7 @@ import { simulateLoadTest } from "../mockData";
 import LoadTestConfig from "../components/LoadTestConfig";
 import ErrorAlert from "../components/ErrorAlert";
 import { useLoadTestSSE } from "../hooks/useLoadTestSSE";
+import { calcGpuEfficiency } from "../utils/metrics";
 
 const fmt = (n, d = 1) => (n == null ? "—" : Number(n).toFixed(d));
 
@@ -24,6 +25,11 @@ function LoadTestPage() {
   const { status, setStatus, isReconnecting, retryCount, error, setError,
     result, setResult, progress, setProgress, latencyData, setLatencyData,
     connect, disconnect } = useLoadTestSSE();
+  const disconnectRef = useRef();
+
+  useEffect(() => {
+    disconnectRef.current = disconnect;
+  }, [disconnect]);
 
   const start = async () => {
     setStatus("running"); setResult(null); setLatencyData([]); setProgress(0);
@@ -70,7 +76,7 @@ function LoadTestPage() {
     }
   };
 
-  useEffect(() => { return () => disconnect(); }, [isMockEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { return () => disconnectRef.current?.(); }, [isMockEnabled]);
 
   // ClusterConfigContext의 globalEndpoint를 사용 (중복 /api/config 호출 제거)
   useEffect(() => {
@@ -79,7 +85,7 @@ function LoadTestPage() {
     }
   }, [globalIsLoading, globalEndpoint]);
 
-  const handleConfigChange = (key, value) => setConfig(c => ({ ...c, [key]: value }));
+  const handleConfigChange = useCallback((key, value) => setConfig(c => ({ ...c, [key]: value })), []);
 
   const progressFillStyle = { width: `${progress}%` };
 
@@ -118,13 +124,10 @@ function LoadTestPage() {
               value={result.total ? fmt((result.success / result.total) * 100, 1) : "—"}
               unit="%" color="green" />
             <MetricCard label="GPU Eff."
-              value={result.metrics_target_matched === false ? (
-                <span title="GPU metrics mismatch">N/A</span>
-              ) : (
-                result.gpu_utilization_avg > 0
-                  ? (result.tps.mean / result.gpu_utilization_avg).toFixed(1)
-                  : "—"
-              )}
+              value={(() => {
+                const gpuEff = calcGpuEfficiency(result);
+                return gpuEff.mismatch ? <span title="GPU metrics mismatch">N/A</span> : gpuEff.display;
+              })()}
               unit="tok/s/%" color="purple" />
           </div>
 
@@ -144,13 +147,10 @@ function LoadTestPage() {
                   ["TTFT Mean", `${fmt((result.ttft?.mean || 0) * 1000, 0)} ms`],
                   ["TTFT P95", `${fmt((result.ttft?.p95 || 0) * 1000, 0)} ms`],
                   ["Total TPS", `${fmt(result.tps?.total, 1)} tok/s`],
-                  ["GPU Efficiency", result.metrics_target_matched === false ? (
-                    <span title="GPU metrics mismatch">N/A</span>
-                  ) : (
-                    result.gpu_utilization_avg > 0
-                      ? `${(result.tps.mean / result.gpu_utilization_avg).toFixed(1)} tok/s/%`
-                      : "—"
-                  )],
+                  ["GPU Efficiency", (() => {
+                    const gpuEff = calcGpuEfficiency(result);
+                    return gpuEff.mismatch ? <span title="GPU metrics mismatch">N/A</span> : gpuEff.value ? `${gpuEff.display} tok/s/%` : "—";
+                  })()],
                 ].map(([k, v]) => (
                   <tr key={k}>
                     <td className="td-muted">{k}</td>

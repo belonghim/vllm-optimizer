@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { API, COLORS } from "../constants";
 import { mockBenchmarks } from "../mockData";
+import { calcGpuEfficiency } from "../utils/metrics";
 import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { useMockData } from "../contexts/MockDataContext";
 import ErrorAlert from "../components/ErrorAlert";
@@ -41,19 +42,20 @@ function BenchmarkPage({ isActive }) {
     s.includes(id) ? s.filter(x => x !== id) : [...s, id]
   );
 
-  const compareData = benchmarks
+  const compareData = useMemo(() => benchmarks
     .filter(b => selected.includes(b.id))
-    .map(b => ({
-      name: b.name,
-      tps: b.result?.tps?.mean || 0,
-      ttft: (b.result?.ttft?.mean || 0) * 1000,
-      p99: (b.result?.latency?.p99 || 0) * 1000,
-      rps: b.result?.rps_actual || 0,
-      gpuEff: b.result?.metrics_target_matched !== false && b.result?.gpu_utilization_avg > 0
-        ? b.result.tps.mean / b.result.gpu_utilization_avg
-        : 0,
-      metricsTargetMatched: b.result?.metrics_target_matched !== false,
-    }));
+    .map(b => {
+      const gpuEff = calcGpuEfficiency(b.result);
+      return {
+        name: b.name,
+        tps: b.result?.tps?.mean || 0,
+        ttft: (b.result?.ttft?.mean || 0) * 1000,
+        p99: (b.result?.latency?.p99 || 0) * 1000,
+        rps: b.result?.rps_actual || 0,
+        gpuEff: gpuEff.value || 0,
+        metricsTargetMatched: !gpuEff.mismatch,
+      };
+    }), [benchmarks, selected]);
 
   return (
     <div className="flex-col-16">
@@ -78,13 +80,10 @@ function BenchmarkPage({ isActive }) {
                 <td className="td-red">{fmt((b.result?.latency?.p99 || 0) * 1000, 0)}</td>
                 <td>{fmt(b.result?.rps_actual, 1)}</td>
                 <td className="td-green">
-                  {b.result?.metrics_target_matched === false ? (
-                    <span title="GPU metrics mismatch">N/A</span>
-                  ) : (
-                    b.result?.gpu_utilization_avg > 0
-                      ? (b.result.tps.mean / b.result.gpu_utilization_avg).toFixed(1)
-                      : "—"
-                  )}
+                  {(() => {
+                    const eff = calcGpuEfficiency(b.result);
+                    return eff.mismatch ? <span title="GPU metrics mismatch">N/A</span> : eff.display || "—";
+                  })()}
                 </td>
               </tr>
             ))}
