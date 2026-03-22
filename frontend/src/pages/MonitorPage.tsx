@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { authFetch } from '../utils/authFetch';
 import { mockMetrics, mockHistory } from "../mockData";
 import { useMockData } from "../contexts/MockDataContext";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
@@ -192,7 +193,7 @@ function MonitorPage({ isActive }: MonitorPageProps) {
         inferenceService: t.inferenceService
       }));
 
-      const res = await fetch(`${API}/metrics/batch`, {
+      const res = await authFetch(`${API}/metrics/batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ targets: batchTargets }),

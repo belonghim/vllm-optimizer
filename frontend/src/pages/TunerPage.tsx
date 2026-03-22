@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { authFetch } from '../utils/authFetch';
 import { API } from "../constants";
 import { useMockData } from "../contexts/MockDataContext";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
@@ -95,7 +96,7 @@ function TunerPage({ isActive }: TunerPageProps) {
 
     const safeFetch = async (url: string) => {
       try {
-        const response = await fetch(url, { signal });
+        const response = await authFetch(url, { signal });
         if (!response.ok) return null;
         return await response.json();
       } catch {
@@ -170,6 +171,12 @@ function TunerPage({ isActive }: TunerPageProps) {
 
       es.close();
       setError("튜너 SSE 연결 실패: 최대 재시도 횟수를 초과했습니다.");
+
+      if (es.readyState === EventSource.CLOSED) {
+        authFetch(`${API}/tuner/status`).then(r => {
+          if (r.status === 403) window.location.reload();
+        }).catch(() => {});
+      }
     };
     return () => { es.close(); };
   }, [isActive, status.running, isMockEnabled, fetchStatus]);
@@ -179,7 +186,7 @@ function TunerPage({ isActive }: TunerPageProps) {
     if (isMockEnabled) return;
 
     const controller = new AbortController();
-    fetch(`${API}/vllm-config`, { signal: controller.signal })
+    authFetch(`${API}/vllm-config`, { signal: controller.signal })
       .then(r => r.json())
       .then(data => {
         if (data.success) {
@@ -206,7 +213,7 @@ function TunerPage({ isActive }: TunerPageProps) {
 
   const handleSaveStorageUri = useCallback(async (newUri: string) => {
     try {
-      const res = await fetch(`${API}/vllm-config`, {
+      const res = await authFetch(`${API}/vllm-config`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ storageUri: newUri }),
@@ -225,7 +232,7 @@ function TunerPage({ isActive }: TunerPageProps) {
   const start = async () => {
     setError(null);
     try {
-      const res = await fetch(`${API}/tuner/start`, {
+      const res = await authFetch(`${API}/tuner/start`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...config,
@@ -248,7 +255,7 @@ function TunerPage({ isActive }: TunerPageProps) {
 
   const stop = async () => {
     try {
-      await fetch(`${API}/tuner/stop`, { method: "POST" });
+      await authFetch(`${API}/tuner/stop`, { method: "POST" });
     } catch (err) {
       setError(`튜너 중지 실패: ${(err as Error).message}`);
     }
@@ -259,7 +266,7 @@ function TunerPage({ isActive }: TunerPageProps) {
   const applyBest = async () => {
     setApplyStatus(null);
     try {
-      const res = await fetch(`${API}/tuner/apply-best`, { method: "POST" });
+      const res = await authFetch(`${API}/tuner/apply-best`, { method: "POST" });
       const data = await res.json();
       if (data && data.success) {
         setApplyStatus("success");

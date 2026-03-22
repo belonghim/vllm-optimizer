@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSessionKeepAlive } from './hooks/useSessionKeepAlive';
 import MonitorPage from "./pages/MonitorPage";
 import LoadTestPage from "./pages/LoadTestPage";
 import BenchmarkPage from "./pages/BenchmarkPage";
@@ -22,6 +23,7 @@ const PAGES: PageDef[] = [
 
 export default function App() {
   const [page, setPage] = useState("monitor");
+  useSessionKeepAlive();
 
   const handleSetPage = (id: string) => {
     setPage(id);

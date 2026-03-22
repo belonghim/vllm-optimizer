@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { authFetch } from '../utils/authFetch';
 import { API, COLORS, TOOLTIP_STYLE } from "../constants";
 import { fmt } from "../utils/format";
 import { mockBenchmarks } from "../mockData";
@@ -48,7 +49,7 @@ function BenchmarkPage({ isActive }: BenchmarkPageProps) {
       return;
     }
     const controller = new AbortController();
-    fetch(`${API}/benchmark/list`, { signal: controller.signal })
+    authFetch(`${API}/benchmark/list`, { signal: controller.signal })
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
@@ -79,7 +80,7 @@ function BenchmarkPage({ isActive }: BenchmarkPageProps) {
     }
 
     try {
-      const res = await fetch(`${API}/benchmark/${b.id}`, { method: 'DELETE' });
+      const res = await authFetch(`${API}/benchmark/${b.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setBenchmarks(prev => prev.filter(x => x.id !== b.id));
       setSelected(prev => prev.filter(x => x !== b.id));

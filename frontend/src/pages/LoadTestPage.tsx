@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { authFetch } from '../utils/authFetch';
 import { useMockData } from "../contexts/MockDataContext";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
 import { API, COLORS } from "../constants";
@@ -55,7 +56,7 @@ function LoadTestPage({ isActive }: LoadTestPageProps) {
       return;
     }
     try {
-      const resp = await fetch(`${API}/load_test/start`, {
+      const resp = await authFetch(`${API}/load_test/start`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(config),
       });
@@ -70,7 +71,7 @@ function LoadTestPage({ isActive }: LoadTestPageProps) {
 
   const stop = async () => {
     disconnect();
-    await fetch(`${API}/load_test/stop`, { method: "POST" });
+    await authFetch(`${API}/load_test/stop`, { method: "POST" });
     setStatus("stopped");
   };
 
@@ -79,7 +80,7 @@ function LoadTestPage({ isActive }: LoadTestPageProps) {
     setIsSaving(true); setSaveStatus(null);
     const name = `${config.model}-${Math.floor(Date.now() / 1000)}`;
     try {
-      const resp = await fetch(`${API}/benchmark/save`, {
+      const resp = await authFetch(`${API}/benchmark/save`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, config, result }),
       });
