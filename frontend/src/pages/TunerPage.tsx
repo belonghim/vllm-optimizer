@@ -86,7 +86,7 @@ function TunerPage({ isActive }: TunerPageProps) {
     eval_requests: 100,
   });
 
-  const fetchStatus = useCallback(async () => {
+  const fetchStatus = useCallback(async (signal?: AbortSignal) => {
     if (isMockEnabled) {
       setTrials(mockTrials());
       setError(null);
@@ -95,7 +95,7 @@ function TunerPage({ isActive }: TunerPageProps) {
 
     const safeFetch = async (url: string) => {
       try {
-        const response = await fetch(url);
+        const response = await fetch(url, { signal });
         if (!response.ok) return null;
         return await response.json();
       } catch {
@@ -108,6 +108,8 @@ function TunerPage({ isActive }: TunerPageProps) {
       safeFetch(`${API}/tuner/trials`),
       safeFetch(`${API}/tuner/importance`),
     ]);
+
+    if (signal?.aborted) return;
 
     const s = results[0].status === "fulfilled" ? results[0].value : null;
     const t = results[1].status === "fulfilled" ? results[1].value : null;
@@ -133,9 +135,10 @@ function TunerPage({ isActive }: TunerPageProps) {
   useEffect(() => {
     if (!isActive) return;
 
-    fetchStatus();
-    const id = setInterval(fetchStatus, 3000);
-    return () => clearInterval(id);
+    const controller = new AbortController();
+    fetchStatus(controller.signal);
+    const id = setInterval(() => fetchStatus(controller.signal), 3000);
+    return () => { controller.abort(); clearInterval(id); };
   }, [isActive, fetchStatus]);
 
   useEffect(() => {
@@ -175,7 +178,8 @@ function TunerPage({ isActive }: TunerPageProps) {
     if (!isActive) return;
     if (isMockEnabled) return;
 
-    fetch(`${API}/vllm-config`)
+    const controller = new AbortController();
+    fetch(`${API}/vllm-config`, { signal: controller.signal })
       .then(r => r.json())
       .then(data => {
         if (data.success) {
@@ -183,7 +187,11 @@ function TunerPage({ isActive }: TunerPageProps) {
           setStorageUri(data.storageUri ?? null);
         }
       })
-       .catch((err: Error) => setError(`vLLM 설정 조회 실패: ${err.message}`));
+      .catch((err: Error) => {
+        if (err.name === 'AbortError') return;
+        setError(`vLLM 설정 조회 실패: ${err.message}`);
+      });
+    return () => controller.abort();
   }, [isActive, isMockEnabled]);
 
   useEffect(() => {

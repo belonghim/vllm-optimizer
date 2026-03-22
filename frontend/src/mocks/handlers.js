@@ -14,5 +14,8 @@ export const handlers = [
   http.get(`${API}/tuner/trials`, () => HttpResponse.json([])),
   http.get(`${API}/tuner/importance`, () => HttpResponse.json({})),
   http.get(`${API}/benchmark/list`, () => HttpResponse.json([])),
+  http.delete(`${API}/benchmark/:id`, ({ params }) =>
+    HttpResponse.json({ status: 'deleted', benchmark_id: params.id })
+  ),
   http.get(`${API}/vllm-config`, () => HttpResponse.json({ success: true, data: null, storageUri: null })),
 ];

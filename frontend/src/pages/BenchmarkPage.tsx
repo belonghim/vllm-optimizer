@@ -47,7 +47,8 @@ function BenchmarkPage({ isActive }: BenchmarkPageProps) {
       setError(null);
       return;
     }
-    fetch(`${API}/benchmark/list`)
+    const controller = new AbortController();
+    fetch(`${API}/benchmark/list`, { signal: controller.signal })
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
@@ -57,13 +58,35 @@ function BenchmarkPage({ isActive }: BenchmarkPageProps) {
         setError(null);
       })
       .catch(err => {
-        setError(`벤치마크 조회 실패: ${err.message}`);
+        if (err instanceof Error && err.name === 'AbortError') return;
+        setError(`벤치마크 조회 실패: ${(err as Error).message}`);
       });
+    return () => controller.abort();
   }, [isMockEnabled, isActive]);
 
   const toggle = (id: string | number) => setSelected(s =>
     s.includes(id) ? s.filter(x => x !== id) : [...s, id]
   );
+
+  const handleDelete = async (b: Benchmark, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.confirm(`벤치마크 '${b.name}'을(를) 삭제하시겠습니까?`)) return;
+
+    if (isMockEnabled) {
+      setBenchmarks(prev => prev.filter(x => x.id !== b.id));
+      setSelected(prev => prev.filter(x => x !== b.id));
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API}/benchmark/${b.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setBenchmarks(prev => prev.filter(x => x.id !== b.id));
+      setSelected(prev => prev.filter(x => x !== b.id));
+    } catch (err) {
+      setError(`삭제 실패: ${(err as Error).message}`);
+    }
+  };
 
   const compareData = useMemo(() => benchmarks
     .filter(b => selected.includes(b.id))
@@ -87,7 +110,7 @@ function BenchmarkPage({ isActive }: BenchmarkPageProps) {
          <div className="section-title">저장된 벤치마크</div>
          <table className="table" aria-label="저장된 벤치마크 목록">
           <thead>
-            <tr><th></th><th>Name</th><th>Model</th><th>Date</th><th>TPS</th><th>P99 ms</th><th>RPS</th><th>GPU Eff.</th></tr>
+            <tr><th></th><th>Name</th><th>Model</th><th>Date</th><th>TPS</th><th>P99 ms</th><th>RPS</th><th>GPU Eff.</th><th>삭제</th></tr>
           </thead>
           <tbody>
             {benchmarks.map(b => {
@@ -107,11 +130,14 @@ function BenchmarkPage({ isActive }: BenchmarkPageProps) {
                   <td className="td-green">
                     {eff.mismatch ? <span title="GPU metrics mismatch">N/A</span> : eff.display || "—"}
                   </td>
+                  <td>
+                    <button aria-label="벤치마크 삭제" onClick={(e) => handleDelete(b, e)}>✕</button>
+                  </td>
                 </tr>
               );
             })}
             {benchmarks.length === 0 && (
-              <tr><td colSpan={8} className="benchmark-empty">
+              <tr><td colSpan={9} className="benchmark-empty">
                 부하 테스트 결과를 저장하면 여기 나타납니다.
               </td></tr>
             )}

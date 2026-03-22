@@ -170,7 +170,7 @@ function MonitorPage({ isActive }: MonitorPageProps) {
   const chartOrder = chartState.order;
   const hiddenCharts = chartState.hidden;
 
-  const fetchAllTargets = useCallback(async () => {
+  const fetchAllTargets = useCallback(async (signal?: AbortSignal) => {
     if (isMockEnabled) {
       const newStates: Record<string, TargetState> = {};
       targets.forEach(target => {
@@ -195,9 +195,11 @@ function MonitorPage({ isActive }: MonitorPageProps) {
       const res = await fetch(`${API}/metrics/batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targets: batchTargets })
+        body: JSON.stringify({ targets: batchTargets }),
+        signal,
       });
 
+      if (signal?.aborted) return;
       if (!res.ok) throw new Error(`Batch HTTP ${res.status}`);
       const batchData = await res.json();
 
@@ -230,6 +232,7 @@ function MonitorPage({ isActive }: MonitorPageProps) {
       setTargetStates(prev => ({ ...prev, ...newStates }));
       setError(null);
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
       setError(`조회 실패: ${(err as Error).message}`);
     }
   }, [targets, isMockEnabled]);
@@ -250,9 +253,10 @@ function MonitorPage({ isActive }: MonitorPageProps) {
       return { ...prev, ...initialStates };
     });
 
-    fetchAllTargets();
-    const id = setInterval(fetchAllTargets, 2000);
-    return () => clearInterval(id);
+    const controller = new AbortController();
+    fetchAllTargets(controller.signal);
+    const id = setInterval(() => fetchAllTargets(controller.signal), 2000);
+    return () => { controller.abort(); clearInterval(id); };
   }, [isActive, targets, isMockEnabled, fetchAllTargets]);
 
   const mergedHistory = useMemo(() => {

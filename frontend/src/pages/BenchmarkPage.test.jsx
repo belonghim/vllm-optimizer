@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import BenchmarkPage from "./BenchmarkPage";
 
@@ -61,6 +62,40 @@ describe("BenchmarkPage", () => {
       await waitFor(() =>
         expect(screen.getByText(/벤치마크 조회 실패/)).toBeInTheDocument()
       );
+    });
+  });
+
+  describe("delete", () => {
+    it("shows delete button for each row", () => {
+      render(<BenchmarkPage isActive={true} />);
+      const buttons = screen.getAllByRole("button", { name: /삭제/ });
+      expect(buttons.length).toBeGreaterThan(0);
+    });
+
+    it("removes row after confirmed delete", async () => {
+      const user = userEvent.setup();
+      vi.stubGlobal("confirm", vi.fn(() => true));
+      render(<BenchmarkPage isActive={true} />);
+
+      const buttons = screen.getAllByRole("button", { name: /삭제/ });
+      const initialRows = screen.getAllByRole("row").length;
+      await user.click(buttons[0]);
+
+      await waitFor(() => {
+        expect(screen.getAllByRole("row").length).toBe(initialRows - 1);
+      });
+    });
+
+    it("keeps row when confirm cancelled", async () => {
+      const user = userEvent.setup();
+      vi.stubGlobal("confirm", vi.fn(() => false));
+      render(<BenchmarkPage isActive={true} />);
+
+      const buttons = screen.getAllByRole("button", { name: /삭제/ });
+      const initialRows = screen.getAllByRole("row").length;
+      await user.click(buttons[0]);
+
+      expect(screen.getAllByRole("row").length).toBe(initialRows);
     });
   });
 });

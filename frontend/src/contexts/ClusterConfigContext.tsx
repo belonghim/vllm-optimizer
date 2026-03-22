@@ -124,7 +124,8 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
       return;
     }
 
-    fetch(`${API}/config`)
+    const controller = new AbortController();
+    fetch(`${API}/config`, { signal: controller.signal })
       .then(r => r.json())
       .then((data: unknown) => {
         if (!isRecord(data)) return;
@@ -145,8 +146,12 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
         setConfig(apiConfig);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(apiConfig));
       })
-      .catch(err => console.warn('[ClusterConfig] config fetch failed:', err.message))
+      .catch((err: Error) => {
+        if (err.name === 'AbortError') return;
+        console.warn('[ClusterConfig] config fetch failed:', err.message);
+      })
       .finally(() => setIsLoading(false));
+    return () => controller.abort();
   }, []);
 
   useEffect(() => {
