@@ -24,6 +24,7 @@ const CHART_DEFINITIONS = [
 
 const LS_KEY = 'vllm-optimizer-chart-config';
 const DEFAULT_ORDER = CHART_DEFINITIONS.map(c => c.id);
+const METRIC_KEYS = ['tps', 'ttft', 'ttft_fill', 'lat_p99', 'lat_p99_fill', 'kv', 'running', 'waiting', 'rps', 'ttft_p99', 'lat_mean', 'kv_hit', 'gpu_util', 'gpu_mem_used', 'gpu_mem_total'];
 
 function loadChartConfig() {
   try {
@@ -58,8 +59,9 @@ function MonitorPage() {
   const { targets } = useClusterConfig();
   const [targetStates, setTargetStates] = useState({});
   const [error, setError] = useState(null);
-  const [chartOrder, setChartOrder] = useState(() => loadChartConfig().order);
-  const [hiddenCharts, setHiddenCharts] = useState(() => loadChartConfig().hidden);
+  const [chartState, setChartState] = useState(() => loadChartConfig());
+  const chartOrder = chartState.order;
+  const hiddenCharts = chartState.hidden;
 
   useEffect(() => {
     if (targets.length === 0) {
@@ -149,21 +151,9 @@ function MonitorPage() {
       if (!state.history) return;
       state.history.forEach(h => {
         if (!timeMap[h.t]) timeMap[h.t] = { t: h.t };
-        timeMap[h.t][`${targetKey}_tps`] = h.tps;
-        timeMap[h.t][`${targetKey}_ttft`] = h.ttft;
-        timeMap[h.t][`${targetKey}_ttft_fill`] = h.ttft_fill;
-        timeMap[h.t][`${targetKey}_lat_p99`] = h.lat_p99;
-        timeMap[h.t][`${targetKey}_lat_p99_fill`] = h.lat_p99_fill;
-        timeMap[h.t][`${targetKey}_kv`] = h.kv;
-        timeMap[h.t][`${targetKey}_running`] = h.running;
-        timeMap[h.t][`${targetKey}_waiting`] = h.waiting;
-        timeMap[h.t][`${targetKey}_rps`] = h.rps;
-        timeMap[h.t][`${targetKey}_ttft_p99`] = h.ttft_p99;
-        timeMap[h.t][`${targetKey}_lat_mean`] = h.lat_mean;
-        timeMap[h.t][`${targetKey}_kv_hit`] = h.kv_hit;
-        timeMap[h.t][`${targetKey}_gpu_util`] = h.gpu_util;
-        timeMap[h.t][`${targetKey}_gpu_mem_used`] = h.gpu_mem_used;
-        timeMap[h.t][`${targetKey}_gpu_mem_total`] = h.gpu_mem_total;
+        METRIC_KEYS.forEach(mk => {
+          timeMap[h.t][`${targetKey}_${mk}`] = h[mk];
+        });
       });
     });
     return Object.values(timeMap).sort((a, b) => a.t.localeCompare(b.t));
@@ -180,142 +170,67 @@ function MonitorPage() {
     return s;
   }, [targetStates]);
 
-  const defaultTarget = targets.find(t => t.isDefault) || targets[0];
-  const defaultKey = defaultTarget ? `${defaultTarget.namespace}/${defaultTarget.inferenceService}` : null;
+  const defaultKey = useMemo(() => {
+    const dt = targets.find(t => t.isDefault) || targets[0];
+    return dt ? `${dt.namespace}/${dt.inferenceService}` : null;
+  }, [targets]);
 
-  const tpsLines = useMemo(() => {
+  const chartLinesMap = useMemo(() => {
+    const makeMultiLines = (metricKey) =>
+      targets.map((t, i) => ({
+        key: `${t.namespace}/${t.inferenceService}_${metricKey}`,
+        label: t.inferenceService,
+        color: TARGET_COLORS[i % TARGET_COLORS.length],
+      }));
+
     if (targets.length === 1) {
-      return [{ key: `${defaultKey}_tps`, color: COLORS.accent, label: "TPS" }];
+      return {
+        tps:      [{ key: `${defaultKey}_tps`, color: COLORS.accent, label: "TPS" }],
+        latency:  [
+          { key: `${defaultKey}_lat_p99_fill`, color: COLORS.red, label: "P99 (idle)", dash: true },
+          { key: `${defaultKey}_lat_p99`, color: COLORS.red, label: "Latency P99" },
+          { key: `${defaultKey}_lat_mean`, color: COLORS.accent, label: "Latency mean" },
+        ],
+        ttft:     [
+          { key: `${defaultKey}_ttft_fill`, color: COLORS.cyan, label: "TTFT (idle)", dash: true },
+          { key: `${defaultKey}_ttft`, color: COLORS.cyan, label: "TTFT mean" },
+          { key: `${defaultKey}_ttft_p99`, color: COLORS.accent, label: "TTFT p99" },
+        ],
+        kv:       [{ key: `${defaultKey}_kv`, color: COLORS.purple, label: "KV Cache %" }],
+        kv_hit:   [{ key: `${defaultKey}_kv_hit`, color: COLORS.cyan, label: "KV Hit Rate %" }],
+        queue:    [
+          { key: `${defaultKey}_running`, color: COLORS.green, label: "Running" },
+          { key: `${defaultKey}_waiting`, color: COLORS.red, label: "Waiting" },
+        ],
+        rps:      [{ key: `${defaultKey}_rps`, color: COLORS.green, label: "RPS" }],
+        gpu_util: [{ key: `${defaultKey}_gpu_util`, color: COLORS.red, label: "GPU Util %" }],
+        gpu_mem:  [{ key: `${defaultKey}_gpu_mem_used`, color: COLORS.purple, label: "GPU Mem Used (GB)" }],
+      };
     }
-    return targets.map((t, i) => ({
-      key: `${t.namespace}/${t.inferenceService}_tps`,
-      label: t.inferenceService,
-      color: TARGET_COLORS[i % TARGET_COLORS.length]
-    }));
-  }, [targets, defaultKey]);
 
-  const latencyLines = useMemo(() => {
-    if (targets.length === 1) {
-      return [
-        { key: `${defaultKey}_lat_p99_fill`, color: COLORS.red, label: "P99 (idle)", dash: true },
-        { key: `${defaultKey}_lat_p99`, color: COLORS.red, label: "Latency P99" },
-        { key: `${defaultKey}_lat_mean`, color: COLORS.accent, label: "Latency mean" },
-      ];
-    }
-    return targets.map((t, i) => ({
-      key: `${t.namespace}/${t.inferenceService}_lat_p99`,
-      label: t.inferenceService,
-      color: TARGET_COLORS[i % TARGET_COLORS.length]
-    }));
+    return {
+      tps:      makeMultiLines('tps'),
+      latency:  makeMultiLines('lat_p99'),
+      ttft:     makeMultiLines('ttft'),
+      kv:       makeMultiLines('kv'),
+      kv_hit:   makeMultiLines('kv_hit'),
+      queue:    makeMultiLines('running'),
+      rps:      makeMultiLines('rps'),
+      gpu_util: makeMultiLines('gpu_util'),
+      gpu_mem:  makeMultiLines('gpu_mem_used'),
+    };
   }, [targets, defaultKey]);
-
-  const kvLines = useMemo(() => {
-    if (targets.length === 1) {
-      return [{ key: `${defaultKey}_kv`, color: COLORS.purple, label: "KV Cache %" }];
-    }
-    return targets.map((t, i) => ({
-      key: `${t.namespace}/${t.inferenceService}_kv`,
-      label: t.inferenceService,
-      color: TARGET_COLORS[i % TARGET_COLORS.length]
-    }));
-  }, [targets, defaultKey]);
-
-  const queueLines = useMemo(() => {
-    if (targets.length === 1) {
-      return [
-        { key: `${defaultKey}_running`, color: COLORS.green, label: "Running" },
-        { key: `${defaultKey}_waiting`, color: COLORS.red, label: "Waiting" },
-      ];
-    }
-    return targets.map((t, i) => ({
-      key: `${t.namespace}/${t.inferenceService}_running`,
-      label: t.inferenceService,
-      color: TARGET_COLORS[i % TARGET_COLORS.length]
-    }));
-  }, [targets, defaultKey]);
-
-  const ttftLines = useMemo(() => {
-    if (targets.length === 1) {
-      return [
-        { key: `${defaultKey}_ttft_fill`, color: COLORS.cyan, label: "TTFT (idle)", dash: true },
-        { key: `${defaultKey}_ttft`, color: COLORS.cyan, label: "TTFT mean" },
-        { key: `${defaultKey}_ttft_p99`, color: COLORS.accent, label: "TTFT p99" },
-      ];
-    }
-    return targets.map((t, i) => ({
-      key: `${t.namespace}/${t.inferenceService}_ttft`,
-      label: t.inferenceService,
-      color: TARGET_COLORS[i % TARGET_COLORS.length]
-    }));
-  }, [targets, defaultKey]);
-
-  const rpsLines = useMemo(() => {
-    if (targets.length === 1) {
-      return [{ key: `${defaultKey}_rps`, color: COLORS.green, label: "RPS" }];
-    }
-    return targets.map((t, i) => ({
-      key: `${t.namespace}/${t.inferenceService}_rps`,
-      label: t.inferenceService,
-      color: TARGET_COLORS[i % TARGET_COLORS.length]
-    }));
-  }, [targets, defaultKey]);
-
-  const kvHitLines = useMemo(() => {
-    if (targets.length === 1) {
-      return [{ key: `${defaultKey}_kv_hit`, color: COLORS.cyan, label: "KV Hit Rate %" }];
-    }
-    return targets.map((t, i) => ({
-      key: `${t.namespace}/${t.inferenceService}_kv_hit`,
-      label: t.inferenceService,
-      color: TARGET_COLORS[i % TARGET_COLORS.length]
-    }));
-  }, [targets, defaultKey]);
-
-  const gpuUtilLines = useMemo(() => {
-    if (targets.length === 1) {
-      return [{ key: `${defaultKey}_gpu_util`, color: COLORS.red, label: "GPU Util %" }];
-    }
-    return targets.map((t, i) => ({
-      key: `${t.namespace}/${t.inferenceService}_gpu_util`,
-      label: t.inferenceService,
-      color: TARGET_COLORS[i % TARGET_COLORS.length]
-    }));
-  }, [targets, defaultKey]);
-
-  const gpuMemLines = useMemo(() => {
-    if (targets.length === 1) {
-      return [{ key: `${defaultKey}_gpu_mem_used`, color: COLORS.purple, label: "GPU Mem Used (GB)" }];
-    }
-    return targets.map((t, i) => ({
-      key: `${t.namespace}/${t.inferenceService}_gpu_mem_used`,
-      label: t.inferenceService,
-      color: TARGET_COLORS[i % TARGET_COLORS.length]
-    }));
-  }, [targets, defaultKey]);
-
-  const chartLinesMap = useMemo(() => ({
-    tps:      tpsLines,
-    latency:  latencyLines,
-    ttft:     ttftLines,
-    kv:       kvLines,
-    kv_hit:   kvHitLines,
-    queue:    queueLines,
-    rps:      rpsLines,
-    gpu_util: gpuUtilLines,
-    gpu_mem:  gpuMemLines,
-  }), [tpsLines, latencyLines, ttftLines, kvLines, kvHitLines, queueLines, rpsLines, gpuUtilLines, gpuMemLines]);
 
   const hideChart = (id) => {
     const newHidden = [...hiddenCharts, id];
-    setHiddenCharts(newHidden);
+    setChartState(prev => ({ ...prev, hidden: newHidden }));
     saveChartConfig(chartOrder, newHidden);
   };
 
   const showChart = (id) => {
     const newOrder = [...chartOrder.filter(x => x !== id), id];
     const newHidden = hiddenCharts.filter(x => x !== id);
-    setChartOrder(newOrder);
-    setHiddenCharts(newHidden);
+    setChartState({ order: newOrder, hidden: newHidden });
     saveChartConfig(newOrder, newHidden);
   };
 
