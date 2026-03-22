@@ -127,14 +127,14 @@ export function ClusterConfigProvider({ children }) {
     });
   }, []);
 
-  const removeTarget = useCallback((index) => {
+  const removeTarget = useCallback((namespace, inferenceService) => {
     setConfig(prev => {
       const currentTargets = prev.targets || [];
-      const target = currentTargets[index];
+      const target = currentTargets.find(t => t.namespace === namespace && t.inferenceService === inferenceService);
 
       if (target && target.isDefault) return prev;
 
-      const newTargets = currentTargets.filter((_, i) => i !== index);
+      const newTargets = currentTargets.filter(t => !(t.namespace === namespace && t.inferenceService === inferenceService));
 
       if (target && target.isDefault && newTargets.length > 0) {
         newTargets[0] = { ...newTargets[0], isDefault: true };

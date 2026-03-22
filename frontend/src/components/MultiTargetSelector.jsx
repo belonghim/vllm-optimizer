@@ -118,13 +118,13 @@ export default function MultiTargetSelector({ targetStatuses = {}, targetStates 
                         <span className="tag tag-completed" style={{ fontSize: '8px' }}>기본</span>
                       ) : (
                         <button 
-                          className="btn btn-danger" 
-                          style={{ padding: '0 6px', height: '20px', fontSize: '12px', minWidth: '20px', border: 'none' }}
-                          onClick={() => removeTarget(index)}
-                          data-testid="delete-btn"
-                        >
-                          ×
-                        </button>
+                           className="btn btn-danger" 
+                           style={{ padding: '0 6px', height: '20px', fontSize: '12px', minWidth: '20px', border: 'none' }}
+                           onClick={() => removeTarget(target.namespace, target.inferenceService)}
+                           data-testid="delete-btn"
+                         >
+                           ×
+                         </button>
                       )}
                     </td>
                   </tr>
