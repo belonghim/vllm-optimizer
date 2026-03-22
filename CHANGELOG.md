@@ -2,6 +2,46 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-22] - Frontend Code Quality: React Best Practices & Bug Fixes
+
+**Status**: Completed
+
+20개 프론트엔드 코드 품질 이슈(High 2, Medium 8, Low 10) 해소 + 런타임 버그 2건 수정.
+
+### Refactored (Frontend)
+- **`utils/metrics.js` 신규**: `calcGpuEfficiency()` 유틸리티 추출. LoadTestPage·BenchmarkPage 중복 제거
+- **`ClusterConfigContext.jsx` 컨텍스트 순수성**: `migrateLegacyConfig` delete mutation → 구조분해 방식으로 교체. `updateConfig` 기본 타겟 탐지 버그 수정 (`targets[0]` → `findIndex(t => t.isDefault)`)
+- **`constants.js`**: `METRIC_KEYS` 상수 추출. MonitorPage `mergedHistory` 매핑 자동화
+- **`MonitorPage.jsx`**: `buildChartLinesMap` 팩토리 함수를 named export로 추출. stale closure 수정 → functional `setTargetStates(prev => ...)` 패턴. `hideChart`/`showChart` `useCallback` 적용
+- **`ClusterConfigBar.jsx`**: `StatusIndicator` 중첩 컴포넌트 → 모듈 레벨로 이동 (React remount anti-pattern 제거)
+- **`MultiTargetSelector.jsx`**: `TOTAL_COLUMNS = 13` 상수화. 인라인 스타일 → CSS 클래스 11개
+- **`TunerPage.jsx`**: `console.warn` 제거, `alert()` → state 기반 UI 피드백
+- **Dead code 정리**: 미사용 import·fallback·eslint-disable 제거
+
+### Fixed (Frontend — Bugs)
+- **차트 2열 레이아웃**: 차트별 `grid-2` wrapper → 단일 외부 `grid-2` 컨테이너. 9개 차트가 2열로 렌더링
+- **실시간모니터링 중복 타겟**: `updateConfig`가 `targets[0]`을 하드코딩하여 기본 타겟 변경 후 중복 엔트리 발생·삭제 불가 버그 수정
+
+### Tests
+- **`ClusterConfigContext.test.jsx` 신규**: `setTimeout` 패턴 → `waitFor` 전환. `updateConfig`·`addTarget`·`removeTarget`·`setDefaultTarget` 단위 테스트
+- **`MonitorPage.test.jsx` 확장**: `buildChartLinesMap` 단위 테스트 3건 추가 (단일/멀티/빈 타겟)
+
+### Verification
+- Frontend: 84 passed (0 failures)
+- F1 Oracle Audit: APPROVE | F2 Code Quality: APPROVE | F3 Playwright: APPROVE | F4 Scope Fidelity: APPROVE
+
+### Commits
+- `91384e9` fix(frontend): 2-column chart layout, fix updateConfig default-target bug
+- `f88eab0` test(frontend): fix act() warnings, add chartLinesMap coverage
+- `cc6d18a` fix(frontend): resolve MonitorPage stale closure, apply useCallback
+- `1f0db0b` fix(frontend): remove console.warn/alert from TunerPage, clean MultiTargetSelector styles
+- `dcea7ab` refactor(frontend): extract GPU efficiency util, fix context purity, move METRIC_KEYS
+- `6181fcc` test(frontend): add ClusterConfigContext unit tests
+- `9f166c9` refactor(frontend): extract chart lines factory, automate mergedHistory mapping
+- `fe4ab08` refactor(frontend): remove dead code, fallback patterns, unused import
+
+---
+
 ## [2026-03-22] - Code Efficiency & Metrics Collection Refactoring
 
 **Status**: Completed
