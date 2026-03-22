@@ -94,6 +94,7 @@ function TunerPage({ isActive }) {
     let retryCount = 0;
     const es = new EventSource(`${API}/tuner/stream`);
     es.onmessage = (event) => {
+      retryCount = 0;
       try {
         const data = JSON.parse(event.data);
         if (data.type === "phase") {
@@ -104,7 +105,7 @@ function TunerPage({ isActive }) {
           fetchStatus();
         }
       } catch (e) {
-        console.error("[TunerSSE] parse error:", e);
+        if (import.meta.env.DEV) console.error("[TunerSSE] parse error:", e);
       }
     };
     es.onerror = () => {
@@ -131,7 +132,7 @@ function TunerPage({ isActive }) {
           setStorageUri(data.storageUri ?? null);
         }
       })
-      .catch(() => {});
+       .catch(err => setError(`vLLM 설정 조회 실패: ${err.message}`));
   }, [isActive, isMockEnabled]);
 
   // ClusterConfigContext의 endpoint를 사용 (중복 /api/config 호출 제거)
