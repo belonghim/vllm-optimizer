@@ -41,6 +41,12 @@ _MODULES_TO_CLEAR = [
     "routers.benchmark",
     "backend.routers.tuner",
     "routers.tuner",
+    "routers.vllm_config",
+    "backend.routers.vllm_config",
+    "routers.config",
+    "backend.routers.config",
+    "routers",
+    "backend.routers",
     "startup_metrics_shim",
     "backend.startup_metrics_shim",
     "services.shared",
@@ -115,9 +121,31 @@ class _StubMultiTargetMetricsCollector:
 
     """Lightweight stand-in for MultiTargetMetricsCollector."""
 
+    instances: list["_StubMultiTargetMetricsCollector"] = []
+
     def __init__(self):
         self.registered: list[tuple[str, str]] = []
         self._has_label: bool = False
+        self.start_collection_calls: list[float] = []
+        self.start_requests: list[float] = []
+        self.stop_called: bool = False
+        self.version: str = "stub"
+        self.missing_metrics: list[str] = []
+        self._history: list[dict[str, Any]] = []
+        self._targets: dict[str, Any] = {}
+        frame = inspect.stack()[1]
+        module = inspect.getmodule(frame[0])
+        self.creator: str | None = module.__name__ if module else None
+        _StubMultiTargetMetricsCollector.instances.append(self)
+
+    async def start_collection(self, interval: float = 2.0):
+        self.start_collection_calls.append(interval)
+
+    def record_start_request(self, interval: float):
+        self.start_requests.append(interval)
+
+    def stop(self):
+        self.stop_called = True
 
     async def register_target(self, namespace: str, is_name: str) -> bool:
         self.registered.append((namespace, is_name))
@@ -128,6 +156,17 @@ class _StubMultiTargetMetricsCollector:
 
     def get_has_monitoring_label(self, namespace: str, is_name: str) -> bool:
         return self._has_label
+
+    def get_history_dict(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
+        return list(self._history)
+
+    @property
+    def latest(self):
+        return None
+
+    @classmethod
+    def clear_instances(cls):
+        cls.instances.clear()
 
 
 class _DummyCustomObjectsApi:
@@ -188,18 +227,7 @@ def _clear_modules() -> None:
 
 def _install_stub_metrics_collector_modules() -> list[str]:
     injected_names: list[str] = []
-    # Stub the MetricsCollector class source
-    for module_name in ("services.metrics_collector", "backend.services.metrics_collector"):
-        stub_module = types.ModuleType(module_name)
-        stub_any = cast(Any, stub_module)
-        stub_any.MetricsCollector = _StubMetricsCollector
-        stub_any.__all__ = ["MetricsCollector"]
-        sys.modules[module_name] = stub_module
-        injected_names.append(module_name)
 
-    # Stub services.shared — provides the singleton MetricsCollector instance
-    # Must be injected AFTER the MetricsCollector class stub above
-    stub_collector_instance = _StubMetricsCollector()
     stub_multi_target_instance = _StubMultiTargetMetricsCollector()
     load_engine_module = importlib.import_module("services.load_engine")
     backend_load_engine_module = importlib.import_module("backend.services.load_engine")
@@ -211,13 +239,12 @@ def _install_stub_metrics_collector_modules() -> list[str]:
     ):
         stub_module = types.ModuleType(module_name)
         stub_any = cast(Any, stub_module)
-        stub_any.metrics_collector = stub_collector_instance
-        stub_any.MetricsCollector = _StubMetricsCollector
         stub_any.multi_target_collector = stub_multi_target_instance
+        stub_any.metrics_collector = stub_multi_target_instance
         stub_any.load_engine = load_engine_target
         stub_any.Storage = Storage
         stub_any.storage = Storage(":memory:")
-        stub_any.runtime_config = RuntimeConfig()
+        stub_any.runtime_config = RuntimeConfig(stub_multi_target_instance)
         sys.modules[module_name] = stub_module
         injected_names.append(module_name)
 
@@ -273,6 +300,7 @@ def isolated_client(monkeypatch: pytest.MonkeyPatch):
 
     _ensure_kubernetes(monkeypatch)
     _StubMetricsCollector.clear_instances()
+    _StubMultiTargetMetricsCollector.clear_instances()
     _clear_modules()
     injected_modules = _install_stub_metrics_collector_modules()
     _mock_update_metrics(monkeypatch)

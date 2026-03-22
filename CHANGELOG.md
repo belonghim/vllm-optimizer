@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-22] - Code Efficiency & Metrics Collection Refactoring
+
+**Status**: Completed
+
+코드 효율성 개선 및 메트릭 수집 아키텍처 리팩터링. 단일 타겟 컬렉터 → 멀티 타겟 컬렉터로 아키텍처 전환으로 중복 코드 제거 및 유지보수성 향상.
+
+### Refactored (Backend)
+- **`metrics_collector.py` 삭제** (366줄): 단일 타겟용 `MetricsCollector` 제거. `MultiTargetMetricsCollector`로 통합.
+- **`multi_target_collector.py` 확장**: 멀티 InferenceService 타겟 지원. 단일 인스턴스에서 여러 IS 메트릭 수집. 캐시 효율성 개선.
+- **`shared.py` 단순화**: 단일 타겟 `metrics_collector` 인스턴스 제거 → `multi_target_collector`만 유지.
+- **테스트 파일 Konsolidierung**: `test_metrics_collector.py` (222→99줄), `test_prometheus_metrics.py` 간소화. 중복 assertion 제거.
+
+### Changed (Frontend)
+- **`ClusterConfigBar.jsx`**: 불필요한 import 제거, prop drilling 최적화.
+- **`MonitorPage.jsx`**: 다중 타겟 표시 지원. 타겟별 상태 표시 개선.
+
+### Metrics
+- **Net 코드 감소**: +484줄 추가, -705줄 삭제 = **221줄 순 감소**
+- **파일 수**: 15개 파일 변경 (1개 삭제, 14개 수정)
+
+---
+
 ## [2026-03-21] - Auto Tuner Stability & Cluster Load Optimization
 
 **Status**: Completed

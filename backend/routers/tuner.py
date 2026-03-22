@@ -13,14 +13,14 @@ from typing import Any, Optional, List
 from datetime import datetime
 
 from models.load_test import TuningConfig
-from services.shared import metrics_collector, load_engine
+from services.shared import multi_target_collector, load_engine
 from services.auto_tuner import AutoTuner
 from services.shared import storage
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-auto_tuner = AutoTuner(metrics_collector=metrics_collector, load_engine=load_engine)
+auto_tuner = AutoTuner(metrics_collector=multi_target_collector, load_engine=load_engine)
 
 
 class TunerStatusResponse(BaseModel):
@@ -109,6 +109,13 @@ class TrialFrontendInfo(BaseModel):
     status: str
     is_pareto_optimal: bool = False
     pruned: bool = False
+
+
+class TunerAllResponse(BaseModel):
+    """Combined response for status, trials, and importance"""
+    status: TunerStatusFrontendResponse
+    trials: list[TrialFrontendInfo]
+    importance: dict[str, Any]
 
 
 @router.post("/start", response_model=TuningStartResponse)
@@ -249,6 +256,15 @@ async def get_parameter_importance() -> dict[str, Any]:
     # Use the AutoTuner's implementation which computes importances via Optuna
     # FAnova if enough trials have been run. Returns {} when not enough data.
     return await auto_tuner.get_importance()
+
+
+@router.get("/all", response_model=TunerAllResponse)
+async def get_tuner_all() -> TunerAllResponse:
+    """Get combined tuner state: status, trials, and importance in one request."""
+    status = await get_tuner_status()
+    trials = await get_tuning_trials()
+    importance = await get_parameter_importance()
+    return TunerAllResponse(status=status, trials=trials, importance=importance)
 
 
 @router.post("/apply-best", response_model=ApplyBestResponse)

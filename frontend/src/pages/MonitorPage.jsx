@@ -26,55 +26,63 @@ function MonitorPage() {
       return;
     }
 
-    const fetchTarget = async (target) => {
-      const key = `${target.namespace}/${target.inferenceService}`;
-      
+    const fetchAllTargets = async () => {
       if (isMockEnabled) {
-        setTargetStates(prev => ({
-          ...prev,
-          [key]: {
+        const newStates = {};
+        targets.forEach(target => {
+          const key = `${target.namespace}/${target.inferenceService}`;
+          newStates[key] = {
             metrics: mockMetrics(),
             history: buildGapFill(mockHistory().map(h => ({ ...h, t: h.t })), ['ttft', 'lat_p99']),
             status: 'ready',
             error: null
-          }
-        }));
+          };
+        });
+        setTargetStates(newStates);
         return;
       }
 
       try {
-        const query = `namespace=${target.namespace}&is_name=${target.inferenceService}`;
-        const [mRes, hRes] = await Promise.all([
-          fetch(`${API}/metrics/latest?${query}`),
-          fetch(`${API}/metrics/history?last_n=60&${query}`)
-        ]);
-
-        if (!mRes.ok) throw new Error(`Metrics HTTP ${mRes.status}`);
-        if (!hRes.ok) throw new Error(`History HTTP ${hRes.status}`);
-
-        const metricsData = await mRes.json();
-        const historyData = await hRes.json();
-
-        const mapped = historyData.map((m) => ({
-          t: fmtTime(m.timestamp),
-          tps: m.tps, ttft: m.ttft_mean, lat_p99: m.latency_p99,
-          kv: m.kv_cache, running: m.running, waiting: m.waiting,
+        const batchTargets = targets.map(t => ({
+          namespace: t.namespace,
+          inferenceService: t.inferenceService
         }));
-        const history = buildGapFill(mapped, ['ttft', 'lat_p99']);
 
-        const status = metricsData.status || 'ready';
-        const data = metricsData.data || null;
+        const res = await fetch(`${API}/metrics/batch`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targets: batchTargets })
+        });
 
-        setTargetStates(prev => ({
-          ...prev,
-          [key]: { data, history, status, hasMonitoringLabel: metricsData.hasMonitoringLabel, error: null }
-        }));
+        if (!res.ok) throw new Error(`Batch HTTP ${res.status}`);
+        const batchData = await res.json();
+
+        const newStates = {};
+        Object.entries(batchData.results).forEach(([key, result]) => {
+          if (result.status === 'error') {
+            newStates[key] = { status: 'error', error: result.error, data: null, history: [] };
+            return;
+          }
+
+          const mapped = (result.history || []).map((m) => ({
+            t: fmtTime(m.timestamp),
+            tps: m.tps, ttft: m.ttft_mean, lat_p99: m.latency_p99,
+            kv: m.kv_cache, running: m.running, waiting: m.waiting,
+          }));
+          const history = buildGapFill(mapped, ['ttft', 'lat_p99']);
+
+          newStates[key] = {
+            data: result.data || null,
+            history,
+            status: result.status || 'ready',
+            hasMonitoringLabel: result.hasMonitoringLabel,
+            error: null
+          };
+        });
+
+        setTargetStates(prev => ({ ...prev, ...newStates }));
         setError(null);
       } catch (err) {
-        setTargetStates(prev => ({
-          ...prev,
-          [key]: { ...prev[key], status: 'error', error: err.message }
-        }));
         setError(`조회 실패: ${err.message}`);
       }
     };
@@ -84,10 +92,10 @@ function MonitorPage() {
       const key = `${t.namespace}/${t.inferenceService}`;
       initialStates[key] = targetStates[key] || { status: 'collecting' };
     });
-    setTargetStates(initialStates);
+    setTargetStates(prev => ({ ...prev, ...initialStates }));
 
-    targets.forEach(fetchTarget);
-    const id = setInterval(() => { targets.forEach(fetchTarget); }, 2000);
+    fetchAllTargets();
+    const id = setInterval(fetchAllTargets, 2000);
     return () => clearInterval(id);
   }, [targets, isMockEnabled]);
 

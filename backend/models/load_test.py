@@ -145,3 +145,19 @@ class TargetedMetricsResponse(BaseModel):
     status: str = Field(description='"collecting" if metrics not yet available, "ready" if data present')
     data: MetricsSnapshot | None = Field(default=None, description="Latest metrics snapshot, null when status is collecting")
     hasMonitoringLabel: bool = Field(default=False, description="Whether namespace has openshift.io/cluster-monitoring=true label")
+
+
+class MetricsTarget(BaseModel):
+    """Single target for batch metrics query."""
+    namespace: str = Field(description="Kubernetes namespace")
+    inferenceService: str = Field(description="InferenceService name")
+
+
+class BatchMetricsRequest(BaseModel):
+    """Request body for batch metrics endpoint."""
+    targets: list[MetricsTarget] = Field(description="List of targets to query")
+
+
+class BatchMetricsResponse(BaseModel):
+    """Response for batch metrics queries."""
+    results: dict[str, dict[str, Any]] = Field(description="Mapping of ns/is to data and status")

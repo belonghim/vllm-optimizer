@@ -9,8 +9,7 @@ from typing import Any, cast
 
 import httpx
 from kubernetes import client, config
-
-from services.metrics_collector import VLLMMetrics
+from metrics.prometheus_metrics import update_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +17,26 @@ PROMETHEUS_URL = os.getenv(
     "PROMETHEUS_URL",
     "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091",
 )
+
+
+@dataclass
+class VLLMMetrics:
+    timestamp: float
+    tokens_per_second: float = 0
+    requests_per_second: float = 0
+    mean_ttft_ms: float = 0
+    p99_ttft_ms: float = 0
+    mean_e2e_latency_ms: float = 0
+    p99_e2e_latency_ms: float = 0
+    kv_cache_usage_pct: float = 0
+    kv_cache_hit_rate: float = 0
+    running_requests: int = 0
+    waiting_requests: int = 0
+    gpu_memory_used_gb: float = 0
+    gpu_memory_total_gb: float = 0
+    gpu_utilization_pct: float = 0
+    pod_count: int = 0
+    pod_ready: int = 0
 
 
 @dataclass
@@ -45,11 +64,137 @@ class MultiTargetMetricsCollector:
         self._collect_task: asyncio.Task[None] | None = None
         self._cleanup_task: asyncio.Task[None] | None = None
         self._lock: asyncio.Lock = asyncio.Lock()
+        self._version: str = "multi-target"
+        self._missing_metrics: list[str] = []
+        self._start_requests: list[float] = []
+        self._collect_interval: float = self.COLLECT_INTERVAL
 
         self._token: str | None = self._load_token()
         self._k8s_available: bool = False
         self._k8s_core: client.CoreV1Api | None = None
+        self._default_namespace = os.getenv("K8S_NAMESPACE") or os.getenv("VLLM_NAMESPACE", "vllm-lab-dev")
+        self._default_is_name = os.getenv("VLLM_DEPLOYMENT_NAME", "llm-ov")
         self._init_k8s()
+        self._register_default_target()
+
+    def _register_default_target(self) -> None:
+        key = self._target_key(self._default_namespace, self._default_is_name)
+        self._targets[key] = TargetCache(
+            key=key,
+            namespace=self._default_namespace,
+            is_name=self._default_is_name,
+            is_default=True,
+            has_monitoring_label=False,
+        )
+
+    def _get_default_target(self) -> TargetCache | None:
+        if not self._targets:
+            return None
+        for target in self._targets.values():
+            if target.is_default:
+                return target
+        return next(iter(self._targets.values()))
+
+    def _is_default_target(self, namespace: str, is_name: str) -> bool:
+        default_target = self._get_default_target()
+        if default_target is None:
+            return False
+        return default_target.namespace == namespace and default_target.is_name == is_name
+
+    @property
+    def latest(self) -> VLLMMetrics | None:
+        default_target = self._get_default_target()
+        return default_target.latest if default_target else None
+
+    @property
+    def history(self) -> list[VLLMMetrics]:
+        default_target = self._get_default_target()
+        if default_target is None:
+            return []
+        return list(default_target.history)
+
+    @property
+    def version(self) -> str:
+        return self._version
+
+    @property
+    def missing_metrics(self) -> list[str]:
+        return self._missing_metrics
+
+    def record_start_request(self, interval: float) -> None:
+        self._start_requests.append(interval)
+
+    async def start_collection(self, interval: float = 2.0) -> None:
+        self.record_start_request(interval)
+        self._collect_interval = interval
+        await self._ensure_collect_loop()
+        try:
+            while self._running:
+                await asyncio.sleep(0.2)
+        except asyncio.CancelledError:
+            self.stop()
+            raise
+
+    def stop(self) -> None:
+        self._running = False
+        if self._collect_task is not None and not self._collect_task.done():
+            _ = self._collect_task.cancel()
+        if self._cleanup_task is not None and not self._cleanup_task.done():
+            _ = self._cleanup_task.cancel()
+
+    def set_default_target(self, namespace: str | None = None, is_name: str | None = None) -> None:
+        default_target = self._get_default_target()
+        if default_target is None:
+            return
+
+        old_key = default_target.key
+        new_namespace = namespace if namespace is not None else default_target.namespace
+        new_is_name = is_name if is_name is not None else default_target.is_name
+        new_key = self._target_key(new_namespace, new_is_name)
+
+        default_target.namespace = new_namespace
+        default_target.is_name = new_is_name
+        default_target.key = new_key
+
+        if old_key != new_key:
+            _ = self._targets.pop(old_key, None)
+            self._targets[new_key] = default_target
+
+        self._default_namespace = new_namespace
+        self._default_is_name = new_is_name
+
+    def get_history_dict(self, last_n: int = 60, include_metadata: bool = True) -> list[dict[str, Any]]:
+        default_target = self._get_default_target()
+        if default_target is None:
+            return []
+        history = list(default_target.history)[-last_n:]
+        return [
+            {
+                "timestamp": m.timestamp,
+                "tps": m.tokens_per_second,
+                "rps": m.requests_per_second,
+                "ttft_mean": m.mean_ttft_ms,
+                "ttft_p99": m.p99_ttft_ms,
+                "latency_mean": m.mean_e2e_latency_ms,
+                "latency_p99": m.p99_e2e_latency_ms,
+                "kv_cache": m.kv_cache_usage_pct,
+                "kv_hit_rate": m.kv_cache_hit_rate,
+                "running": m.running_requests,
+                "waiting": m.waiting_requests,
+                "gpu_mem_used": m.gpu_memory_used_gb,
+                "gpu_mem_total": m.gpu_memory_total_gb,
+                "gpu_util": m.gpu_utilization_pct,
+                "pods": m.pod_count,
+                "pods_ready": m.pod_ready,
+                "_metadata": {
+                    "vllm_version": self._version,
+                    "missing_metrics": self._missing_metrics,
+                }
+                if include_metadata
+                else None,
+            }
+            for m in history
+        ]
 
     async def get_metrics(self, namespace: str, is_name: str) -> VLLMMetrics | None:
         key = self._target_key(namespace, is_name)
@@ -138,7 +283,7 @@ class MultiTargetMetricsCollector:
                                 result,
                             )
 
-                await asyncio.sleep(self.COLLECT_INTERVAL)
+                await asyncio.sleep(self._collect_interval)
         except asyncio.CancelledError:
             logger.debug("[MultiTargetMetricsCollector] collection loop cancelled")
             raise
@@ -170,6 +315,7 @@ class MultiTargetMetricsCollector:
 
     def _build_target_queries(self, namespace: str, is_name: str) -> dict[str, str]:
         selector = f'namespace="{namespace}", job="{is_name}-metrics"'
+        dcgm_selector = f'exported_namespace="{namespace}", exported_pod=~"{is_name}-predictor.*"'
         return {
             "tokens_per_second": (
                 f'sum(rate(vllm:num_generated_tokens{{{selector}}}[1m])) '
@@ -203,15 +349,18 @@ class MultiTargetMetricsCollector:
             "waiting_requests": f'vllm:num_requests_waiting{{{selector}}}',
             "gpu_memory_used_gb": (
                 f'(vllm:gpu_memory_usage_bytes{{{selector}}} / 1024^3) '
-                f'or vllm:gpu_cache_usage_perc{{{selector}}}'
+                f'or vllm:gpu_cache_usage_perc{{{selector}}} '
+                f'or (sum(DCGM_FI_DEV_FB_USED{{{dcgm_selector}}}) / 1024)'
             ),
             "gpu_memory_total_gb": (
                 f'(vllm:gpu_memory_total_bytes{{{selector}}} / 1024^3) '
-                f'or (vllm:gpu_cache_usage_perc{{{selector}}} * 0 + 1)'
+                f'or (vllm:gpu_cache_usage_perc{{{selector}}} * 0 + 1) '
+                f'or (sum(DCGM_FI_DEV_FB_USED{{{dcgm_selector}}} + DCGM_FI_DEV_FB_FREE{{{dcgm_selector}}} + DCGM_FI_DEV_FB_RESERVED{{{dcgm_selector}}}) / 1024)'
             ),
             "gpu_utilization_pct": (
                 f'(vllm:gpu_utilization_perc{{{selector}}} * 100) '
-                f'or (vllm:gpu_utilization{{{selector}}} * 100)'
+                f'or (vllm:gpu_utilization{{{selector}}} * 100) '
+                f'or sum(DCGM_FI_DEV_GPU_UTIL{{{dcgm_selector}}})'
             ),
         }
 
@@ -253,6 +402,9 @@ class MultiTargetMetricsCollector:
         metrics.pod_count = k8s_data.get("pod_count", 0)
         metrics.pod_ready = k8s_data.get("pod_ready", 0)
 
+        if target.is_default:
+            update_metrics(metrics)
+
         target.latest = metrics
         target.history.append(metrics)
 
@@ -271,9 +423,16 @@ class MultiTargetMetricsCollector:
             )
 
         result: dict[str, float] = {}
+        missing_metrics: list[str] = []
         for metric_name, value in responses:
             if value is not None:
                 result[metric_name] = value
+            else:
+                missing_metrics.append(metric_name)
+
+        if self._is_default_target(namespace, is_name):
+            self._missing_metrics = missing_metrics
+
         return result
 
     async def _fetch_prometheus_metric(

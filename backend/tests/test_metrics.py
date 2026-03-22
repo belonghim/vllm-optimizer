@@ -3,7 +3,7 @@ import time
 from fastapi.testclient import TestClient
 
 from ..main import app
-from ..services.metrics_collector import VLLMMetrics
+from ..services.multi_target_collector import VLLMMetrics
 
 
 @pytest.fixture
@@ -30,7 +30,7 @@ def test_metrics_history_endpoint_returns_list(client):
 
 def test_metrics_history_endpoint_handles_nan_gracefully(client):
     # Inject a VLLMMetrics with NaN values into the collector's history
-    from ..services.shared import metrics_collector
+    from ..services.shared import multi_target_collector
     
     # Create a metrics object with NaN latency values
     nan_metrics = VLLMMetrics(
@@ -52,8 +52,9 @@ def test_metrics_history_endpoint_handles_nan_gracefully(client):
         pod_ready=3,
     )
     
-    # Inject into history deque
-    metrics_collector._history.append(nan_metrics)
+    default_target = multi_target_collector._get_default_target()
+    assert default_target is not None
+    default_target.history.append(nan_metrics)
     
     # Call /api/metrics/history — should return 200, not 500
     response = client.get("/api/metrics/history?last_n=5")
@@ -66,3 +67,47 @@ def test_metrics_history_endpoint_handles_nan_gracefully(client):
     # Verify response is valid JSON
     data = response.json()
     assert isinstance(data, list)
+
+
+def test_metrics_batch_endpoint(isolated_client):
+    response = isolated_client.post(
+        "/api/metrics/batch",
+        json={
+            "targets": [
+                {"namespace": "vllm-lab-dev", "inferenceService": "llm-ov"}
+            ]
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "results" in data
+    assert "vllm-lab-dev/llm-ov" in data["results"]
+    target_result = data["results"]["vllm-lab-dev/llm-ov"]
+    assert "status" in target_result
+    assert target_result["status"] in ("collecting", "ready")
+
+
+def test_metrics_batch_endpoint_empty_targets(isolated_client):
+    response = isolated_client.post(
+        "/api/metrics/batch",
+        json={"targets": []},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["results"] == {}
+
+
+def test_metrics_batch_endpoint_multiple_targets(isolated_client):
+    response = isolated_client.post(
+        "/api/metrics/batch",
+        json={
+            "targets": [
+                {"namespace": "ns1", "inferenceService": "is1"},
+                {"namespace": "ns2", "inferenceService": "is2"},
+            ]
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "ns1/is1" in data["results"]
+    assert "ns2/is2" in data["results"]

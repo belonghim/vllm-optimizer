@@ -9,12 +9,12 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from .conftest import _StubMetricsCollector
+from .conftest import _StubMultiTargetMetricsCollector
 from ..models.load_test import LoadTestConfig
 
 
 def _collector_for_creator(fragment: str):
-    for instance in _StubMetricsCollector.instances:
+    for instance in _StubMultiTargetMetricsCollector.instances:
         if instance.creator and fragment in instance.creator:
             return instance
     return None
@@ -93,12 +93,10 @@ def test_startup_metrics_endpoint_triggers_collector(isolated_client: TestClient
     assert isinstance(payload.get("running"), bool)
     assert isinstance(payload.get("collector_version"), str)
     time.sleep(0.2)
-    # With shared singleton, the collector is created in services/shared.py (not in the shim).
-    # We verify that ANY stub instance had start_collection triggered.
-    assert _StubMetricsCollector.instances, "No MetricsCollector stub was instantiated"
+    assert _StubMultiTargetMetricsCollector.instances, "No collector stub was instantiated"
     assert any(
-        instance.start_requests for instance in _StubMetricsCollector.instances
-    ), "MetricsCollector.start_collection was not triggered by the shim"
+        instance.start_requests for instance in _StubMultiTargetMetricsCollector.instances
+    ), "collector.start_collection was not triggered by the shim"
 
 
 def test_compute_stats_includes_total_requested():

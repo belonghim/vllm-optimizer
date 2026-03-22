@@ -11,7 +11,7 @@ _app_state: WeakKeyDictionary[Any, dict[str, Any]] = WeakKeyDictionary()
 
 def _build_state() -> Optional[dict[str, Any]]:
     try:
-        from services.shared import metrics_collector as collector
+        from services.shared import multi_target_collector as collector
     except Exception:  # intentional: fail-open
         return None
 

@@ -8,8 +8,8 @@ from fastapi.responses import PlainTextResponse
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from models.load_test import MetricsSnapshot, TargetedMetricsResponse
-from services.shared import metrics_collector, multi_target_collector
+from models.load_test import BatchMetricsRequest, BatchMetricsResponse, MetricsSnapshot, TargetedMetricsResponse
+from services.shared import multi_target_collector, runtime_config
 
 router = APIRouter()
 
@@ -101,7 +101,43 @@ async def get_latest_metrics(
             hasMonitoringLabel=has_monitoring_label,
         )
 
-    return _convert_to_snapshot(metrics_collector.latest)
+    default_namespace = runtime_config.vllm_namespace
+    default_is_name = runtime_config.vllm_is_name
+    _ = await multi_target_collector.register_target(default_namespace, default_is_name)
+    vllm_metrics = await multi_target_collector.get_metrics(default_namespace, default_is_name)
+    return _convert_to_snapshot(vllm_metrics)
+
+
+@router.post("/batch")
+async def get_batch_metrics(request: BatchMetricsRequest) -> BatchMetricsResponse:
+    """
+    Get latest metrics for multiple targets in a single request.
+
+    Request body contains a list of targets (namespace + inferenceService).
+    Response maps each target to its metrics data and status.
+    """
+    results: dict[str, dict[str, object]] = {}
+
+    for target in request.targets:
+        key = f"{target.namespace}/{target.inferenceService}"
+        registered = await multi_target_collector.register_target(target.namespace, target.inferenceService)
+        if not registered:
+            results[key] = {"data": None, "status": "max_targets_reached"}
+            continue
+
+        vllm_metrics = await multi_target_collector.get_metrics(target.namespace, target.inferenceService)
+        has_monitoring_label = multi_target_collector.get_has_monitoring_label(target.namespace, target.inferenceService)
+
+        target_cache = multi_target_collector._targets.get(key)
+        history = [_convert_to_snapshot(m).model_dump() for m in list(target_cache.history)[-60:]] if target_cache else []
+
+        if vllm_metrics is None:
+            results[key] = {"data": None, "status": "collecting", "hasMonitoringLabel": has_monitoring_label, "history": history}
+        else:
+            snapshot = _convert_to_snapshot(vllm_metrics)
+            results[key] = {"data": snapshot.model_dump(), "status": "ready", "hasMonitoringLabel": has_monitoring_label, "history": history}
+
+    return BatchMetricsResponse(results=results)
 
 
 @router.get("/history", response_model=List[MetricsSnapshot])
@@ -129,7 +165,7 @@ async def get_metrics_history(
         history = list(target.history)[-n:]
         return [_convert_to_snapshot(m) for m in history]
     
-    history_dict = metrics_collector.get_history_dict(last_n or 60)
+    history_dict = multi_target_collector.get_history_dict(last_n or 60)
     
     return [
         MetricsSnapshot(
@@ -165,8 +201,6 @@ async def get_prometheus_metrics() -> PlainTextResponse:
     from metrics.prometheus_metrics import generate_metrics
     from fastapi.responses import PlainTextResponse
     return PlainTextResponse(generate_metrics(), media_type="text/plain; version=0.0.4")
-
-
 
 
 

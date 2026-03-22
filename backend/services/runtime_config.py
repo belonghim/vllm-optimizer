@@ -39,6 +39,9 @@ class RuntimeConfig:
 
     def set_vllm_namespace(self, value: str) -> None:
         self._default_namespace = value
+        if self._multi_target_collector is not None and hasattr(self._multi_target_collector, "set_default_target"):
+            self._multi_target_collector.set_default_target(namespace=value)
+            return
         target = self._get_default_target()
         if target:
             target.namespace = value
@@ -57,6 +60,9 @@ class RuntimeConfig:
 
     def set_vllm_is_name(self, value: str) -> None:
         self._default_is_name = value
+        if self._multi_target_collector is not None and hasattr(self._multi_target_collector, "set_default_target"):
+            self._multi_target_collector.set_default_target(is_name=value)
+            return
         target = self._get_default_target()
         if target:
             target.is_name = value

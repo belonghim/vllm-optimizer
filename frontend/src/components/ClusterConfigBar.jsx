@@ -15,8 +15,7 @@ export default function ClusterConfigBar() {
   }, [isLoading, endpoint, namespace, inferenceservice]);
 
   useEffect(() => {
-    const originalConfig = { endpoint, namespace, inferenceservice };
-    const isChanged = JSON.stringify(originalConfig) !== JSON.stringify(localConfig);
+    const isChanged = endpoint !== localConfig.endpoint || namespace !== localConfig.namespace || inferenceservice !== localConfig.inferenceservice;
     setIsDirty(isChanged);
     if (!isChanged) {
       setIsSaved(false);
