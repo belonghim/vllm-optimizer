@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { mockMetrics, mockHistory } from "../mockData";
 import { useMockData } from "../contexts/MockDataContext";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
-import { API, COLORS, TARGET_COLORS } from "../constants";
+import { API, COLORS, TARGET_COLORS, METRIC_KEYS } from "../constants";
 import Chart from "../components/Chart";
 import ErrorAlert from "../components/ErrorAlert";
 import MultiTargetSelector from "../components/MultiTargetSelector";
@@ -24,7 +24,6 @@ const CHART_DEFINITIONS = [
 
 const LS_KEY = 'vllm-optimizer-chart-config';
 const DEFAULT_ORDER = CHART_DEFINITIONS.map(c => c.id);
-const METRIC_KEYS = ['tps', 'ttft', 'ttft_fill', 'lat_p99', 'lat_p99_fill', 'kv', 'running', 'waiting', 'rps', 'ttft_p99', 'lat_mean', 'kv_hit', 'gpu_util', 'gpu_mem_used', 'gpu_mem_total'];
 
 function loadChartConfig() {
   try {
