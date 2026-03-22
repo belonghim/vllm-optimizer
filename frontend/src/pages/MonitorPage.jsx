@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { mockMetrics, mockHistory } from "../mockData";
 import { useMockData } from "../contexts/MockDataContext";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
@@ -8,16 +8,60 @@ import ErrorAlert from "../components/ErrorAlert";
 import MultiTargetSelector from "../components/MultiTargetSelector";
 import { buildGapFill } from "../utils/gapFill";
 
-const fmt = (n, d = 1) => (n == null ? "—" : Number(n).toFixed(d));
 const fmtTime = (ts) => new Date(ts * 1000).toLocaleTimeString("ko-KR", { hour12: false });
 
 const TARGET_COLORS = [COLORS.accent, COLORS.cyan, COLORS.green, COLORS.red, COLORS.purple];
+
+const CHART_DEFINITIONS = [
+  { id: 'tps',      title: 'Throughput (TPS)' },
+  { id: 'latency',  title: 'Latency (ms)' },
+  { id: 'ttft',     title: 'TTFT (ms)' },
+  { id: 'kv',       title: 'KV Cache Usage (%)' },
+  { id: 'kv_hit',   title: 'KV Cache Hit Rate (%)' },
+  { id: 'queue',    title: 'Request Queue' },
+  { id: 'rps',      title: 'RPS (Requests/sec)' },
+  { id: 'gpu_util', title: 'GPU Utilization (%)' },
+  { id: 'gpu_mem',  title: 'GPU Memory (GB)' },
+];
+
+const LS_KEY = 'vllm-optimizer-chart-config';
+const DEFAULT_ORDER = CHART_DEFINITIONS.map(c => c.id);
+
+function loadChartConfig() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return { order: DEFAULT_ORDER, hidden: [] };
+    const parsed = JSON.parse(raw);
+    const validIds = new Set(DEFAULT_ORDER);
+    const order = Array.isArray(parsed.order)
+      ? parsed.order.filter(id => validIds.has(id))
+      : DEFAULT_ORDER;
+    const hidden = Array.isArray(parsed.hidden)
+      ? parsed.hidden.filter(id => validIds.has(id))
+      : [];
+    const inOrder = new Set(order);
+    DEFAULT_ORDER.forEach(id => { if (!inOrder.has(id)) order.push(id); });
+    return { order, hidden };
+  } catch {
+    return { order: DEFAULT_ORDER, hidden: [] };
+  }
+}
+
+function saveChartConfig(order, hidden) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({ order, hidden }));
+  } catch {
+    // ignore storage errors
+  }
+}
 
 function MonitorPage() {
   const { isMockEnabled } = useMockData();
   const { targets } = useClusterConfig();
   const [targetStates, setTargetStates] = useState({});
   const [error, setError] = useState(null);
+  const [chartOrder, setChartOrder] = useState(() => loadChartConfig().order);
+  const [hiddenCharts, setHiddenCharts] = useState(() => loadChartConfig().hidden);
 
   useEffect(() => {
     if (targets.length === 0) {
@@ -251,38 +295,73 @@ function MonitorPage() {
     }));
   }, [targets, defaultKey]);
 
+  const chartLinesMap = {
+    tps:      tpsLines,
+    latency:  latencyLines,
+    ttft:     ttftLines,
+    kv:       kvLines,
+    kv_hit:   kvHitLines,
+    queue:    queueLines,
+    rps:      rpsLines,
+    gpu_util: gpuUtilLines,
+    gpu_mem:  gpuMemLines,
+  };
+
+  const hideChart = (id) => {
+    const newHidden = [...hiddenCharts, id];
+    setHiddenCharts(newHidden);
+    saveChartConfig(chartOrder, newHidden);
+  };
+
+  const showChart = (id) => {
+    const newOrder = [...chartOrder.filter(x => x !== id), id];
+    const newHidden = hiddenCharts.filter(x => x !== id);
+    setChartOrder(newOrder);
+    setHiddenCharts(newHidden);
+    saveChartConfig(newOrder, newHidden);
+  };
+
   return (
     <div className="flex-col-1">
       <MultiTargetSelector targetStatuses={targetStatuses} targetStates={targetStates} />
       <ErrorAlert message={error} className="error-alert--m08" />
       
-      <div className="grid-2 gap-1" aria-label="Throughput (TPS)">
-        <Chart data={mergedHistory} title="Throughput (TPS)" lines={tpsLines} />
-      </div>
-      <div className="grid-2 gap-1" aria-label="Latency (ms)">
-        <Chart data={mergedHistory} title="Latency (ms)" lines={latencyLines} />
-      </div>
-      <div className="grid-2 gap-1" aria-label="TTFT (ms)">
-        <Chart data={mergedHistory} title="TTFT (ms)" lines={ttftLines} />
-      </div>
-      <div className="grid-2 gap-1" aria-label="KV Cache Usage (%)">
-        <Chart data={mergedHistory} title="KV Cache Usage (%)" lines={kvLines} />
-      </div>
-      <div className="grid-2 gap-1" aria-label="KV Cache Hit Rate (%)">
-        <Chart data={mergedHistory} title="KV Cache Hit Rate (%)" lines={kvHitLines} />
-      </div>
-      <div className="grid-2 gap-1" aria-label="Request Queue">
-        <Chart data={mergedHistory} title="Request Queue" lines={queueLines} />
-      </div>
-      <div className="grid-2 gap-1" aria-label="RPS (Requests/sec)">
-        <Chart data={mergedHistory} title="RPS (Requests/sec)" lines={rpsLines} />
-      </div>
-      <div className="grid-2 gap-1" aria-label="GPU Utilization (%)">
-        <Chart data={mergedHistory} title="GPU Utilization (%)" lines={gpuUtilLines} />
-      </div>
-      <div className="grid-2 gap-1" aria-label="GPU Memory (GB)">
-        <Chart data={mergedHistory} title="GPU Memory (GB)" lines={gpuMemLines} />
-      </div>
+      {chartOrder
+        .filter(id => !hiddenCharts.includes(id))
+        .map(id => {
+          const def = CHART_DEFINITIONS.find(c => c.id === id);
+          if (!def) return null;
+          return (
+            <div key={id} className="grid-2 gap-1" aria-label={def.title}>
+              <Chart
+                data={mergedHistory}
+                title={def.title}
+                lines={chartLinesMap[id] || []}
+                onHide={() => hideChart(id)}
+              />
+            </div>
+          );
+        })
+      }
+      {hiddenCharts.length > 0 && (
+        <div className="hidden-charts-bar">
+          <span className="hidden-charts-bar-label">숨긴 차트:</span>
+          {hiddenCharts.map(id => {
+            const def = CHART_DEFINITIONS.find(c => c.id === id);
+            if (!def) return null;
+            return (
+              <button
+                key={id}
+                className="hidden-chart-tag"
+                onClick={() => showChart(id)}
+                title="클릭하여 복원"
+              >
+                {def.title}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
