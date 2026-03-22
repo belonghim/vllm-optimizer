@@ -24,7 +24,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 function Chart({ data, lines, title, height = 180, onHide }) {
   return (
     <div className="chart-container" aria-label={title}>
-      <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="section-title chart-title-row">
         <span>{title}</span>
         {onHide && (
           <button className="chart-hide-btn" onClick={onHide} title="차트 숨기기">×</button>

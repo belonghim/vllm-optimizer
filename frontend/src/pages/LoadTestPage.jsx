@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useMockData } from "../contexts/MockDataContext";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
 import { API, COLORS } from "../constants";
+import { fmt } from "../utils/format";
 import MetricCard from "../components/MetricCard";
 import Chart from "../components/Chart";
 import { simulateLoadTest } from "../mockData";
@@ -9,8 +10,6 @@ import LoadTestConfig from "../components/LoadTestConfig";
 import ErrorAlert from "../components/ErrorAlert";
 import { useLoadTestSSE } from "../hooks/useLoadTestSSE";
 import { calcGpuEfficiency } from "../utils/metrics";
-
-const fmt = (n, d = 1) => (n == null ? "—" : Number(n).toFixed(d));
 
 function LoadTestPage() {
   const { endpoint: globalEndpoint, inferenceservice, isLoading: globalIsLoading } = useClusterConfig();

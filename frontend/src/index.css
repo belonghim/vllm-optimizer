@@ -485,3 +485,9 @@ select.input option { background: var(--surface-color); }
 .multi-target-default-tag {
   font-size: 8px;
 }
+.multi-target-no-border { margin-bottom: 1px; border-bottom: none; }
+.multi-target-warning-icon { margin-left: 6px; cursor: help; }
+.multi-target-action-cell { text-align: right; }
+.multi-target-input-row { display: flex; gap: 6px; align-items: center; }
+.multi-target-btn-row { display: flex; gap: 4px; }
+.chart-title-row { display: flex; justify-content: space-between; align-items: center; }

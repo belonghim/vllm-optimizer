@@ -1,14 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
-import { API, COLORS } from "../constants";
+import { API, COLORS, TOOLTIP_STYLE } from "../constants";
+import { fmt } from "../utils/format";
 import { mockBenchmarks } from "../mockData";
 import { calcGpuEfficiency } from "../utils/metrics";
 import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { useMockData } from "../contexts/MockDataContext";
 import ErrorAlert from "../components/ErrorAlert";
-
-const fmt = (n, d = 1) => (n == null ? "—" : Number(n).toFixed(d));
-
-const TOOLTIP_STYLE = { background: COLORS.surface, border: `1px solid ${COLORS.border}` };
 
 function BenchmarkPage({ isActive }) {
   const [benchmarks, setBenchmarks] = useState([]);

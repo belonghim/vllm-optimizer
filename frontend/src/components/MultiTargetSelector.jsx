@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
 import { TARGET_COLORS } from "../constants";
-
-const fmt = (n, d = 1) => (n == null ? '—' : Number(n).toFixed(d));
+import { fmt } from "../utils/format";
 
 const TOTAL_COLUMNS = 13;
 
@@ -22,7 +21,7 @@ export default function MultiTargetSelector({ targetStatuses = {}, targetStates 
   const getTargetKey = (t) => `${t.namespace}/${t.inferenceService}`;
 
   return (
-    <div className="multi-target-selector panel" style={{ marginBottom: '1px', borderBottom: 'none' }}>
+    <div className="multi-target-selector panel multi-target-no-border">
       <div className="section-title multi-target-header">
         <span>모니터링 대상 ({targets.length}/{maxTargets})</span>
         {!isAdding && (
@@ -79,7 +78,7 @@ export default function MultiTargetSelector({ targetStatuses = {}, targetStates 
                         {target.inferenceService}
                         {!hasMonitoringLabel && (
                           <span 
-                            style={{ marginLeft: '6px', cursor: 'help' }} 
+                            className="multi-target-warning-icon"
                             title="이 namespace에 openshift.io/cluster-monitoring=true 레이블이 없어 메트릭을 수집할 수 없습니다."
                             data-testid="no-monitoring-warning"
                           >
@@ -114,7 +113,7 @@ export default function MultiTargetSelector({ targetStatuses = {}, targetStates 
                         <td>{data.pods_ready} / {data.pods}</td>
                       </>
                     )}
-                    <td style={{ textAlign: 'right' }}>
+                    <td className="multi-target-action-cell">
                       {target.isDefault ? (
                         <span className="tag tag-completed multi-target-default-tag">기본</span>
                       ) : (
@@ -134,7 +133,7 @@ export default function MultiTargetSelector({ targetStatuses = {}, targetStates 
             {isAdding && (
               <tr>
                 <td colSpan={TOTAL_COLUMNS - 2}>
-                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <div className="multi-target-input-row">
                     <input 
                       className="input multi-target-input" 
                       placeholder="Namespace" 
@@ -152,7 +151,7 @@ export default function MultiTargetSelector({ targetStatuses = {}, targetStates 
                   </div>
                 </td>
                 <td colSpan={2}>
-                  <div style={{ display: 'flex', gap: '4px' }}>
+                  <div className="multi-target-btn-row">
                     <button className="btn btn-green multi-target-action-btn" onClick={handleAdd} data-testid="confirm-add-btn">확인</button>
                     <button className="btn btn-danger multi-target-action-btn" onClick={() => setIsAdding(false)}>취소</button>
                   </div>

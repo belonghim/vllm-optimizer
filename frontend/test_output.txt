@@ -1,0 +1,20 @@
+
+ RUN  v3.2.4 /home/user/project/vllm-optimizer/frontend
+
+ ✓ src/mockData.test.js (6 tests) 11ms
+ ✓ src/pages/MonitorPage.chartToggle.test.jsx (10 tests) 29ms
+ ✓ src/components/MetricCard.test.jsx (1 test) 52ms
+ ✓ src/utils/gapFill.test.js (7 tests) 6ms
+ ✓ src/components/ErrorBoundary.test.jsx (1 test) 77ms
+ ✓ src/components/__tests__/TunerProgressBar.test.jsx (7 tests) 227ms
+ ✓ src/components/MultiTargetSelector.test.jsx (12 tests) 359ms
+ ✓ src/pages/TunerPage.test.jsx (6 tests) 196ms
+ ✓ src/pages/MonitorPage.test.jsx (4 tests) 268ms
+ ✓ src/pages/BenchmarkPage.test.jsx (5 tests) 196ms
+ ✓ src/pages/LoadTestPage.test.jsx (15 tests) 448ms
+
+ Test Files  11 passed (11)
+      Tests  74 passed (74)
+   Start at  21:25:43
+   Duration  2.74s (transform 824ms, setup 1.33s, collect 4.05s, tests 1.87s, environment 8.63s, prepare 2.12s)
+

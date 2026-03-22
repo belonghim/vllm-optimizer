@@ -1,10 +1,9 @@
-import { COLORS } from '../constants';
+import { COLORS, TOOLTIP_STYLE } from '../constants';
+import { fmt } from '../utils/format';
 import MetricCard from './MetricCard';
 import { ScatterChart, Scatter, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 
-const fmt = (n, d = 1) => (n == null ? "—" : Number(n).toFixed(d));
-
-const TOOLTIP_STYLE = { background: COLORS.surface, border: `1px solid ${COLORS.border}`, fontSize: 11 };
+const TUNER_TOOLTIP_STYLE = { ...TOOLTIP_STYLE, fontSize: 11 };
 
 export default function TunerResults({ trials, bestParams, status, isRunning, importance }) {
   const scatterData = trials.map(t => ({

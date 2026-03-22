@@ -19,6 +19,8 @@ export const font = {
   display: "'Barlow Condensed', 'Oswald', sans-serif",
 };
 
+export const TOOLTIP_STYLE = { background: COLORS.surface, border: `1px solid ${COLORS.border}` };
+
 export const TARGET_COLORS = [COLORS.accent, COLORS.cyan, COLORS.green, COLORS.red, COLORS.purple];
 
 export const METRIC_KEYS = ['tps', 'ttft', 'ttft_fill', 'lat_p99', 'lat_p99_fill', 'kv', 'running', 'waiting', 'rps', 'ttft_p99', 'lat_mean', 'kv_hit', 'gpu_util', 'gpu_mem_used', 'gpu_mem_total'];
