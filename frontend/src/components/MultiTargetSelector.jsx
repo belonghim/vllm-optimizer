@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
-import { COLORS, TARGET_COLORS } from "../constants";
+import { TARGET_COLORS } from "../constants";
 
 const fmt = (n, d = 1) => (n == null ? '—' : Number(n).toFixed(d));
 

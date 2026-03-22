@@ -109,9 +109,9 @@ export function ClusterConfigProvider({ children }) {
     });
   }, []);
 
-  const addTarget = useCallback((namespace, inferenceService) => {
-    setConfig(prev => {
-      const currentTargets = prev.targets || [];
+   const addTarget = useCallback((namespace, inferenceService) => {
+     setConfig(prev => {
+       const currentTargets = prev.targets;
       if (currentTargets.length >= MAX_TARGETS) return prev;
 
       const newTarget = {
@@ -127,42 +127,39 @@ export function ClusterConfigProvider({ children }) {
     });
   }, []);
 
-  const removeTarget = useCallback((namespace, inferenceService) => {
-    setConfig(prev => {
-      const currentTargets = prev.targets || [];
+   const removeTarget = useCallback((namespace, inferenceService) => {
+     setConfig(prev => {
+       const currentTargets = prev.targets;
       const target = currentTargets.find(t => t.namespace === namespace && t.inferenceService === inferenceService);
 
       if (target && target.isDefault) return prev;
 
-      const newTargets = currentTargets.filter(t => !(t.namespace === namespace && t.inferenceService === inferenceService));
+       const newTargets = currentTargets.filter(t => !(t.namespace === namespace && t.inferenceService === inferenceService));
 
-      if (target && target.isDefault && newTargets.length > 0) {
-        newTargets[0] = { ...newTargets[0], isDefault: true };
-      }
-
-      return {
+       return {
         ...prev,
         targets: newTargets,
       };
     });
   }, []);
 
-  const setDefaultTarget = useCallback((index) => {
-    setConfig(prev => {
-      const currentTargets = prev.targets || [];
-      if (index < 0 || index >= currentTargets.length) return prev;
+   const setDefaultTarget = useCallback((namespace, inferenceService) => {
+      setConfig(prev => {
+        const currentTargets = prev.targets;
+       const target = currentTargets.find(t => t.namespace === namespace && t.inferenceService === inferenceService);
+       if (!target) return prev;
 
-      const newTargets = currentTargets.map((t, i) => ({
-        ...t,
-        isDefault: i === index,
-      }));
+       const newTargets = currentTargets.map((t) => ({
+         ...t,
+         isDefault: t.namespace === namespace && t.inferenceService === inferenceService,
+       }));
 
-      return {
-        ...prev,
-        targets: newTargets,
-      };
-    });
-  }, []);
+       return {
+         ...prev,
+         targets: newTargets,
+       };
+     });
+   }, []);
 
   const value = useMemo(() => {
     const defaultTarget = config.targets.find(t => t.isDefault) || config.targets[0];
