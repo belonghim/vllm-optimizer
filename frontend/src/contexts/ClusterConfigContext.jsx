@@ -91,6 +91,7 @@ export function ClusterConfigProvider({ children }) {
             isDefault: true,
           }] : [],
           maxTargets: MAX_TARGETS,
+          version: SCHEMA_VERSION,
         };
         setConfig(apiConfig);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(apiConfig));
