@@ -10,6 +10,52 @@ import { buildGapFill } from "../utils/gapFill";
 
 const fmtTime = (ts) => new Date(ts * 1000).toLocaleTimeString("ko-KR", { hour12: false });
 
+export function buildChartLinesMap(targets, defaultKey) {
+  const makeMultiLines = (metricKey) =>
+    targets.map((t, i) => ({
+      key: `${t.namespace}/${t.inferenceService}_${metricKey}`,
+      label: t.inferenceService,
+      color: TARGET_COLORS[i % TARGET_COLORS.length],
+    }));
+
+  if (targets.length === 1 && defaultKey) {
+    return {
+      tps:      [{ key: `${defaultKey}_tps`, color: COLORS.accent, label: "TPS" }],
+      latency:  [
+        { key: `${defaultKey}_lat_p99_fill`, color: COLORS.red, label: "P99 (idle)", dash: true },
+        { key: `${defaultKey}_lat_p99`, color: COLORS.red, label: "Latency P99" },
+        { key: `${defaultKey}_lat_mean`, color: COLORS.accent, label: "Latency mean" },
+      ],
+      ttft:     [
+        { key: `${defaultKey}_ttft_fill`, color: COLORS.cyan, label: "TTFT (idle)", dash: true },
+        { key: `${defaultKey}_ttft`, color: COLORS.cyan, label: "TTFT mean" },
+        { key: `${defaultKey}_ttft_p99`, color: COLORS.accent, label: "TTFT p99" },
+      ],
+      kv:       [{ key: `${defaultKey}_kv`, color: COLORS.purple, label: "KV Cache %" }],
+      kv_hit:   [{ key: `${defaultKey}_kv_hit`, color: COLORS.cyan, label: "KV Hit Rate %" }],
+      queue:    [
+        { key: `${defaultKey}_running`, color: COLORS.green, label: "Running" },
+        { key: `${defaultKey}_waiting`, color: COLORS.red, label: "Waiting" },
+      ],
+      rps:      [{ key: `${defaultKey}_rps`, color: COLORS.green, label: "RPS" }],
+      gpu_util: [{ key: `${defaultKey}_gpu_util`, color: COLORS.red, label: "GPU Util %" }],
+      gpu_mem:  [{ key: `${defaultKey}_gpu_mem_used`, color: COLORS.purple, label: "GPU Mem Used (GB)" }],
+    };
+  }
+
+  return {
+    tps:      makeMultiLines('tps'),
+    latency:  makeMultiLines('lat_p99'),
+    ttft:     makeMultiLines('ttft'),
+    kv:       makeMultiLines('kv'),
+    kv_hit:   makeMultiLines('kv_hit'),
+    queue:    makeMultiLines('running'),
+    rps:      makeMultiLines('rps'),
+    gpu_util: makeMultiLines('gpu_util'),
+    gpu_mem:  makeMultiLines('gpu_mem_used'),
+  };
+}
+
 const CHART_DEFINITIONS = [
   { id: 'tps',      title: 'Throughput (TPS)' },
   { id: 'latency',  title: 'Latency (ms)' },
@@ -176,51 +222,7 @@ function MonitorPage() {
     return dt ? `${dt.namespace}/${dt.inferenceService}` : null;
   }, [targets]);
 
-  const chartLinesMap = useMemo(() => {
-    const makeMultiLines = (metricKey) =>
-      targets.map((t, i) => ({
-        key: `${t.namespace}/${t.inferenceService}_${metricKey}`,
-        label: t.inferenceService,
-        color: TARGET_COLORS[i % TARGET_COLORS.length],
-      }));
-
-    if (targets.length === 1) {
-      return {
-        tps:      [{ key: `${defaultKey}_tps`, color: COLORS.accent, label: "TPS" }],
-        latency:  [
-          { key: `${defaultKey}_lat_p99_fill`, color: COLORS.red, label: "P99 (idle)", dash: true },
-          { key: `${defaultKey}_lat_p99`, color: COLORS.red, label: "Latency P99" },
-          { key: `${defaultKey}_lat_mean`, color: COLORS.accent, label: "Latency mean" },
-        ],
-        ttft:     [
-          { key: `${defaultKey}_ttft_fill`, color: COLORS.cyan, label: "TTFT (idle)", dash: true },
-          { key: `${defaultKey}_ttft`, color: COLORS.cyan, label: "TTFT mean" },
-          { key: `${defaultKey}_ttft_p99`, color: COLORS.accent, label: "TTFT p99" },
-        ],
-        kv:       [{ key: `${defaultKey}_kv`, color: COLORS.purple, label: "KV Cache %" }],
-        kv_hit:   [{ key: `${defaultKey}_kv_hit`, color: COLORS.cyan, label: "KV Hit Rate %" }],
-        queue:    [
-          { key: `${defaultKey}_running`, color: COLORS.green, label: "Running" },
-          { key: `${defaultKey}_waiting`, color: COLORS.red, label: "Waiting" },
-        ],
-        rps:      [{ key: `${defaultKey}_rps`, color: COLORS.green, label: "RPS" }],
-        gpu_util: [{ key: `${defaultKey}_gpu_util`, color: COLORS.red, label: "GPU Util %" }],
-        gpu_mem:  [{ key: `${defaultKey}_gpu_mem_used`, color: COLORS.purple, label: "GPU Mem Used (GB)" }],
-      };
-    }
-
-    return {
-      tps:      makeMultiLines('tps'),
-      latency:  makeMultiLines('lat_p99'),
-      ttft:     makeMultiLines('ttft'),
-      kv:       makeMultiLines('kv'),
-      kv_hit:   makeMultiLines('kv_hit'),
-      queue:    makeMultiLines('running'),
-      rps:      makeMultiLines('rps'),
-      gpu_util: makeMultiLines('gpu_util'),
-      gpu_mem:  makeMultiLines('gpu_mem_used'),
-    };
-  }, [targets, defaultKey]);
+  const chartLinesMap = useMemo(() => buildChartLinesMap(targets, defaultKey), [targets, defaultKey]);
 
   const hideChart = useCallback((id) => {
     const newHidden = [...hiddenCharts, id];

@@ -1,4 +1,4 @@
-import { renderHook, act } from "@testing-library/react";
+import { renderHook, act, waitFor } from "@testing-library/react";
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import { ClusterConfigProvider, useClusterConfig } from "./ClusterConfigContext";
 
@@ -30,17 +30,17 @@ describe("ClusterConfigContext", () => {
     expect(result.current.targets).toEqual([]);
     expect(result.current.isLoading).toBe(true);
 
-    await new Promise((resolve) => setTimeout(resolve, 50));
-
-    expect(result.current.isLoading).toBe(false);
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
   });
 
   it("addTarget adds a target with isDefault true when targets are empty", async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
-    await new Promise((resolve) => setTimeout(resolve, 50));
-
-    expect(result.current.targets.length).toBe(0);
+    await waitFor(() => {
+      expect(result.current.targets.length).toBe(0);
+    });
 
     act(() => {
       result.current.addTarget("ns1", "svc1");
@@ -57,7 +57,9 @@ describe("ClusterConfigContext", () => {
   it("addTarget does not exceed MAX_TARGETS limit (5)", async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await waitFor(() => {
+      expect(result.current.targets).toEqual([]);
+    });
 
     act(() => {
       result.current.addTarget("ns1", "svc1");
@@ -79,7 +81,9 @@ describe("ClusterConfigContext", () => {
   it("removeTarget removes non-default target by (namespace, inferenceService) key", async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await waitFor(() => {
+      expect(result.current.targets).toEqual([]);
+    });
 
     act(() => {
       result.current.addTarget("ns1", "svc1");
@@ -101,7 +105,9 @@ describe("ClusterConfigContext", () => {
   it("removeTarget does NOT remove isDefault target (no-op)", async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await waitFor(() => {
+      expect(result.current.targets).toEqual([]);
+    });
 
     act(() => {
       result.current.addTarget("ns1", "svc1");
@@ -122,7 +128,9 @@ describe("ClusterConfigContext", () => {
   it("setDefaultTarget changes default to specified target", async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await waitFor(() => {
+      expect(result.current.targets).toEqual([]);
+    });
 
     act(() => {
       result.current.addTarget("ns1", "svc1");
@@ -143,8 +151,8 @@ describe("ClusterConfigContext", () => {
   it("exposes maxTargets constant as 5", async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
-    await new Promise((resolve) => setTimeout(resolve, 50));
-
-    expect(result.current.maxTargets).toBe(5);
+    await waitFor(() => {
+      expect(result.current.maxTargets).toBe(5);
+    });
   });
 });
