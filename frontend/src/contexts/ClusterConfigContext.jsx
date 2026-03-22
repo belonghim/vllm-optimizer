@@ -172,7 +172,7 @@ export function ClusterConfigProvider({ children }) {
       inferenceservice: defaultTarget?.inferenceService || "",
       isLoading,
       updateConfig,
-      targets: config.targets || [],
+      targets: config.targets,
       maxTargets: config.maxTargets || MAX_TARGETS,
       addTarget,
       removeTarget,

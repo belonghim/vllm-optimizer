@@ -2,15 +2,13 @@ import { useState, useEffect, useMemo } from "react";
 import { mockMetrics, mockHistory } from "../mockData";
 import { useMockData } from "../contexts/MockDataContext";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
-import { API, COLORS } from "../constants";
+import { API, COLORS, TARGET_COLORS } from "../constants";
 import Chart from "../components/Chart";
 import ErrorAlert from "../components/ErrorAlert";
 import MultiTargetSelector from "../components/MultiTargetSelector";
 import { buildGapFill } from "../utils/gapFill";
 
 const fmtTime = (ts) => new Date(ts * 1000).toLocaleTimeString("ko-KR", { hour12: false });
-
-const TARGET_COLORS = [COLORS.accent, COLORS.cyan, COLORS.green, COLORS.red, COLORS.purple];
 
 const CHART_DEFINITIONS = [
   { id: 'tps',      title: 'Throughput (TPS)' },
@@ -295,7 +293,7 @@ function MonitorPage() {
     }));
   }, [targets, defaultKey]);
 
-  const chartLinesMap = {
+  const chartLinesMap = useMemo(() => ({
     tps:      tpsLines,
     latency:  latencyLines,
     ttft:     ttftLines,
@@ -305,7 +303,7 @@ function MonitorPage() {
     rps:      rpsLines,
     gpu_util: gpuUtilLines,
     gpu_mem:  gpuMemLines,
-  };
+  }), [tpsLines, latencyLines, ttftLines, kvLines, kvHitLines, queueLines, rpsLines, gpuUtilLines, gpuMemLines]);
 
   const hideChart = (id) => {
     const newHidden = [...hiddenCharts, id];

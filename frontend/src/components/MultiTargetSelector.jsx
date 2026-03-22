@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
-import { COLORS } from "../constants";
-
-const TARGET_COLORS = [COLORS.accent, COLORS.cyan, COLORS.green, COLORS.red, COLORS.purple];
+import { COLORS, TARGET_COLORS } from "../constants";
 
 const fmt = (n, d = 1) => (n == null ? '—' : Number(n).toFixed(d));
 

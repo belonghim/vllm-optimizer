@@ -18,3 +18,5 @@ export const font = {
   mono: "'JetBrains Mono', 'Fira Code', monospace",
   display: "'Barlow Condensed', 'Oswald', sans-serif",
 };
+
+export const TARGET_COLORS = [COLORS.accent, COLORS.cyan, COLORS.green, COLORS.red, COLORS.purple];
