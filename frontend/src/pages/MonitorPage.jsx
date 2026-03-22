@@ -71,7 +71,7 @@ function MonitorPage() {
             kv_hit: m.kv_hit_rate, gpu_util: m.gpu_util,
             gpu_mem_used: m.gpu_mem_used, gpu_mem_total: m.gpu_mem_total,
           }));
-          const history = buildGapFill(mapped, ['ttft', 'lat_p99']);
+          const history = buildGapFill(mapped, ['ttft', 'lat_p99', 'ttft_p99', 'lat_mean']);
 
           newStates[key] = {
             data: result.data || null,
@@ -155,10 +155,9 @@ function MonitorPage() {
   const latencyLines = useMemo(() => {
     if (targets.length === 1) {
       return [
-        { key: `${defaultKey}_ttft_fill`, color: COLORS.cyan, label: "TTFT (idle)", dash: true },
         { key: `${defaultKey}_lat_p99_fill`, color: COLORS.red, label: "P99 (idle)", dash: true },
-        { key: `${defaultKey}_ttft`, color: COLORS.cyan, label: "TTFT" },
-        { key: `${defaultKey}_lat_p99`, color: COLORS.red, label: "P99" },
+        { key: `${defaultKey}_lat_p99`, color: COLORS.red, label: "Latency P99" },
+        { key: `${defaultKey}_lat_mean`, color: COLORS.accent, label: "Latency mean" },
       ];
     }
     return targets.map((t, i) => ({
@@ -193,22 +192,96 @@ function MonitorPage() {
     }));
   }, [targets, defaultKey]);
 
+  const ttftLines = useMemo(() => {
+    if (targets.length === 1) {
+      return [
+        { key: `${defaultKey}_ttft_fill`, color: COLORS.cyan, label: "TTFT (idle)", dash: true },
+        { key: `${defaultKey}_ttft`, color: COLORS.cyan, label: "TTFT mean" },
+        { key: `${defaultKey}_ttft_p99`, color: COLORS.accent, label: "TTFT p99" },
+      ];
+    }
+    return targets.map((t, i) => ({
+      key: `${t.namespace}/${t.inferenceService}_ttft`,
+      label: t.inferenceService,
+      color: TARGET_COLORS[i % TARGET_COLORS.length]
+    }));
+  }, [targets, defaultKey]);
+
+  const rpsLines = useMemo(() => {
+    if (targets.length === 1) {
+      return [{ key: `${defaultKey}_rps`, color: COLORS.green, label: "RPS" }];
+    }
+    return targets.map((t, i) => ({
+      key: `${t.namespace}/${t.inferenceService}_rps`,
+      label: t.inferenceService,
+      color: TARGET_COLORS[i % TARGET_COLORS.length]
+    }));
+  }, [targets, defaultKey]);
+
+  const kvHitLines = useMemo(() => {
+    if (targets.length === 1) {
+      return [{ key: `${defaultKey}_kv_hit`, color: COLORS.cyan, label: "KV Hit Rate %" }];
+    }
+    return targets.map((t, i) => ({
+      key: `${t.namespace}/${t.inferenceService}_kv_hit`,
+      label: t.inferenceService,
+      color: TARGET_COLORS[i % TARGET_COLORS.length]
+    }));
+  }, [targets, defaultKey]);
+
+  const gpuUtilLines = useMemo(() => {
+    if (targets.length === 1) {
+      return [{ key: `${defaultKey}_gpu_util`, color: COLORS.red, label: "GPU Util %" }];
+    }
+    return targets.map((t, i) => ({
+      key: `${t.namespace}/${t.inferenceService}_gpu_util`,
+      label: t.inferenceService,
+      color: TARGET_COLORS[i % TARGET_COLORS.length]
+    }));
+  }, [targets, defaultKey]);
+
+  const gpuMemLines = useMemo(() => {
+    if (targets.length === 1) {
+      return [{ key: `${defaultKey}_gpu_mem_used`, color: COLORS.purple, label: "GPU Mem Used (GB)" }];
+    }
+    return targets.map((t, i) => ({
+      key: `${t.namespace}/${t.inferenceService}_gpu_mem_used`,
+      label: t.inferenceService,
+      color: TARGET_COLORS[i % TARGET_COLORS.length]
+    }));
+  }, [targets, defaultKey]);
+
   return (
     <div className="flex-col-1">
       <MultiTargetSelector targetStatuses={targetStatuses} targetStates={targetStates} />
       <ErrorAlert message={error} className="error-alert--m08" />
       
-      <div className="grid-2 gap-1">
+      <div className="grid-2 gap-1" aria-label="Throughput (TPS)">
         <Chart data={mergedHistory} title="Throughput (TPS)" lines={tpsLines} />
       </div>
-      <div className="grid-2 gap-1">
+      <div className="grid-2 gap-1" aria-label="Latency (ms)">
         <Chart data={mergedHistory} title="Latency (ms)" lines={latencyLines} />
       </div>
-      <div className="grid-2 gap-1">
+      <div className="grid-2 gap-1" aria-label="TTFT (ms)">
+        <Chart data={mergedHistory} title="TTFT (ms)" lines={ttftLines} />
+      </div>
+      <div className="grid-2 gap-1" aria-label="KV Cache Usage (%)">
         <Chart data={mergedHistory} title="KV Cache Usage (%)" lines={kvLines} />
       </div>
-      <div className="grid-2 gap-1">
+      <div className="grid-2 gap-1" aria-label="KV Cache Hit Rate (%)">
+        <Chart data={mergedHistory} title="KV Cache Hit Rate (%)" lines={kvHitLines} />
+      </div>
+      <div className="grid-2 gap-1" aria-label="Request Queue">
         <Chart data={mergedHistory} title="Request Queue" lines={queueLines} />
+      </div>
+      <div className="grid-2 gap-1" aria-label="RPS (Requests/sec)">
+        <Chart data={mergedHistory} title="RPS (Requests/sec)" lines={rpsLines} />
+      </div>
+      <div className="grid-2 gap-1" aria-label="GPU Utilization (%)">
+        <Chart data={mergedHistory} title="GPU Utilization (%)" lines={gpuUtilLines} />
+      </div>
+      <div className="grid-2 gap-1" aria-label="GPU Memory (GB)">
+        <Chart data={mergedHistory} title="GPU Memory (GB)" lines={gpuMemLines} />
       </div>
     </div>
   );
