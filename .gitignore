@@ -32,3 +32,4 @@ htmlcov/
 
 # frontend build artifacts
 frontend/dist/
+playwright-test/
