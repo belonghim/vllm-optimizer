@@ -48,25 +48,25 @@ export default function TunerConfigForm({
         </div>
         <div>
           <label className="label">Trial 수</label>
-          <input className="input" type="number" aria-label="Trial 수" value={config.n_trials}
-            onChange={e => onChange("n_trials", +e.target.value)} />
+           <input className="input" type="number" aria-label="Trial 수" min={1} max={100} value={config.n_trials}
+             onChange={e => onChange("n_trials", +e.target.value)} />
         </div>
         <div>
           <label className="label">max_num_seqs 범위</label>
           <div className="flex-row-8">
-            <input className="input" type="number" placeholder="Min" aria-label="max_num_seqs 최솟값" value={config.max_num_seqs_min}
-              onChange={e => onChange("max_num_seqs_min", +e.target.value)} />
-            <input className="input" type="number" placeholder="Max" aria-label="max_num_seqs 최댓값" value={config.max_num_seqs_max}
-              onChange={e => onChange("max_num_seqs_max", +e.target.value)} />
+             <input className="input" type="number" placeholder="Min" aria-label="max_num_seqs 최솟값" min={1} max={2048} value={config.max_num_seqs_min}
+               onChange={e => onChange("max_num_seqs_min", +e.target.value)} />
+             <input className="input" type="number" placeholder="Max" aria-label="max_num_seqs 최댓값" min={1} max={2048} value={config.max_num_seqs_max}
+               onChange={e => onChange("max_num_seqs_max", +e.target.value)} />
           </div>
         </div>
         <div>
           <label className="label">GPU Memory Util 범위</label>
           <div className="flex-row-8">
-            <input className="input" type="number" step="0.01" placeholder="Min" aria-label="GPU Memory Util 최솟값" value={config.gpu_memory_min}
-              onChange={e => onChange("gpu_memory_min", +e.target.value)} />
-            <input className="input" type="number" step="0.01" placeholder="Max" aria-label="GPU Memory Util 최댓값" value={config.gpu_memory_max}
-              onChange={e => onChange("gpu_memory_max", +e.target.value)} />
+             <input className="input" type="number" step="0.01" placeholder="Min" aria-label="GPU Memory Util 최솟값" min={0.5} max={0.99} value={config.gpu_memory_min}
+               onChange={e => onChange("gpu_memory_min", +e.target.value)} />
+             <input className="input" type="number" step="0.01" placeholder="Max" aria-label="GPU Memory Util 최댓값" min={0.5} max={0.99} value={config.gpu_memory_max}
+               onChange={e => onChange("gpu_memory_max", +e.target.value)} />
           </div>
         </div>
       </div>

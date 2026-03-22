@@ -45,8 +45,8 @@ export default function TunerResults({ trials, bestParams, status, isRunning, im
               <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
               <XAxis dataKey="x" name="TPS" tick={{ fontSize: 9, fill: COLORS.muted }} label={{ value: "TPS", position: "insideBottom", fill: COLORS.muted, fontSize: 9 }} />
               <YAxis dataKey="y" name="P99 ms" tick={{ fontSize: 9, fill: COLORS.muted }} />
-              <Tooltip contentStyle={TOOLTIP_STYLE}
-                formatter={(v, n) => [fmt(v, 2), n]} />
+               <Tooltip contentStyle={TUNER_TOOLTIP_STYLE}
+                 formatter={(v, n) => [fmt(v, 2), n]} />
               <Scatter
                   data={scatterData.filter(d => !d.pareto_optimal)}
                   fill={COLORS.cyan}
@@ -79,10 +79,10 @@ export default function TunerResults({ trials, bestParams, status, isRunning, im
                       <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
                       <XAxis dataKey="trial" tick={{ fontSize: 9, fill: COLORS.muted }} />
                       <YAxis tick={{ fontSize: 9, fill: COLORS.muted }} />
-                      <Tooltip
-                          contentStyle={TOOLTIP_STYLE}
-                          formatter={(v) => [v, "Best Score"]}
-                      />
+                       <Tooltip
+                           contentStyle={TUNER_TOOLTIP_STYLE}
+                           formatter={(v) => [v, "Best Score"]}
+                       />
                       <Line type="monotone" dataKey="score" stroke={COLORS.accent} strokeWidth={2} dot={false} />
                   </LineChart>
               </ResponsiveContainer>

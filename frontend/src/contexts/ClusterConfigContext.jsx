@@ -2,6 +2,7 @@ import { createContext, useState, useEffect, useMemo, useContext, useCallback } 
 import { API } from "../constants";
 
 const STORAGE_KEY = "vllm-opt-cluster-config";
+const SCHEMA_VERSION = 2;
 const MAX_TARGETS = 5;
 
 const ClusterConfigContext = createContext({
@@ -31,6 +32,15 @@ function migrateLegacyConfig(stored) {
   }
   const { namespace: _ns, inferenceservice: _is, ...rest } = stored;
   return { ...rest, targets: stored.targets || [] };
+}
+
+function migrateSchema(stored) {
+  const version = stored.version;
+  if (!version || version < 2) {
+    const migrated = migrateLegacyConfig(stored);
+    return { ...migrated, version: SCHEMA_VERSION };
+  }
+  return stored;
 }
 
 export function ClusterConfigProvider({ children }) {
