@@ -7,11 +7,21 @@ import Chart from "../components/Chart";
 import ErrorAlert from "../components/ErrorAlert";
 import MultiTargetSelector from "../components/MultiTargetSelector";
 import { buildGapFill } from "../utils/gapFill";
+import type { ClusterTarget } from "../types";
 
-const fmtTime = (ts) => new Date(ts * 1000).toLocaleTimeString("ko-KR", { hour12: false });
+interface ChartLine {
+  key: string;
+  color: string;
+  label: string;
+  dash?: boolean;
+}
 
-export function buildChartLinesMap(targets, defaultKey) {
-  const makeMultiLines = (metricKey) =>
+type ChartLinesMap = Record<string, ChartLine[]>;
+
+const fmtTime = (ts: number) => new Date(ts * 1000).toLocaleTimeString("ko-KR", { hour12: false });
+
+export function buildChartLinesMap(targets: ClusterTarget[], defaultKey: string | null): ChartLinesMap {
+  const makeMultiLines = (metricKey: string) =>
     targets.map((t, i) => ({
       key: `${t.namespace}/${t.inferenceService}_${metricKey}`,
       label: t.inferenceService,
@@ -56,7 +66,12 @@ export function buildChartLinesMap(targets, defaultKey) {
   };
 }
 
-const CHART_DEFINITIONS = [
+interface ChartDefinition {
+  id: string;
+  title: string;
+}
+
+const CHART_DEFINITIONS: ChartDefinition[] = [
   { id: 'tps',      title: 'Throughput (TPS)' },
   { id: 'latency',  title: 'Latency (ms)' },
   { id: 'ttft',     title: 'TTFT (ms)' },
@@ -71,17 +86,22 @@ const CHART_DEFINITIONS = [
 const LS_KEY = 'vllm-optimizer-chart-config';
 const DEFAULT_ORDER = CHART_DEFINITIONS.map(c => c.id);
 
-function loadChartConfig() {
+interface ChartConfig {
+  order: string[];
+  hidden: string[];
+}
+
+function loadChartConfig(): ChartConfig {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return { order: DEFAULT_ORDER, hidden: [] };
     const parsed = JSON.parse(raw);
     const validIds = new Set(DEFAULT_ORDER);
     const order = Array.isArray(parsed.order)
-      ? parsed.order.filter(id => validIds.has(id))
+      ? parsed.order.filter((id: string) => validIds.has(id))
       : DEFAULT_ORDER;
     const hidden = Array.isArray(parsed.hidden)
-      ? parsed.hidden.filter(id => validIds.has(id))
+      ? parsed.hidden.filter((id: string) => validIds.has(id))
       : [];
     const inOrder = new Set(order);
     DEFAULT_ORDER.forEach(id => { if (!inOrder.has(id)) order.push(id); });
@@ -91,7 +111,7 @@ function loadChartConfig() {
   }
 }
 
-function saveChartConfig(order, hidden) {
+function saveChartConfig(order: string[], hidden: string[]) {
   try {
     localStorage.setItem(LS_KEY, JSON.stringify({ order, hidden }));
   } catch {
@@ -99,87 +119,130 @@ function saveChartConfig(order, hidden) {
   }
 }
 
-function MonitorPage() {
+interface HistoryPoint {
+  timestamp: number;
+  tps?: number;
+  ttft_mean?: number;
+  latency_p99?: number;
+  kv_cache?: number;
+  running?: number;
+  waiting?: number;
+  rps?: number;
+  ttft_p99?: number;
+  latency_mean?: number;
+  kv_hit_rate?: number;
+  gpu_util?: number;
+  gpu_mem_used?: number;
+  gpu_mem_total?: number;
+}
+
+interface TargetResultData {
+  [key: string]: unknown;
+}
+
+interface TargetResult {
+  status: string;
+  error?: string;
+  data?: TargetResultData | null;
+  history?: HistoryPoint[];
+  hasMonitoringLabel?: boolean;
+}
+
+interface TargetState {
+  status?: string;
+  data?: TargetResultData | null;
+  metrics?: TargetResultData | null;
+  history?: Record<string, unknown>[];
+  hasMonitoringLabel?: boolean;
+  error?: string | null;
+}
+
+interface MonitorPageProps {
+  isActive: boolean;
+}
+
+function MonitorPage({ isActive }: MonitorPageProps) {
   const { isMockEnabled } = useMockData();
   const { targets } = useClusterConfig();
-  const [targetStates, setTargetStates] = useState({});
-  const [error, setError] = useState(null);
-  const [chartState, setChartState] = useState(() => loadChartConfig());
+  const [targetStates, setTargetStates] = useState<Record<string, TargetState>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [chartState, setChartState] = useState<ChartConfig>(() => loadChartConfig());
   const chartOrder = chartState.order;
   const hiddenCharts = chartState.hidden;
 
+  const fetchAllTargets = useCallback(async () => {
+    if (isMockEnabled) {
+      const newStates: Record<string, TargetState> = {};
+      targets.forEach(target => {
+        const key = `${target.namespace}/${target.inferenceService}`;
+        newStates[key] = {
+          metrics: mockMetrics(),
+          history: buildGapFill(mockHistory().map(h => ({ ...h, t: h.t })), ['ttft', 'lat_p99']).slice(-450),
+          status: 'ready',
+          error: null
+        };
+      });
+      setTargetStates(newStates);
+      return;
+    }
+
+    try {
+      const batchTargets = targets.map(t => ({
+        namespace: t.namespace,
+        inferenceService: t.inferenceService
+      }));
+
+      const res = await fetch(`${API}/metrics/batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targets: batchTargets })
+      });
+
+      if (!res.ok) throw new Error(`Batch HTTP ${res.status}`);
+      const batchData = await res.json();
+
+      const newStates: Record<string, TargetState> = {};
+      Object.entries(batchData.results as Record<string, TargetResult>).forEach(([key, result]) => {
+        if (result.status === 'error') {
+          newStates[key] = { status: 'error', error: result.error, data: null, history: [] };
+          return;
+        }
+
+        const mapped = (result.history || []).map((m) => ({
+          t: fmtTime(m.timestamp),
+          tps: m.tps, ttft: m.ttft_mean, lat_p99: m.latency_p99,
+          kv: m.kv_cache, running: m.running, waiting: m.waiting,
+          rps: m.rps, ttft_p99: m.ttft_p99, lat_mean: m.latency_mean,
+          kv_hit: m.kv_hit_rate, gpu_util: m.gpu_util,
+          gpu_mem_used: m.gpu_mem_used, gpu_mem_total: m.gpu_mem_total,
+        }));
+        const history = buildGapFill(mapped, ['ttft', 'lat_p99', 'ttft_p99', 'lat_mean']).slice(-450);
+
+        newStates[key] = {
+          data: result.data || null,
+          history,
+          status: result.status || 'ready',
+          hasMonitoringLabel: result.hasMonitoringLabel,
+          error: null
+        };
+      });
+
+      setTargetStates(prev => ({ ...prev, ...newStates }));
+      setError(null);
+    } catch (err) {
+      setError(`조회 실패: ${(err as Error).message}`);
+    }
+  }, [targets, isMockEnabled]);
+
   useEffect(() => {
+    if (!isActive) return;
     if (targets.length === 0) {
       setTargetStates({});
       return;
     }
 
-    const fetchAllTargets = async () => {
-      if (isMockEnabled) {
-        const newStates = {};
-        targets.forEach(target => {
-          const key = `${target.namespace}/${target.inferenceService}`;
-          newStates[key] = {
-            metrics: mockMetrics(),
-            history: buildGapFill(mockHistory().map(h => ({ ...h, t: h.t })), ['ttft', 'lat_p99']),
-            status: 'ready',
-            error: null
-          };
-        });
-        setTargetStates(newStates);
-        return;
-      }
-
-      try {
-        const batchTargets = targets.map(t => ({
-          namespace: t.namespace,
-          inferenceService: t.inferenceService
-        }));
-
-        const res = await fetch(`${API}/metrics/batch`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ targets: batchTargets })
-        });
-
-        if (!res.ok) throw new Error(`Batch HTTP ${res.status}`);
-        const batchData = await res.json();
-
-        const newStates = {};
-        Object.entries(batchData.results).forEach(([key, result]) => {
-          if (result.status === 'error') {
-            newStates[key] = { status: 'error', error: result.error, data: null, history: [] };
-            return;
-          }
-
-          const mapped = (result.history || []).map((m) => ({
-            t: fmtTime(m.timestamp),
-            tps: m.tps, ttft: m.ttft_mean, lat_p99: m.latency_p99,
-            kv: m.kv_cache, running: m.running, waiting: m.waiting,
-            rps: m.rps, ttft_p99: m.ttft_p99, lat_mean: m.latency_mean,
-            kv_hit: m.kv_hit_rate, gpu_util: m.gpu_util,
-            gpu_mem_used: m.gpu_mem_used, gpu_mem_total: m.gpu_mem_total,
-          }));
-          const history = buildGapFill(mapped, ['ttft', 'lat_p99', 'ttft_p99', 'lat_mean']);
-
-          newStates[key] = {
-            data: result.data || null,
-            history,
-            status: result.status || 'ready',
-            hasMonitoringLabel: result.hasMonitoringLabel,
-            error: null
-          };
-        });
-
-        setTargetStates(prev => ({ ...prev, ...newStates }));
-        setError(null);
-      } catch (err) {
-        setError(`조회 실패: ${err.message}`);
-      }
-    };
-
     setTargetStates(prev => {
-      const initialStates = {};
+      const initialStates: Record<string, TargetState> = {};
       targets.forEach(t => {
         const key = `${t.namespace}/${t.inferenceService}`;
         initialStates[key] = prev[key] || { status: 'collecting' };
@@ -190,27 +253,28 @@ function MonitorPage() {
     fetchAllTargets();
     const id = setInterval(fetchAllTargets, 2000);
     return () => clearInterval(id);
-  }, [targets, isMockEnabled]);
+  }, [isActive, targets, isMockEnabled, fetchAllTargets]);
 
   const mergedHistory = useMemo(() => {
-    const timeMap = {};
+    const timeMap: Record<string, Record<string, unknown>> = {};
     Object.entries(targetStates).forEach(([targetKey, state]) => {
       if (!state.history) return;
       state.history.forEach(h => {
-        if (!timeMap[h.t]) timeMap[h.t] = { t: h.t };
+        const t = h.t as string;
+        if (!timeMap[t]) timeMap[t] = { t };
         METRIC_KEYS.forEach(mk => {
-          timeMap[h.t][`${targetKey}_${mk}`] = h[mk];
+          timeMap[t][`${targetKey}_${mk}`] = h[mk];
         });
       });
     });
-    return Object.values(timeMap).sort((a, b) => a.t.localeCompare(b.t));
+    return Object.values(timeMap).sort((a, b) => (a.t as string).localeCompare(b.t as string)).slice(-900);
   }, [targetStates]);
 
   const targetStatuses = useMemo(() => {
-    const s = {};
+    const s: Record<string, { status: string; hasMonitoringLabel: boolean }> = {};
     Object.entries(targetStates).forEach(([key, state]) => {
       s[key] = {
-        status: state.status,
+        status: state.status || 'collecting',
         hasMonitoringLabel: state.hasMonitoringLabel !== false
       };
     });
@@ -224,13 +288,13 @@ function MonitorPage() {
 
   const chartLinesMap = useMemo(() => buildChartLinesMap(targets, defaultKey), [targets, defaultKey]);
 
-  const hideChart = useCallback((id) => {
+  const hideChart = useCallback((id: string) => {
     const newHidden = [...hiddenCharts, id];
     setChartState(prev => ({ ...prev, hidden: newHidden }));
     saveChartConfig(chartOrder, newHidden);
   }, [hiddenCharts, chartOrder]);
 
-  const showChart = useCallback((id) => {
+  const showChart = useCallback((id: string) => {
     const newOrder = [...chartOrder.filter(x => x !== id), id];
     const newHidden = hiddenCharts.filter(x => x !== id);
     setChartState(prev => ({ ...prev, order: newOrder, hidden: newHidden }));

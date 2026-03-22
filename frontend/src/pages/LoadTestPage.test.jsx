@@ -357,7 +357,7 @@ describe("LoadTestPage", () => {
   });
 
   describe("SSE onerror reconnect behavior", () => {
-    it("does not close EventSource and shows banner when readyState is CONNECTING", async () => {
+    it("closes EventSource and schedules reconnect with exponential backoff", async () => {
       render(<LoadTestPage />);
       await act(async () => { fireEvent.click(screen.getByText("▶ Run Load Test")); });
       await waitFor(() => expect(mockEsInstance).not.toBeNull());
@@ -365,8 +365,8 @@ describe("LoadTestPage", () => {
       mockEsInstance.readyState = MockEventSource.CONNECTING;
       act(() => { mockEsInstance.onerror(); });
 
-      // Should not close the connection
-      expect(mockEsInstance.closeSpy).not.toHaveBeenCalled();
+      // Should close the connection (exponential backoff: close + setTimeout reconnect)
+      expect(mockEsInstance.closeSpy).toHaveBeenCalled();
       // Should show the reconnecting banner
       expect(screen.getByText(/재연결 중/)).toBeInTheDocument();
     });

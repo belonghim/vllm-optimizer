@@ -7,10 +7,36 @@ import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContaine
 import { useMockData } from "../contexts/MockDataContext";
 import ErrorAlert from "../components/ErrorAlert";
 
-function BenchmarkPage({ isActive }) {
-  const [benchmarks, setBenchmarks] = useState([]);
-  const [selected, setSelected] = useState([]);
-  const [error, setError] = useState(null);
+interface BenchmarkConfig {
+  model?: string;
+  [key: string]: unknown;
+}
+
+interface BenchmarkResultData {
+  tps?: { mean?: number } | null;
+  latency?: { p99?: number } | null;
+  ttft?: { mean?: number } | null;
+  rps_actual?: number;
+  gpu_utilization_avg?: number | null;
+  metrics_target_matched?: boolean;
+}
+
+interface Benchmark {
+  id: string | number;
+  name: string;
+  timestamp: number;
+  config?: BenchmarkConfig;
+  result: BenchmarkResultData;
+}
+
+interface BenchmarkPageProps {
+  isActive: boolean;
+}
+
+function BenchmarkPage({ isActive }: BenchmarkPageProps) {
+  const [benchmarks, setBenchmarks] = useState<Benchmark[]>([]);
+  const [selected, setSelected] = useState<(string | number)[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const { isMockEnabled } = useMockData();
 
   useEffect(() => {
@@ -35,7 +61,7 @@ function BenchmarkPage({ isActive }) {
       });
   }, [isMockEnabled, isActive]);
 
-  const toggle = (id) => setSelected(s =>
+  const toggle = (id: string | number) => setSelected(s =>
     s.includes(id) ? s.filter(x => x !== id) : [...s, id]
   );
 
@@ -57,9 +83,9 @@ function BenchmarkPage({ isActive }) {
   return (
     <div className="flex-col-16">
       <ErrorAlert message={error} className="error-alert--mb8" />
-      <div className="panel">
-        <div className="section-title">저장된 벤치마크</div>
-        <table className="table">
+       <div className="panel">
+         <div className="section-title">저장된 벤치마크</div>
+         <table className="table" aria-label="저장된 벤치마크 목록">
           <thead>
             <tr><th></th><th>Name</th><th>Model</th><th>Date</th><th>TPS</th><th>P99 ms</th><th>RPS</th><th>GPU Eff.</th></tr>
           </thead>

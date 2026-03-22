@@ -4,7 +4,27 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 
-const CustomTooltip = ({ active, payload, label }) => {
+interface ChartLine {
+  key: string;
+  color: string;
+  label: string;
+  dash?: boolean;
+}
+
+interface TooltipPayloadEntry {
+  dataKey: string;
+  color: string;
+  name: string;
+  value: number | null;
+}
+
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: TooltipPayloadEntry[];
+  label?: string;
+}
+
+const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   if (!active || !payload?.length) return null;
   const visible = payload.filter(e => !String(e.dataKey).endsWith('_fill'));
   if (!visible.length) return null;
@@ -21,7 +41,15 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
-function Chart({ data, lines, title, height = 180, onHide }) {
+interface ChartProps {
+  data: object[];
+  lines: ChartLine[];
+  title: string;
+  height?: number;
+  onHide?: () => void;
+}
+
+function Chart({ data, lines, title, height = 180, onHide }: ChartProps) {
   return (
     <div className="chart-container" aria-label={title}>
       <div className="section-title chart-title-row">

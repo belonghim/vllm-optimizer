@@ -1,13 +1,23 @@
 import { createContext, useState, useEffect, useMemo, useContext } from "react";
+import type { ReactNode } from "react";
 
 const STORAGE_KEY = "vllm-opt-mock-enabled";
 
-const MockDataContext = createContext({
+interface MockDataContextValue {
+  isMockEnabled: boolean;
+  toggleMockEnabled: () => void;
+}
+
+const MockDataContext = createContext<MockDataContextValue>({
   isMockEnabled: true,
   toggleMockEnabled: () => {},
 });
 
-export function MockDataProvider({ children }) {
+interface MockDataProviderProps {
+  children: ReactNode;
+}
+
+export function MockDataProvider({ children }: MockDataProviderProps) {
   const [isMockEnabled, setIsMockEnabled] = useState(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     return stored === null ? true : stored === "true";
@@ -31,6 +41,6 @@ export function MockDataProvider({ children }) {
   );
 }
 
-export function useMockData() {
+export function useMockData(): MockDataContextValue {
   return useContext(MockDataContext);
 }

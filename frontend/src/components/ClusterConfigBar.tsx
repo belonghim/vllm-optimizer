@@ -1,7 +1,12 @@
 import { useState, useEffect } from "react";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
 
-function StatusIndicator({ isDirty, isSaved }) {
+interface StatusIndicatorProps {
+  isDirty: boolean;
+  isSaved: boolean;
+}
+
+function StatusIndicator({ isDirty, isSaved }: StatusIndicatorProps) {
   if (isSaved) {
     return <span className="config-status saved">✓ Saved</span>;
   }
@@ -11,10 +16,16 @@ function StatusIndicator({ isDirty, isSaved }) {
   return null;
 }
 
+interface LocalConfig {
+  endpoint: string;
+  namespace: string;
+  inferenceservice: string;
+}
+
 export default function ClusterConfigBar() {
   const { endpoint, namespace, inferenceservice, isLoading, updateConfig: updateContextConfig } = useClusterConfig();
 
-  const [localConfig, setLocalConfig] = useState({ endpoint: "", namespace: "", inferenceservice: "" });
+  const [localConfig, setLocalConfig] = useState<LocalConfig>({ endpoint: "", namespace: "", inferenceservice: "" });
   const [isDirty, setIsDirty] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
 
@@ -32,7 +43,7 @@ export default function ClusterConfigBar() {
     }
   }, [localConfig, endpoint, namespace, inferenceservice]);
 
-  const handleInputChange = (field, value) => {
+  const handleInputChange = (field: keyof LocalConfig, value: string) => {
     setLocalConfig(prev => ({ ...prev, [field]: value }));
   };
 

@@ -22,6 +22,9 @@ export function calcGpuEfficiency(result: LoadTestResultInput | null | undefined
   if (!result?.gpu_utilization_avg || result.gpu_utilization_avg <= 0) {
     return { value: null, display: '—', mismatch: false };
   }
-  const eff = result.tps!.mean! / result.gpu_utilization_avg;
+  if (!result.tps?.mean) {
+    return { value: null, display: '—', mismatch: false };
+  }
+  const eff = result.tps.mean / result.gpu_utilization_avg;
   return { value: eff, display: eff.toFixed(1), mismatch: false };
 }

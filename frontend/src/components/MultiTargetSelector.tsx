@@ -2,10 +2,48 @@ import { useState } from "react";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
 import { TARGET_COLORS } from "../constants";
 import { fmt } from "../utils/format";
+import type { ClusterTarget } from "../types";
 
 const TOTAL_COLUMNS = 13;
 
-export default function MultiTargetSelector({ targetStatuses = {}, targetStates = {} }) {
+interface TargetStatus {
+  status: string;
+  hasMonitoringLabel: boolean;
+}
+
+interface TargetStateData {
+  tps?: number | null;
+  rps?: number | null;
+  ttft_mean?: number | null;
+  ttft_p99?: number | null;
+  latency_mean?: number | null;
+  latency_p99?: number | null;
+  kv_cache?: number | null;
+  kv_hit_rate?: number | null;
+  gpu_util?: number | null;
+  gpu_mem_used?: number | null;
+  gpu_mem_total?: number | null;
+  running?: number | null;
+  waiting?: number | null;
+  pods_ready?: number;
+  pods?: number;
+}
+
+interface TargetState {
+  status?: string;
+  data?: TargetStateData | null;
+  metrics?: TargetStateData | null;
+  history?: unknown[];
+  hasMonitoringLabel?: boolean;
+  error?: string | null;
+}
+
+interface MultiTargetSelectorProps {
+  targetStatuses?: Record<string, TargetStatus>;
+  targetStates?: Record<string, TargetState>;
+}
+
+export default function MultiTargetSelector({ targetStatuses = {}, targetStates = {} }: MultiTargetSelectorProps) {
   const { targets, maxTargets, addTarget, removeTarget } = useClusterConfig();
   const [isAdding, setIsAdding] = useState(false);
   const [newTarget, setNewTarget] = useState({ namespace: "", inferenceService: "" });
@@ -18,7 +56,7 @@ export default function MultiTargetSelector({ targetStatuses = {}, targetStates 
     }
   };
 
-  const getTargetKey = (t) => `${t.namespace}/${t.inferenceService}`;
+  const getTargetKey = (t: ClusterTarget) => `${t.namespace}/${t.inferenceService}`;
 
   return (
     <div className="multi-target-selector panel multi-target-no-border">

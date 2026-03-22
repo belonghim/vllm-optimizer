@@ -7,7 +7,13 @@ import MockDataSwitch from "./components/MockDataSwitch";
 import ErrorBoundary from "./components/ErrorBoundary";
 import ClusterConfigBar from "./components/ClusterConfigBar";
 
-const PAGES = [
+interface PageDef {
+  id: string;
+  label: string;
+  Component: React.ComponentType<{ isActive: boolean }>;
+}
+
+const PAGES: PageDef[] = [
   { id: "monitor", label: "실시간 모니터링", Component: MonitorPage },
   { id: "tuner", label: "자동 파라미터 튜닝", Component: TunerPage },
   { id: "loadtest", label: "부하 테스트", Component: LoadTestPage },
@@ -17,7 +23,7 @@ const PAGES = [
 export default function App() {
   const [page, setPage] = useState("monitor");
 
-  const handleSetPage = (id) => {
+  const handleSetPage = (id: string) => {
     setPage(id);
     requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
   };

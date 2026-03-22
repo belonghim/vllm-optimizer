@@ -7,19 +7,70 @@ import TunerConfigForm from "../components/TunerConfigForm";
 import TunerResults from "../components/TunerResults";
 import ErrorAlert from "../components/ErrorAlert";
 
-function TunerPage({ isActive }) {
+interface TunerPhase {
+  trial_id: number;
+  phase: string;
+}
+
+interface TunerStatus {
+  running: boolean;
+  trials_completed: number;
+  best?: {
+    tps: number;
+    p99_latency: number;
+    params?: Record<string, unknown>;
+  };
+  best_score_history?: number[];
+}
+
+interface Trial {
+  id: number;
+  tps: number;
+  p99_latency: number;
+  score: number;
+  params: Record<string, unknown>;
+  status: string;
+  is_pareto_optimal?: boolean;
+}
+
+interface TunerConfig {
+  objective: string;
+  n_trials: number;
+  vllm_endpoint: string;
+  max_num_seqs_min: number;
+  max_num_seqs_max: number;
+  gpu_memory_min: number;
+  gpu_memory_max: number;
+  max_model_len_min: number;
+  max_model_len_max: number;
+  max_num_batched_tokens_min: number;
+  max_num_batched_tokens_max: number;
+  block_size_options: number[];
+  include_swap_space: boolean;
+  swap_space_min: number;
+  swap_space_max: number;
+  eval_concurrency: number;
+  eval_rps: number;
+  eval_requests: number;
+}
+
+interface TunerPageProps {
+  isActive: boolean;
+}
+
+function TunerPage({ isActive }: TunerPageProps) {
   const { isMockEnabled } = useMockData();
   const { endpoint, namespace, inferenceservice } = useClusterConfig();
-  const [error, setError] = useState(null);
-  const [status, setStatus] = useState({ running: false, trials_completed: 0 });
-  const [trials, setTrials] = useState([]);
-  const [importance, setImportance] = useState({});
-  const [currentPhase, setCurrentPhase] = useState(null);
+  const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<TunerStatus>({ running: false, trials_completed: 0 });
+  const [trials, setTrials] = useState<Trial[]>([]);
+  const [importance, setImportance] = useState<Record<string, number>>({});
+  const [currentPhase, setCurrentPhase] = useState<TunerPhase | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [applyStatus, setApplyStatus] = useState(null);
-  const [currentConfig, setCurrentConfig] = useState(null);
-  const [storageUri, setStorageUri] = useState(null);
-  const [config, setConfig] = useState({
+  const [applyStatus, setApplyStatus] = useState<string | null>(null);
+  const [currentConfig, setCurrentConfig] = useState<Record<string, unknown> | null>(null);
+  const [storageUri, setStorageUri] = useState<string | null>(null);
+  const [config, setConfig] = useState<TunerConfig>({
     objective: "balanced",
     n_trials: 10,
     vllm_endpoint: "",
@@ -42,12 +93,12 @@ function TunerPage({ isActive }) {
       return;
     }
 
-    const safeFetch = async (url) => {
+    const safeFetch = async (url: string) => {
       try {
         const response = await fetch(url);
         if (!response.ok) return null;
         return await response.json();
-      } catch (err) {
+      } catch {
         return null;
       }
     };
@@ -69,7 +120,7 @@ function TunerPage({ isActive }) {
     if (!s && !t && !imp) {
       setError("튜너 모든 API 조회 실패 (상태, 시도, 중요도)");
     } else if (!s || !t || !imp) {
-      const failed = [];
+      const failed: string[] = [];
       if (!s) failed.push("상태");
       if (!t) failed.push("시도");
       if (!imp) failed.push("중요도");
@@ -132,21 +183,20 @@ function TunerPage({ isActive }) {
           setStorageUri(data.storageUri ?? null);
         }
       })
-       .catch(err => setError(`vLLM 설정 조회 실패: ${err.message}`));
+       .catch((err: Error) => setError(`vLLM 설정 조회 실패: ${err.message}`));
   }, [isActive, isMockEnabled]);
 
-  // ClusterConfigContext의 endpoint를 사용 (중복 /api/config 호출 제거)
   useEffect(() => {
     if (endpoint) {
       setConfig(c => ({ ...c, vllm_endpoint: c.vllm_endpoint || endpoint }));
     }
   }, [endpoint]);
 
-  const handleConfigChange = useCallback((field, value) => {
+  const handleConfigChange = useCallback((field: string, value: string | number | boolean | number[]) => {
     setConfig(c => ({ ...c, [field]: value }));
   }, []);
 
-  const handleSaveStorageUri = useCallback(async (newUri) => {
+  const handleSaveStorageUri = useCallback(async (newUri: string) => {
     try {
       const res = await fetch(`${API}/vllm-config`, {
         method: "PATCH",
@@ -160,7 +210,7 @@ function TunerPage({ isActive }) {
       }
       setStorageUri(newUri);
     } catch (err) {
-      setError(`storageUri 업데이트 실패: ${err.message}`);
+      setError(`storageUri 업데이트 실패: ${(err as Error).message}`);
     }
   }, []);
 
@@ -184,7 +234,7 @@ function TunerPage({ isActive }) {
       }
       fetchStatus();
     } catch (err) {
-      setError(`튜닝 시작 실패: ${err.message}`);
+      setError(`튜닝 시작 실패: ${(err as Error).message}`);
     }
   };
 
@@ -192,7 +242,7 @@ function TunerPage({ isActive }) {
     try {
       await fetch(`${API}/tuner/stop`, { method: "POST" });
     } catch (err) {
-      setError(`튜너 중지 실패: ${err.message}`);
+      setError(`튜너 중지 실패: ${(err as Error).message}`);
     }
     setCurrentPhase(null);
     fetchStatus();
@@ -210,7 +260,7 @@ function TunerPage({ isActive }) {
         setError(`파라미터 적용 실패: ${data?.message || "Unknown error"}`);
       }
     } catch (err) {
-      setError(`파라미터 적용 실패: ${err.message}`);
+      setError(`파라미터 적용 실패: ${(err as Error).message}`);
     }
   };
 

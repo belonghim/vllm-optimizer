@@ -1,16 +1,40 @@
-function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status }) {
+import type { SSEState } from "../types";
+
+interface LoadTestConfigData {
+  endpoint: string;
+  model: string;
+  total_requests: number;
+  concurrency: number;
+  rps: number;
+  max_tokens: number;
+  prompt_template: string;
+  temperature: number;
+  stream: boolean;
+  [key: string]: string | number | boolean;
+}
+
+interface LoadTestConfigProps {
+  config: LoadTestConfigData;
+  onChange: (key: string, value: string | number | boolean) => void;
+  onSubmit: () => void;
+  onStop: () => void;
+  isRunning: boolean;
+  status: SSEState['status'];
+}
+
+function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status }: LoadTestConfigProps) {
   return (
     <div className="panel">
       <div className="section-title">부하 테스트 설정</div>
       <div className="grid-form grid-form-compact">
-        {[
+        {([
           ["vLLM Endpoint", "endpoint", "text"],
           ["Model", "model", "text"],
           ["Total Requests", "total_requests", "number"],
           ["Concurrency", "concurrency", "number"],
           ["RPS (0=unlimited)", "rps", "number"],
           ["Max Tokens", "max_tokens", "number"],
-        ].map(([label, key, type]) => (
+        ] as const).map(([label, key, type]) => (
           <div key={key}>
             <label className="label">{label}</label>
             <input

@@ -5,7 +5,42 @@ import { ScatterChart, Scatter, CartesianGrid, XAxis, YAxis, Tooltip, Responsive
 
 const TUNER_TOOLTIP_STYLE = { ...TOOLTIP_STYLE, fontSize: 11 };
 
-export default function TunerResults({ trials, bestParams, status, isRunning, importance }) {
+interface TrialParams {
+  [key: string]: unknown;
+}
+
+interface Trial {
+  id: number;
+  tps: number;
+  p99_latency: number;
+  score: number;
+  params: TrialParams;
+  status: string;
+  is_pareto_optimal?: boolean;
+}
+
+interface BestParams {
+  tps: number;
+  p99_latency: number;
+  params?: TrialParams;
+}
+
+interface TunerStatus {
+  running: boolean;
+  trials_completed: number;
+  best?: BestParams;
+  best_score_history?: number[];
+}
+
+interface TunerResultsProps {
+  trials: Trial[];
+  bestParams: BestParams | undefined;
+  status: TunerStatus;
+  isRunning: boolean;
+  importance: Record<string, number>;
+}
+
+export default function TunerResults({ trials, bestParams, status, isRunning, importance }: TunerResultsProps) {
   const scatterData = trials.map(t => ({
     x: t.tps, y: t.p99_latency, name: `Trial ${t.id}`,
     best: bestParams?.params && JSON.stringify(t.params) === JSON.stringify(bestParams.params),
@@ -46,7 +81,7 @@ export default function TunerResults({ trials, bestParams, status, isRunning, im
               <XAxis dataKey="x" name="TPS" tick={{ fontSize: 9, fill: COLORS.muted }} label={{ value: "TPS", position: "insideBottom", fill: COLORS.muted, fontSize: 9 }} />
               <YAxis dataKey="y" name="P99 ms" tick={{ fontSize: 9, fill: COLORS.muted }} />
                <Tooltip contentStyle={TUNER_TOOLTIP_STYLE}
-                 formatter={(v, n) => [fmt(v, 2), n]} />
+                 formatter={(v: number, n: string) => [fmt(v, 2), n]} />
               <Scatter
                   data={scatterData.filter(d => !d.pareto_optimal)}
                   fill={COLORS.cyan}
@@ -81,7 +116,7 @@ export default function TunerResults({ trials, bestParams, status, isRunning, im
                       <YAxis tick={{ fontSize: 9, fill: COLORS.muted }} />
                        <Tooltip
                            contentStyle={TUNER_TOOLTIP_STYLE}
-                           formatter={(v) => [v, "Best Score"]}
+                           formatter={(v: string) => [v, "Best Score"]}
                        />
                       <Line type="monotone" dataKey="score" stroke={COLORS.accent} strokeWidth={2} dot={false} />
                   </LineChart>

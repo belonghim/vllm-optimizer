@@ -1,4 +1,14 @@
-function MetricCard({ label, value, unit, color = "amber", delta }) {
+import type { ReactNode } from "react";
+
+interface MetricCardProps {
+  label: string;
+  value: ReactNode;
+  unit: string;
+  color?: string;
+  delta?: number | null;
+}
+
+function MetricCard({ label, value, unit, color = "amber", delta }: MetricCardProps) {
   return (
     <div className={`metric-card ${color}`} aria-label={`Metric: ${label}`}>
       <div className="label">{label}</div>

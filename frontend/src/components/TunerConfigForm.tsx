@@ -1,8 +1,50 @@
 import { useState, useEffect } from "react";
-import { API } from "../constants";
 import TunerProgressBar from "./TunerProgressBar";
 
-const PHASE_LABELS = {
+interface TunerPhase {
+  trial_id: number;
+  phase: string;
+}
+
+interface TunerConfig {
+  objective: string;
+  n_trials: number;
+  vllm_endpoint: string;
+  max_num_seqs_min: number;
+  max_num_seqs_max: number;
+  gpu_memory_min: number;
+  gpu_memory_max: number;
+  max_model_len_min: number;
+  max_model_len_max: number;
+  max_num_batched_tokens_min: number;
+  max_num_batched_tokens_max: number;
+  block_size_options: number[];
+  include_swap_space: boolean;
+  swap_space_min: number;
+  swap_space_max: number;
+  eval_concurrency: number;
+  eval_rps: number;
+  eval_requests: number;
+}
+
+interface TunerConfigFormProps {
+  config: TunerConfig;
+  onChange: (field: string, value: string | number | boolean | number[]) => void;
+  onSubmit: () => void;
+  onStop: () => void;
+  onApplyBest: () => void;
+  isRunning: boolean;
+  hasBest: boolean;
+  currentConfig: Record<string, unknown> | null;
+  currentPhase: TunerPhase | null;
+  trialsCompleted: number;
+  showAdvanced: boolean;
+  onToggleAdvanced: () => void;
+  storageUri: string | null;
+  onSaveStorageUri: (uri: string) => void;
+}
+
+const PHASE_LABELS: Record<string, string> = {
   applying_config: "설정 업데이트 중...",
   restarting: "InferenceService 재시작 중...",
   waiting_ready: "Pod Ready 대기 중...",
@@ -25,7 +67,7 @@ export default function TunerConfigForm({
   onToggleAdvanced,
   storageUri,
   onSaveStorageUri,
-}) {
+}: TunerConfigFormProps) {
   const [localStorageUri, setLocalStorageUri] = useState(storageUri ?? "");
 
   useEffect(() => {
@@ -121,7 +163,6 @@ export default function TunerConfigForm({
                   </span>
                 ))}
               </div>
-              {/* storageUri 표시/수정 */}
               <div className="tuner-storageuri-row">
                 <span className="tuner-config-key-label">storageUri</span>
                 <input

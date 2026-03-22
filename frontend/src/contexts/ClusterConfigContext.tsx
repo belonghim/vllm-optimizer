@@ -1,11 +1,26 @@
 import { createContext, useState, useEffect, useMemo, useContext, useCallback } from "react";
+import type { ReactNode } from "react";
 import { API } from "../constants";
+import type { ClusterTarget, ClusterConfig } from "../types";
 
 const STORAGE_KEY = "vllm-opt-cluster-config";
 const SCHEMA_VERSION = 2;
 const MAX_TARGETS = 5;
 
-const ClusterConfigContext = createContext({
+interface ClusterConfigContextValue {
+  endpoint: string;
+  namespace: string;
+  inferenceservice: string;
+  isLoading: boolean;
+  updateConfig: (field: string, value: string) => void;
+  targets: ClusterTarget[];
+  maxTargets: number;
+  addTarget: (namespace: string, inferenceService: string) => void;
+  removeTarget: (namespace: string, inferenceService: string) => void;
+  setDefaultTarget: (namespace: string, inferenceService: string) => void;
+}
+
+const ClusterConfigContext = createContext<ClusterConfigContextValue>({
   endpoint: "",
   namespace: "",
   inferenceservice: "",
@@ -18,38 +33,66 @@ const ClusterConfigContext = createContext({
   setDefaultTarget: () => {},
 });
 
-function migrateLegacyConfig(stored) {
-  if (stored.namespace && (!stored.targets || stored.targets.length === 0)) {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isClusterTargetArray(value: unknown): value is ClusterTarget[] {
+  if (!Array.isArray(value)) return false;
+  return value.every(
+    (item) =>
+      isRecord(item) &&
+      typeof item.namespace === "string" &&
+      typeof item.inferenceService === "string" &&
+      typeof item.isDefault === "boolean"
+  );
+}
+
+function migrateLegacyConfig(stored: Record<string, unknown>): ClusterConfig {
+  if (stored.namespace && (!stored.targets || (Array.isArray(stored.targets) && stored.targets.length === 0))) {
     const { namespace, inferenceservice, ...rest } = stored;
     return {
-      ...rest,
+      endpoint: typeof rest.endpoint === "string" ? rest.endpoint : "",
+      maxTargets: typeof rest.maxTargets === "number" ? rest.maxTargets : MAX_TARGETS,
+      version: typeof rest.version === "number" ? rest.version : SCHEMA_VERSION,
       targets: [{
-        namespace,
-        inferenceService: inferenceservice || "",
+        namespace: typeof namespace === "string" ? namespace : "",
+        inferenceService: typeof inferenceservice === "string" ? inferenceservice : "",
         isDefault: true,
       }],
     };
   }
-  const { namespace: _ns, inferenceservice: _is, ...rest } = stored;
-  return { ...rest, targets: stored.targets || [] };
+  const targets = isClusterTargetArray(stored.targets) ? stored.targets : [];
+  return {
+    endpoint: typeof stored.endpoint === "string" ? stored.endpoint : "",
+    maxTargets: typeof stored.maxTargets === "number" ? stored.maxTargets : MAX_TARGETS,
+    version: typeof stored.version === "number" ? stored.version : SCHEMA_VERSION,
+    targets,
+  };
 }
 
-function migrateSchema(stored) {
+function migrateSchema(stored: Record<string, unknown>): ClusterConfig {
   const version = stored.version;
-  if (!version || version < 2) {
+  if (!version || (typeof version === "number" && version < 2)) {
     const migrated = migrateLegacyConfig(stored);
     return { ...migrated, version: SCHEMA_VERSION };
   }
-  return stored;
+  return migrateLegacyConfig(stored);
 }
 
-export function ClusterConfigProvider({ children }) {
-  const [config, setConfig] = useState(() => {
+interface ClusterConfigProviderProps {
+  children: ReactNode;
+}
+
+export function ClusterConfigProvider({ children }: ClusterConfigProviderProps): React.JSX.Element {
+  const [config, setConfig] = useState<ClusterConfig>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        const parsed = JSON.parse(stored);
-        return migrateSchema(parsed);
+        const parsed: unknown = JSON.parse(stored);
+        if (isRecord(parsed)) {
+          return migrateSchema(parsed);
+        }
       }
     } catch {
       /* localStorage unavailable */
@@ -64,12 +107,13 @@ export function ClusterConfigProvider({ children }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const hasStoredValues = () => {
+    const hasStoredValues = (): boolean => {
       try {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (!stored) return false;
-        const parsed = JSON.parse(stored);
-        return parsed.endpoint || (parsed.targets && parsed.targets.length > 0);
+        const parsed: unknown = JSON.parse(stored);
+        if (!isRecord(parsed)) return false;
+        return !!(parsed.endpoint || (Array.isArray(parsed.targets) && parsed.targets.length > 0));
       } catch {
         return false;
       }
@@ -82,12 +126,17 @@ export function ClusterConfigProvider({ children }) {
 
     fetch(`${API}/config`)
       .then(r => r.json())
-      .then(data => {
-        const apiConfig = {
-          endpoint: data.vllm_endpoint || "",
-          targets: data.vllm_namespace ? [{
-            namespace: data.vllm_namespace,
-            inferenceService: data.vllm_is_name || "",
+      .then((data: unknown) => {
+        if (!isRecord(data)) return;
+        const vllmEndpoint = typeof data.vllm_endpoint === "string" ? data.vllm_endpoint : "";
+        const vllmNamespace = typeof data.vllm_namespace === "string" ? data.vllm_namespace : "";
+        const vllmIsName = typeof data.vllm_is_name === "string" ? data.vllm_is_name : "";
+
+        const apiConfig: ClusterConfig = {
+          endpoint: vllmEndpoint,
+          targets: vllmNamespace ? [{
+            namespace: vllmNamespace,
+            inferenceService: vllmIsName,
             isDefault: true,
           }] : [],
           maxTargets: MAX_TARGETS,
@@ -96,7 +145,7 @@ export function ClusterConfigProvider({ children }) {
         setConfig(apiConfig);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(apiConfig));
       })
-      .catch(() => {})
+      .catch(err => console.warn('[ClusterConfig] config fetch failed:', err.message))
       .finally(() => setIsLoading(false));
   }, []);
 
@@ -104,14 +153,14 @@ export function ClusterConfigProvider({ children }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
   }, [config]);
 
-  const updateConfig = useCallback((field, value) => {
+  const updateConfig = useCallback((field: string, value: string): void => {
     setConfig(prev => {
       if (field === 'endpoint') {
         return { ...prev, endpoint: value };
       }
 
       if (field === 'namespace' || field === 'inferenceservice') {
-        const targets = prev.targets.length > 0
+        const targets: ClusterTarget[] = prev.targets.length > 0
           ? [...prev.targets]
           : [{ namespace: "", inferenceService: "", isDefault: true }];
 
@@ -128,12 +177,12 @@ export function ClusterConfigProvider({ children }) {
     });
   }, []);
 
-  const addTarget = useCallback((namespace, inferenceService) => {
+  const addTarget = useCallback((namespace: string, inferenceService: string): void => {
     setConfig(prev => {
       const currentTargets = prev.targets;
       if (currentTargets.length >= MAX_TARGETS) return prev;
 
-      const newTarget = {
+      const newTarget: ClusterTarget = {
         namespace: namespace || "",
         inferenceService: inferenceService || "",
         isDefault: currentTargets.length === 0,
@@ -146,7 +195,7 @@ export function ClusterConfigProvider({ children }) {
     });
   }, []);
 
-  const removeTarget = useCallback((namespace, inferenceService) => {
+  const removeTarget = useCallback((namespace: string, inferenceService: string): void => {
     setConfig(prev => {
       const currentTargets = prev.targets;
       const target = currentTargets.find(t => t.namespace === namespace && t.inferenceService === inferenceService);
@@ -162,7 +211,7 @@ export function ClusterConfigProvider({ children }) {
     });
   }, []);
 
-  const setDefaultTarget = useCallback((namespace, inferenceService) => {
+  const setDefaultTarget = useCallback((namespace: string, inferenceService: string): void => {
     setConfig(prev => {
       const currentTargets = prev.targets;
       const target = currentTargets.find(t => t.namespace === namespace && t.inferenceService === inferenceService);
@@ -180,7 +229,7 @@ export function ClusterConfigProvider({ children }) {
     });
   }, []);
 
-  const value = useMemo(() => {
+  const value = useMemo((): ClusterConfigContextValue => {
     const defaultTarget = config.targets.find(t => t.isDefault) || config.targets[0];
     return {
       endpoint: config.endpoint,
@@ -203,6 +252,6 @@ export function ClusterConfigProvider({ children }) {
   );
 }
 
-export function useClusterConfig() {
+export function useClusterConfig(): ClusterConfigContextValue {
   return useContext(ClusterConfigContext);
 }
