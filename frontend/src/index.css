@@ -360,3 +360,85 @@ select.input option { background: var(--surface-color); }
   background: var(--bg-color);
   border-radius: 2px;
 }
+
+/* Monitor Metrics Table */
+.monitor-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+}
+.monitor-table th {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted-color);
+  padding: 6px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+  white-space: nowrap;
+}
+.monitor-table td {
+  font-size: 11px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-color);
+  white-space: nowrap;
+}
+.monitor-table tr:hover td {
+  background: rgba(255,255,255,0.02);
+}
+.monitor-table .target-name {
+  font-weight: 600;
+  font-size: 12px;
+}
+.monitor-table .target-ns {
+  font-size: 9px;
+  color: var(--muted-color);
+  margin-top: 2px;
+}
+
+/* Chart Toggle UI */
+.chart-hide-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted-color);
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+  transition: color 0.15s;
+  font-family: var(--font-mono);
+}
+.chart-hide-btn:hover {
+  color: var(--red-color);
+}
+.hidden-charts-bar {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  padding: 10px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.hidden-charts-bar-label {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted-color);
+  margin-right: 4px;
+}
+.hidden-chart-tag {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border: 1px solid var(--border-color);
+  color: var(--muted-color);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  font-family: var(--font-mono);
+}
+.hidden-chart-tag:hover {
+  color: var(--cyan-color);
+  border-color: var(--cyan-color);
+}

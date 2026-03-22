@@ -68,6 +68,9 @@ function MonitorPage() {
             t: fmtTime(m.timestamp),
             tps: m.tps, ttft: m.ttft_mean, lat_p99: m.latency_p99,
             kv: m.kv_cache, running: m.running, waiting: m.waiting,
+            rps: m.rps, ttft_p99: m.ttft_p99, lat_mean: m.latency_mean,
+            kv_hit: m.kv_hit_rate, gpu_util: m.gpu_util,
+            gpu_mem_used: m.gpu_mem_used, gpu_mem_total: m.gpu_mem_total,
           }));
           const history = buildGapFill(mapped, ['ttft', 'lat_p99']);
 
@@ -113,6 +116,13 @@ function MonitorPage() {
         timeMap[h.t][`${targetKey}_kv`] = h.kv;
         timeMap[h.t][`${targetKey}_running`] = h.running;
         timeMap[h.t][`${targetKey}_waiting`] = h.waiting;
+        timeMap[h.t][`${targetKey}_rps`] = h.rps;
+        timeMap[h.t][`${targetKey}_ttft_p99`] = h.ttft_p99;
+        timeMap[h.t][`${targetKey}_lat_mean`] = h.lat_mean;
+        timeMap[h.t][`${targetKey}_kv_hit`] = h.kv_hit;
+        timeMap[h.t][`${targetKey}_gpu_util`] = h.gpu_util;
+        timeMap[h.t][`${targetKey}_gpu_mem_used`] = h.gpu_mem_used;
+        timeMap[h.t][`${targetKey}_gpu_mem_total`] = h.gpu_mem_total;
       });
     });
     return Object.values(timeMap).sort((a, b) => a.t.localeCompare(b.t));

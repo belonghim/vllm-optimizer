@@ -7,6 +7,11 @@ export const mockMetrics = () => ({
   waiting: Math.floor(Math.random() * 5),
   gpu_mem_used: 18.4, gpu_mem_total: 24,
   pods: 3, pods_ready: 3,
+  rps: 12 + Math.random() * 8,
+  ttft_p99: 120 + Math.random() * 50,
+  latency_mean: 300 + Math.random() * 60,
+  kv_hit_rate: Math.random() * 100,
+  gpu_util: 40 + Math.random() * 40,
 });
 
 export const mockHistory = () => Array.from({ length: 60 }, (_, i) => ({
@@ -14,6 +19,13 @@ export const mockHistory = () => Array.from({ length: 60 }, (_, i) => ({
   tps: 220 + Math.random() * 80, ttft: 80 + Math.random() * 40,
   lat_p99: 380 + Math.random() * 120, kv: 60 + Math.random() * 20,
   running: 10 + Math.random() * 15, waiting: Math.random() * 8,
+  rps: 10 + Math.random() * 10,
+  ttft_p99: 100 + Math.random() * 60,
+  lat_mean: 280 + Math.random() * 80,
+  kv_hit: Math.random() * 100,
+  gpu_util: 35 + Math.random() * 45,
+  gpu_mem_used: 18.4,
+  gpu_mem_total: 24,
 }));
 
 export const mockBenchmarks = () => [
@@ -72,6 +84,13 @@ export const mockHistoryWithGaps = () => Array.from({ length: 60 }, (_, i) => {
     kv: 60 + Math.random() * 20,
     running: 10 + Math.random() * 15,
     waiting: Math.random() * 8,
+    rps: 10 + Math.random() * 10,
+    ttft_p99: isGap ? null : 100 + Math.random() * 60,
+    lat_mean: isGap ? null : 280 + Math.random() * 80,
+    kv_hit: Math.random() * 100,
+    gpu_util: 35 + Math.random() * 45,
+    gpu_mem_used: 18.4,
+    gpu_mem_total: 24,
   };
 });
 
