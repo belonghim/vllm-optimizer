@@ -4,7 +4,9 @@ import { COLORS } from "../constants";
 
 const TARGET_COLORS = [COLORS.accent, COLORS.cyan, COLORS.green, COLORS.red, COLORS.purple];
 
-export default function MultiTargetSelector({ targetStatuses = {} }) {
+const fmt = (n, d = 1) => (n == null ? '—' : Number(n).toFixed(d));
+
+export default function MultiTargetSelector({ targetStatuses = {}, targetStates = {} }) {
   const { targets, maxTargets, addTarget, removeTarget } = useClusterConfig();
   const [isAdding, setIsAdding] = useState(false);
   const [newTarget, setNewTarget] = useState({ namespace: "", inferenceService: "" });
@@ -36,103 +38,134 @@ export default function MultiTargetSelector({ targetStatuses = {} }) {
         )}
       </div>
 
-      <div className="grid-form" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '8px' }}>
-        {targets.map((target, index) => {
-          const key = getTargetKey(target);
-          const status = targetStatuses[key] || {};
-          const hasMonitoringLabel = status.hasMonitoringLabel !== false;
-          const targetColor = TARGET_COLORS[index % TARGET_COLORS.length];
+      <div style={{ overflowX: 'auto' }}>
+        <table className="monitor-table">
+          <thead>
+            <tr>
+              <th>Target</th>
+              <th>TPS</th>
+              <th>RPS</th>
+              <th>TTFT m/p99</th>
+              <th>Lat m/p99</th>
+              <th>KV%</th>
+              <th>KV Hit%</th>
+              <th>GPU%</th>
+              <th>GPU Mem</th>
+              <th>Run</th>
+              <th>Wait</th>
+              <th>Pods</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {targets.length === 0 ? (
+              <tr>
+                <td colSpan={13} style={{ textAlign: 'center', color: 'var(--muted-color)', padding: '20px' }}>
+                  모니터링 대상을 추가하세요
+                </td>
+              </tr>
+            ) : (
+              targets.map((target, index) => {
+                const key = getTargetKey(target);
+                const state = targetStates[key];
+                const status = state?.status || targetStatuses[key]?.status || 'collecting';
+                const data = state?.data || state?.metrics;
+                const hasMonitoringLabel = state?.hasMonitoringLabel !== false && targetStatuses[key]?.hasMonitoringLabel !== false;
+                const targetColor = TARGET_COLORS[index % TARGET_COLORS.length];
 
-          return (
-            <div 
-              key={index} 
-              className="metric-card" 
-              style={{ padding: '10px 12px', minHeight: '60px', borderLeft: `3px solid ${targetColor}` }}
-              data-testid={`target-card-${index}`}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: '10px', color: 'var(--muted-color)', marginBottom: '2px' }}>
-                    {target.namespace}
+                return (
+                  <tr key={key} data-testid={`target-row-${index}`}>
+                    <td className="target-name" style={{ borderLeft: `3px solid ${targetColor}` }}>
+                      <div style={{ color: targetColor }}>
+                        {target.inferenceService}
+                        {!hasMonitoringLabel && (
+                          <span 
+                            style={{ marginLeft: '6px', cursor: 'help' }} 
+                            title="이 namespace에 openshift.io/cluster-monitoring=true 레이블이 없어 메트릭을 수집할 수 없습니다."
+                            data-testid="no-monitoring-warning"
+                          >
+                            ⚠️
+                          </span>
+                        )}
+                      </div>
+                      <div className="target-ns">{target.namespace}</div>
+                    </td>
+                    {status === 'collecting' ? (
+                      <>
+                        <td>...</td><td>...</td><td>...</td><td>...</td><td>...</td>
+                        <td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td>
+                      </>
+                    ) : !data ? (
+                      <>
+                        <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>
+                        <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>
+                      </>
+                    ) : (
+                      <>
+                        <td>{fmt(data.tps, 0)}</td>
+                        <td>{fmt(data.rps, 1)}</td>
+                        <td>{fmt(data.ttft_mean, 0)} / {fmt(data.ttft_p99, 0)}</td>
+                        <td>{fmt(data.latency_mean, 0)} / {fmt(data.latency_p99, 0)}</td>
+                        <td>{fmt(data.kv_cache, 1)}</td>
+                        <td>{fmt(data.kv_hit_rate, 1)}</td>
+                        <td>{fmt(data.gpu_util, 1)}</td>
+                        <td>{fmt(data.gpu_mem_used, 1)} / {fmt(data.gpu_mem_total, 0)}</td>
+                        <td>{data.running ?? '—'}</td>
+                        <td>{data.waiting ?? '—'}</td>
+                        <td>{data.pods_ready} / {data.pods}</td>
+                      </>
+                    )}
+                    <td style={{ textAlign: 'right' }}>
+                      {target.isDefault ? (
+                        <span className="tag tag-completed" style={{ fontSize: '8px' }}>기본</span>
+                      ) : (
+                        <button 
+                          className="btn btn-danger" 
+                          style={{ padding: '0 6px', height: '20px', fontSize: '12px', minWidth: '20px', border: 'none' }}
+                          onClick={() => removeTarget(index)}
+                          data-testid="delete-btn"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+            {isAdding && (
+              <tr>
+                <td colSpan={11}>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <input 
+                      className="input" 
+                      placeholder="Namespace" 
+                      data-testid="namespace-input" 
+                      value={newTarget.namespace}
+                      onChange={(e) => setNewTarget(prev => ({ ...prev, namespace: e.target.value }))}
+                      style={{ fontSize: '10px', padding: '3px 6px', flex: 1 }} 
+                    />
+                    <input 
+                      className="input" 
+                      placeholder="InferenceService" 
+                      data-testid="is-input" 
+                      value={newTarget.inferenceService}
+                      onChange={(e) => setNewTarget(prev => ({ ...prev, inferenceService: e.target.value }))}
+                      style={{ fontSize: '10px', padding: '3px 6px', flex: 1 }} 
+                    />
                   </div>
-                  <div style={{ fontSize: '12px', fontWeight: '600', color: targetColor }}>
-                    {target.inferenceService}
+                </td>
+                <td colSpan={2}>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <button className="btn btn-green" style={{ fontSize: '9px', padding: '2px 6px' }} onClick={handleAdd} data-testid="confirm-add-btn">확인</button>
+                    <button className="btn btn-danger" style={{ fontSize: '9px', padding: '2px 6px' }} onClick={() => setIsAdding(false)}>취소</button>
                   </div>
-                </div>
-                
-                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                  {target.isDefault ? (
-                    <span className="tag tag-completed" style={{ fontSize: '8px' }}>기본</span>
-                  ) : (
-                    <button 
-                      className="btn btn-danger" 
-                      style={{ padding: '0 4px', height: '18px', fontSize: '10px', minWidth: '18px', border: 'none' }}
-                      onClick={() => removeTarget(index)}
-                      data-testid="delete-btn"
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {!hasMonitoringLabel && (
-                <div 
-                  className="tag tag-failed" 
-                  style={{ marginTop: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'help' }}
-                  title="이 namespace에 openshift.io/cluster-monitoring=true 레이블이 없어 메트릭을 수집할 수 없습니다."
-                  data-testid="no-monitoring-warning"
-                >
-                  ⚠️ 메트릭 수집 불가
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        {isAdding && (
-          <div className="metric-card" style={{ padding: '10px 12px', borderStyle: 'dashed' }}>
-            <div className="flex-col-1" style={{ gap: '8px' }}>
-              <input 
-                type="text" 
-                className="input" 
-                placeholder="Namespace" 
-                style={{ fontSize: '10px', padding: '4px 8px' }}
-                value={newTarget.namespace}
-                onChange={(e) => setNewTarget(prev => ({ ...prev, namespace: e.target.value }))}
-                data-testid="namespace-input"
-              />
-              <input 
-                type="text" 
-                className="input" 
-                placeholder="InferenceService" 
-                style={{ fontSize: '10px', padding: '4px 8px' }}
-                value={newTarget.inferenceService}
-                onChange={(e) => setNewTarget(prev => ({ ...prev, inferenceService: e.target.value }))}
-                data-testid="is-input"
-              />
-              <div style={{ display: 'flex', gap: '4px' }}>
-                <button 
-                  className="btn btn-green" 
-                  style={{ flex: 1, padding: '2px', fontSize: '9px' }}
-                  onClick={handleAdd}
-                  data-testid="confirm-add-btn"
-                >
-                  확인
-                </button>
-                <button 
-                  className="btn btn-danger" 
-                  style={{ flex: 1, padding: '2px', fontSize: '9px' }}
-                  onClick={() => setIsAdding(false)}
-                >
-                  취소
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
 }
-

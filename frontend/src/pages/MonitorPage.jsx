@@ -3,7 +3,6 @@ import { mockMetrics, mockHistory } from "../mockData";
 import { useMockData } from "../contexts/MockDataContext";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
 import { API, COLORS } from "../constants";
-import MetricCard from "../components/MetricCard";
 import Chart from "../components/Chart";
 import ErrorAlert from "../components/ErrorAlert";
 import MultiTargetSelector from "../components/MultiTargetSelector";
@@ -141,8 +140,6 @@ function MonitorPage() {
 
   const defaultTarget = targets.find(t => t.isDefault) || targets[0];
   const defaultKey = defaultTarget ? `${defaultTarget.namespace}/${defaultTarget.inferenceService}` : null;
-  const defaultState = targetStates[defaultKey] || { status: 'collecting' };
-  const data = defaultState.data;
 
   const tpsLines = useMemo(() => {
     if (targets.length === 1) {
@@ -198,22 +195,9 @@ function MonitorPage() {
 
   return (
     <div className="flex-col-1">
-      <MultiTargetSelector targetStatuses={targetStatuses} />
+      <MultiTargetSelector targetStatuses={targetStatuses} targetStates={targetStates} />
       <ErrorAlert message={error} className="error-alert--m08" />
       
-      <div className="grid-4 gap-1">
-        <MetricCard label="Tokens / sec" value={defaultState.status === 'collecting' ? "..." : fmt(data?.tps, 0)} unit="TPS" color="amber" />
-        <MetricCard label="TTFT Mean" value={defaultState.status === 'collecting' ? "..." : fmt(data?.ttft_mean, 0)} unit="ms" color="cyan" />
-        <MetricCard label="P99 Latency" value={defaultState.status === 'collecting' ? "..." : fmt(data?.latency_p99, 0)} unit="ms" color="red" />
-        <MetricCard label="KV Cache" value={defaultState.status === 'collecting' ? "..." : fmt(data?.kv_cache, 1)} unit="%" color="purple" />
-      </div>
-      <div className="grid-4 gap-1">
-        <MetricCard label="Running Reqs" value={defaultState.status === 'collecting' ? "..." : (data?.running ?? "—")} unit="requests" color="green" />
-        <MetricCard label="Waiting Reqs" value={defaultState.status === 'collecting' ? "..." : (data?.waiting ?? "—")} unit="queue" color="red" />
-        <MetricCard label="GPU Memory" value={defaultState.status === 'collecting' ? "..." : (data?.gpu_mem_used ? `${fmt(data.gpu_mem_used, 1)} / ${fmt(data.gpu_mem_total, 0)}` : "—")} unit="GB" color="amber" />
-        <MetricCard label="Pods Ready" value={defaultState.status === 'collecting' ? "..." : (data ? `${data.pods_ready} / ${data.pods}` : "—")} unit="k8s pods" color="cyan" />
-      </div>
-
       <div className="grid-2 gap-1">
         <Chart data={mergedHistory} title="Throughput (TPS)" lines={tpsLines} />
       </div>
