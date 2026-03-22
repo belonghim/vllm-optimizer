@@ -49,7 +49,7 @@ export function ClusterConfigProvider({ children }) {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        return migrateLegacyConfig(parsed);
+        return migrateSchema(parsed);
       }
     } catch {
       /* localStorage unavailable */
@@ -58,6 +58,7 @@ export function ClusterConfigProvider({ children }) {
       endpoint: "",
       targets: [],
       maxTargets: MAX_TARGETS,
+      version: SCHEMA_VERSION,
     };
   });
   const [isLoading, setIsLoading] = useState(true);

@@ -113,75 +113,72 @@ function LoadTestPage() {
         </div>
       )}
 
-      {result && (
-        <>
-          <div className="grid-5 gap-1">
-            <MetricCard label="Mean TPS" value={fmt(result.tps?.mean, 1)} unit="tok/s" color="amber" />
-            <MetricCard label="TTFT Mean" value={fmt((result.ttft?.mean || 0) * 1000, 0)} unit="ms" color="cyan" />
-            <MetricCard label="P99 Latency" value={fmt((result.latency?.p99 || 0) * 1000, 0)} unit="ms" color="red" />
-            <MetricCard label="Success Rate"
-              value={result.total ? fmt((result.success / result.total) * 100, 1) : "—"}
-              unit="%" color="green" />
-            <MetricCard label="GPU Eff."
-              value={(() => {
-                const gpuEff = calcGpuEfficiency(result);
-                return gpuEff.mismatch ? <span title="GPU metrics mismatch">N/A</span> : gpuEff.display;
-              })()}
-              unit="tok/s/%" color="purple" />
-          </div>
+      {result && (() => {
+        const gpuEff = calcGpuEfficiency(result);
+        return (
+          <>
+             <div className="grid-5 gap-1">
+               <MetricCard label="Mean TPS" value={fmt(result.tps?.mean, 1)} unit="tok/s" color="amber" />
+               <MetricCard label="TTFT Mean" value={fmt((result.ttft?.mean || 0) * 1000, 0)} unit="ms" color="cyan" />
+               <MetricCard label="P99 Latency" value={fmt((result.latency?.p99 || 0) * 1000, 0)} unit="ms" color="red" />
+               <MetricCard label="Success Rate"
+                 value={result.total ? fmt((result.success / result.total) * 100, 1) : "—"}
+                 unit="%" color="green" />
+               <MetricCard label="GPU Eff."
+                 value={gpuEff.mismatch ? <span title="GPU metrics mismatch">N/A</span> : gpuEff.display}
+                 unit="tok/s/%" color="purple" />
+             </div>
 
-          <div className="panel">
-            <div className="section-title">Latency Distribution</div>
-            <table className="table">
-              <thead><tr><th>Metric</th><th>Value</th></tr></thead>
-              <tbody>
-                {[
-                  ["Total Requests", result.total_requested ?? result.total],
-                  ["Success", result.success], ["Failed", result.failed],
-                  ["Actual RPS", fmt(result.rps_actual, 2)],
-                  ["Mean Latency", `${fmt((result.latency?.mean || 0) * 1000, 0)} ms`],
-                  ["P50 Latency", `${fmt((result.latency?.p50 || 0) * 1000, 0)} ms`],
-                  ["P95 Latency", `${fmt((result.latency?.p95 || 0) * 1000, 0)} ms`],
-                  ["P99 Latency", `${fmt((result.latency?.p99 || 0) * 1000, 0)} ms`],
-                  ["TTFT Mean", `${fmt((result.ttft?.mean || 0) * 1000, 0)} ms`],
-                  ["TTFT P95", `${fmt((result.ttft?.p95 || 0) * 1000, 0)} ms`],
-                  ["Total TPS", `${fmt(result.tps?.total, 1)} tok/s`],
-                  ["GPU Efficiency", (() => {
-                    const gpuEff = calcGpuEfficiency(result);
-                    return gpuEff.mismatch ? <span title="GPU metrics mismatch">N/A</span> : gpuEff.value ? `${gpuEff.display} tok/s/%` : "—";
-                  })()],
-                ].map(([k, v]) => (
-                  <tr key={k}>
-                    <td className="td-muted">{k}</td>
-                    <td className="td-accent-mono">{v}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+             <div className="panel">
+               <div className="section-title">Latency Distribution</div>
+               <table className="table">
+                 <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+                 <tbody>
+                   {[
+                     ["Total Requests", result.total_requested ?? result.total],
+                     ["Success", result.success], ["Failed", result.failed],
+                     ["Actual RPS", fmt(result.rps_actual, 2)],
+                     ["Mean Latency", `${fmt((result.latency?.mean || 0) * 1000, 0)} ms`],
+                     ["P50 Latency", `${fmt((result.latency?.p50 || 0) * 1000, 0)} ms`],
+                     ["P95 Latency", `${fmt((result.latency?.p95 || 0) * 1000, 0)} ms`],
+                     ["P99 Latency", `${fmt((result.latency?.p99 || 0) * 1000, 0)} ms`],
+                     ["TTFT Mean", `${fmt((result.ttft?.mean || 0) * 1000, 0)} ms`],
+                     ["TTFT P95", `${fmt((result.ttft?.p95 || 0) * 1000, 0)} ms`],
+                     ["Total TPS", `${fmt(result.tps?.total, 1)} tok/s`],
+                     ["GPU Efficiency", gpuEff.mismatch ? <span title="GPU metrics mismatch">N/A</span> : gpuEff.value ? `${gpuEff.display} tok/s/%` : "—"],
+                   ].map(([k, v]) => (
+                     <tr key={k}>
+                       <td className="td-muted">{k}</td>
+                       <td className="td-accent-mono">{v}</td>
+                     </tr>
+                   ))}
+                 </tbody>
+               </table>
+             </div>
 
-          {latencyData.length > 0 && (
-            <Chart data={latencyData} title="실시간 레이턴시 (ms)" height={160} lines={[
-              { key: "lat", color: COLORS.red, label: "Latency ms" },
-              { key: "tps", color: COLORS.accent, label: "TPS" },
-            ]} />
-          )}
+             {latencyData.length > 0 && (
+               <Chart data={latencyData} title="실시간 레이턴시 (ms)" height={160} lines={[
+                 { key: "lat", color: COLORS.red, label: "Latency ms" },
+                 { key: "tps", color: COLORS.accent, label: "TPS" },
+               ]} />
+             )}
 
-          {status === "completed" && result && !isMockEnabled && (
-            <div className="loadtest-save-row">
-              <button className="btn btn-primary" onClick={saveAsBenchmark}
-                disabled={isSaving || saveStatus === "ok"}>
-                {saveStatus === "ok" ? "✓ Saved" : isSaving ? "Saving..." : "⬆ Save as Benchmark"}
-              </button>
-              {saveStatus === "error" && (
-                <span className="loadtest-save-error">
-                  ✗ Save failed
-                </span>
-              )}
-            </div>
-          )}
-        </>
-      )}
+             {status === "completed" && result && !isMockEnabled && (
+               <div className="loadtest-save-row">
+                 <button className="btn btn-primary" onClick={saveAsBenchmark}
+                   disabled={isSaving || saveStatus === "ok"}>
+                   {saveStatus === "ok" ? "✓ Saved" : isSaving ? "Saving..." : "⬆ Save as Benchmark"}
+                 </button>
+                 {saveStatus === "error" && (
+                   <span className="loadtest-save-error">
+                     ✗ Save failed
+                   </span>
+                 )}
+               </div>
+             )}
+          </>
+        );
+      })()}
     </div>
   );
 }

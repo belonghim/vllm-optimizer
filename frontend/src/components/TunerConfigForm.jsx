@@ -147,19 +147,19 @@ export default function TunerConfigForm({
             <div>
               <label className="label">max_model_len 범위</label>
               <div className="flex-row-8">
-                <input className="input" type="number" placeholder="Min" aria-label="max_model_len 최솟값" value={config.max_model_len_min}
-                  onChange={e => onChange("max_model_len_min", +e.target.value)} />
-                <input className="input" type="number" placeholder="Max" aria-label="max_model_len 최댓값" value={config.max_model_len_max}
-                  onChange={e => onChange("max_model_len_max", +e.target.value)} />
+                 <input className="input" type="number" placeholder="Min" aria-label="max_model_len 최솟값" min={256} max={32768} step={256} value={config.max_model_len_min}
+                   onChange={e => onChange("max_model_len_min", +e.target.value)} />
+                 <input className="input" type="number" placeholder="Max" aria-label="max_model_len 최댓값" min={256} max={32768} step={256} value={config.max_model_len_max}
+                   onChange={e => onChange("max_model_len_max", +e.target.value)} />
               </div>
             </div>
             <div>
               <label className="label">max_num_batched_tokens 범위</label>
               <div className="flex-row-8">
-                <input className="input" type="number" placeholder="Min" aria-label="max_num_batched_tokens 최솟값" value={config.max_num_batched_tokens_min}
-                  onChange={e => onChange("max_num_batched_tokens_min", +e.target.value)} />
-                <input className="input" type="number" placeholder="Max" aria-label="max_num_batched_tokens 최댓값" value={config.max_num_batched_tokens_max}
-                  onChange={e => onChange("max_num_batched_tokens_max", +e.target.value)} />
+                 <input className="input" type="number" placeholder="Min" aria-label="max_num_batched_tokens 최솟값" min={256} max={8192} step={256} value={config.max_num_batched_tokens_min}
+                   onChange={e => onChange("max_num_batched_tokens_min", +e.target.value)} />
+                 <input className="input" type="number" placeholder="Max" aria-label="max_num_batched_tokens 최댓값" min={256} max={8192} step={256} value={config.max_num_batched_tokens_max}
+                   onChange={e => onChange("max_num_batched_tokens_max", +e.target.value)} />
               </div>
             </div>
             <div>
@@ -191,27 +191,27 @@ export default function TunerConfigForm({
               </label>
               {config.include_swap_space && (
                 <div className="tuner-swap-space-row">
-                  <input className="input" type="number" step="0.5" placeholder="Min GB" aria-label="swap_space 최솟값 (GB)" value={config.swap_space_min}
-                    onChange={e => onChange("swap_space_min", +e.target.value)} />
-                  <input className="input" type="number" step="0.5" placeholder="Max GB" aria-label="swap_space 최댓값 (GB)" value={config.swap_space_max}
-                    onChange={e => onChange("swap_space_max", +e.target.value)} />
+                   <input className="input" type="number" step="0.5" placeholder="Min GB" aria-label="swap_space 최솟값 (GB)" min={0} max={64} value={config.swap_space_min}
+                     onChange={e => onChange("swap_space_min", +e.target.value)} />
+                   <input className="input" type="number" step="0.5" placeholder="Max GB" aria-label="swap_space 최댓값 (GB)" min={0} max={64} value={config.swap_space_max}
+                     onChange={e => onChange("swap_space_max", +e.target.value)} />
                 </div>
               )}
             </div>
             <div>
               <label className="label">평가 요청 수</label>
-              <input className="input" type="number" aria-label="평가 요청 수" value={config.eval_requests}
-                onChange={e => onChange("eval_requests", +e.target.value)} />
+               <input className="input" type="number" aria-label="평가 요청 수" min={10} max={10000} step={10} value={config.eval_requests}
+                 onChange={e => onChange("eval_requests", +e.target.value)} />
             </div>
             <div>
               <label className="label">평가 동시 요청</label>
-              <input className="input" type="number" aria-label="평가 동시 요청" value={config.eval_concurrency}
-                onChange={e => onChange("eval_concurrency", +e.target.value)} />
+               <input className="input" type="number" aria-label="평가 동시 요청" min={1} max={256} value={config.eval_concurrency}
+                 onChange={e => onChange("eval_concurrency", +e.target.value)} />
             </div>
             <div>
               <label className="label">평가 RPS</label>
-              <input className="input" type="number" aria-label="평가 RPS" value={config.eval_rps}
-                onChange={e => onChange("eval_rps", +e.target.value)} />
+               <input className="input" type="number" aria-label="평가 RPS" min={1} max={1000} value={config.eval_rps}
+                 onChange={e => onChange("eval_rps", +e.target.value)} />
             </div>
           </div>
         </div>

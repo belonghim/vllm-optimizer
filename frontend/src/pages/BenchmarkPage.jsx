@@ -64,26 +64,26 @@ function BenchmarkPage({ isActive }) {
             <tr><th></th><th>Name</th><th>Model</th><th>Date</th><th>TPS</th><th>P99 ms</th><th>RPS</th><th>GPU Eff.</th></tr>
           </thead>
           <tbody>
-            {benchmarks.map(b => (
-              <tr key={b.id} onClick={() => toggle(b.id)}
-                className={selected.includes(b.id) ? 'benchmark-row benchmark-row--selected' : 'benchmark-row'}>
-                <td>
-                  <input type="checkbox" checked={selected.includes(b.id)} readOnly aria-label={`벤치마크 ${b.name} 선택`} />
-                </td>
-                <td className="td-text">{b.name}</td>
-                <td className="td-cyan">{b.config?.model || "—"}</td>
-                <td className="td-muted">{new Date(b.timestamp * 1000).toLocaleString()}</td>
-                <td className="td-accent">{fmt(b.result?.tps?.mean, 1)}</td>
-                <td className="td-red">{fmt((b.result?.latency?.p99 || 0) * 1000, 0)}</td>
-                <td>{fmt(b.result?.rps_actual, 1)}</td>
-                <td className="td-green">
-                  {(() => {
-                    const eff = calcGpuEfficiency(b.result);
-                    return eff.mismatch ? <span title="GPU metrics mismatch">N/A</span> : eff.display || "—";
-                  })()}
-                </td>
-              </tr>
-            ))}
+            {benchmarks.map(b => {
+              const eff = calcGpuEfficiency(b.result);
+              return (
+                <tr key={b.id} onClick={() => toggle(b.id)}
+                  className={selected.includes(b.id) ? 'benchmark-row benchmark-row--selected' : 'benchmark-row'}>
+                  <td>
+                    <input type="checkbox" checked={selected.includes(b.id)} readOnly aria-label={`벤치마크 ${b.name} 선택`} />
+                  </td>
+                  <td className="td-text">{b.name}</td>
+                  <td className="td-cyan">{b.config?.model || "—"}</td>
+                  <td className="td-muted">{new Date(b.timestamp * 1000).toLocaleString()}</td>
+                  <td className="td-accent">{fmt(b.result?.tps?.mean, 1)}</td>
+                  <td className="td-red">{fmt((b.result?.latency?.p99 || 0) * 1000, 0)}</td>
+                  <td>{fmt(b.result?.rps_actual, 1)}</td>
+                  <td className="td-green">
+                    {eff.mismatch ? <span title="GPU metrics mismatch">N/A</span> : eff.display || "—"}
+                  </td>
+                </tr>
+              );
+            })}
             {benchmarks.length === 0 && (
               <tr><td colSpan={8} className="benchmark-empty">
                 부하 테스트 결과를 저장하면 여기 나타납니다.

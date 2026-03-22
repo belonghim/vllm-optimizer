@@ -155,4 +155,35 @@ describe("ClusterConfigContext", () => {
       expect(result.current.maxTargets).toBe(5);
     });
   });
+
+  it("migrates versionless config and preserves fields", async () => {
+    const legacy = JSON.stringify({
+      endpoint: "http://x",
+      targets: [{ namespace: "ns", inferenceService: "is", isDefault: true }],
+    });
+    Storage.prototype.getItem.mockReturnValue(legacy);
+
+    const { result } = renderHook(() => useClusterConfig(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.endpoint).toBe("http://x");
+    });
+    expect(result.current.targets[0].namespace).toBe("ns");
+    expect(result.current.targets[0].inferenceService).toBe("is");
+  });
+
+  it("writes version field to localStorage", async () => {
+    const { result } = renderHook(() => useClusterConfig(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    const calls = Storage.prototype.setItem.mock.calls.filter(
+      ([key]) => key === "vllm-opt-cluster-config"
+    );
+    expect(calls.length).toBeGreaterThan(0);
+    const lastStored = JSON.parse(calls[calls.length - 1][1]);
+    expect(lastStored.version).toBe(2);
+  });
 });
