@@ -1,0 +1,43 @@
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: vllm-openvino-runtime
+  namespace: PLACEHOLDER_VLLM_NS
+  annotations:
+    opendatahub.io/recommended-accelerators: '["amd64-x86/cpu"]'
+    opendatahub.io/runtime-version: v0.14.1
+    openshift.io/display-name: vLLM OpenVino ServingRuntime for KServe
+  labels:
+    opendatahub.io/dashboard: "true"
+spec:
+  annotations:
+    opendatahub.io/kserve-runtime: vllm
+    prometheus.io/path: /metrics
+    prometheus.io/port: "8080"
+  multiModel: false
+  supportedModelFormats:
+    - name: vLLM
+      autoSelect: true
+  containers:
+    - name: kserve-container
+      image: quay.io/joopark/vllm-openvino:latest
+      imagePullPolicy: Always
+      command:
+        - python
+        - -m
+        - vllm.entrypoints.openai.api_server
+      args:
+        - --port=8080
+        - --model=/mnt/models
+        - --served-model-name={{.Name}}
+      env:
+        - name: HF_HOME
+          value: /tmp/hf_home
+        - name: TRANSFORMERS_OFFLINE
+          value: "1"
+        - name: VLLM_OPENVINO_DEVICE
+          value: "CPU"
+        - name: VLLM_ALLOW_LONG_MAX_MODEL_LEN
+          value: "1"
+      ports:
+        - containerPort: 8080

@@ -9,20 +9,23 @@ _latest/_history.
 import os
 
 from services.metrics_collector import MetricsCollector
+from services.multi_target_collector import MultiTargetMetricsCollector
 from services.load_engine import load_engine  # re-export existing singleton
 from services.storage import Storage
 from services.storage_health import StorageHealthMonitor
 from services.runtime_config import RuntimeConfig
 
-# ── Singleton RuntimeConfig ──
-# In-memory runtime settings with environment variable defaults.
-# Provides getter/setter for vllm_namespace, vllm_endpoint, vllm_is_name.
-runtime_config = RuntimeConfig()
-
 # ── Singleton MetricsCollector ──
 # startup_metrics_shim.py calls start_collection() on this instance.
 # routers/metrics.py and routers/tuner.py read .latest / .history from it.
 metrics_collector = MetricsCollector()
+multi_target_collector = MultiTargetMetricsCollector()
+
+# ── Singleton RuntimeConfig ──
+# In-memory runtime settings with environment variable defaults.
+# Provides getter/setter for vllm_namespace, vllm_endpoint, vllm_is_name.
+# Delegates to MultiTargetCollector's first target (default target).
+runtime_config = RuntimeConfig(multi_target_collector)
 
 # ── Singleton Storage ──
 # Async SQLite storage for benchmarks, load test history, and tuner trials.
@@ -31,3 +34,12 @@ metrics_collector = MetricsCollector()
 storage = Storage(os.getenv("STORAGE_PATH", "/data/app.db"))
 
 storage_health_monitor = StorageHealthMonitor(storage)
+
+__all__ = [
+    "runtime_config",
+    "metrics_collector",
+    "multi_target_collector",
+    "load_engine",
+    "storage",
+    "storage_health_monitor",
+]

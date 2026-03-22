@@ -138,3 +138,10 @@ class Benchmark(BaseModel):
     timestamp: float | None = Field(default=None, description="Unix timestamp when benchmark was saved")
     config: LoadTestConfig = Field(description="Load test configuration used")
     result: LoadTestResult = Field(description="Final load test results")
+
+
+class TargetedMetricsResponse(BaseModel):
+    """Response for targeted metrics queries via namespace + is_name."""
+    status: str = Field(description='"collecting" if metrics not yet available, "ready" if data present')
+    data: MetricsSnapshot | None = Field(default=None, description="Latest metrics snapshot, null when status is collecting")
+    hasMonitoringLabel: bool = Field(default=False, description="Whether namespace has openshift.io/cluster-monitoring=true label")

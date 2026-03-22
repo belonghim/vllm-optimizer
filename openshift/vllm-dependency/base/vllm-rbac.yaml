@@ -1,0 +1,33 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vllm-optimizer-backend-role
+  namespace: PLACEHOLDER_VLLM_NS
+rules:
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "patch"]
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+- apiGroups: ["serving.kserve.io"]
+  resources: ["inferenceservices"]
+  verbs: ["get", "list", "patch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vllm-optimizer-backend-rb
+  namespace: PLACEHOLDER_VLLM_NS
+subjects:
+- kind: ServiceAccount
+  name: vllm-optimizer-backend
+  namespace: PLACEHOLDER_OPTIMIZER_NS
+roleRef:
+  kind: Role
+  name: vllm-optimizer-backend-role
+  apiGroup: rbac.authorization.k8s.io

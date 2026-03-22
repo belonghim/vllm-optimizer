@@ -119,22 +119,12 @@ function TunerPage() {
       .catch(() => {});
   }, [isMockEnabled]);
 
+  // ClusterConfigContext의 endpoint를 사용 (중복 /api/config 호출 제거)
   useEffect(() => {
     if (endpoint) {
       setConfig(c => ({ ...c, vllm_endpoint: c.vllm_endpoint || endpoint }));
     }
   }, [endpoint]);
-
-  useEffect(() => {
-    fetch(`${API}/config`)
-      .then(r => r.json())
-      .then(data => {
-        if (data.vllm_endpoint) {
-          setConfig(c => ({ ...c, vllm_endpoint: c.vllm_endpoint || data.vllm_endpoint }));
-        }
-      })
-      .catch(() => {}); // silently fail — user can type manually
-  }, []);
 
   const handleConfigChange = useCallback((field, value) => {
     setConfig(c => ({ ...c, [field]: value }));

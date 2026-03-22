@@ -1,0 +1,59 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: vllm-lab-prod
+resources:
+  - ../base
+patches:
+  - target:
+      kind: Role
+      name: vllm-optimizer-backend-role
+    patch: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        name: vllm-optimizer-backend-role
+        namespace: vllm-lab-prod
+  - target:
+      kind: RoleBinding
+      name: vllm-optimizer-backend-rb
+    patch: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: vllm-optimizer-backend-rb
+        namespace: vllm-lab-prod
+      subjects:
+      - kind: ServiceAccount
+        name: vllm-optimizer-backend
+        namespace: vllm-optimizer-prod
+  - target:
+      kind: NetworkPolicy
+      name: vllm-networkpolicy
+    patch: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: vllm-networkpolicy
+        namespace: vllm-lab-prod
+      spec:
+        ingress:
+        - from:
+          - podSelector: {}
+          - namespaceSelector:
+              matchLabels:
+                network.openshift.io/policy-group: ingress
+          - namespaceSelector:
+              matchLabels:
+                network.openshift.io/policy-group: monitoring
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: openshift-kube-apiserver
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: vllm-optimizer-prod
+            podSelector:
+              matchLabels:
+                app: vllm-optimizer-backend
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: openshift-lightspeed

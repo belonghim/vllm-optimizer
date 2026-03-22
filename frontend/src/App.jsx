@@ -55,7 +55,7 @@ export default function App() {
         </div>
       </header>
 
-      {(page === "monitor" || page === "tuner") && <ClusterConfigBar />}
+      {page === "tuner" && <ClusterConfigBar />}
 
       <main className="app-main">
         {PAGES.map(p => (

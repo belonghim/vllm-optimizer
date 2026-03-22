@@ -72,20 +72,12 @@ function LoadTestPage() {
 
   useEffect(() => { return () => disconnect(); }, [isMockEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ClusterConfigContext의 globalEndpoint를 사용 (중복 /api/config 호출 제거)
   useEffect(() => {
     if (!globalIsLoading && globalEndpoint) {
       setConfig(c => ({ ...c, endpoint: c.endpoint || globalEndpoint }));
     }
   }, [globalIsLoading, globalEndpoint]);
-
-  useEffect(() => {
-    fetch(`${API}/config`).then(r => r.json()).then(data => {
-      setConfig(c => ({
-        ...c,
-        ...(data.vllm_endpoint ? { endpoint: c.endpoint || data.vllm_endpoint } : {}),
-      }));
-    }).catch(() => {});
-  }, []);
 
   const handleConfigChange = (key, value) => setConfig(c => ({ ...c, [key]: value }));
 

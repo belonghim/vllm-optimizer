@@ -29,6 +29,8 @@ _MODULES_TO_CLEAR = [
     "services.load_engine",
     "backend.services.metrics_collector",
     "services.metrics_collector",
+    "backend.services.multi_target_collector",
+    "services.multi_target_collector",
     "backend.services.auto_tuner",
     "services.auto_tuner",
     "backend.routers.load_test",
@@ -109,6 +111,25 @@ class _DummyK8sApi:
         return types.SimpleNamespace(spec=types.SimpleNamespace(replicas=0))
 
 
+class _StubMultiTargetMetricsCollector:
+
+    """Lightweight stand-in for MultiTargetMetricsCollector."""
+
+    def __init__(self):
+        self.registered: list[tuple[str, str]] = []
+        self._has_label: bool = False
+
+    async def register_target(self, namespace: str, is_name: str) -> bool:
+        self.registered.append((namespace, is_name))
+        return True
+
+    async def get_metrics(self, namespace: str, is_name: str) -> None:
+        return None
+
+    def get_has_monitoring_label(self, namespace: str, is_name: str) -> bool:
+        return self._has_label
+
+
 class _DummyCustomObjectsApi:
     async def get_namespaced_custom_object(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
         return {"status": {"conditions": []}}
@@ -179,6 +200,7 @@ def _install_stub_metrics_collector_modules() -> list[str]:
     # Stub services.shared — provides the singleton MetricsCollector instance
     # Must be injected AFTER the MetricsCollector class stub above
     stub_collector_instance = _StubMetricsCollector()
+    stub_multi_target_instance = _StubMultiTargetMetricsCollector()
     load_engine_module = importlib.import_module("services.load_engine")
     backend_load_engine_module = importlib.import_module("backend.services.load_engine")
     from services.storage import Storage
@@ -191,6 +213,7 @@ def _install_stub_metrics_collector_modules() -> list[str]:
         stub_any = cast(Any, stub_module)
         stub_any.metrics_collector = stub_collector_instance
         stub_any.MetricsCollector = _StubMetricsCollector
+        stub_any.multi_target_collector = stub_multi_target_instance
         stub_any.load_engine = load_engine_target
         stub_any.Storage = Storage
         stub_any.storage = Storage(":memory:")
