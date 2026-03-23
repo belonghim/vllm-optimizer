@@ -7,7 +7,7 @@ and internal data structures. Models are divided into:
 - Performance statistics
 - Auto-tuning configuration and trial results
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import Any, Optional
 
 
@@ -33,6 +33,14 @@ class RequestResult(BaseModel):
     output_tokens: int = Field(default=0, description="Number of output tokens")
     tps: float = Field(default=0.0, description="Tokens per second")
     error: str | None = Field(default=None, description="Error message if failed")
+
+
+class ErrorResponse(BaseModel):
+    """Standard error response model"""
+    success: bool = False
+    error: str
+    error_type: str | None = None
+    detail: dict[str, Any] | None = None
 
 
 class LatencyStats(BaseModel):
@@ -96,6 +104,20 @@ class TuningConfig(BaseModel):
     n_trials: int = Field(default=10, ge=1, description="Number of optimization trials")
     warmup_requests: int = Field(default=20, ge=0, description="Number of warmup requests per trial")
     eval_requests: int = Field(default=100, ge=1, description="Number of evaluation requests per trial")
+
+    @model_validator(mode='after')
+    def validate_ranges(self) -> 'TuningConfig':
+        ranges = {
+            'max_num_seqs_range': self.max_num_seqs_range,
+            'gpu_memory_utilization_range': self.gpu_memory_utilization_range,
+            'max_model_len_range': self.max_model_len_range,
+            'max_num_batched_tokens_range': self.max_num_batched_tokens_range,
+            'swap_space_range': self.swap_space_range,
+        }
+        for name, r in ranges.items():
+            if r[0] >= r[1]:
+                raise ValueError(f"{name}: min({r[0]}) must be less than max({r[1]})")
+        return self
 
 
 

@@ -248,7 +248,6 @@ class AutoTuner:
         }
 
     async def _init_tuning_state(self, config: TuningConfig) -> None:
-        self._running = True
         self._config = config
         self._trials = []
         self._best_score_history = []
@@ -258,22 +257,24 @@ class AutoTuner:
         self._direction, self._study = await self._setup_study(config, storage_url)
 
     async def start(self, config: TuningConfig, vllm_endpoint: str) -> dict[str, Any]:
-        async with self._lock:
-            if self._running:
-                return {"error": "이미 튜닝이 실행 중입니다."}
-            if not OPTUNA_AVAILABLE:
-                return {"error": "optuna 패키지가 필요합니다: pip install optuna"}
-            if self._cancel_event.is_set():
-                await asyncio.sleep(0.1)
-            self._cancel_event.clear()
-            await self._init_tuning_state(config)
-
-        self._vllm_endpoint = vllm_endpoint
+        state_initialized = False
         try:
+            async with self._lock:
+                if self._running:
+                    return {"error": "이미 튜닝이 실행 중입니다."}
+                if not OPTUNA_AVAILABLE:
+                    return {"error": "optuna 패키지가 필요합니다: pip install optuna"}
+                if self._cancel_event.is_set():
+                    await asyncio.sleep(0.1)
+                self._cancel_event.clear()
+                self._running = True
+                state_initialized = True
+                await self._init_tuning_state(config)
+
+            self._vllm_endpoint = vllm_endpoint
             logger.info("[AutoTuner] 튜닝 시작 전 K8s 권한 사전 검증 중...")
             preflight = await self._preflight_check()
             if not preflight["success"]:
-                self._running = False
                 error_msg = preflight.get("error", "Preflight 검증 실패")
                 error_type = preflight.get("error_type", "preflight_error")
                 await self._broadcast({
@@ -352,7 +353,12 @@ class AutoTuner:
                 "trials": len(self._trials),
             }
         finally:
-            self._running = False
+            if state_initialized:
+                current_task = asyncio.current_task()
+                async with self._lock:
+                    self._running = False
+                    if self._current_task is current_task:
+                        self._current_task = None
 
     async def _setup_study(
         self, config: TuningConfig, storage_url: str | None
@@ -421,8 +427,9 @@ class AutoTuner:
                     "type": "tuning_error",
                     "data": {"error": error_msg, "error_type": "rbac"},
                 })
-                self._running = False
                 self._cancel_event.set()
+                async with self._lock:
+                    self._running = False
             return False
         return True
 
@@ -547,11 +554,25 @@ class AutoTuner:
         })
 
     async def stop(self) -> dict[str, Any]:
+        pending_task: asyncio.Task[Any] | None = None
         async with self._lock:
             if not self._running:
                 return {"success": False, "message": "No tuning is currently running."}
             self._cancel_event.set()
             self._running = False
+            pending_task = self._current_task
+
+        if pending_task and not pending_task.done() and pending_task is not asyncio.current_task():
+            try:
+                await asyncio.wait_for(asyncio.shield(pending_task), timeout=10.0)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                pending_task.cancel()
+            except Exception as exc:
+                logger.warning("[AutoTuner] Pending tuning task failed during stop: %s", exc)
+
+        async with self._lock:
+            if self._current_task is pending_task and pending_task is not None and pending_task.done():
+                self._current_task = None
         return {"success": True, "message": "Tuning stopped."}
 
     def _suggest_params(self, trial, config: TuningConfig) -> dict[str, Any]:

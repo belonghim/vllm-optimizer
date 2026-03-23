@@ -116,11 +116,6 @@ class LoadTestEngine:
 
     def _init_run_state(self, config: LoadTestConfig):
         """Initialize run state, stats tracking, and result containers."""
-        self._state = LoadTestState(
-            status=LoadTestStatus.RUNNING,
-            start_time=time.time(),
-            total_requests=config.total_requests,
-        )
         self._stop_event.clear()
         semaphore = asyncio.Semaphore(config.concurrency)
         metric_samples = []
@@ -355,6 +350,18 @@ class LoadTestEngine:
 
     async def run(self, config: LoadTestConfig) -> dict[str, Any]:
         """부하 테스트 실행 — 실시간 결과 yield"""
+        async with self._state_lock:
+            if self._state.status == LoadTestStatus.RUNNING:
+                return {
+                    "error": "이미 부하 테스트가 실행 중입니다.",
+                    "error_type": "already_running",
+                }
+            self._state = LoadTestState(
+                status=LoadTestStatus.RUNNING,
+                start_time=time.time(),
+                total_requests=config.total_requests,
+            )
+
         semaphore, metric_samples, sample_stop, sampling_task, interval = self._init_run_state(config)
         preflight = await self._preflight_check(config)
         if not preflight.get("success"):
