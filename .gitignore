@@ -33,3 +33,11 @@ htmlcov/
 # frontend build artifacts
 frontend/dist/
 playwright-test/
+
+# test artifacts
+test_output.txt
+test-sa-pod.yaml
+*.tmp
+
+# github workflows (project uses Tekton CI)
+.github/workflows/
