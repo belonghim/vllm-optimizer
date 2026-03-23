@@ -17,3 +17,13 @@ export interface SSEState {
   retryCount: number;
   error: string | null;
 }
+
+export interface SSEErrorPayload {
+  error: string;
+  error_type?: string;
+}
+
+export interface SSEWarningPayload {
+  message: string;
+  trial?: number;
+}
