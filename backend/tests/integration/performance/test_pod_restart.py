@@ -124,18 +124,18 @@ def test_vllm_config_patch_via_api(
     resp = http_client.get("/api/vllm-config", timeout=30)
     assert resp.status_code == 200, f"Failed to get vllm-config: {resp.text}"
     original_data = resp.json().get("data", {})
-    original_seqs = original_data.get("MAX_NUM_SEQS", "256")
+    original_seqs = original_data.get("max_num_seqs", "256")
 
     new_value = "128" if original_seqs != "128" else "256"
     patch_resp = http_client.patch(
         "/api/vllm-config",
-        json={"data": {"MAX_NUM_SEQS": new_value}},
+        json={"data": {"max_num_seqs": new_value}},
         timeout=30
     )
     assert patch_resp.status_code == 200, f"PATCH failed: {patch_resp.text}"
     assert patch_resp.json().get("success")
-    assert "MAX_NUM_SEQS" in patch_resp.json().get("updated_keys", [])
+    assert "max_num_seqs" in patch_resp.json().get("updated_keys", [])
 
     verify_resp = http_client.get("/api/vllm-config", timeout=30)
     assert verify_resp.status_code == 200
-    assert verify_resp.json()["data"].get("MAX_NUM_SEQS") == new_value
+    assert verify_resp.json()["data"].get("max_num_seqs") == new_value

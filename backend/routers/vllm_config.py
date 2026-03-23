@@ -14,33 +14,33 @@ router = APIRouter()
 
 def _get_k8s_namespace() -> str:
     namespace = runtime_config.vllm_namespace
-    return namespace if namespace and namespace != "vllm-lab-dev" else "default"
+    return namespace if namespace else "default"
 
 
 def _get_vllm_is_name() -> str:
     return runtime_config.vllm_is_name or "llm-ov"
 
 ALLOWED_CONFIG_KEYS = {
-    "MAX_NUM_SEQS",
-    "GPU_MEMORY_UTILIZATION",
-    "MAX_MODEL_LEN",
-    "MAX_NUM_BATCHED_TOKENS",
-    "BLOCK_SIZE",
-    "SWAP_SPACE",
-    "ENABLE_CHUNKED_PREFILL",
-    "ENABLE_ENFORCE_EAGER",
+    "max_num_seqs",
+    "gpu_memory_utilization",
+    "max_model_len",
+    "max_num_batched_tokens",
+    "block_size",
+    "swap_space",
+    "enable_chunked_prefill",
+    "enable_enforce_eager",
 }
 
 # IS args에서 파싱할 key 매핑 (CLI flag → config key)
 _ARG_TO_KEY = {
-    "--max-num-seqs": "MAX_NUM_SEQS",
-    "--gpu-memory-utilization": "GPU_MEMORY_UTILIZATION",
-    "--max-model-len": "MAX_MODEL_LEN",
-    "--max-num-batched-tokens": "MAX_NUM_BATCHED_TOKENS",
-    "--block-size": "BLOCK_SIZE",
-    "--swap-space": "SWAP_SPACE",
-    "--enable-chunked-prefill": "ENABLE_CHUNKED_PREFILL",
-    "--enforce-eager": "ENABLE_ENFORCE_EAGER",
+    "--max-num-seqs": "max_num_seqs",
+    "--gpu-memory-utilization": "gpu_memory_utilization",
+    "--max-model-len": "max_model_len",
+    "--max-num-batched-tokens": "max_num_batched_tokens",
+    "--block-size": "block_size",
+    "--swap-space": "swap_space",
+    "--enable-chunked-prefill": "enable_chunked_prefill",
+    "--enforce-eager": "enable_enforce_eager",
 }
 _KEY_TO_ARG = {v: k for k, v in _ARG_TO_KEY.items()}
 
@@ -70,7 +70,7 @@ def _config_dict_to_tuning_args(config: dict[str, Any]) -> list[str]:
         if cli_flag is None:
             continue
         # boolean flags (enable_chunked_prefill, enforce_eager)
-        if key in ("ENABLE_CHUNKED_PREFILL", "ENABLE_ENFORCE_EAGER"):
+        if key in ("enable_chunked_prefill", "enable_enforce_eager"):
             if value.lower() in ("true", "1", "yes"):
                 result.append(cli_flag)
             # false/empty → 생략
