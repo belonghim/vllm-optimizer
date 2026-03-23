@@ -168,3 +168,49 @@ def test_patch_tuning_args_does_not_include_storage_uri_in_body(client):
         body = call_kwargs["body"]
         model_spec = body["spec"]["predictor"]["model"]
         assert "storageUri" not in model_spec
+
+
+def test_get_returns_resources(client_with_vllm_config):
+    mock_is_with_resources = {
+        "spec": {"predictor": {"model": {
+            "storageUri": "oci://test-registry/test-model",
+            "args": ["--max-num-seqs=256"],
+            "resources": {
+                "requests": {"cpu": "4", "memory": "8Gi"},
+                "limits": {"cpu": "8", "memory": "16Gi"},
+            },
+        }}}
+    }
+    
+    mock_custom = MagicMock()
+    mock_custom.get_namespaced_custom_object.return_value = mock_is_with_resources
+    
+    handler_globals = _get_vllm_config_globals(client_with_vllm_config)
+    if handler_globals is None:
+        pytest.skip("Route /api/vllm-config not found")
+    
+    with patch.dict(handler_globals, {"_get_k8s_custom": lambda: mock_custom}):
+        resp = client_with_vllm_config.get("/api/vllm-config")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "resources" in data
+        assert data["resources"]["requests"]["cpu"] == "4"
+        assert data["resources"]["requests"]["memory"] == "8Gi"
+        assert data["resources"]["limits"]["cpu"] == "8"
+        assert data["resources"]["limits"]["memory"] == "16Gi"
+
+
+def test_get_returns_empty_resources_when_absent(client_with_vllm_config):
+    mock_custom = MagicMock()
+    mock_custom.get_namespaced_custom_object.return_value = _MOCK_IS
+    
+    handler_globals = _get_vllm_config_globals(client_with_vllm_config)
+    if handler_globals is None:
+        pytest.skip("Route /api/vllm-config not found")
+    
+    with patch.dict(handler_globals, {"_get_k8s_custom": lambda: mock_custom}):
+        resp = client_with_vllm_config.get("/api/vllm-config")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "resources" in data
+        assert data["resources"] == {}

@@ -130,7 +130,8 @@ async def get_vllm_config() -> dict[str, Any]:
         model_spec: dict[str, Any] = is_obj.get("spec", {}).get("predictor", {}).get("model", {})  # type: ignore[index]
         args = model_spec.get("args") or []
         storage_uri = model_spec.get("storageUri")
-        return {"success": True, "data": _args_to_config_dict(args), "storageUri": storage_uri}
+        resources = model_spec.get("resources", {})
+        return {"success": True, "data": _args_to_config_dict(args), "storageUri": storage_uri, "resources": resources}
     except K8sApiException as e:
         logger.error("[VllmConfig] Failed to read InferenceService: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
