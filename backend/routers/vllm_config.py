@@ -140,7 +140,7 @@ async def get_vllm_config() -> dict[str, Any]:
 @router.patch("")
 async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict[str, Any]:
     # 키 유효성 검증
-    invalid_keys = set(request.data.keys()) - ALLOWED_CONFIG_KEYS
+    invalid_keys = {str(k) for k in request.data.keys()} - ALLOWED_CONFIG_KEYS
     if invalid_keys:
         raise HTTPException(
             status_code=422,
@@ -186,7 +186,9 @@ async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict[str, Any]:
             static_args = [a for a in current_args
                            if not a.startswith(_TUNING_ARG_PREFIXES)]
 
-            new_tuning_args = _config_dict_to_tuning_args(request.data)
+            current_config = _args_to_config_dict(current_args)
+            current_config.update(cast(dict[str, Any], request.data))
+            new_tuning_args = _config_dict_to_tuning_args(current_config)
             model_patch["args"] = static_args + new_tuning_args
 
         if request.storageUri is not None:

@@ -214,3 +214,88 @@ def test_get_returns_empty_resources_when_absent(client_with_vllm_config):
         data = resp.json()
         assert "resources" in data
         assert data["resources"] == {}
+
+
+def test_patch_partial_update_preserves_existing_args(client: TestClient):
+    mock_is = {
+        "spec": {"predictor": {"model": {
+            "args": [
+                "--max-num-seqs=256",
+                "--gpu-memory-utilization=0.90",
+                "--max-model-len=8192",
+            ]
+        }}}
+    }
+    mock_custom = MagicMock()
+    mock_custom.get_namespaced_custom_object.return_value = mock_is
+    mock_custom.patch_namespaced_custom_object.return_value = MagicMock()
+
+    handler_globals = _get_vllm_config_globals(client, method="PATCH")
+    if handler_globals is None:
+        pytest.skip("PATCH /api/vllm-config route not found")
+
+    with patch.dict(handler_globals, {"_get_k8s_custom": lambda: mock_custom}):
+        resp = client.patch("/api/vllm-config", json={"data": {"max_num_seqs": "512"}})
+        assert resp.status_code == 200
+
+        body = mock_custom.patch_namespaced_custom_object.call_args.kwargs["body"]
+        patched_args = body["spec"]["predictor"]["model"]["args"]
+
+        assert "--max-num-seqs=512" in patched_args
+        assert "--gpu-memory-utilization=0.90" in patched_args
+        assert "--max-model-len=8192" in patched_args
+        assert "--max-num-seqs=256" not in patched_args
+        assert len(patched_args) == 3
+
+
+def test_patch_empty_data_preserves_all_args(client: TestClient):
+    mock_custom = MagicMock()
+    mock_custom.get_namespaced_custom_object.return_value = _MOCK_IS
+    mock_custom.patch_namespaced_custom_object.return_value = MagicMock()
+
+    handler_globals = _get_vllm_config_globals(client, method="PATCH")
+    if handler_globals is None:
+        pytest.skip("PATCH /api/vllm-config route not found")
+
+    with patch.dict(handler_globals, {"_get_k8s_custom": lambda: mock_custom}):
+        resp = client.patch("/api/vllm-config", json={"data": {}})
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["success"] is True
+        assert payload["updated_keys"] == []
+        assert payload["updated_storageUri"] is False
+        assert mock_custom.patch_namespaced_custom_object.call_count == 0
+
+
+def test_patch_boolean_false_removes_flag(client: TestClient):
+    mock_is = {
+        "spec": {"predictor": {"model": {
+            "args": [
+                "--max-num-seqs=256",
+                "--enable-chunked-prefill",
+                "--max-model-len=8192",
+            ]
+        }}}
+    }
+    mock_custom = MagicMock()
+    mock_custom.get_namespaced_custom_object.return_value = mock_is
+    mock_custom.patch_namespaced_custom_object.return_value = MagicMock()
+
+    handler_globals = _get_vllm_config_globals(client, method="PATCH")
+    if handler_globals is None:
+        pytest.skip("PATCH /api/vllm-config route not found")
+
+    with patch.dict(handler_globals, {"_get_k8s_custom": lambda: mock_custom}):
+        resp = client.patch(
+            "/api/vllm-config",
+            json={"data": {"enable_chunked_prefill": "false"}},
+        )
+        assert resp.status_code == 200
+
+        body = mock_custom.patch_namespaced_custom_object.call_args.kwargs["body"]
+        patched_args = body["spec"]["predictor"]["model"]["args"]
+
+        assert "--enable-chunked-prefill" not in patched_args
+        assert "--max-num-seqs=256" in patched_args
+        assert "--max-model-len=8192" in patched_args
+        assert len(patched_args) == 2
