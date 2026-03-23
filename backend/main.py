@@ -59,6 +59,17 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("[Lifespan] Storage initialization failed (continuing): %s", e)
 
+    # ── Detect interrupted runs from previous lifecycle ──
+    try:
+        from services.shared import storage as _storage
+        from routers.status import set_interrupted_runs
+        interrupted = await _storage.get_interrupted_runs()
+        if interrupted:
+            logger.warning("[Lifespan] Detected %d interrupted run(s) from previous lifecycle", len(interrupted))
+            set_interrupted_runs(interrupted)
+    except Exception as e:
+        logger.warning("[Lifespan] Failed to detect interrupted runs (continuing): %s", e)
+
     try:
         from services.shared import storage_health_monitor
         storage_health_monitor.start()
@@ -148,7 +159,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from routers import load_test, metrics, benchmark, tuner, vllm_config, config as config_router
+from routers import load_test, metrics, benchmark, tuner, vllm_config, config as config_router, status
 
 # Mount routers under /api prefix with route-specific paths
 # Note: routers are imported directly as APIRouter instances, not modules
@@ -158,6 +169,7 @@ app.include_router(benchmark, prefix="/api/benchmark", tags=["benchmark"])
 app.include_router(tuner, prefix="/api/tuner", tags=["tuner"])
 app.include_router(vllm_config, prefix="/api/vllm-config", tags=["vllm-config"])
 app.include_router(config_router)
+app.include_router(status, prefix="/api", tags=["status"])
 
 
 @app.get("/health", tags=["health"], response_model=None)

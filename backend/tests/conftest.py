@@ -45,6 +45,8 @@ _MODULES_TO_CLEAR = [
     "backend.routers.vllm_config",
     "routers.config",
     "backend.routers.config",
+    "routers.status",
+    "backend.routers.status",
     "routers",
     "backend.routers",
     "startup_metrics_shim",

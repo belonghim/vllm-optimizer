@@ -374,78 +374,93 @@ class LoadTestEngine:
                 total_requests=config.total_requests,
             )
 
-        semaphore, metric_samples, sample_stop, sampling_task, interval = self._init_run_state(config)
-        if not skip_preflight:
-            preflight = await self._preflight_check(config)
-            if not preflight.get("success"):
-                return await self._fail_run(preflight, sample_stop, sampling_task, [])
+        _running_row_id: int | None = None
+        try:
+            try:
+                from services.shared import storage as _storage
+                _running_row_id = await _storage.set_running("loadtest")
+            except Exception as e:
+                logger.warning("[LoadEngine] Failed to record running state: %s", e)
 
-        first_batch_size = min(5, config.total_requests)
-        first_batch_results: dict[int, RequestResult] = {}
-        first_batch_checked = False
+            semaphore, metric_samples, sample_stop, sampling_task, interval = self._init_run_state(config)
+            if not skip_preflight:
+                preflight = await self._preflight_check(config)
+                if not preflight.get("success"):
+                    return await self._fail_run(preflight, sample_stop, sampling_task, [])
 
-        def _check_consecutive_failures(new_results: list[RequestResult]) -> dict[str, str] | None:
-            nonlocal first_batch_checked
-            if first_batch_checked or first_batch_size <= 0:
-                return None
-            for result in new_results:
-                if 0 <= result.req_id < first_batch_size:
-                    first_batch_results[result.req_id] = result
-            if len(first_batch_results) < first_batch_size:
-                return None
-            first_batch_checked = True
-            if all(not result.success for result in first_batch_results.values()):
-                errors = {r.error for r in first_batch_results.values() if not r.success and r.error}
-                if len(errors) != 1:
+            first_batch_size = min(5, config.total_requests)
+            first_batch_results: dict[int, RequestResult] = {}
+            first_batch_checked = False
+
+            def _check_consecutive_failures(new_results: list[RequestResult]) -> dict[str, str] | None:
+                nonlocal first_batch_checked
+                if first_batch_checked or first_batch_size <= 0:
                     return None
-                common_error = errors.pop()
-                return {
-                    "error": f"연속 {first_batch_size}개 요청 실패. 테스트를 중단합니다: {common_error}",
-                    "error_type": "consecutive_failure",
-                }
-            return None
+                for result in new_results:
+                    if 0 <= result.req_id < first_batch_size:
+                        first_batch_results[result.req_id] = result
+                if len(first_batch_results) < first_batch_size:
+                    return None
+                first_batch_checked = True
+                if all(not result.success for result in first_batch_results.values()):
+                    errors = {r.error for r in first_batch_results.values() if not r.success and r.error}
+                    if len(errors) != 1:
+                        return None
+                    common_error = errors.pop()
+                    return {
+                        "error": f"연속 {first_batch_size}개 요청 실패. 테스트를 중단합니다: {common_error}",
+                        "error_type": "consecutive_failure",
+                    }
+                return None
 
-        tasks = []
-        processed_tasks: set[asyncio.Task[Any]] = set()
-        for i in range(config.total_requests):
-            if self._stop_event.is_set():
-                break
-            task = asyncio.create_task(self._dispatch_request(config, semaphore, i))
-            tasks.append(task)
-            to_check = [t for t in tasks if t not in processed_tasks]
-            if to_check:
-                done, _ = await asyncio.wait(to_check, timeout=0, return_when=asyncio.FIRST_COMPLETED)
-                processed_results = await self._process_completed_tasks(done, processed_tasks)
-                consecutive_failure = _check_consecutive_failures(processed_results)
-                if consecutive_failure:
-                    return await self._fail_run(consecutive_failure, sample_stop, sampling_task, tasks)
-            if interval > 0:
-                await asyncio.sleep(interval)
-        # Process remaining tasks
-        remaining_tasks = [t for t in tasks if t not in processed_tasks]
-        if remaining_tasks:
-            for fut in asyncio.as_completed(remaining_tasks):
+            tasks = []
+            processed_tasks: set[asyncio.Task[Any]] = set()
+            for i in range(config.total_requests):
+                if self._stop_event.is_set():
+                    break
+                task = asyncio.create_task(self._dispatch_request(config, semaphore, i))
+                tasks.append(task)
+                to_check = [t for t in tasks if t not in processed_tasks]
+                if to_check:
+                    done, _ = await asyncio.wait(to_check, timeout=0, return_when=asyncio.FIRST_COMPLETED)
+                    processed_results = await self._process_completed_tasks(done, processed_tasks)
+                    consecutive_failure = _check_consecutive_failures(processed_results)
+                    if consecutive_failure:
+                        return await self._fail_run(consecutive_failure, sample_stop, sampling_task, tasks)
+                if interval > 0:
+                    await asyncio.sleep(interval)
+            # Process remaining tasks
+            remaining_tasks = [t for t in tasks if t not in processed_tasks]
+            if remaining_tasks:
+                for fut in asyncio.as_completed(remaining_tasks):
+                    try:
+                        result = await fut
+                    except Exception as e:  # intentional: non-critical
+                        result = RequestResult(
+                            req_id=-1,
+                            success=False,
+                            latency=time.time() - self._state.start_time,
+                            error=str(e),
+                        )
+                    async with self._state_lock:
+                        self._state.results.append(result)
+                        if result.success:
+                            self._state.completed_requests += 1
+                        else:
+                            self._state.failed_requests += 1
+                    stats = self._compute_stats()
+                    await self._broadcast({"type": "progress", "data": stats})
+                    consecutive_failure = _check_consecutive_failures([result])
+                    if consecutive_failure:
+                        return await self._fail_run(consecutive_failure, sample_stop, sampling_task, remaining_tasks)
+            return await self._finalize_results(config, metric_samples, sample_stop, sampling_task)
+        finally:
+            if _running_row_id is not None:
                 try:
-                    result = await fut
-                except Exception as e:  # intentional: non-critical
-                    result = RequestResult(
-                        req_id=-1,
-                        success=False,
-                        latency=time.time() - self._state.start_time,
-                        error=str(e),
-                    )
-                async with self._state_lock:
-                    self._state.results.append(result)
-                    if result.success:
-                        self._state.completed_requests += 1
-                    else:
-                        self._state.failed_requests += 1
-                stats = self._compute_stats()
-                await self._broadcast({"type": "progress", "data": stats})
-                consecutive_failure = _check_consecutive_failures([result])
-                if consecutive_failure:
-                    return await self._fail_run(consecutive_failure, sample_stop, sampling_task, remaining_tasks)
-        return await self._finalize_results(config, metric_samples, sample_stop, sampling_task)
+                    from services.shared import storage as _storage
+                    await _storage.clear_running(_running_row_id)
+                except Exception as e:
+                    logger.warning("[LoadEngine] Failed to clear running state: %s", e)
 
     async def stop(self) -> None:
         self._stop_event.set()

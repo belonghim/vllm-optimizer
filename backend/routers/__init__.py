@@ -6,5 +6,6 @@ from routers.benchmark import router as benchmark
 from routers.tuner import router as tuner
 from routers.vllm_config import router as vllm_config
 from routers.config import router as config
+from routers.status import router as status
 
-__all__ = ["load_test", "metrics", "benchmark", "tuner", "vllm_config", "config"]
+__all__ = ["load_test", "metrics", "benchmark", "tuner", "vllm_config", "config", "status"]

@@ -260,6 +260,7 @@ class AutoTuner:
 
     async def start(self, config: TuningConfig, vllm_endpoint: str, skip_preflight: bool = False) -> dict[str, Any]:
         state_initialized = False
+        _running_row_id: int | None = None
         try:
             async with self._lock:
                 if self._running:
@@ -271,6 +272,10 @@ class AutoTuner:
                 self._cancel_event.clear()
                 self._running = True
                 state_initialized = True
+                try:
+                    _running_row_id = await storage.set_running("tuner")
+                except Exception as e:
+                    logger.warning("[AutoTuner] Failed to record running state: %s", e)
                 await self._init_tuning_state(config)
 
             self._vllm_endpoint = vllm_endpoint
@@ -376,6 +381,11 @@ class AutoTuner:
                     self._running = False
                     if self._current_task is current_task:
                         self._current_task = None
+                if _running_row_id is not None:
+                    try:
+                        await storage.clear_running(_running_row_id)
+                    except Exception as e:
+                        logger.warning("[AutoTuner] Failed to clear running state: %s", e)
 
     async def _setup_study(
         self, config: TuningConfig, storage_url: str | None
