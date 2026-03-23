@@ -314,6 +314,8 @@ function MonitorPage({ isActive }: MonitorPageProps) {
     return Object.values(timeMap).sort((a, b) => (a.t as string).localeCompare(b.t as string)).slice(-900);
   }, [targetStates]);
 
+  // hasMonitoringLabel: null/undefined = 아직 체크 전 (경고 안 뜸), false = 레이블 없음 (경고 표시), true = 레이블 있음 (경고 안 뜸)
+  // !== false 로 판정하여 null/undefined는 경고를 표시하지 않음
   const targetStatuses = useMemo(() => {
     const s: Record<string, { status: string; hasMonitoringLabel: boolean }> = {};
     Object.entries(targetStates).forEach(([key, state]) => {

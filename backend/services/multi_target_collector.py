@@ -48,7 +48,7 @@ class TargetCache:
     history: deque[VLLMMetrics] = field(default_factory=lambda: deque(maxlen=3600))
     last_accessed: float = field(default_factory=time.time)
     is_active: bool = True
-    has_monitoring_label: bool = False
+    has_monitoring_label: bool | None = None
     is_default: bool = False
     last_label_check: float = field(default_factory=time.time)
 
@@ -84,7 +84,7 @@ class MultiTargetMetricsCollector:
             namespace=self._default_namespace,
             is_name=self._default_is_name,
             is_default=True,
-            has_monitoring_label=False,
+            has_monitoring_label=None,
         )
 
     def _get_default_target(self) -> TargetCache | None:
@@ -497,7 +497,7 @@ class MultiTargetMetricsCollector:
     def get_has_monitoring_label(self, namespace: str, is_name: str) -> bool:
         key = self._target_key(namespace, is_name)
         target = self._targets.get(key)
-        return target.has_monitoring_label if target else False
+        return target.has_monitoring_label is not None and target.has_monitoring_label if target else False
 
     def _target_key(self, namespace: str, is_name: str) -> str:
         return f"{namespace}/{is_name}"

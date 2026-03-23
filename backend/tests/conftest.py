@@ -127,7 +127,7 @@ class _StubMultiTargetMetricsCollector:
 
     def __init__(self):
         self.registered: list[tuple[str, str]] = []
-        self._has_label: bool = False
+        self._has_label: bool | None = None
         self.start_collection_calls: list[float] = []
         self.start_requests: list[float] = []
         self.stop_called: bool = False
@@ -157,7 +157,7 @@ class _StubMultiTargetMetricsCollector:
         return None
 
     def get_has_monitoring_label(self, namespace: str, is_name: str) -> bool:
-        return self._has_label
+        return self._has_label is not None and self._has_label
 
     def get_history_dict(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
         return list(self._history)
