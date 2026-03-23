@@ -2,6 +2,7 @@ from collections.abc import AsyncIterator, Callable
 from typing import cast
 
 import pytest
+from pydantic import ValidationError
 
 from models.load_test import Benchmark, LatencyStats, LoadTestConfig, LoadTestResult, TpsStats
 from models.sla import SlaEvaluationResult, SlaProfile, SlaThresholds, SlaVerdict
@@ -241,3 +242,47 @@ async def test_sla_profile_crud(storage: Storage) -> None:
     assert loaded.thresholds.p95_latency_max_ms == 500.0
     assert loaded.thresholds.error_rate_max_pct == 0.5
     assert loaded.thresholds.min_tps == 20.0
+
+
+@pytest.mark.asyncio
+async def test_thresholds_all_none_rejected(storage: Storage) -> None:
+    """SlaThresholds()는 최소 1개 threshold 필수 — ValidationError 발생해야 함 (RED)"""
+    with pytest.raises(ValidationError):
+        SlaThresholds()
+
+
+@pytest.mark.asyncio
+async def test_thresholds_at_least_one_valid(storage: Storage) -> None:
+    """최소 1개 threshold 설정 시 정상 생성"""
+    t = SlaThresholds(min_tps=10.0)
+    assert t.min_tps == 10.0
+
+
+@pytest.mark.asyncio
+async def test_verdict_invalid_status_rejected(storage: Storage) -> None:
+    """SlaVerdict.status가 Literal 외 값이면 ValidationError (RED)"""
+    with pytest.raises(ValidationError):
+        SlaVerdict.model_validate({"metric": "x", "pass": True, "status": "invalid"})
+
+
+@pytest.mark.asyncio
+async def test_verdict_valid_statuses(storage: Storage) -> None:
+    """pass, fail, insufficient_data 세 값 모두 정상"""
+    for status in ["pass", "fail", "insufficient_data"]:
+        v = SlaVerdict.model_validate({"metric": "x", "pass": status == "pass", "status": status})
+        assert v.status == status
+
+
+@pytest.mark.asyncio
+async def test_evaluate_boundary_exact_threshold(storage: Storage) -> None:
+    """가용성 정확히 threshold와 동일 → >= 이므로 PASS"""
+    profile = SlaProfile(
+        name="boundary",
+        model="llm-ov",
+        thresholds=SlaThresholds(availability_min=99.0),
+    )
+    # 990 success / 1000 total = 99.0% — 정확히 threshold
+    benchmark = _make_benchmark(success=990, failed=10)
+    results = _evaluate(profile, [benchmark])
+    assert results[0].overall_pass is True
+    assert _verdict_by_metric(results[0], "availability").status == "pass"
