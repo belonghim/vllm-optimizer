@@ -2,6 +2,44 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-23] - SSE 에러 표시 + OpenAPI 스키마 + 실행 상태 알림
+
+**Status**: Completed
+
+백엔드 SSE 에러/경고를 프론트엔드에 표시하고, OpenAPI 에러 응답 스키마를 문서화하며, Pod 비정상 종료 시 이전 작업 중단 알림을 제공.
+
+### Added (Frontend)
+- **`ErrorAlert` warning variant**: `severity="error"|"warning"` prop 추가. warning 시 amber 계열 스타일(`error-alert--warning`). 기존 사용처 변경 없음
+- **TunerPage SSE 에러/경고**: `tuning_error` 수신 시 에러 표시 + SSE 종료 (fatal). `tuning_warning` 수신 시 경고 배너 표시 (non-fatal, 계속 수신)
+- **useLoadTestSSE error 핸들링**: `error` SSE 이벤트 수신 시 에러 상태 설정 + SSE 종료
+- **비정상 종료 알림**: TunerPage/LoadTestPage 마운트 시 `/api/status/interrupted` 조회. 이전 중단 이력 있으면 dismissible 경고 배너 표시 (한국어)
+
+### Added (Backend)
+- **`running_state` 테이블**: 기존 SQLite(`/data/app.db`)에 추가. `set_running()` / `clear_running()` / `get_interrupted_runs()` CRUD
+- **running_state 라이프사이클**: `auto_tuner.start()` / `load_engine.run()` 시작 시 행 삽입, `finally`에서 행 정리 (예외 발생 시도 정리 보장)
+- **`GET /api/status/interrupted`**: 앱 시작 시 감지한 중단 이력 반환 + DB 행 정리 (재시작 시 중복 알림 방지)
+- **OpenAPI 에러 응답 스키마**: 4개 라우터(`benchmark`, `load_test`, `metrics`, `tuner`) 에 `responses=` 파라미터 추가. 400/404/409/500 에러 코드 13개 문서화
+
+### Tests
+- Backend: 208 passed (running_state CRUD, lifecycle, endpoint, OpenAPI schema 검증 포함)
+- Frontend: 116 passed (SSE error/warning, interrupted notification, malformed JSON, exception cleanup 포함)
+
+### Verification
+- F1 Plan Compliance: APPROVE | F2 Code Quality: APPROVE | F3 Manual QA: APPROVE | F4 Scope Fidelity: APPROVE
+
+### Commits
+- `ea1de21` feat(frontend): add warning variant to ErrorAlert component
+- `ff0b187` feat(backend): add running_state table to Storage
+- `02eb083` docs(backend): add OpenAPI error response schemas to routers
+- `cfab7d0` test(backend): add OpenAPI error response schema validation
+- `b6c35c3` feat(frontend): handle tuning_error and tuning_warning SSE events in TunerPage
+- `39c3c85` feat(frontend): handle error SSE events in useLoadTestSSE
+- `203da8e` feat(backend): integrate running_state lifecycle tracking
+- `7119e3d` feat(frontend): display interrupted run notification on TunerPage and LoadTestPage
+- `5384d71` fix(backend): clear DB rows in /status/interrupted endpoint to prevent duplicate notifications on restart
+
+---
+
 ## [2026-03-22] - Frontend Code Quality: React Best Practices & Bug Fixes
 
 **Status**: Completed
