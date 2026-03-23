@@ -453,3 +453,61 @@ async def test_benchmark_with_explicit_id(storage):
     # Should still be only 1 benchmark
     benchmarks = await storage.list_benchmarks()
     assert len(benchmarks) == 1
+
+
+# ==================== Running State Tests ====================
+
+
+@pytest.mark.asyncio
+async def test_running_state_set_and_get(storage):
+    """Test setting and retrieving running state."""
+    # Initially no interrupted runs
+    interrupted = await storage.get_interrupted_runs()
+    assert len(interrupted) == 0
+
+    # Set a task as running
+    row_id = await storage.set_running("tuner")
+    assert row_id > 0
+
+    # Should now appear in interrupted runs
+    interrupted = await storage.get_interrupted_runs()
+    assert len(interrupted) == 1
+    assert interrupted[0]["id"] == row_id
+    assert interrupted[0]["task_type"] == "tuner"
+    assert isinstance(interrupted[0]["started_at"], float)
+
+
+@pytest.mark.asyncio
+async def test_running_state_clear(storage):
+    """Test clearing a running task."""
+    # Set a task as running
+    row_id = await storage.set_running("load_test")
+    assert row_id > 0
+
+    # Verify it's in interrupted runs
+    interrupted = await storage.get_interrupted_runs()
+    assert len(interrupted) == 1
+
+    # Clear the running task
+    await storage.clear_running(row_id)
+
+    # Should no longer be in interrupted runs
+    interrupted = await storage.get_interrupted_runs()
+    assert len(interrupted) == 0
+
+
+@pytest.mark.asyncio
+async def test_running_state_mixed(storage):
+    """Test mixed state: one cleared, one not."""
+    # Set and clear a load_test
+    lt_id = await storage.set_running("load_test")
+    await storage.clear_running(lt_id)
+
+    # Set a tuner but don't clear
+    tuner_id = await storage.set_running("tuner")
+
+    # Only tuner should be in interrupted runs
+    interrupted = await storage.get_interrupted_runs()
+    assert len(interrupted) == 1
+    assert interrupted[0]["id"] == tuner_id
+    assert interrupted[0]["task_type"] == "tuner"

@@ -161,6 +161,16 @@ class Storage:
             )
         """)
 
+        # Running state table
+        await self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS running_state (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_type TEXT NOT NULL,
+                started_at REAL NOT NULL,
+                cleared_at REAL
+            )
+        """)
+
         await self._conn.commit()
         logger.debug("[Storage] Tables created successfully")
 
@@ -597,6 +607,99 @@ class Storage:
         except Exception as e:
             logger.error("[Storage] Failed to checkpoint WAL: %s", e)
             return False
+
+    # ==================== Running State Methods ====================
+
+    async def set_running(self, task_type: str) -> int:
+        """
+        Record that a task is running.
+
+        Args:
+            task_type: Type of task (e.g., "tuner", "load_test")
+
+        Returns:
+            Row ID of the inserted record
+        """
+        if self._conn is None:
+            logger.error("[Storage] Cannot set running: database not initialized")
+            return -1
+
+        try:
+            started_at = datetime.now(timezone.utc).timestamp()
+            cursor = await self._conn.execute(
+                """
+                INSERT INTO running_state (task_type, started_at, cleared_at)
+                VALUES (?, ?, NULL)
+                """,
+                (task_type, started_at),
+            )
+            await self._conn.commit()
+            row_id = int(cursor.lastrowid) if cursor.lastrowid is not None else -1
+            logger.debug("[Storage] Set running: task_type=%s row_id=%s", task_type, row_id)
+            return row_id
+        except Exception as e:
+            logger.error("[Storage] Failed to set running: %s", e)
+            return -1
+
+    async def clear_running(self, row_id: int) -> None:
+        """
+        Mark a running task as cleared.
+
+        Args:
+            row_id: Row ID returned from set_running()
+        """
+        if self._conn is None:
+            logger.error("[Storage] Cannot clear running: database not initialized")
+            return
+
+        try:
+            cleared_at = datetime.now(timezone.utc).timestamp()
+            await self._conn.execute(
+                """
+                UPDATE running_state
+                SET cleared_at = ?
+                WHERE id = ?
+                """,
+                (cleared_at, row_id),
+            )
+            await self._conn.commit()
+            logger.debug("[Storage] Cleared running: row_id=%s", row_id)
+        except Exception as e:
+            logger.error("[Storage] Failed to clear running: %s", e)
+
+    async def get_interrupted_runs(self) -> List[dict]:
+        """
+        Get all interrupted runs (started but not cleared).
+
+        Returns:
+            List of dicts with keys: id, task_type, started_at
+        """
+        if self._conn is None:
+            logger.error("[Storage] Cannot get interrupted runs: database not initialized")
+            return []
+
+        try:
+            cursor = await self._conn.execute(
+                """
+                SELECT id, task_type, started_at
+                FROM running_state
+                WHERE cleared_at IS NULL
+                ORDER BY started_at DESC
+                """
+            )
+            rows = await cursor.fetchall()
+            result = []
+            for row in rows:
+                result.append({
+                    "id": row[0],
+                    "task_type": row[1],
+                    "started_at": row[2],
+                })
+            logger.debug("[Storage] Retrieved %s interrupted runs", len(result))
+            return result
+        except Exception as e:
+            logger.error("[Storage] Failed to get interrupted runs: %s", e)
+            return []
 
 
 # Use `from services.shared import storage` instead.
