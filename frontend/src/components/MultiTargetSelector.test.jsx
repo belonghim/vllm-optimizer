@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import MultiTargetSelector from "./MultiTargetSelector";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
@@ -6,6 +6,12 @@ import { useClusterConfig } from "../contexts/ClusterConfigContext";
 vi.mock("../contexts/ClusterConfigContext", () => ({
   useClusterConfig: vi.fn(),
 }));
+
+vi.mock("../utils/authFetch", () => ({
+  authFetch: vi.fn(() => Promise.resolve({ ok: true })),
+}));
+
+import { authFetch } from "../utils/authFetch";
 
 describe("MultiTargetSelector", () => {
   const mockContext = {
@@ -20,6 +26,7 @@ describe("MultiTargetSelector", () => {
 
   beforeEach(() => {
     useClusterConfig.mockReturnValue(mockContext);
+    vi.clearAllMocks();
   });
 
   it("renders targets and add button", () => {
@@ -86,13 +93,29 @@ describe("MultiTargetSelector", () => {
     expect(screen.getByPlaceholderText("InferenceService")).toBeInTheDocument();
   });
 
-  it("calls addTarget when form is submitted", () => {
+  it("calls addTarget when form is submitted", async () => {
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
     fireEvent.click(screen.getByTestId("add-target-btn"));
     fireEvent.change(screen.getByPlaceholderText("Namespace"), { target: { value: "vllm-lab-prod" } });
     fireEvent.change(screen.getByPlaceholderText("InferenceService"), { target: { value: "llm-cuda" } });
     fireEvent.click(screen.getByTestId("confirm-add-btn"));
-    expect(mockContext.addTarget).toHaveBeenCalledWith("vllm-lab-prod", "llm-cuda");
+    await waitFor(() => {
+      expect(mockContext.addTarget).toHaveBeenCalledWith("vllm-lab-prod", "llm-cuda");
+    });
+  });
+
+  it("shows error message when target validation fails", async () => {
+    authFetch.mockResolvedValueOnce({ ok: false });
+    render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
+    fireEvent.click(screen.getByTestId("add-target-btn"));
+    fireEvent.change(screen.getByPlaceholderText("Namespace"), { target: { value: "invalid-ns" } });
+    fireEvent.change(screen.getByPlaceholderText("InferenceService"), { target: { value: "invalid-is" } });
+    fireEvent.click(screen.getByTestId("confirm-add-btn"));
+    
+    await waitFor(() => {
+      expect(screen.getByTestId("add-target-error")).toHaveTextContent("해당 대상을 찾을 수 없습니다");
+    });
+    expect(mockContext.addTarget).not.toHaveBeenCalled();
   });
 
   it("does not show delete button on default target", () => {

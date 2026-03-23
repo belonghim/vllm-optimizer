@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
 import { TARGET_COLORS } from "../constants";
 import { fmt } from "../utils/format";
+import { authFetch } from "../utils/authFetch";
 import type { ClusterTarget } from "../types";
 
 const TOTAL_COLUMNS = 13;
@@ -41,18 +42,38 @@ interface TargetState {
 interface MultiTargetSelectorProps {
   targetStatuses?: Record<string, TargetStatus>;
   targetStates?: Record<string, TargetState>;
+  onRefresh?: (namespace: string, inferenceService: string) => void;
 }
 
-export default function MultiTargetSelector({ targetStatuses = {}, targetStates = {} }: MultiTargetSelectorProps) {
+export default function MultiTargetSelector({ 
+  targetStatuses = {}, 
+  targetStates = {},
+  onRefresh 
+}: MultiTargetSelectorProps) {
   const { targets, maxTargets, addTarget, removeTarget } = useClusterConfig();
   const [isAdding, setIsAdding] = useState(false);
   const [newTarget, setNewTarget] = useState({ namespace: "", inferenceService: "" });
+  const [isValidating, setIsValidating] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (newTarget.namespace && newTarget.inferenceService) {
-      addTarget(newTarget.namespace, newTarget.inferenceService);
-      setNewTarget({ namespace: "", inferenceService: "" });
-      setIsAdding(false);
+      setIsValidating(true);
+      setAddError(null);
+      try {
+        const response = await authFetch(`/api/metrics/latest?namespace=${newTarget.namespace}&is_name=${newTarget.inferenceService}`);
+        if (!response.ok) {
+          setAddError("해당 대상을 찾을 수 없습니다");
+          return;
+        }
+        addTarget(newTarget.namespace, newTarget.inferenceService);
+        setNewTarget({ namespace: "", inferenceService: "" });
+        setIsAdding(false);
+      } catch (err) {
+        setAddError("검증 중 오류가 발생했습니다");
+      } finally {
+        setIsValidating(false);
+      }
     }
   };
 
@@ -108,6 +129,7 @@ export default function MultiTargetSelector({ targetStatuses = {}, targetStates 
                 const data = state?.data || state?.metrics;
                 const hasMonitoringLabel = state?.hasMonitoringLabel !== false && targetStatuses[key]?.hasMonitoringLabel !== false;
                 const targetColor = TARGET_COLORS[index % TARGET_COLORS.length];
+                const isRefreshing = status === 'collecting';
 
                 return (
                   <tr key={key} data-testid={`target-row-${index}`}>
@@ -152,6 +174,15 @@ export default function MultiTargetSelector({ targetStatuses = {}, targetStates 
                       </>
                     )}
                     <td className="multi-target-action-cell">
+                      <button 
+                        className="btn multi-target-refresh-btn" 
+                        onClick={() => onRefresh?.(target.namespace, target.inferenceService)}
+                        data-testid={`refresh-btn-${index}`}
+                        disabled={isRefreshing}
+                        title="즉시 새로고침"
+                      >
+                        {isRefreshing ? "⏳" : "🔄"}
+                      </button>
                       {target.isDefault ? (
                         <span className="tag tag-completed multi-target-default-tag">기본</span>
                       ) : (
@@ -186,12 +217,20 @@ export default function MultiTargetSelector({ targetStatuses = {}, targetStates 
                       value={newTarget.inferenceService}
                       onChange={(e) => setNewTarget(prev => ({ ...prev, inferenceService: e.target.value }))}
                     />
+                    {addError && <div className="multi-target-error-msg" data-testid="add-target-error">{addError}</div>}
                   </div>
                 </td>
                 <td colSpan={2}>
                   <div className="multi-target-btn-row">
-                    <button className="btn btn-green multi-target-action-btn" onClick={handleAdd} data-testid="confirm-add-btn">확인</button>
-                    <button className="btn btn-danger multi-target-action-btn" onClick={() => setIsAdding(false)}>취소</button>
+                    <button 
+                      className="btn btn-green multi-target-action-btn" 
+                      onClick={handleAdd} 
+                      data-testid="confirm-add-btn"
+                      disabled={isValidating}
+                    >
+                      {isValidating ? "검증 중..." : "확인"}
+                    </button>
+                    <button className="btn btn-danger multi-target-action-btn" onClick={() => setIsAdding(false)} disabled={isValidating}>취소</button>
                   </div>
                 </td>
               </tr>
