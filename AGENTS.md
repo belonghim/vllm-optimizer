@@ -49,7 +49,8 @@ vllm-optimizer/
 │   │   ├── metrics.py          # Thanos Querier 메트릭 조회
 │   │   ├── benchmark.py        # 벤치마크 저장/비교
 │   │   ├── tuner.py            # Bayesian Optimization 튜너 API
-│   │   └── sla.py              # SLA 프로필 CRUD + 판정 API
+│   │   ├── sla.py              # SLA 프로필 CRUD + 판정 API
+│   │   └── vllm_config.py      # IS tuning args + resources GET/PATCH
 │   ├── services/
 │   │   ├── __init__.py
 │   │   ├── shared.py           # 싱글톤 인스턴스 (MetricsCollector, load_engine)
@@ -96,15 +97,21 @@ vllm-optimizer/
 │       ├── App.jsx             # React 대시보드 (5개 탭)
 │       ├── constants.js        # 상수 정의
 │       ├── mockData.js         # 목업 데이터
+│       ├── mocks/
+│       │   └── handlers.js        # MSW mock 핸들러 (테스트용)
+│       ├── contexts/
+│       │   └── ClusterConfigContext.tsx  # IS endpoint/namespace 전역 상태
 │       ├── pages/
 │       │   ├── MonitorPage.jsx    # 메트릭 모니터링 탭
 │       │   ├── LoadTestPage.jsx   # 부하 테스트 탭
 │       │   ├── BenchmarkPage.jsx  # 벤치마크 비교 탭
-│       │   ├── TunerPage.jsx      # Auto Tuner 탭
+│       │   ├── TunerPage.jsx      # Auto Tuner 탭 (vllm-config 현재값 + 편집)
 │       │   └── SlaPage.tsx        # SLA 대시보드 탭
 │       └── components/
 │           ├── Chart.jsx         # 차트 컴포넌트
-│           └── MetricCard.jsx    # 메트릭 카드 컴포넌트
+│           ├── MetricCard.jsx    # 메트릭 카드 컴포넌트
+│           ├── ClusterConfigBar.tsx  # 클러스터 설정 바 (IS endpoint/namespace 편집)
+│           └── TunerConfigForm.tsx   # 튜너 파라미터 + CPU/Memory/GPU 리소스 편집 폼
 │
 └── openshift/
     ├── base/
@@ -292,7 +299,10 @@ v1.patch_namespaced_config_map(name="vllm-config", namespace=VLLM_NAMESPACE, bod
 
 - `/api/*` 요청은 nginx가 Backend로 프록시 (절대경로 사용)
 - SSE 수신: `EventSource` API 사용
-- 4개 탭 구성: **부하 테스트 / 메트릭 모니터링 / 벤치마크 비교 / Auto Tuner**
+- 5개 탭 구성: **부하 테스트 / 메트릭 모니터링 / 벤치마크 비교 / Auto Tuner / SLA**
+- `ClusterConfigContext`로 IS endpoint/namespace 전역 관리 — `useClusterConfig()` hook 사용
+- `TunerPage`의 vllm-config fetch useEffect deps에 `namespace`, `inferenceservice` 포함 필수 (IS 변경 시 re-fetch)
+- 리소스 편집 키 형식: `resources.{tier}.{key}` (예: `resources.limits.cpu`) — `editedValues`에서 `resources.` 접두사로 tuning args와 분리
 
 ### OpenShift YAML
 
@@ -506,14 +516,27 @@ oc import-image vllm-optimizer-backend:latest \
 - **주의**: KServe InferenceService 이름(`llm-ov`, `VLLM_DEPLOYMENT_NAME`)과 Deployment 이름(`llm-ov-predictor`, `K8S_DEPLOYMENT_NAME`)은 다름. 파드 재기동에는 Deployment 이름 사용.
 
 ### IS args 아키텍처
-- auto_tuner와 vllm_config API는 InferenceService spec.predictor.model.args를 직접 패치합니다.
+- auto_tuner와 vllm_config API 모두 IS `spec.predictor.model.args`를 직접 패치합니다.
+- **vllm_config PATCH**: dict-merge 방식 — 기존 args를 보존하고 변경된 키만 덮어씀. 부분 업데이트 안전.
+- **auto_tuner._apply_params**: 전체 교체 방식 (의도된 설계) — 수정 금지.
+- boolean `false` 전송 시 해당 flag 제거 (e.g. `{"enable_chunked_prefill": "false"}` → args에서 `--enable-chunked-prefill` 제거)
+
+### IS resources 아키텍처
+- IS resources 경로: `spec.predictor.model.resources.{requests,limits}`
+- `ALLOWED_RESOURCE_KEYS = {"cpu", "memory", "nvidia.com/gpu"}` — 허용된 리소스 키 (backend 검증)
+- GPU는 `limits`에만 설정 (K8s가 `requests`로 자동 복사)
+- 빈 문자열 값 전송 시 해당 키 제거 (K8s 스케줄링에 영향 방지)
+- `vllm_config.py` PATCH 요청: `data`(tuning args)와 `resources`는 독립 필드로 각각 처리
 
 ### auto_tuner model="auto" 사용 금지
 - `/v1/models` 엔드포인트에서 동적 해석 필수
 - `model_resolver.py`의 `resolve_model_name()` 함수 사용 (이미 auto_tuner에 통합됨)
 
-### IS args 아키텍처
-- auto_tuner와 vllm_config API는 InferenceService spec.predictor.model.args를 직접 패치합니다.
+### SLA 프로필 생성 422
+- `SlaThresholds`에 `at_least_one_threshold` model_validator 존재 — 모든 threshold가 null이면 422
+- 프론트엔드에서 최소 1개 threshold 입력 필수 validation이 이미 적용되어 있음
+- 백엔드 `SlaProfile`/`SlaThresholds` 모델 수정 금지 (검증 로직 정상)
+- 422 에러 시 응답 body의 `detail` 필드에 Pydantic 검증 메시지 포함
 
 ---
 
