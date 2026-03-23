@@ -1,4 +1,6 @@
+import { useState, useMemo, useEffect } from "react";
 import type { SSEState } from "../types";
+import { loadPresets, savePreset, deletePreset, isBuiltinPreset } from "../utils/presets";
 
 interface LoadTestConfigData {
   endpoint: string;
@@ -13,6 +15,15 @@ interface LoadTestConfigData {
   [key: string]: string | number | boolean;
 }
 
+export interface RerunConfig {
+  total_requests?: number;
+  concurrency?: number;
+  rps?: number;
+  max_tokens?: number;
+  temperature?: number;
+  stream?: boolean;
+}
+
 interface LoadTestConfigProps {
   config: LoadTestConfigData;
   onChange: (key: string, value: string | number | boolean) => void;
@@ -20,12 +31,108 @@ interface LoadTestConfigProps {
   onStop: () => void;
   isRunning: boolean;
   status: SSEState['status'];
+  initialConfig?: RerunConfig | null;
+  onInitialConfigApplied?: () => void;
 }
 
-function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status }: LoadTestConfigProps) {
+function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status, initialConfig, onInitialConfigApplied }: LoadTestConfigProps) {
+  const [selectedPreset, setSelectedPreset] = useState<string>("");
+
+  useEffect(() => {
+    if (!initialConfig) return;
+    const fields = ['total_requests', 'concurrency', 'rps', 'max_tokens', 'temperature', 'stream'] as const;
+    for (const key of fields) {
+      const val = initialConfig[key];
+      if (val !== undefined) onChange(key, val);
+    }
+    onInitialConfigApplied?.();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialConfig]);
+  const presets = useMemo(() => loadPresets(), []);
+  const presetNames = useMemo(() => Object.keys(presets), [presets]);
+
+  const handlePresetSelect = (presetName: string) => {
+    if (!presetName) return;
+    const preset = presets[presetName];
+    if (preset) {
+      onChange("total_requests", preset.total_requests);
+      onChange("concurrency", preset.concurrency);
+      onChange("rps", preset.rps);
+      onChange("max_tokens", preset.max_tokens);
+      onChange("temperature", preset.temperature);
+      onChange("stream", preset.stream);
+      setSelectedPreset(presetName);
+    }
+  };
+
+  const handleSavePreset = () => {
+    const name = prompt("프리셋 이름을 입력하세요:");
+    if (name?.trim()) {
+      try {
+        savePreset(name, {
+          total_requests: config.total_requests,
+          concurrency: config.concurrency,
+          rps: config.rps,
+          max_tokens: config.max_tokens,
+          temperature: config.temperature,
+          stream: config.stream,
+        });
+        setSelectedPreset(name);
+        window.location.reload();
+      } catch (e) {
+        alert((e as Error).message);
+      }
+    }
+  };
+
+  const handleDeletePreset = () => {
+    if (!selectedPreset || isBuiltinPreset(selectedPreset)) return;
+    if (confirm(`"${selectedPreset}" 프리셋을 삭제하시겠습니까?`)) {
+      try {
+        deletePreset(selectedPreset);
+        setSelectedPreset("");
+        window.location.reload();
+      } catch (e) {
+        alert((e as Error).message);
+      }
+    }
+  };
+
   return (
     <div className="panel">
       <div className="section-title">부하 테스트 설정</div>
+
+      <div style={{ marginBottom: "16px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", alignItems: "flex-end" }}>
+          <div>
+            <label className="label">프리셋</label>
+            <select
+              className="input"
+              value={selectedPreset}
+              onChange={e => handlePresetSelect(e.target.value)}
+              aria-label="프리셋 선택"
+            >
+              <option value="">-- 선택 --</option>
+              {presetNames.map(name => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button className="btn btn-primary" onClick={handleSavePreset} style={{ height: "36px" }}>
+            💾 Save
+          </button>
+          <button
+            className="btn btn-danger"
+            onClick={handleDeletePreset}
+            disabled={!selectedPreset || isBuiltinPreset(selectedPreset)}
+            style={{ height: "36px" }}
+          >
+            🗑 Delete
+          </button>
+        </div>
+      </div>
       <div className="grid-form grid-form-compact">
         {([
           ["vLLM Endpoint", "endpoint", "text"],

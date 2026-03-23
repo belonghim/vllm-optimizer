@@ -2,6 +2,51 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-24] - UX 개선: 다크/라이트 토글 + 튜너 UI 재설계 + 6개 신규 기능
+
+**Status**: Completed
+
+대시보드 사용성을 7가지 기능으로 개선. 다크/라이트 테마 토글, 튜너 설정 통합 테이블, 부하테스트 프리셋, 벤치마크 원클릭 재실행, SLA 임계값 알림, 튜닝 히스토리 비교, 내보내기 기능 추가.
+
+### Added (Frontend)
+- **`contexts/ThemeContext.tsx`**: `useTheme()` + `useThemeColors()` 훅. localStorage `vllm-theme` 키로 테마 영속성. 라이트/다크별 `COLORS` + `TOOLTIP_STYLE` 반환
+- **`components/ThemeToggle.tsx`**: 헤더 토글 스위치 (DARK/LIGHT). MockDataSwitch 스타일 일치
+- **`index.css`**: `[data-theme="light"]` 셀렉터 — 라이트 팔레트 CSS 변수 오버라이드. `.scanline` light 모드 opacity:0 (다크 모드 유지)
+- **`utils/presets.ts`**: 부하테스트 프리셋 저장/불러오기/삭제. 내장 3개 (경량/표준/스트레스) + 사용자 정의 프리셋 (localStorage)
+- **`utils/export.ts`**: JSON/CSV 다운로드 유틸리티 (`downloadJSON`, `downloadCSV`, `benchmarksToCSV`, `trialsToCSV`)
+- **`components/TunerHistoryPanel.tsx`**: 튜닝 세션 히스토리 목록 + 2개 세션 비교 패널
+- **`components/LoadTestConfig.tsx`**: 프리셋 드롭다운 + 저장/삭제 버튼, `initialConfig` prop으로 벤치마크 재실행 지원
+- **`components/TunerConfigForm.tsx`**: 4-column 통합 테이블 (설정명|현재값|탐색범위|설명). 고급설정 패널 제거. 현재값 인라인 편집 + "적용" 버튼
+- **`pages/LoadTestPage.tsx`**: `pendingConfig`/`onConfigConsumed` props로 벤치마크 재실행 연동
+- **`pages/BenchmarkPage.tsx`**: "▶ 재실행" 버튼 + JSON/CSV 내보내기 버튼
+- **`pages/MonitorPage.tsx`**: SLA 프로필 드롭다운 + 임계값 초과 시 MetricCard 시각 경고 + ReferenceLine
+- **`components/MetricCard.tsx`**: `alert` prop — 빨간 테두리 + 깜빡임 효과
+- **`components/Chart.tsx`**: `useThemeColors()` 사용, SLA `ReferenceLine` 지원
+- **`components/TunerResults.tsx`**: JSON/CSV 내보내기 버튼
+
+### Added (Backend)
+- **`services/storage.py`**: `tuning_sessions` SQLite 테이블 + CRUD (save/list/get/delete)
+- **`routers/tuner.py`**: `GET/DELETE /tuner/sessions` + `GET /tuner/sessions/{id}` 엔드포인트. 새 튜닝 시작 시 이전 trials 자동 세션 저장
+- **`models/load_test.py`**: `TuningSessionSummary`, `TuningSessionDetail` (Pydantic) — `best_params`, `trials`, `importance` 포함
+
+### Changed
+- **`App.tsx`**: `pendingLoadTestConfig` 상태로 벤치마크→부하테스트 재실행 연동. BenchmarkPage/LoadTestPage 별도 props 전달
+- **`main.tsx`**: `<ThemeProvider>`로 앱 전체 래핑
+- **TunerConfigForm**: "설정명" 컬럼을 한국어 표시명으로 변경 (ex: `max_num_seqs` → "최대 시퀀스 수"), raw 키는 title 속성으로만
+
+### Tests
+- **`ThemeContext.test.tsx`**: 6개 테스트 (토글, localStorage 영속성)
+- **`presets.test.ts`**: 7개 테스트 (CRUD, 내장 프리셋 보호)
+- **`export.test.ts`**: 10개 테스트 (CSV 변환, null 처리, pareto)
+- **`TunerConfigForm.test.tsx`**: 6개 테스트 (통합 테이블, 현재값 편집)
+- **`test_storage.py`**: 5개 테스트 (튜닝 세션 CRUD)
+- Full suite: frontend 146/146 pass, backend 232/232 pass
+
+### Verification
+- F1 Plan Compliance: APPROVE | F3 Manual QA: APPROVE (7/7 scenarios) | F4 Scope Fidelity: APPROVE (post-patch)
+
+---
+
 ## [2026-03-23] - SLA Benchmark Feature
 
 **Status**: Completed
@@ -299,7 +344,9 @@ vLLM Optimizer의 auto_tuner와 vllm_config 라우터가 ConfigMap 대신 KServe
 
 ---
 
-## [Unreleased]
+## [2026-03-23] - Auto Tuner API & UX Enhancements
+
+**Status**: Completed (pre-UX-improvements)
 
 ### Added
 - **`/api/vllm-config` GET/PATCH API**: vllm-config ConfigMap을 REST API로 조회·수정 가능. 허용 키(`MAX_NUM_SEQS`, `GPU_MEMORY_UTILIZATION`, `MAX_MODEL_LEN`, `MAX_NUM_BATCHED_TOKENS`, `BLOCK_SIZE`, `SWAP_SPACE`, `ENABLE_CHUNKED_PREFILL`, `ENABLE_ENFORCE_EAGER`) 외 키는 422 반환. 튜너 실행 중 수정 시 409 반환.

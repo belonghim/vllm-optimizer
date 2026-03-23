@@ -191,6 +191,22 @@ class Storage:
             )
         """)
 
+        # Tuning sessions table
+        await self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS tuning_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp REAL NOT NULL,
+                objective TEXT NOT NULL,
+                n_trials INTEGER NOT NULL,
+                best_tps REAL,
+                best_p99 REAL,
+                best_score REAL,
+                trials_json TEXT NOT NULL,
+                importance_json TEXT NOT NULL,
+                best_params_json TEXT DEFAULT ''
+            )
+        """)
+
         await self._conn.commit()
         logger.debug("[Storage] Tables created successfully")
 
@@ -522,6 +538,125 @@ class Storage:
             logger.info("[Storage] Cleared all tuner trials")
         except Exception as e:
             logger.error("[Storage] Failed to clear trials: %s", e)
+
+    # ==================== Tuning Sessions CRUD ====================
+
+    async def save_tuning_session(self, session_data: dict) -> int:
+        if self._conn is None:
+            logger.error("[Storage] Cannot save tuning session: database not initialized")
+            return -1
+
+        try:
+            import json
+            trials = json.loads(session_data.get("trials_json", "[]"))
+            best_params_json = ""
+            if trials:
+                scored = [t for t in trials if t.get("score") is not None]
+                if scored:
+                    best_trial = max(scored, key=lambda t: t.get("score", 0))
+                    best_params_json = json.dumps(best_trial.get("params", {}))
+
+            cursor = await self._conn.execute(
+                """
+                INSERT INTO tuning_sessions
+                    (timestamp, objective, n_trials, best_tps, best_p99, best_score, trials_json, importance_json, best_params_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    session_data.get("timestamp", 0.0),
+                    session_data.get("objective", "balanced"),
+                    session_data.get("n_trials", 0),
+                    session_data.get("best_tps"),
+                    session_data.get("best_p99"),
+                    session_data.get("best_score"),
+                    session_data.get("trials_json", "[]"),
+                    session_data.get("importance_json", "{}"),
+                    best_params_json,
+                ),
+            )
+            await self._conn.commit()
+            session_id = cursor.lastrowid
+            logger.debug("[Storage] Saved tuning session id=%s", session_id)
+            return session_id
+        except Exception as e:
+            logger.error("[Storage] Failed to save tuning session: %s", e)
+            return -1
+
+    async def list_tuning_sessions(self) -> list:
+        if self._conn is None:
+            logger.error("[Storage] Cannot list tuning sessions: database not initialized")
+            return []
+
+        try:
+            cursor = await self._conn.execute(
+                "SELECT id, timestamp, objective, n_trials, best_tps, best_p99, best_score FROM tuning_sessions ORDER BY timestamp DESC"
+            )
+            rows = await cursor.fetchall()
+            return [
+                {
+                    "id": row[0],
+                    "timestamp": row[1],
+                    "objective": row[2],
+                    "n_trials": row[3],
+                    "best_tps": row[4],
+                    "best_p99": row[5],
+                    "best_score": row[6],
+                }
+                for row in rows
+            ]
+        except Exception as e:
+            logger.error("[Storage] Failed to list tuning sessions: %s", e)
+            return []
+
+    async def get_tuning_session(self, id: int) -> dict | None:
+        if self._conn is None:
+            logger.error("[Storage] Cannot get tuning session: database not initialized")
+            return None
+
+        try:
+            import json
+            cursor = await self._conn.execute(
+                "SELECT id, timestamp, objective, n_trials, best_tps, best_p99, best_score, trials_json, importance_json, best_params_json FROM tuning_sessions WHERE id = ?",
+                (id,),
+            )
+            row = await cursor.fetchone()
+            if row is None:
+                return None
+            best_params = json.loads(row[9]) if row[9] else None
+            return {
+                "id": row[0],
+                "timestamp": row[1],
+                "objective": row[2],
+                "n_trials": row[3],
+                "best_tps": row[4],
+                "best_p99": row[5],
+                "best_score": row[6],
+                "trials": json.loads(row[7]),
+                "importance": json.loads(row[8]),
+                "best_params": best_params,
+            }
+        except Exception as e:
+            logger.error("[Storage] Failed to get tuning session id=%s: %s", id, e)
+            return None
+
+    async def delete_tuning_session(self, id: int) -> bool:
+        if self._conn is None:
+            logger.error("[Storage] Cannot delete tuning session: database not initialized")
+            return False
+
+        try:
+            cursor = await self._conn.execute(
+                "DELETE FROM tuning_sessions WHERE id = ?",
+                (id,),
+            )
+            await self._conn.commit()
+            deleted = cursor.rowcount > 0
+            if deleted:
+                logger.debug("[Storage] Deleted tuning session id=%s", id)
+            return deleted
+        except Exception as e:
+            logger.error("[Storage] Failed to delete tuning session id=%s: %s", id, e)
+            return False
 
     # ==================== Prune Methods ====================
 

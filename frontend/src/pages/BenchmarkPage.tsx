@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo, Fragment } from "react";
 import { authFetch } from '../utils/authFetch';
-import { API, COLORS, TOOLTIP_STYLE } from "../constants";
+import { API } from "../constants";
+import { useThemeColors } from "../contexts/ThemeContext";
 import { fmt } from "../utils/format";
 import { mockBenchmarks } from "../mockData";
 import { calcGpuEfficiency } from "../utils/metrics";
+import { downloadJSON, downloadCSV, benchmarksToCSV } from '../utils/export';
 import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { useMockData } from "../contexts/MockDataContext";
 import ErrorAlert from "../components/ErrorAlert";
@@ -43,9 +45,11 @@ interface Benchmark {
 
 interface BenchmarkPageProps {
   isActive: boolean;
+  onRerun?: (config: BenchmarkConfig) => void;
 }
 
-function BenchmarkPage({ isActive }: BenchmarkPageProps) {
+function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
+  const { COLORS, TOOLTIP_STYLE } = useThemeColors();
   const [benchmarks, setBenchmarks] = useState<Benchmark[]>([]);
   const [selected, setSelected] = useState<(string | number)[]>([]);
   const [expanded, setExpanded] = useState<(string | number)[]>([]);
@@ -169,6 +173,25 @@ function BenchmarkPage({ isActive }: BenchmarkPageProps) {
     updateMetadataField('extra', extra);
   };
 
+  const handleExportJSON = () => {
+    const dataToExport = selected.length > 0
+      ? benchmarks.filter(b => selected.includes(b.id))
+      : benchmarks;
+    
+    const timestamp = new Date().getTime();
+    downloadJSON(dataToExport, `benchmarks-${timestamp}.json`);
+  };
+
+  const handleExportCSV = () => {
+    const dataToExport = selected.length > 0
+      ? benchmarks.filter(b => selected.includes(b.id))
+      : benchmarks;
+    
+    const { headers, rows } = benchmarksToCSV(dataToExport);
+    const timestamp = new Date().getTime();
+    downloadCSV(headers, rows, `benchmarks-${timestamp}.csv`);
+  };
+
   const compareData = useMemo(() => benchmarks
     .filter(b => selected.includes(b.id))
     .map(b => {
@@ -189,6 +212,22 @@ function BenchmarkPage({ isActive }: BenchmarkPageProps) {
       <ErrorAlert message={error} className="error-alert--mb8" />
        <div className="panel">
          <div className="section-title">저장된 벤치마크</div>
+         <div style={{ marginBottom: '16px', display: 'flex', gap: '8px' }}>
+           <button
+             className="btn-primary"
+             disabled={benchmarks.length === 0}
+             onClick={handleExportJSON}
+           >
+             JSON 내보내기
+           </button>
+           <button
+             className="btn-primary"
+             disabled={benchmarks.length === 0}
+             onClick={handleExportCSV}
+           >
+             CSV 내보내기
+           </button>
+         </div>
          <table className="table" aria-label="저장된 벤치마크 목록">
           <thead>
             <tr>
@@ -272,6 +311,15 @@ function BenchmarkPage({ isActive }: BenchmarkPageProps) {
                           </div>
                           <div className="metadata-actions">
                             <button className="btn-small" onClick={() => setEditing(b)}>편집</button>
+                            {b.config && onRerun && (
+                              <button
+                                className="btn-small"
+                                onClick={(e) => { e.stopPropagation(); onRerun(b.config!); }}
+                                aria-label="이 설정으로 부하 테스트 재실행"
+                              >
+                                ▶ 재실행
+                              </button>
+                            )}
                           </div>
                         </div>
                       </td>

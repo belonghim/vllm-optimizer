@@ -194,3 +194,19 @@ class BatchMetricsRequest(BaseModel):
 class BatchMetricsResponse(BaseModel):
     """Response for batch metrics queries."""
     results: dict[str, dict[str, Any]] = Field(description="Mapping of ns/is to data and status")
+
+
+class TuningSessionSummary(BaseModel):
+    id: int
+    timestamp: float
+    objective: str
+    n_trials: int
+    best_tps: Optional[float]
+    best_p99: Optional[float]
+    best_score: Optional[float]
+
+
+class TuningSessionDetail(TuningSessionSummary):
+    best_params: Optional[dict] = None
+    trials: list[dict]
+    importance: dict

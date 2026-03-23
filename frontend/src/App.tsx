@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import type { RerunConfig } from "./components/LoadTestConfig";
 import { useSessionKeepAlive } from './hooks/useSessionKeepAlive';
 import MonitorPage from "./pages/MonitorPage";
 import LoadTestPage from "./pages/LoadTestPage";
@@ -6,6 +7,7 @@ import BenchmarkPage from "./pages/BenchmarkPage";
 import TunerPage from "./pages/TunerPage";
 import SlaPage from "./pages/SlaPage";
 import MockDataSwitch from "./components/MockDataSwitch";
+import ThemeToggle from "./components/ThemeToggle";
 import ErrorBoundary from "./components/ErrorBoundary";
 import ClusterConfigBar from "./components/ClusterConfigBar";
 
@@ -25,12 +27,27 @@ const PAGES: PageDef[] = [
 
 export default function App() {
   const [page, setPage] = useState("monitor");
+  const [pendingLoadTestConfig, setPendingLoadTestConfig] = useState<RerunConfig | null>(null);
   useSessionKeepAlive();
 
   const handleSetPage = (id: string) => {
     setPage(id);
     requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
   };
+
+  const handleRerun = useCallback((config: { [key: string]: unknown }) => {
+    setPendingLoadTestConfig({
+      total_requests: typeof config.total_requests === 'number' ? config.total_requests : undefined,
+      concurrency: typeof config.concurrency === 'number' ? config.concurrency : undefined,
+      rps: typeof config.rps === 'number' ? config.rps : undefined,
+      max_tokens: typeof config.max_tokens === 'number' ? config.max_tokens : undefined,
+      temperature: typeof config.temperature === 'number' ? config.temperature : undefined,
+      stream: typeof config.stream === 'boolean' ? config.stream : undefined,
+    });
+    handleSetPage("loadtest");
+  }, []);
+
+  const handleConfigConsumed = useCallback(() => setPendingLoadTestConfig(null), []);
 
   return (
     <>
@@ -58,6 +75,8 @@ export default function App() {
         </nav>
 
         <div className="app-header-right">
+          <ThemeToggle />
+          <div className="app-header-divider" />
           <MockDataSwitch />
           <div className="app-header-divider" />
           <div className="app-header-status-dot" />
@@ -71,7 +90,13 @@ export default function App() {
         {PAGES.map(p => (
           <div key={p.id} className={page === p.id ? undefined : 'app-page--hidden'}>
             <ErrorBoundary>
-              <p.Component isActive={page === p.id} />
+              {p.id === 'benchmark' ? (
+                <BenchmarkPage isActive={page === p.id} onRerun={handleRerun} />
+              ) : p.id === 'loadtest' ? (
+                <LoadTestPage isActive={page === p.id} pendingConfig={pendingLoadTestConfig} onConfigConsumed={handleConfigConsumed} />
+              ) : (
+                <p.Component isActive={page === p.id} />
+              )}
             </ErrorBoundary>
           </div>
         ))}

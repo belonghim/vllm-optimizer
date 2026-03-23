@@ -1,7 +1,7 @@
-import { COLORS } from '../constants';
+import { useThemeColors } from '../contexts/ThemeContext';
 import {
   LineChart, Line,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 
 interface ChartLine {
@@ -25,14 +25,15 @@ interface CustomTooltipProps {
 }
 
 const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
+  const { TOOLTIP_STYLE } = useThemeColors();
   if (!active || !payload?.length) return null;
   const visible = payload.filter(e => !String(e.dataKey).endsWith('_fill'));
   if (!visible.length) return null;
   return (
-    <div className="chart-tooltip">
-      <p className="chart-tooltip-label">{label}</p>
+    <div className="chart-tooltip" style={TOOLTIP_STYLE}>
+      <p className="chart-tooltip-label" style={{ margin: 0, marginBottom: '4px', fontWeight: 'bold' }}>{label}</p>
       {visible.map(e => {
-        const entryStyle = { color: e.color };
+        const entryStyle = { color: e.color, margin: 0, fontSize: '11px' };
         return (
           <p key={e.dataKey} className="chart-tooltip-entry" style={entryStyle}>{e.name}: {e.value != null ? Number(e.value).toFixed(1) : '—'}</p>
         );
@@ -47,13 +48,22 @@ interface ChartProps {
   title: string;
   height?: number;
   onHide?: () => void;
+  threshold?: number;
 }
 
-function Chart({ data, lines, title, height = 180, onHide }: ChartProps) {
+function Chart({ data, lines, title, height = 180, onHide, threshold }: ChartProps) {
+  const { COLORS } = useThemeColors();
   return (
     <div className="chart-container" aria-label={title}>
       <div className="section-title chart-title-row">
-        <span>{title}</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {title}
+          {threshold != null && (
+            <span style={{ fontSize: '9px', color: COLORS.red, opacity: 0.8, fontWeight: 'normal', border: `1px solid ${COLORS.red}`, padding: '0 4px', borderRadius: '2px' }}>
+              SLA: {threshold}
+            </span>
+          )}
+        </span>
         {onHide && (
           <button className="chart-hide-btn" onClick={onHide} title="차트 숨기기">×</button>
         )}
@@ -64,6 +74,9 @@ function Chart({ data, lines, title, height = 180, onHide }: ChartProps) {
           <XAxis dataKey="t" tick={{ fontSize: 9, fill: COLORS.muted }} tickFormatter={d => d} />
           <YAxis tick={{ fontSize: 9, fill: COLORS.muted }} />
           <Tooltip content={<CustomTooltip />} />
+          {threshold != null && (
+            <ReferenceLine y={threshold} stroke={COLORS.red} strokeDasharray="3 3" label={{ position: 'right', fill: COLORS.red, fontSize: 8, value: 'SLA' }} />
+          )}
           {lines.map(l => (
             <Line
               key={l.key}

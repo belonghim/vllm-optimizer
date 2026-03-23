@@ -1,9 +1,9 @@
-import { COLORS, TOOLTIP_STYLE } from '../constants';
+import { useMemo } from 'react';
 import { fmt } from '../utils/format';
 import MetricCard from './MetricCard';
+import { downloadJSON, downloadCSV, trialsToCSV } from '../utils/export';
 import { ScatterChart, Scatter, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
-
-const TUNER_TOOLTIP_STYLE = { ...TOOLTIP_STYLE, fontSize: 11 };
+import { useThemeColors } from '../contexts/ThemeContext';
 
 interface TrialParams {
   [key: string]: unknown;
@@ -41,6 +41,8 @@ interface TunerResultsProps {
 }
 
 export default function TunerResults({ trials, bestParams, status, isRunning, importance }: TunerResultsProps) {
+  const { COLORS, TOOLTIP_STYLE } = useThemeColors();
+  const TUNER_TOOLTIP_STYLE = useMemo(() => ({ ...TOOLTIP_STYLE, fontSize: 11 }), [TOOLTIP_STYLE]);
   const scatterData = trials.map(t => ({
     x: t.tps, y: t.p99_latency, name: `Trial ${t.id}`,
     best: bestParams?.params && JSON.stringify(t.params) === JSON.stringify(bestParams.params),
@@ -49,6 +51,36 @@ export default function TunerResults({ trials, bestParams, status, isRunning, im
 
   return (
     <>
+      {trials.length > 0 && (
+        <div className="panel" style={{ marginBottom: '1rem' }}>
+          <div className="section-title">결과 내보내기</div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button
+              onClick={() => {
+                const timestamp = new Date().getTime();
+                downloadJSON(
+                  { trials, best: bestParams, importance },
+                  `tuning-results-${timestamp}.json`
+                );
+              }}
+              className="btn"
+            >
+              JSON 내보내기
+            </button>
+            <button
+              onClick={() => {
+                const timestamp = new Date().getTime();
+                const { headers, rows } = trialsToCSV(trials);
+                downloadCSV(headers, rows, `tuning-results-${timestamp}.csv`);
+              }}
+              className="btn"
+            >
+              CSV 내보내기
+            </button>
+          </div>
+        </div>
+      )}
+
       {bestParams && (
         <div className="tuner-best-panel">
           <div className="section-title section-title-accent">최적 파라미터 발견</div>

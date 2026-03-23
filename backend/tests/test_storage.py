@@ -511,3 +511,84 @@ async def test_running_state_mixed(storage):
     assert len(interrupted) == 1
     assert interrupted[0]["id"] == tuner_id
     assert interrupted[0]["task_type"] == "tuner"
+
+
+# ==================== Tuning Sessions Tests ====================
+
+
+def _make_session_data(objective: str = "balanced", n_trials: int = 5) -> dict:
+    return {
+        "timestamp": 1700000000.0,
+        "objective": objective,
+        "n_trials": n_trials,
+        "best_tps": 150.0,
+        "best_p99": 250.0,
+        "best_score": 0.85,
+        "trials_json": '[{"trial_id": 1, "tps": 150.0}]',
+        "importance_json": '{"max_num_seqs": 0.7}',
+    }
+
+
+@pytest.mark.asyncio
+async def test_save_and_list_tuning_sessions(storage):
+    sessions = await storage.list_tuning_sessions()
+    assert len(sessions) == 0
+
+    data1 = _make_session_data("tps", 3)
+    data1["timestamp"] = 1700000000.0
+    data2 = _make_session_data("latency", 7)
+    data2["timestamp"] = 1700000001.0
+
+    id1 = await storage.save_tuning_session(data1)
+    id2 = await storage.save_tuning_session(data2)
+    assert id1 > 0
+    assert id2 > 0
+    assert id1 != id2
+
+    sessions = await storage.list_tuning_sessions()
+    assert len(sessions) == 2
+    assert sessions[0]["objective"] == "latency"
+    assert sessions[1]["objective"] == "tps"
+    assert sessions[0]["n_trials"] == 7
+    assert sessions[1]["n_trials"] == 3
+
+
+@pytest.mark.asyncio
+async def test_get_tuning_session(storage):
+    session_id = await storage.save_tuning_session(_make_session_data("balanced", 10))
+
+    session = await storage.get_tuning_session(session_id)
+    assert session is not None
+    assert session["id"] == session_id
+    assert session["objective"] == "balanced"
+    assert session["n_trials"] == 10
+    assert session["best_tps"] == 150.0
+    assert session["trials"] == [{"trial_id": 1, "tps": 150.0}]
+    assert session["importance"] == {"max_num_seqs": 0.7}
+
+
+@pytest.mark.asyncio
+async def test_get_nonexistent_tuning_session(storage):
+    result = await storage.get_tuning_session(9999)
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_delete_tuning_session(storage):
+    session_id = await storage.save_tuning_session(_make_session_data())
+    assert session_id > 0
+
+    deleted = await storage.delete_tuning_session(session_id)
+    assert deleted is True
+
+    result = await storage.get_tuning_session(session_id)
+    assert result is None
+
+    sessions = await storage.list_tuning_sessions()
+    assert len(sessions) == 0
+
+
+@pytest.mark.asyncio
+async def test_delete_nonexistent_tuning_session(storage):
+    deleted = await storage.delete_tuning_session(9999)
+    assert deleted is False

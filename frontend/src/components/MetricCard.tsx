@@ -6,11 +6,12 @@ interface MetricCardProps {
   unit: string;
   color?: string;
   delta?: number | null;
+  alert?: boolean;
 }
 
-function MetricCard({ label, value, unit, color = "amber", delta }: MetricCardProps) {
+function MetricCard({ label, value, unit, color = "amber", delta, alert }: MetricCardProps) {
   return (
-    <div className={`metric-card ${color}`} aria-label={`Metric: ${label}`}>
+    <div className={`metric-card ${color} ${alert ? 'metric-card--alert' : ''}`} aria-label={`Metric: ${label}`}>
       <div className="label">{label}</div>
       <div className="big-num">
         {value ?? "—"}

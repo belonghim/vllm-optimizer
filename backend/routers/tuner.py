@@ -5,6 +5,7 @@ Provides endpoints for viewing tuning status, trials, and applying best paramete
 import asyncio
 import logging
 import json
+import time
 import uuid
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -12,7 +13,7 @@ from pydantic import BaseModel
 from typing import Any, Optional, List
 from datetime import datetime
 
-from models.load_test import ErrorResponse, TuningConfig
+from models.load_test import ErrorResponse, TuningConfig, TuningSessionSummary, TuningSessionDetail
 from services.shared import multi_target_collector, load_engine
 from services.auto_tuner import AutoTuner
 from services.shared import storage
@@ -132,6 +133,23 @@ async def start_tuning(request: TuningStartRequest) -> dict[str, Any]:
                 error_type="already_running",
             ).model_dump(),
         )
+    try:
+        existing_trials = await storage.get_trials()
+        if existing_trials:
+            best = auto_tuner.best
+            session_data = {
+                'timestamp': time.time(),
+                'objective': getattr(auto_tuner, '_last_objective', 'balanced'),
+                'n_trials': len(existing_trials),
+                'best_tps': best.tps if best else None,
+                'best_p99': best.p99_latency * 1000 if best else None,
+                'best_score': getattr(auto_tuner, '_best_score', None),
+                'trials_json': json.dumps([t.model_dump() for t in existing_trials], default=str),
+                'importance_json': json.dumps(await auto_tuner.get_importance()),
+            }
+            await storage.save_tuning_session(session_data)
+    except Exception as e:
+        logger.warning("[Tuner] Failed to auto-save tuning session before new run: %s", e)
     try:
         await storage.clear_trials()
     except Exception as e:
@@ -326,3 +344,25 @@ async def apply_best_parameters() -> ApplyBestResponse:
         applied_parameters=None,
         deployment_name=None,
     )
+
+
+@router.get("/sessions", response_model=list[TuningSessionSummary])
+async def list_tuning_sessions() -> list[TuningSessionSummary]:
+    rows = await storage.list_tuning_sessions()
+    return [TuningSessionSummary(**row) for row in rows]
+
+
+@router.get("/sessions/{session_id}", response_model=TuningSessionDetail)
+async def get_tuning_session(session_id: int) -> TuningSessionDetail:
+    row = await storage.get_tuning_session(session_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+    return TuningSessionDetail(**row)
+
+
+@router.delete("/sessions/{session_id}")
+async def delete_tuning_session(session_id: int) -> dict[str, Any]:
+    deleted = await storage.delete_tuning_session(session_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+    return {"success": True, "id": session_id}

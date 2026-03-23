@@ -2,18 +2,21 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { authFetch } from '../utils/authFetch';
 import { useMockData } from "../contexts/MockDataContext";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
-import { API, COLORS } from "../constants";
+import { API } from "../constants";
+import { useThemeColors } from "../contexts/ThemeContext";
 import { fmt } from "../utils/format";
 import MetricCard from "../components/MetricCard";
 import Chart from "../components/Chart";
 import { simulateLoadTest } from "../mockData";
-import LoadTestConfig from "../components/LoadTestConfig";
+import LoadTestConfig, { type RerunConfig } from "../components/LoadTestConfig";
 import ErrorAlert from "../components/ErrorAlert";
 import { useLoadTestSSE } from "../hooks/useLoadTestSSE";
 import { calcGpuEfficiency } from "../utils/metrics";
 
 interface LoadTestPageProps {
   isActive: boolean;
+  pendingConfig?: RerunConfig | null;
+  onConfigConsumed?: () => void;
 }
 
 interface LoadTestConfigState {
@@ -29,7 +32,8 @@ interface LoadTestConfigState {
   [key: string]: string | number | boolean;
 }
 
-function LoadTestPage({ isActive }: LoadTestPageProps) {
+function LoadTestPage({ isActive, pendingConfig, onConfigConsumed }: LoadTestPageProps) {
+  const { COLORS } = useThemeColors();
   const { endpoint: globalEndpoint, inferenceservice, isLoading: globalIsLoading } = useClusterConfig();
   const [config, setConfig] = useState<LoadTestConfigState>({
     endpoint: "", model: inferenceservice || "auto", total_requests: 200, concurrency: 20,
@@ -127,7 +131,8 @@ function LoadTestPage({ isActive }: LoadTestPageProps) {
   return (
     <div className="flex-col-16">
       <LoadTestConfig config={config} onChange={handleConfigChange} onSubmit={start}
-        onStop={stop} isRunning={status === "running"} status={status} />
+        onStop={stop} isRunning={status === "running"} status={status}
+        initialConfig={pendingConfig} onInitialConfigApplied={onConfigConsumed} />
 
       {isReconnecting && status === "running" && (
         <div className="loadtest-reconnect-banner" aria-live="assertive" role="alert">

@@ -7,6 +7,7 @@ import { mockTrials } from "../mockData";
 import type { SSEErrorPayload, SSEWarningPayload } from '../types';
 import TunerConfigForm from "../components/TunerConfigForm";
 import TunerResults from "../components/TunerResults";
+import TunerHistoryPanel from "../components/TunerHistoryPanel";
 import ErrorAlert from "../components/ErrorAlert";
 
 interface TunerPhase {
@@ -69,7 +70,6 @@ function TunerPage({ isActive }: TunerPageProps) {
   const [trials, setTrials] = useState<Trial[]>([]);
   const [importance, setImportance] = useState<Record<string, number>>({});
   const [currentPhase, setCurrentPhase] = useState<TunerPhase | null>(null);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [applyStatus, setApplyStatus] = useState<string | null>(null);
   const [interruptedWarning, setInterruptedWarning] = useState<string | null>(null);
   const [currentConfig, setCurrentConfig] = useState<Record<string, unknown> | null>(null);
@@ -252,6 +252,30 @@ function TunerPage({ isActive }: TunerPageProps) {
     setConfig(c => ({ ...c, [field]: value }));
   }, []);
 
+  const handleApplyCurrentValues = useCallback(async (values: Record<string, unknown>) => {
+    const confirmed = window.confirm(
+      "vLLM InferenceService가 재시작됩니다. 변경된 파라미터를 적용하시겠습니까?"
+    );
+    if (!confirmed) return;
+    try {
+      const res = await authFetch(`${API}/vllm-config`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ args: values }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(`현재값 적용 실패: ${data.detail || res.status}`);
+        return;
+      }
+      setCurrentConfig(prev => (prev ? { ...prev, ...values } : null));
+      setApplyStatus("현재값 적용 완료");
+      setTimeout(() => setApplyStatus(null), 3000);
+    } catch (err) {
+      setError(`현재값 적용 실패: ${(err as Error).message}`);
+    }
+  }, []);
+
   const handleSaveStorageUri = useCallback(async (newUri: string) => {
     try {
       const res = await authFetch(`${API}/vllm-config`, {
@@ -336,6 +360,11 @@ function TunerPage({ isActive }: TunerPageProps) {
           최적 파라미터를 InferenceService에 적용했습니다.
         </div>
       )}
+      {applyStatus === "현재값 적용 완료" && (
+        <div className="success-msg" role="status">
+          현재값을 InferenceService에 적용했습니다.
+        </div>
+      )}
       <TunerConfigForm
         config={config}
         onChange={handleConfigChange}
@@ -347,10 +376,9 @@ function TunerPage({ isActive }: TunerPageProps) {
         currentConfig={currentConfig}
         storageUri={storageUri}
         onSaveStorageUri={handleSaveStorageUri}
+        onApplyCurrentValues={handleApplyCurrentValues}
         currentPhase={currentPhase}
         trialsCompleted={status.trials_completed}
-        showAdvanced={showAdvanced}
-        onToggleAdvanced={() => setShowAdvanced(v => !v)}
       />
       <TunerResults
         trials={trials}
@@ -359,6 +387,7 @@ function TunerPage({ isActive }: TunerPageProps) {
         isRunning={status.running}
         importance={importance}
       />
+      <TunerHistoryPanel />
     </div>
   );
 }

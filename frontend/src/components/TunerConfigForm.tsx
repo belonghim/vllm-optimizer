@@ -38,10 +38,9 @@ interface TunerConfigFormProps {
   currentConfig: Record<string, unknown> | null;
   currentPhase: TunerPhase | null;
   trialsCompleted: number;
-  showAdvanced: boolean;
-  onToggleAdvanced: () => void;
   storageUri: string | null;
   onSaveStorageUri: (uri: string) => void;
+  onApplyCurrentValues?: (values: Record<string, unknown>) => void;
 }
 
 const PHASE_LABELS: Record<string, string> = {
@@ -63,21 +62,59 @@ export default function TunerConfigForm({
   currentConfig,
   currentPhase,
   trialsCompleted,
-  showAdvanced,
-  onToggleAdvanced,
   storageUri,
   onSaveStorageUri,
+  onApplyCurrentValues,
 }: TunerConfigFormProps) {
   const [localStorageUri, setLocalStorageUri] = useState(storageUri ?? "");
+  const [editedValues, setEditedValues] = useState<Record<string, unknown>>({});
 
   useEffect(() => {
     setLocalStorageUri(storageUri ?? "");
   }, [storageUri]);
 
+  useEffect(() => {
+    setEditedValues({});
+  }, [currentConfig]);
+
+  const getInputValue = (key: string): string => {
+    if (editedValues[key] !== undefined) return String(editedValues[key]);
+    if (!currentConfig) return "";
+    const val = currentConfig[key];
+    return val !== undefined ? String(val) : "";
+  };
+
+  const handleCurrentValChange = (key: string, value: unknown) => {
+    setEditedValues(prev => ({ ...prev, [key]: value }));
+  };
+
+  const renderCurrentInput = (
+    key: string,
+    type: "number" | "text" = "number",
+    extras?: { step?: string; min?: number; max?: number }
+  ) => {
+    if (!currentConfig) return <span>—</span>;
+    return (
+      <input
+        className="input"
+        type={type}
+        step={extras?.step}
+        min={extras?.min}
+        max={extras?.max}
+        value={getInputValue(key)}
+        onChange={e =>
+          handleCurrentValChange(key, type === "number" ? +e.target.value : e.target.value)
+        }
+        style={{ width: "100%" }}
+      />
+    );
+  };
+
   return (
     <div className="panel">
       <div className="section-title">Bayesian Optimization 설정</div>
-      <div className="grid-form grid-form-compact">
+      
+      <div className="grid-form grid-form-compact" style={{ marginBottom: '20px' }}>
         <div>
           <label className="label">최적화 목표</label>
           <select className="input" aria-label="최적화 목표" value={config.objective}
@@ -93,23 +130,163 @@ export default function TunerConfigForm({
            <input className="input" type="number" aria-label="Trial 수" min={1} max={100} value={config.n_trials}
              onChange={e => onChange("n_trials", +e.target.value)} />
         </div>
+      </div>
+
+      <div style={{ overflowX: 'auto', marginBottom: '20px' }}>
+        <table className="table tuner-params-table">
+          <thead>
+            <tr>
+              <th style={{ width: '20%' }}>설정명</th>
+              <th style={{ width: '15%' }}>현재값</th>
+              <th style={{ width: '30%' }}>탐색 범위</th>
+              <th style={{ width: '35%' }}>설명</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td title="max_num_seqs">최대 시퀀스 수</td>
+              <td className="td-current">{renderCurrentInput("max_num_seqs", "number")}</td>
+              <td>
+                <div className="flex-row-8">
+                  <input className="input" type="number" placeholder="Min" min={1} max={2048} value={config.max_num_seqs_min}
+                    onChange={e => onChange("max_num_seqs_min", +e.target.value)} />
+                  <input className="input" type="number" placeholder="Max" min={1} max={2048} value={config.max_num_seqs_max}
+                    onChange={e => onChange("max_num_seqs_max", +e.target.value)} />
+                </div>
+              </td>
+              <td className="td-desc">동시 처리 가능한 최대 시퀀스 수</td>
+            </tr>
+            <tr>
+              <td title="gpu_memory_utilization">GPU 메모리 비율</td>
+              <td className="td-current">{renderCurrentInput("gpu_memory_utilization", "number", { step: "0.01", min: 0, max: 1 })}</td>
+              <td>
+                <div className="flex-row-8">
+                  <input className="input" type="number" step="0.01" placeholder="Min" min={0.5} max={0.99} value={config.gpu_memory_min}
+                    onChange={e => onChange("gpu_memory_min", +e.target.value)} />
+                  <input className="input" type="number" step="0.01" placeholder="Max" min={0.5} max={0.99} value={config.gpu_memory_max}
+                    onChange={e => onChange("gpu_memory_max", +e.target.value)} />
+                </div>
+              </td>
+              <td className="td-desc">GPU 메모리 할당 비율 (0.0~1.0)</td>
+            </tr>
+            <tr>
+              <td title="max_model_len">최대 모델 길이</td>
+              <td className="td-current">{renderCurrentInput("max_model_len", "number")}</td>
+              <td>
+                <div className="flex-row-8">
+                  <input className="input" type="number" placeholder="Min" min={256} max={32768} step={256} value={config.max_model_len_min}
+                    onChange={e => onChange("max_model_len_min", +e.target.value)} />
+                  <input className="input" type="number" placeholder="Max" min={256} max={32768} step={256} value={config.max_model_len_max}
+                    onChange={e => onChange("max_model_len_max", +e.target.value)} />
+                </div>
+              </td>
+              <td className="td-desc">모델이 처리할 수 있는 최대 토큰 길이</td>
+            </tr>
+            <tr>
+              <td title="max_num_batched_tokens">최대 배치 토큰 수</td>
+              <td className="td-current">{renderCurrentInput("max_num_batched_tokens", "number")}</td>
+              <td>
+                <div className="flex-row-8">
+                  <input className="input" type="number" placeholder="Min" min={256} max={8192} step={256} value={config.max_num_batched_tokens_min}
+                    onChange={e => onChange("max_num_batched_tokens_min", +e.target.value)} />
+                  <input className="input" type="number" placeholder="Max" min={256} max={8192} step={256} value={config.max_num_batched_tokens_max}
+                    onChange={e => onChange("max_num_batched_tokens_max", +e.target.value)} />
+                </div>
+              </td>
+              <td className="td-desc">한 번에 배치 처리할 최대 토큰 수</td>
+            </tr>
+            <tr>
+              <td title="block_size">블록 크기</td>
+              <td className="td-current">{renderCurrentInput("block_size", "number")}</td>
+              <td>
+                <div className="flex-row-12">
+                  {[8, 16, 32].map(size => (
+                    <label key={size} className="tuner-block-size-label">
+                      <input type="checkbox"
+                        checked={config.block_size_options.includes(size)}
+                        onChange={e => {
+                          const next = e.target.checked
+                            ? [...config.block_size_options, size].sort((a, b) => a - b)
+                            : config.block_size_options.filter(s => s !== size);
+                          onChange("block_size_options", next);
+                        }}
+                      />
+                      {size}
+                    </label>
+                  ))}
+                </div>
+              </td>
+              <td className="td-desc">KV 캐시 블록 크기</td>
+            </tr>
+            <tr>
+              <td title="swap_space">스왑 공간 (GB)</td>
+              <td className="td-current">{renderCurrentInput("swap_space", "number", { step: "0.5", min: 0 })}</td>
+              <td>
+                <div className="flex-col-1">
+                  <label className="label-flex label-no-mb" style={{ fontSize: '10px' }}>
+                    <input type="checkbox"
+                      checked={config.include_swap_space}
+                      onChange={e => onChange("include_swap_space", e.target.checked)}
+                    />
+                    포함
+                  </label>
+                  {config.include_swap_space && (
+                    <div className="flex-row-8" style={{ marginTop: '4px' }}>
+                      <input className="input" type="number" step="0.5" placeholder="Min GB" min={0} max={64} value={config.swap_space_min}
+                        onChange={e => onChange("swap_space_min", +e.target.value)} />
+                      <input className="input" type="number" step="0.5" placeholder="Max GB" min={0} max={64} value={config.swap_space_max}
+                        onChange={e => onChange("swap_space_max", +e.target.value)} />
+                    </div>
+                  )}
+                </div>
+              </td>
+              <td className="td-desc">CPU 스왑 공간 크기 (GB)</td>
+            </tr>
+            <tr>
+              <td title="storageUri">모델 스토리지</td>
+              <td colSpan={2}>
+                <div className="flex-row-8">
+                  <input
+                    className="input"
+                    type="text"
+                    value={localStorageUri}
+                    onChange={e => setLocalStorageUri(e.target.value)}
+                    disabled={isRunning}
+                    placeholder="oci://registry/model"
+                    aria-label="storageUri"
+                  />
+                  <button
+                    className="btn btn-primary btn-small"
+                    onClick={() => onSaveStorageUri(localStorageUri)}
+                    disabled={isRunning || localStorageUri === storageUri}
+                    style={{ whiteSpace: 'nowrap' }}
+                  >
+                    저장
+                  </button>
+                </div>
+              </td>
+              <td className="td-desc">모델 스토리지 URI</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="section-title">평가 설정</div>
+      <div className="grid-form grid-form-compact" style={{ marginBottom: '20px' }}>
         <div>
-          <label className="label">max_num_seqs 범위</label>
-          <div className="flex-row-8">
-             <input className="input" type="number" placeholder="Min" aria-label="max_num_seqs 최솟값" min={1} max={2048} value={config.max_num_seqs_min}
-               onChange={e => onChange("max_num_seqs_min", +e.target.value)} />
-             <input className="input" type="number" placeholder="Max" aria-label="max_num_seqs 최댓값" min={1} max={2048} value={config.max_num_seqs_max}
-               onChange={e => onChange("max_num_seqs_max", +e.target.value)} />
-          </div>
+          <label className="label">평가 요청 수</label>
+           <input className="input" type="number" aria-label="평가 요청 수" min={10} max={10000} step={10} value={config.eval_requests}
+             onChange={e => onChange("eval_requests", +e.target.value)} />
         </div>
         <div>
-          <label className="label">GPU Memory Util 범위</label>
-          <div className="flex-row-8">
-             <input className="input" type="number" step="0.01" placeholder="Min" aria-label="GPU Memory Util 최솟값" min={0.5} max={0.99} value={config.gpu_memory_min}
-               onChange={e => onChange("gpu_memory_min", +e.target.value)} />
-             <input className="input" type="number" step="0.01" placeholder="Max" aria-label="GPU Memory Util 최댓값" min={0.5} max={0.99} value={config.gpu_memory_max}
-               onChange={e => onChange("gpu_memory_max", +e.target.value)} />
-          </div>
+          <label className="label">평가 동시 요청</label>
+           <input className="input" type="number" aria-label="평가 동시 요청" min={1} max={256} value={config.eval_concurrency}
+             onChange={e => onChange("eval_concurrency", +e.target.value)} />
+        </div>
+        <div>
+          <label className="label">평가 RPS</label>
+           <input className="input" type="number" aria-label="평가 RPS" min={1} max={1000} value={config.eval_rps}
+             onChange={e => onChange("eval_rps", +e.target.value)} />
         </div>
       </div>
 
@@ -123,6 +300,15 @@ export default function TunerConfigForm({
         {hasBest && (
           <button className="btn btn-green" onClick={onApplyBest}>
             ✓ Apply Best Params
+          </button>
+        )}
+        {onApplyCurrentValues && currentConfig && (
+          <button
+            className="btn btn-secondary"
+            onClick={() => onApplyCurrentValues(editedValues)}
+            disabled={Object.keys(editedValues).length === 0}
+          >
+            현재값 적용
           </button>
         )}
         <span className={`tag tag-${isRunning ? "running" : "idle"}`}>
@@ -140,122 +326,6 @@ export default function TunerConfigForm({
           totalTrials={config.n_trials}
           currentPhase={currentPhase}
         />
-      )}
-
-      <div className="tuner-advanced-toggle-wrap">
-        <button
-          className="btn btn-advanced"
-          onClick={onToggleAdvanced}
-        >
-          고급 설정 {showAdvanced ? "▲" : "▼"}
-        </button>
-      </div>
-
-      {showAdvanced && (
-        <div className="tuner-advanced-panel">
-          {currentConfig && (
-            <div className="tuner-current-config-box">
-              <div className="tuner-config-key-label">현재 vLLM 설정</div>
-              <div className="tuner-config-pairs">
-                {Object.entries(currentConfig).map(([k, v]) => (
-                  <span key={k} className="tuner-config-pair">
-                    {k}: <span className="tuner-config-pair-val">{String(v) || "(비어있음)"}</span>
-                  </span>
-                ))}
-              </div>
-              <div className="tuner-storageuri-row">
-                <span className="tuner-config-key-label">storageUri</span>
-                <input
-                  className="input"
-                  type="text"
-                  value={localStorageUri}
-                  onChange={e => setLocalStorageUri(e.target.value)}
-                  disabled={isRunning}
-                  placeholder="oci://registry/model"
-                  aria-label="storageUri"
-                />
-                <button
-                  className="btn btn-primary"
-                  onClick={() => onSaveStorageUri(localStorageUri)}
-                  disabled={isRunning || localStorageUri === storageUri}
-                >
-                  저장
-                </button>
-              </div>
-            </div>
-          )}
-          <div className="grid-form grid-form-compact">
-            <div>
-              <label className="label">max_model_len 범위</label>
-              <div className="flex-row-8">
-                 <input className="input" type="number" placeholder="Min" aria-label="max_model_len 최솟값" min={256} max={32768} step={256} value={config.max_model_len_min}
-                   onChange={e => onChange("max_model_len_min", +e.target.value)} />
-                 <input className="input" type="number" placeholder="Max" aria-label="max_model_len 최댓값" min={256} max={32768} step={256} value={config.max_model_len_max}
-                   onChange={e => onChange("max_model_len_max", +e.target.value)} />
-              </div>
-            </div>
-            <div>
-              <label className="label">max_num_batched_tokens 범위</label>
-              <div className="flex-row-8">
-                 <input className="input" type="number" placeholder="Min" aria-label="max_num_batched_tokens 최솟값" min={256} max={8192} step={256} value={config.max_num_batched_tokens_min}
-                   onChange={e => onChange("max_num_batched_tokens_min", +e.target.value)} />
-                 <input className="input" type="number" placeholder="Max" aria-label="max_num_batched_tokens 최댓값" min={256} max={8192} step={256} value={config.max_num_batched_tokens_max}
-                   onChange={e => onChange("max_num_batched_tokens_max", +e.target.value)} />
-              </div>
-            </div>
-            <div>
-              <label className="label">block_size 옵션</label>
-              <div className="flex-row-12">
-                {[8, 16, 32].map(size => (
-                  <label key={size} className="tuner-block-size-label">
-                    <input type="checkbox"
-                      checked={config.block_size_options.includes(size)}
-                      onChange={e => {
-                        const next = e.target.checked
-                          ? [...config.block_size_options, size].sort((a, b) => a - b)
-                          : config.block_size_options.filter(s => s !== size);
-                        onChange("block_size_options", next);
-                      }}
-                    />
-                    {size}
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="label label-flex">
-                <input type="checkbox"
-                  checked={config.include_swap_space}
-                  onChange={e => onChange("include_swap_space", e.target.checked)}
-                />
-                swap_space 포함
-              </label>
-              {config.include_swap_space && (
-                <div className="tuner-swap-space-row">
-                   <input className="input" type="number" step="0.5" placeholder="Min GB" aria-label="swap_space 최솟값 (GB)" min={0} max={64} value={config.swap_space_min}
-                     onChange={e => onChange("swap_space_min", +e.target.value)} />
-                   <input className="input" type="number" step="0.5" placeholder="Max GB" aria-label="swap_space 최댓값 (GB)" min={0} max={64} value={config.swap_space_max}
-                     onChange={e => onChange("swap_space_max", +e.target.value)} />
-                </div>
-              )}
-            </div>
-            <div>
-              <label className="label">평가 요청 수</label>
-               <input className="input" type="number" aria-label="평가 요청 수" min={10} max={10000} step={10} value={config.eval_requests}
-                 onChange={e => onChange("eval_requests", +e.target.value)} />
-            </div>
-            <div>
-              <label className="label">평가 동시 요청</label>
-               <input className="input" type="number" aria-label="평가 동시 요청" min={1} max={256} value={config.eval_concurrency}
-                 onChange={e => onChange("eval_concurrency", +e.target.value)} />
-            </div>
-            <div>
-              <label className="label">평가 RPS</label>
-               <input className="input" type="number" aria-label="평가 RPS" min={1} max={1000} value={config.eval_rps}
-                 onChange={e => onChange("eval_rps", +e.target.value)} />
-            </div>
-          </div>
-        </div>
       )}
 
       {isRunning && currentPhase && (
