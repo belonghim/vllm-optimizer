@@ -39,7 +39,16 @@ export const mockBenchmarks = () => [
       total_requests: 200,
       concurrency: 20
     },
-    result: { tps: { mean: 180 }, latency: { p99: 0.52 }, rps_actual: 12, ttft: { mean: 0.095 }, gpu_utilization_avg: 45 }
+    result: { tps: { mean: 180 }, latency: { p99: 0.52 }, rps_actual: 12, ttft: { mean: 0.095 }, gpu_utilization_avg: 45 },
+    metadata: {
+      model_identifier: "phi-4-mini-instruct",
+      hardware_type: "CPU",
+      runtime: "OpenVINO",
+      vllm_version: "0.6.2",
+      replica_count: 1,
+      notes: "Default baseline on OpenShift Dev",
+      extra: { "source": "modelcar" }
+    }
   },
   {
     id: 2,
@@ -51,7 +60,12 @@ export const mockBenchmarks = () => [
       total_requests: 200,
       concurrency: 20
     },
-    result: { tps: { mean: 247 }, latency: { p99: 0.41 }, rps_actual: 18, ttft: { mean: 0.078 }, gpu_utilization_avg: 62 }
+    result: { tps: { mean: 247 }, latency: { p99: 0.41 }, rps_actual: 18, ttft: { mean: 0.078 }, gpu_utilization_avg: 62 },
+    metadata: {
+      model_identifier: "llama-3.1-8b-instruct",
+      hardware_type: "GPU",
+      notes: "Tested with larger batch size"
+    }
   },
   {
     id: 3,
@@ -63,7 +77,11 @@ export const mockBenchmarks = () => [
       total_requests: 200,
       concurrency: 20
     },
-    result: { tps: { mean: 265 }, latency: { p99: 0.38 }, rps_actual: 20, ttft: { mean: 0.072 }, gpu_utilization_avg: 38 }
+    result: { tps: { mean: 265 }, latency: { p99: 0.38 }, rps_actual: 20, ttft: { mean: 0.072 }, gpu_utilization_avg: 38 },
+    metadata: {
+      vllm_version: "0.6.3.dev",
+      notes: "Chunked prefill optimization test"
+    }
   },
 ];
 

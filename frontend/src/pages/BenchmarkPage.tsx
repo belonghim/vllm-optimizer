@@ -8,6 +8,16 @@ import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContaine
 import { useMockData } from "../contexts/MockDataContext";
 import ErrorAlert from "../components/ErrorAlert";
 
+interface BenchmarkMetadata {
+  model_identifier?: string | null;
+  hardware_type?: string | null;
+  runtime?: string | null;
+  vllm_version?: string | null;
+  replica_count?: number | null;
+  notes?: string | null;
+  extra?: Record<string, string>;
+}
+
 interface BenchmarkConfig {
   model?: string;
   [key: string]: unknown;
@@ -28,6 +38,7 @@ interface Benchmark {
   timestamp: number;
   config?: BenchmarkConfig;
   result: BenchmarkResultData;
+  metadata?: BenchmarkMetadata | null;
 }
 
 interface BenchmarkPageProps {
@@ -37,6 +48,8 @@ interface BenchmarkPageProps {
 function BenchmarkPage({ isActive }: BenchmarkPageProps) {
   const [benchmarks, setBenchmarks] = useState<Benchmark[]>([]);
   const [selected, setSelected] = useState<(string | number)[]>([]);
+  const [expanded, setExpanded] = useState<(string | number)[]>([]);
+  const [editing, setEditing] = useState<Benchmark | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { isMockEnabled } = useMockData();
 
@@ -65,9 +78,18 @@ function BenchmarkPage({ isActive }: BenchmarkPageProps) {
     return () => controller.abort();
   }, [isMockEnabled, isActive]);
 
-  const toggle = (id: string | number) => setSelected(s =>
-    s.includes(id) ? s.filter(x => x !== id) : [...s, id]
-  );
+  const toggleSelect = (id: string | number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelected(s =>
+      s.includes(id) ? s.filter(x => x !== id) : [...s, id]
+    );
+  };
+
+  const toggleExpand = (id: string | number) => {
+    setExpanded(s =>
+      s.includes(id) ? s.filter(x => x !== id) : [...s, id]
+    );
+  };
 
   const handleDelete = async (b: Benchmark, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -76,6 +98,7 @@ function BenchmarkPage({ isActive }: BenchmarkPageProps) {
     if (isMockEnabled) {
       setBenchmarks(prev => prev.filter(x => x.id !== b.id));
       setSelected(prev => prev.filter(x => x !== b.id));
+      setExpanded(prev => prev.filter(x => x !== b.id));
       return;
     }
 
@@ -84,9 +107,66 @@ function BenchmarkPage({ isActive }: BenchmarkPageProps) {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setBenchmarks(prev => prev.filter(x => x.id !== b.id));
       setSelected(prev => prev.filter(x => x !== b.id));
+      setExpanded(prev => prev.filter(x => x !== b.id));
     } catch (err) {
       setError(`삭제 실패: ${(err as Error).message}`);
     }
+  };
+
+  const handleSaveMetadata = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editing) return;
+
+    const benchmarkId = editing.id;
+    const metadata = editing.metadata || {};
+
+    if (isMockEnabled) {
+      setBenchmarks(prev => prev.map(b => b.id === benchmarkId ? { ...b, metadata } : b));
+      setEditing(null);
+      return;
+    }
+
+    try {
+      const res = await authFetch(`${API}/benchmark/${benchmarkId}/metadata`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(metadata),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const updated: Benchmark = await res.json();
+      setBenchmarks(prev => prev.map(b => b.id === benchmarkId ? updated : b));
+      setEditing(null);
+    } catch (err) {
+      setError(`메타데이터 저장 실패: ${(err as Error).message}`);
+    }
+  };
+
+  const updateMetadataField = (field: keyof BenchmarkMetadata, value: any) => {
+    if (!editing) return;
+    setEditing({
+      ...editing,
+      metadata: {
+        ...(editing.metadata || {}),
+        [field]: value
+      }
+    });
+  };
+
+  const updateExtra = (key: string, value: string, oldKey?: string) => {
+    if (!editing) return;
+    const extra = { ...(editing.metadata?.extra || {}) };
+    if (oldKey && oldKey !== key) {
+      delete extra[oldKey];
+    }
+    extra[key] = value;
+    updateMetadataField('extra', extra);
+  };
+
+  const removeExtra = (key: string) => {
+    if (!editing) return;
+    const extra = { ...(editing.metadata?.extra || {}) };
+    delete extra[key];
+    updateMetadataField('extra', extra);
   };
 
   const compareData = useMemo(() => benchmarks
@@ -111,40 +191,203 @@ function BenchmarkPage({ isActive }: BenchmarkPageProps) {
          <div className="section-title">저장된 벤치마크</div>
          <table className="table" aria-label="저장된 벤치마크 목록">
           <thead>
-            <tr><th></th><th>Name</th><th>Model</th><th>Date</th><th>TPS</th><th>P99 ms</th><th>RPS</th><th>GPU Eff.</th><th>삭제</th></tr>
+            <tr>
+              <th></th>
+              <th>Name</th>
+              <th>Model ID</th>
+              <th>Config Model</th>
+              <th>Date</th>
+              <th>TPS</th>
+              <th>P99 ms</th>
+              <th>RPS</th>
+              <th>GPU Eff.</th>
+              <th>삭제</th>
+            </tr>
           </thead>
           <tbody>
             {benchmarks.map(b => {
               const eff = calcGpuEfficiency(b.result);
+              const isSelected = selected.includes(b.id);
+              const isExpanded = expanded.includes(b.id);
               return (
-                <tr key={b.id} onClick={() => toggle(b.id)}
-                  className={selected.includes(b.id) ? 'benchmark-row benchmark-row--selected' : 'benchmark-row'}>
-                  <td>
-                    <input type="checkbox" checked={selected.includes(b.id)} readOnly aria-label={`벤치마크 ${b.name} 선택`} />
-                  </td>
-                  <td className="td-text">{b.name}</td>
-                  <td className="td-cyan">{b.config?.model || "—"}</td>
-                  <td className="td-muted">{new Date(b.timestamp * 1000).toLocaleString()}</td>
-                  <td className="td-accent">{fmt(b.result?.tps?.mean, 1)}</td>
-                  <td className="td-red">{fmt((b.result?.latency?.p99 || 0) * 1000, 0)}</td>
-                  <td>{fmt(b.result?.rps_actual, 1)}</td>
-                  <td className="td-green">
-                    {eff.mismatch ? <span title="GPU metrics mismatch">N/A</span> : eff.display || "—"}
-                  </td>
-                  <td>
-                    <button aria-label="벤치마크 삭제" onClick={(e) => handleDelete(b, e)}>✕</button>
-                  </td>
-                </tr>
+                <React.Fragment key={b.id}>
+                  <tr onClick={() => toggleExpand(b.id)}
+                    className={`benchmark-row ${isSelected ? 'benchmark-row--selected' : ''} ${isExpanded ? 'benchmark-row--expanded' : ''}`}>
+                    <td onClick={(e) => toggleSelect(b.id, e)}>
+                      <input type="checkbox" checked={isSelected} readOnly aria-label={`벤치마크 ${b.name} 선택`} />
+                    </td>
+                    <td className="td-text">{b.name}</td>
+                    <td className="td-cyan">{b.metadata?.model_identifier || "—"}</td>
+                    <td className="td-muted">{b.config?.model || "—"}</td>
+                    <td className="td-muted">{new Date(b.timestamp * 1000).toLocaleString()}</td>
+                    <td className="td-accent">{fmt(b.result?.tps?.mean, 1)}</td>
+                    <td className="td-red">{fmt((b.result?.latency?.p99 || 0) * 1000, 0)}</td>
+                    <td>{fmt(b.result?.rps_actual, 1)}</td>
+                    <td className="td-green">
+                      {eff.mismatch ? <span title="GPU metrics mismatch">N/A</span> : eff.display || "—"}
+                    </td>
+                    <td>
+                      <button className="btn-icon" aria-label="벤치마크 삭제" onClick={(e) => handleDelete(b, e)}>✕</button>
+                    </td>
+                  </tr>
+                  {isExpanded && (
+                    <tr className="expanded-row">
+                      <td colSpan={10}>
+                        <div className="metadata-detail">
+                          <div className="metadata-grid">
+                            <div className="metadata-item">
+                              <span className="label">Model ID:</span>
+                              <span className="value">{b.metadata?.model_identifier || "—"}</span>
+                            </div>
+                            <div className="metadata-item">
+                              <span className="label">Hardware:</span>
+                              <span className="value">{b.metadata?.hardware_type || "—"}</span>
+                            </div>
+                            <div className="metadata-item">
+                              <span className="label">Runtime:</span>
+                              <span className="value">{b.metadata?.runtime || "—"}</span>
+                            </div>
+                            <div className="metadata-item">
+                              <span className="label">vLLM Version:</span>
+                              <span className="value">{b.metadata?.vllm_version || "—"}</span>
+                            </div>
+                            <div className="metadata-item">
+                              <span className="label">Replicas:</span>
+                              <span className="value">{b.metadata?.replica_count || "—"}</span>
+                            </div>
+                            <div className="metadata-item full-width">
+                              <span className="label">Notes:</span>
+                              <span className="value">{b.metadata?.notes || "—"}</span>
+                            </div>
+                            {b.metadata?.extra && Object.entries(b.metadata.extra).length > 0 && (
+                              <div className="metadata-item full-width">
+                                <span className="label">Extra Info:</span>
+                                <div className="extra-tags">
+                                  {Object.entries(b.metadata.extra).map(([k, v]) => (
+                                    <span key={k} className="tag">{k}: {v}</span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <div className="metadata-actions">
+                            <button className="btn-small" onClick={() => setEditing(b)}>편집</button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               );
             })}
             {benchmarks.length === 0 && (
-              <tr><td colSpan={9} className="benchmark-empty">
+              <tr><td colSpan={10} className="benchmark-empty">
                 부하 테스트 결과를 저장하면 여기 나타납니다.
               </td></tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {editing && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>벤치마크 메타데이터 편집</h3>
+              <button className="btn-close" onClick={() => setEditing(null)}>✕</button>
+            </div>
+            <form onSubmit={handleSaveMetadata} className="metadata-form">
+              <div className="form-group">
+                <label>Model Identifier</label>
+                <input
+                  type="text"
+                  value={editing.metadata?.model_identifier || ""}
+                  onChange={e => updateMetadataField('model_identifier', e.target.value)}
+                  placeholder="예: llama-3.1-8b-instruct"
+                />
+                <small className="help-text">실제 모델 이름을 입력하세요 (기본값은 서빙 이름 llm-ov)</small>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Hardware Type</label>
+                  <input
+                    type="text"
+                    value={editing.metadata?.hardware_type || ""}
+                    onChange={e => updateMetadataField('hardware_type', e.target.value)}
+                    placeholder="예: A100, L4, CPU"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Runtime</label>
+                  <input
+                    type="text"
+                    value={editing.metadata?.runtime || ""}
+                    onChange={e => updateMetadataField('runtime', e.target.value)}
+                    placeholder="예: OpenVINO, CUDA"
+                  />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>vLLM Version</label>
+                  <input
+                    type="text"
+                    value={editing.metadata?.vllm_version || ""}
+                    onChange={e => updateMetadataField('vllm_version', e.target.value)}
+                    placeholder="예: 0.6.2"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Replica Count</label>
+                  <input
+                    type="number"
+                    value={editing.metadata?.replica_count || ""}
+                    onChange={e => updateMetadataField('replica_count', e.target.value ? parseInt(e.target.value) : null)}
+                  />
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Notes</label>
+                <textarea
+                  value={editing.metadata?.notes || ""}
+                  onChange={e => updateMetadataField('notes', e.target.value)}
+                  rows={3}
+                />
+              </div>
+              <div className="form-group">
+                <label>Extra Metadata (Key: Value)</label>
+                <div className="extra-editor">
+                  {Object.entries(editing.metadata?.extra || {}).map(([k, v], idx) => (
+                    <div key={idx} className="extra-row">
+                      <input
+                        type="text"
+                        value={k}
+                        onChange={e => updateExtra(e.target.value, v, k)}
+                        placeholder="Key"
+                      />
+                      <input
+                        type="text"
+                        value={v}
+                        onChange={e => updateExtra(k, e.target.value)}
+                        placeholder="Value"
+                      />
+                      <button type="button" onClick={() => removeExtra(k)}>✕</button>
+                    </div>
+                  ))}
+                  <button type="button" className="btn-outline-small"
+                    onClick={() => updateExtra(`key_${Object.keys(editing.metadata?.extra || {}).length + 1}`, "value")}>
+                    + 항목 추가
+                  </button>
+                </div>
+              </div>
+              <div className="form-actions">
+                <button type="button" className="btn-secondary" onClick={() => setEditing(null)}>취소</button>
+                <button type="submit" className="btn-primary">저장</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {compareData.length >= 2 && (
         <div className="panel">
