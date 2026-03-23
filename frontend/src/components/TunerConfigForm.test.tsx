@@ -65,9 +65,11 @@ describe("TunerConfigForm", () => {
       max_num_batched_tokens: 2048,
       block_size: 16,
       swap_space: 0,
+      enable_chunked_prefill: true,
+      enable_enforce_eager: false,
     };
     render(<TunerConfigForm {...baseProps} currentConfig={currentConfig} />);
-    expect(screen.queryByText("—")).not.toBeInTheDocument();
+    expect(screen.queryAllByText("—")).toHaveLength(2);
   });
 
   it("현재값 적용 button is disabled when editedValues is empty", () => {
