@@ -117,22 +117,6 @@ async def evaluate_profile(
     if profile is None:
         raise HTTPException(status_code=404, detail=f"SLA profile {profile_id} not found")
 
-    benchmarks = await storage.list_benchmarks()
-    filtered: list[Benchmark] = []
-    for benchmark in benchmarks:
-        model_identifier = (
-            benchmark.metadata.model_identifier
-            if benchmark.metadata is not None and benchmark.metadata.model_identifier is not None
-            else None
-        )
-
-        if model_identifier is not None:
-            if model_identifier == profile.model:
-                filtered.append(benchmark)
-            continue
-
-        if benchmark.config.model == profile.model:
-            filtered.append(benchmark)
-
-    results = evaluate_benchmarks_against_sla(profile, filtered[:limit])
+    benchmarks = await storage.list_benchmarks_by_model(profile.model, limit=limit)
+    results = evaluate_benchmarks_against_sla(profile, benchmarks)
     return SlaEvaluateResponse(profile=profile, results=results)
