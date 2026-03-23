@@ -146,6 +146,11 @@ select.input option { background: var(--surface-color); }
   font-size: 11px;
   background: rgba(255,59,107,0.05);
 }
+.error-alert--warning {
+  border: 1px solid var(--accent-color);
+  color: var(--accent-color);
+  background: rgba(245,166,35,0.05);
+}
 .error-alert--mb16 { margin-bottom: 16px; }
 .error-alert--mb8 { margin-bottom: 8px; }
 .error-alert--m08 { margin: 0 0 8px; }
