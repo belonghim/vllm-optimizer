@@ -3,9 +3,14 @@ from fastapi.testclient import TestClient
 from unittest.mock import AsyncMock, MagicMock, patch
 import asyncio
 
+from pydantic import ValidationError
+
 from ..main import app
 from ..services.auto_tuner import AutoTuner, K8S_NAMESPACE, K8S_DEPLOYMENT, VLLM_IS_NAME
+from ..services.load_engine import LoadTestEngine
+from ..services.multi_target_collector import MultiTargetMetricsCollector
 from ..models.load_test import TuningConfig, TuningTrial, LoadTestConfig
+from kubernetes.client import CoreV1Api, AppsV1Api, CustomObjectsApi
  
 
 def test_stream_endpoint_exists(client):
@@ -52,6 +57,10 @@ def mock_k8s_clients():
          patch('kubernetes.client.CoreV1Api') as mock_core_api, \
          patch('kubernetes.client.CustomObjectsApi') as mock_custom_api:
         
+        mock_apps_api.return_value = MagicMock(spec=AppsV1Api)
+        mock_core_api.return_value = MagicMock(spec=CoreV1Api)
+        mock_custom_api.return_value = MagicMock(spec=CustomObjectsApi)
+        
         mock_custom_api.return_value.get_namespaced_custom_object.return_value = {
             "status": {"conditions": [{"type": "Ready", "status": "True"}]}
         }
@@ -60,8 +69,8 @@ def mock_k8s_clients():
 
 @pytest.fixture
 def auto_tuner_instance(mock_k8s_clients):
-    mock_metrics_collector = AsyncMock()
-    mock_load_engine = AsyncMock()
+    mock_metrics_collector = AsyncMock(spec=MultiTargetMetricsCollector)
+    mock_load_engine = AsyncMock(spec=LoadTestEngine)
     tuner = AutoTuner(mock_metrics_collector, mock_load_engine)
     tuner._k8s_available = True # Force K8s available for testing
     tuner._cooldown_secs = 0  # Skip cooldown in tests
@@ -1375,3 +1384,32 @@ async def test_concurrent_start_rejected(auto_tuner_instance):
 
     assert "error" in result
     assert "실행 중" in result["error"]
+
+
+# ── Boundary Value Tests ──────────────────────────────────────────────────────
+
+
+def test_config_boundary_values():
+    """Minimum valid boundary values (ge=1) should be accepted."""
+    load_cfg = LoadTestConfig(total_requests=1, concurrency=1, max_tokens=1)
+    assert load_cfg.total_requests == 1
+    assert load_cfg.concurrency == 1
+
+    tuning_cfg = TuningConfig(n_trials=1, eval_requests=1, eval_concurrency=1)
+    assert tuning_cfg.n_trials == 1
+    assert tuning_cfg.eval_requests == 1
+
+
+def test_config_rejects_boundary_violations():
+    """Zero values should be rejected by Pydantic ge=1 validators."""
+    with pytest.raises(ValidationError):
+        LoadTestConfig(total_requests=0)
+
+    with pytest.raises(ValidationError):
+        LoadTestConfig(concurrency=0)
+
+    with pytest.raises(ValidationError):
+        TuningConfig(n_trials=0)
+
+    with pytest.raises(ValidationError):
+        TuningConfig(eval_requests=0)

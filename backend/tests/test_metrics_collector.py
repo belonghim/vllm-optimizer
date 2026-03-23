@@ -1,7 +1,9 @@
 import os
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
+from kubernetes.client.exceptions import ApiException
 
 from ..services.multi_target_collector import MultiTargetMetricsCollector
 
@@ -76,3 +78,82 @@ class TestMultiTargetMetricsCollector:
             "query",
         )
         assert value_ok == 123.456
+
+    @pytest.mark.asyncio
+    async def test_query_prometheus_connection_error(self) -> None:
+        collector = _build_collector()
+
+        async def raise_connect_error(*args: object, **kwargs: object) -> None:
+            raise httpx.ConnectError("Connection refused")
+
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = raise_connect_error
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("services.multi_target_collector.httpx.AsyncClient", return_value=mock_client):
+            result = await collector._query_prometheus("test-ns", "test-is")
+
+        assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_query_prometheus_auth_failure(self) -> None:
+        collector = _build_collector()
+
+        mock_response = MagicMock()
+        mock_request = MagicMock()
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "403 Forbidden",
+            request=mock_request,
+            response=MagicMock(status_code=403),
+        )
+
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("services.multi_target_collector.httpx.AsyncClient", return_value=mock_client):
+            result = await collector._query_prometheus("test-ns", "test-is")
+
+        assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_query_prometheus_malformed_json(self) -> None:
+        collector = _build_collector()
+
+        mock_response = MagicMock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.json.side_effect = ValueError("Expecting value: line 1")
+
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("services.multi_target_collector.httpx.AsyncClient", return_value=mock_client):
+            result = await collector._query_prometheus("test-ns", "test-is")
+
+        assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_query_kubernetes_pods_api_exception(self) -> None:
+        collector = _build_collector()
+        collector._k8s_available = True
+        collector._k8s_core = MagicMock()
+        collector._k8s_core.list_namespaced_pod.side_effect = ApiException(status=403, reason="Forbidden")
+
+        result = await collector._query_kubernetes_pods("test-ns", "test-is")
+
+        assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_check_namespace_monitoring_label_exception(self) -> None:
+        collector = _build_collector()
+        collector._k8s_available = True
+        collector._k8s_core = MagicMock()
+        collector._k8s_core.read_namespace.side_effect = ApiException(status=404, reason="Not Found")
+
+        result = await collector.check_namespace_monitoring_label("nonexistent-ns")
+
+        assert result is False
