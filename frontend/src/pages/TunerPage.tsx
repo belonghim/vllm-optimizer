@@ -233,7 +233,7 @@ function TunerPage({ isActive }: TunerPageProps) {
         setError(`vLLM 설정 조회 실패: ${err.message}`);
       });
     return () => controller.abort();
-  }, [isActive, isMockEnabled]);
+  }, [isActive, isMockEnabled, namespace, inferenceservice]);
 
   useEffect(() => {
     if (!isActive) return;

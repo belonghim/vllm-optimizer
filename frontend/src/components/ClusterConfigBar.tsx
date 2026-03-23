@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
+import { authFetch } from "../utils/authFetch";
+import { API } from "../constants";
 
 interface StatusIndicatorProps {
   isDirty: boolean;
@@ -47,12 +49,27 @@ export default function ClusterConfigBar() {
     setLocalConfig(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!isDirty) return;
     // React 18: multiple setState calls in event handlers are automatically batched (single re-render)
     updateContextConfig('endpoint', localConfig.endpoint);
     updateContextConfig('namespace', localConfig.namespace);
     updateContextConfig('inferenceservice', localConfig.inferenceservice);
+    
+    try {
+      await authFetch(`${API}/config`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vllm_endpoint: localConfig.endpoint,
+          vllm_namespace: localConfig.namespace,
+          vllm_is_name: localConfig.inferenceservice,
+        }),
+      });
+    } catch (err) {
+      console.warn('[ClusterConfig] backend sync failed:', err);
+    }
+    
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 2000);
   };
