@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-23] - SSE Resilience Hardening
+
+**Status**: Completed
+
+SSE 관련 동시성 안전성, 정상 종료 처리, 타입 안전성, 재연결 복원력을 강화.
+
+### Fixed (Backend)
+- **`_interrupted_runs` 동시성 보호**: `asyncio.Lock`으로 전역 변수 동시 접근 보호 (`status.py`). `set_interrupted_runs` → `async def` 전환, read-and-clear 원자적 처리
+- **Graceful shutdown running_state 정리**: lifespan shutdown에서 `get_all_running()` → `clear_running()` 호출. `storage.close()` 전에 실행되어 DB 연결 유효 보장 (fail-open)
+
+### Added (Backend)
+- **`get_all_running()` 메서드**: `storage.py`에 추가. `WHERE cleared_at IS NULL` 조건으로 미정리 행 조회
+
+### Refactored (Frontend)
+- **SSE 페이로드 타입 정의**: `SSEErrorPayload`, `SSEWarningPayload` 인터페이스 추가 (`types/index.ts`)
+- **`as any` 제거**: `useLoadTestSSE.ts`의 `as any` → `as SSEErrorPayload | undefined` 타입 안전 캐스트
+- **TunerPage SSE exponential backoff**: onerror 시 1s→2s→4s→8s 지수 백오프 재연결 (최대 3회). `tuning_error`/`tuning_warning` 핸들러도 타입 안전 캐스트 적용
+
+### Tests
+- Backend: 208 passed (기존 테스트 전체 통과, `test_running_state.py` async 호환 업데이트 포함)
+
+### Verification
+- F1 Plan Compliance: APPROVE | F2 Code Quality: APPROVE | F3 Manual QA: APPROVE | F4 Scope Fidelity: APPROVE
+
+### Commits
+- `c3465e7` fix(backend): add asyncio.Lock to _interrupted_runs for concurrency safety
+- `52580d8` feat(backend): clear running_state rows on graceful shutdown
+- `bcffb76` refactor(frontend): add SSE payload types and remove as-any casts
+- `18bdf0b` feat(frontend): add exponential backoff reconnect to TunerPage SSE
+
+---
+
 ## [2026-03-23] - SSE 에러 표시 + OpenAPI 스키마 + 실행 상태 알림
 
 **Status**: Completed
