@@ -517,6 +517,51 @@ oc import-image vllm-optimizer-backend:latest \
 
 ---
 
+## Playwright 사용 가이드 — 토큰 절약 규칙
+
+AI 에이전트가 Playwright로 브라우저를 조작할 때 불필요한 snapshot 요청이 토큰을 과도하게 소모합니다. 다음 규칙을 반드시 준수하십시오.
+
+### 필수 규칙: snapshot 호출 최소화
+
+Playwright skill이 매 상호작용 후 자동으로 `browser_snapshot`을 호출하는 것은 **巨大的** 토큰 낭비입니다. 매 페이지 상태를 텍스트로 변환하면 수천 토큰이 소비됩니다.
+
+**올바른 사용법:**
+```typescript
+// ✅ GOOD: 명시적 도구만 사용 — snapshot 호출 안 함
+await playwright_browser_click({ element: "theme toggle switch", ref: "e14" });
+// 상태가 바뀌었는지 직접 특정 요소로 확인
+const isLight = await playwright_browser_evaluate({ 
+  function: "() => document.documentElement.getAttribute('data-theme')" 
+});
+
+// ❌ BAD: click 직후 snapshot (불필요하게 전체 DOM 캡처)
+await playwright_browser_click({ ... });
+await playwright_browser_snapshot(); // ← 토큰 폭발, 금지!
+```
+
+**금지 패턴:**
+- `playwright_browser_click` → 직후 `playwright_browser_snapshot` **금지**
+- `playwright_browser_type` → 직후 `playwright_browser_snapshot` **금지**
+- 매 단계마다 snapshot **금지**
+- 변경 확인용 snapshot 대신 `playwright_browser_evaluate` 사용
+
+**허용 패턴:**
+- 첫 페이지 로드 시 1회 snapshot (초기 상태 확인용)
+- 디버깅 시 명시적 snapshot (문제가 있을 때만)
+- `playwright_browser_evaluate`로 특정 값 확인 (DOM 요소 직접 쿼리)
+- `playwright_browser_console_messages`로 에러 확인
+
+### 토큰 절약 체크리스트
+
+에이전트가 Playwright를 사용하기 전 반드시 확인:
+
+1. **snapshot이 필요한가?** → 아니오. `evaluate`, `click`, `type`으로 충분
+2. **console_messages 대신 snapshot을 쓰고 있는가?** → `console_messages`가 에러 확인에 더 효율적
+3. **screenshot이 필요한가?** → 시각적 검증이 필요한 경우만. 대부분 `evaluate`로 대체 가능
+4. **navigate 후 바로 snapshot?** → 필수 아님. 핵심 요소만 evaluate로 확인
+
+---
+
 ## 금지 사항
 
 에이전트는 다음 작업을 수행해서는 안 됩니다.
