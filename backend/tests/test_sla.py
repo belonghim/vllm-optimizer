@@ -438,3 +438,59 @@ async def test_sla_profile_list(storage: Storage) -> None:
     assert len(our_profiles) == 3
     timestamps = [p.created_at for p in our_profiles]
     assert timestamps == sorted(timestamps, reverse=True)
+
+
+@pytest.mark.asyncio
+async def test_create_profile_http_201(storage: Storage, monkeypatch: pytest.MonkeyPatch) -> None:
+    from routers.sla import router
+    from starlette.testclient import TestClient
+    from fastapi import FastAPI
+    from unittest.mock import patch
+    
+    with patch("routers.sla.storage", storage):
+        app = FastAPI()
+        app.include_router(router, prefix="/api/sla")
+        client = TestClient(app)
+        
+        body = {
+            "name": "Test Profile",
+            "model": "llm-ov",
+            "thresholds": {
+                "availability_min": 99.9,
+                "p95_latency_max_ms": None,
+                "error_rate_max_pct": None,
+                "min_tps": None,
+            },
+        }
+        resp = client.post("/api/sla/profiles", json=body)
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["id"] is not None
+        assert data["name"] == "Test Profile"
+        assert data["model"] == "llm-ov"
+
+
+@pytest.mark.asyncio
+async def test_create_profile_http_422_no_thresholds(storage: Storage, monkeypatch: pytest.MonkeyPatch) -> None:
+    from routers.sla import router
+    from starlette.testclient import TestClient
+    from fastapi import FastAPI
+    from unittest.mock import patch
+    
+    with patch("routers.sla.storage", storage):
+        app = FastAPI()
+        app.include_router(router, prefix="/api/sla")
+        client = TestClient(app)
+        
+        body = {
+            "name": "Test Profile",
+            "model": "llm-ov",
+            "thresholds": {
+                "availability_min": None,
+                "p95_latency_max_ms": None,
+                "error_rate_max_pct": None,
+                "min_tps": None,
+            },
+        }
+        resp = client.post("/api/sla/profiles", json=body)
+        assert resp.status_code == 422

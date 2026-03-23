@@ -93,6 +93,13 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    
+    const hasAnyThreshold = formAvailMin || formP95Ms || formErrRate || formMinTps;
+    if (!hasAnyThreshold) {
+      setError("최소 1개의 임계값을 입력해야 합니다.");
+      return;
+    }
+    
     const body = {
       name: formName,
       model: formModel,
@@ -112,7 +119,18 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        let detail = `HTTP ${res.status}`;
+        try {
+          const errBody = await res.json();
+          if (errBody.detail) {
+            detail = typeof errBody.detail === 'string'
+              ? errBody.detail
+              : errBody.detail.map((d: any) => d.msg).join(', ');
+          }
+        } catch {}
+        throw new Error(detail);
+      }
       
       resetForm();
       await loadProfiles();
