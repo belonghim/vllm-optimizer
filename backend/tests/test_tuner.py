@@ -1166,3 +1166,212 @@ async def test_apply_params_returns_error_when_k8s_unavailable(auto_tuner_instan
     result = await tuner._apply_params({"max_num_seqs": 128})
     assert result["success"] is False
     assert "K8s" in result.get("error", "")
+
+
+# ── T8: Error Path Tests (A2, B2, C1–C3, D1–D3) ─────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_404_circuit_break_stops_tuning(auto_tuner_instance, mock_k8s_clients):
+    """A2: patch_namespaced_custom_object raises 404 → cancel + tuning_error SSE, no trials."""
+    tuner = auto_tuner_instance
+    from kubernetes.client.exceptions import ApiException
+
+    tuner._preflight_check = AsyncMock(return_value={"success": True})
+    tuner._wait_for_ready = AsyncMock(return_value=True)
+
+    mock_custom = mock_k8s_clients[2].return_value
+    mock_custom.get_namespaced_custom_object.return_value = {
+        "spec": {"predictor": {"model": {"args": []}}},
+        "status": {"conditions": [{"type": "Ready", "status": "True"}]},
+    }
+    mock_custom.patch_namespaced_custom_object.side_effect = ApiException(status=404)
+
+    q = await tuner.subscribe()
+    config = TuningConfig(n_trials=3, eval_requests=5, warmup_requests=0)
+    await tuner.start(config, "http://mock:8080")
+
+    assert tuner._cancel_event.is_set()
+    assert len(tuner.trials) == 0
+
+    events = []
+    while not q.empty():
+        events.append(q.get_nowait())
+    error_events = [e for e in events if e.get("type") == "tuning_error"]
+    assert len(error_events) >= 1
+    assert error_events[0]["data"].get("error_type") == "not_found"
+
+
+@pytest.mark.asyncio
+async def test_non_rbac_apply_failure_broadcasts_sse(auto_tuner_instance, mock_k8s_clients):
+    """C1: Non-RBAC apply failure (network error) → tuning_error SSE broadcast."""
+    tuner = auto_tuner_instance
+
+    tuner._preflight_check = AsyncMock(return_value={"success": True})
+    tuner._wait_for_ready = AsyncMock(return_value=True)
+
+    mock_custom = mock_k8s_clients[2].return_value
+    mock_custom.get_namespaced_custom_object.return_value = {
+        "spec": {"predictor": {"model": {"args": []}}},
+        "status": {"conditions": [{"type": "Ready", "status": "True"}]},
+    }
+    mock_custom.patch_namespaced_custom_object.side_effect = Exception("Connection refused")
+
+    q = await tuner.subscribe()
+    config = TuningConfig(n_trials=2, eval_requests=5, warmup_requests=0)
+    await tuner.start(config, "http://mock:8080")
+
+    events = []
+    while not q.empty():
+        events.append(q.get_nowait())
+    error_events = [e for e in events if e.get("type") == "tuning_error"]
+    assert len(error_events) >= 1
+    assert "Connection refused" in error_events[0]["data"].get("error", "")
+
+
+@pytest.mark.asyncio
+async def test_is_ready_failure_broadcasts_warning(auto_tuner_instance, mock_k8s_clients):
+    """C2: IS ready failure → tuning_warning SSE with rollback message."""
+    tuner = auto_tuner_instance
+
+    tuner._preflight_check = AsyncMock(return_value={"success": True})
+
+    tuner._wait_for_ready = AsyncMock(side_effect=[True, False])
+    tuner._rollback_to_snapshot = AsyncMock(return_value=True)
+
+    mock_custom = mock_k8s_clients[2].return_value
+    mock_custom.get_namespaced_custom_object.return_value = {
+        "spec": {"predictor": {"model": {"args": []}}},
+        "status": {"conditions": [{"type": "Ready", "status": "True"}]},
+    }
+    mock_custom.patch_namespaced_custom_object.return_value = None
+
+    q = await tuner.subscribe()
+    config = TuningConfig(n_trials=1, eval_requests=5, warmup_requests=0)
+    await tuner.start(config, "http://mock:8080")
+
+    events = []
+    while not q.empty():
+        events.append(q.get_nowait())
+    warning_events = [e for e in events if e.get("type") == "tuning_warning"]
+    assert len(warning_events) >= 1
+    assert any("롤백" in e["data"].get("message", "") for e in warning_events)
+
+
+@pytest.mark.asyncio
+async def test_trial_evaluation_failure_broadcasts_warning(auto_tuner_instance, mock_k8s_clients):
+    """C3: _run_trial_evaluation failure → tuning_warning SSE + trial FAIL."""
+    tuner = auto_tuner_instance
+
+    tuner._preflight_check = AsyncMock(return_value={"success": True})
+    tuner._wait_for_ready = AsyncMock(return_value=True)
+    tuner._evaluate = AsyncMock(side_effect=RuntimeError("evaluation failed"))
+
+    mock_custom = mock_k8s_clients[2].return_value
+    mock_custom.get_namespaced_custom_object.return_value = {
+        "spec": {"predictor": {"model": {"args": []}}},
+        "status": {"conditions": [{"type": "Ready", "status": "True"}]},
+    }
+    mock_custom.patch_namespaced_custom_object.return_value = None
+
+    q = await tuner.subscribe()
+    config = TuningConfig(n_trials=1, eval_requests=5, warmup_requests=0)
+    await tuner.start(config, "http://mock:8080")
+
+    events = []
+    while not q.empty():
+        events.append(q.get_nowait())
+    warning_events = [e for e in events if e.get("type") == "tuning_warning"]
+    assert len(warning_events) >= 1
+    assert any("평가 실패" in e["data"].get("message", "") for e in warning_events)
+    assert len(tuner.trials) == 0
+
+
+@pytest.mark.asyncio
+async def test_storage_fallback_broadcasts_warning(auto_tuner_instance, mock_k8s_clients):
+    """B2: SQLite storage failure → tuning_warning SSE (persistence warning)."""
+    tuner = auto_tuner_instance
+
+    tuner._preflight_check = AsyncMock(return_value={"success": True})
+    tuner._wait_for_ready = AsyncMock(return_value=True)
+    tuner._evaluate = AsyncMock(return_value=(100.0, 50.0, 0.5))
+
+    mock_custom = mock_k8s_clients[2].return_value
+    mock_custom.get_namespaced_custom_object.return_value = {
+        "spec": {"predictor": {"model": {"args": []}}},
+        "status": {"conditions": [{"type": "Ready", "status": "True"}]},
+    }
+    mock_custom.patch_namespaced_custom_object.return_value = None
+
+    q = await tuner.subscribe()
+    config = TuningConfig(n_trials=1, eval_requests=5, warmup_requests=0)
+
+    from ..services import auto_tuner as _at_mod
+    with patch.object(_at_mod, "storage") as mock_storage:
+        mock_storage.save_trial = AsyncMock(side_effect=Exception("disk full"))
+        await tuner.start(config, "http://mock:8080")
+
+    events = []
+    while not q.empty():
+        events.append(q.get_nowait())
+    warning_events = [e for e in events if e.get("type") == "tuning_warning"]
+    assert len(warning_events) >= 1
+    assert any("저장" in e["data"].get("message", "") for e in warning_events)
+
+
+@pytest.mark.asyncio
+async def test_running_false_after_preflight_failure(auto_tuner_instance, mock_k8s_clients):
+    """D1: After preflight failure, _running must be False."""
+    tuner = auto_tuner_instance
+    from kubernetes.client.exceptions import ApiException
+
+    mock_custom = mock_k8s_clients[2].return_value
+    mock_custom.get_namespaced_custom_object.side_effect = ApiException(status=403)
+
+    config = TuningConfig(n_trials=2, eval_requests=5, warmup_requests=0)
+    result = await tuner.start(config, "http://mock:8080")
+
+    assert "error" in result
+    assert tuner._running is False
+
+
+@pytest.mark.asyncio
+async def test_stop_awaits_current_task(auto_tuner_instance):
+    """D2: stop() awaits _current_task and cleans it up."""
+    tuner = auto_tuner_instance
+
+    task_completed = asyncio.Event()
+
+    async def slow_tuning():
+        try:
+            await asyncio.sleep(10)
+        except asyncio.CancelledError:
+            pass
+        finally:
+            task_completed.set()
+
+    task = asyncio.create_task(slow_tuning())
+    async with tuner._lock:
+        tuner._running = True
+        tuner._current_task = task
+
+    result = await tuner.stop()
+    assert result["success"] is True
+
+    await asyncio.sleep(0.05)
+    assert task.done()
+
+
+@pytest.mark.asyncio
+async def test_concurrent_start_rejected(auto_tuner_instance):
+    """D3: Second start() call while running is rejected."""
+    tuner = auto_tuner_instance
+
+    async with tuner._lock:
+        tuner._running = True
+
+    config = TuningConfig(n_trials=2, eval_requests=5, warmup_requests=0)
+    result = await tuner.start(config, "http://mock:8080")
+
+    assert "error" in result
+    assert "실행 중" in result["error"]
