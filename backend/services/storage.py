@@ -306,75 +306,6 @@ class Storage:
             logger.error("[Storage] Failed to list benchmarks: %s", e)
             return []
 
-    async def list_benchmarks_by_model(self, model: str, limit: int = 50) -> List[Benchmark]:
-        """Get benchmarks filtered by model name. Supports wildcards (* → %) and case-insensitive matching."""
-        if self._conn is None:
-            logger.error("[Storage] Cannot list benchmarks by model: database not initialized")
-            return []
-
-        try:
-            # Convert wildcard * to SQL LIKE %
-            sql_pattern = model.replace("*", "%")
-            has_wildcard = "%" in sql_pattern
-
-            if has_wildcard:
-                query = """
-                    SELECT id, name, timestamp, config_json, result_json, metadata_json
-                    FROM benchmarks
-                    WHERE (
-                        LOWER(json_extract(metadata_json, '$.model_identifier')) LIKE LOWER(?)
-                        OR (
-                            (metadata_json IS NULL OR json_extract(metadata_json, '$.model_identifier') IS NULL)
-                            AND LOWER(json_extract(config_json, '$.model')) LIKE LOWER(?)
-                        )
-                    )
-                    ORDER BY timestamp DESC
-                    LIMIT ?
-                """
-                cursor = await self._conn.execute(query, (sql_pattern, sql_pattern, limit))
-            else:
-                query = """
-                    SELECT id, name, timestamp, config_json, result_json, metadata_json
-                    FROM benchmarks
-                    WHERE (
-                        LOWER(json_extract(metadata_json, '$.model_identifier')) = LOWER(?)
-                        OR (
-                            (metadata_json IS NULL OR json_extract(metadata_json, '$.model_identifier') IS NULL)
-                            AND LOWER(json_extract(config_json, '$.model')) = LOWER(?)
-                        )
-                    )
-                    ORDER BY timestamp DESC
-                    LIMIT ?
-                """
-                cursor = await self._conn.execute(query, (sql_pattern, sql_pattern, limit))
-
-            rows = await cursor.fetchall()
-            benchmarks: List[Benchmark] = []
-            for row in rows:
-                try:
-                    config = LoadTestConfig.model_validate_json(row["config_json"])
-                    result = LoadTestResult.model_validate_json(row["result_json"])
-                    metadata = None
-                    if row["metadata_json"]:
-                        try:
-                            metadata = BenchmarkMetadata.model_validate_json(row["metadata_json"])
-                        except Exception:
-                            metadata = None
-                    benchmarks.append(Benchmark(
-                        id=row["id"],
-                        name=row["name"],
-                        timestamp=row["timestamp"],
-                        config=config,
-                        result=result,
-                        metadata=metadata,
-                    ))
-                except Exception as e:
-                    logger.warning("[Storage] Failed to parse benchmark row %s: %s", row["id"], e)
-            return benchmarks
-        except Exception as e:
-            logger.error("[Storage] Failed to list benchmarks by model: %s", e)
-            return []
-
     async def get_benchmark(self, id: int) -> Optional[Benchmark]:
         """Get a single benchmark by id."""
         if self._conn is None:
@@ -409,6 +340,47 @@ class Storage:
         except Exception as e:
             logger.error("[Storage] Failed to get benchmark id=%s: %s", id, e)
             return None
+
+    async def get_benchmarks_by_ids(self, ids: list[int]) -> list[Benchmark]:
+        """Get multiple benchmarks by their IDs. Missing IDs are silently skipped."""
+        if not ids:
+            return []
+        if self._conn is None:
+            logger.error("[Storage] Cannot get benchmarks: database not initialized")
+            return []
+
+        try:
+            placeholders = ",".join("?" * len(ids))
+            cursor = await self._conn.execute(
+                f"SELECT id, name, timestamp, config_json, result_json, metadata_json FROM benchmarks WHERE id IN ({placeholders})",
+                ids,
+            )
+            rows = await cursor.fetchall()
+            benchmarks: list[Benchmark] = []
+            for row in rows:
+                try:
+                    config = LoadTestConfig.model_validate_json(row["config_json"])
+                    result = LoadTestResult.model_validate_json(row["result_json"])
+                    metadata = None
+                    if row["metadata_json"]:
+                        try:
+                            metadata = BenchmarkMetadata.model_validate_json(row["metadata_json"])
+                        except Exception:
+                            metadata = None
+                    benchmarks.append(Benchmark(
+                        id=row["id"],
+                        name=row["name"],
+                        timestamp=row["timestamp"],
+                        config=config,
+                        result=result,
+                        metadata=metadata,
+                    ))
+                except Exception as e:
+                    logger.warning("[Storage] Failed to parse benchmark row %s: %s", row["id"], e)
+            return benchmarks
+        except Exception as e:
+            logger.error("[Storage] Failed to get benchmarks by ids: %s", e)
+            return []
 
     async def delete_benchmark(self, id: int) -> bool:
         """Delete a benchmark by id. Returns True if deleted, False otherwise."""
