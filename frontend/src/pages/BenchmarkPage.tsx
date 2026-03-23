@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Fragment } from "react";
 import { authFetch } from '../utils/authFetch';
 import { API, COLORS, TOOLTIP_STYLE } from "../constants";
 import { fmt } from "../utils/format";
@@ -210,7 +210,7 @@ function BenchmarkPage({ isActive }: BenchmarkPageProps) {
               const isSelected = selected.includes(b.id);
               const isExpanded = expanded.includes(b.id);
               return (
-                <React.Fragment key={b.id}>
+                <Fragment key={b.id}>
                   <tr onClick={() => toggleExpand(b.id)}
                     className={`benchmark-row ${isSelected ? 'benchmark-row--selected' : ''} ${isExpanded ? 'benchmark-row--expanded' : ''}`}>
                     <td onClick={(e) => toggleSelect(b.id, e)}>
@@ -277,7 +277,7 @@ function BenchmarkPage({ isActive }: BenchmarkPageProps) {
                       </td>
                     </tr>
                   )}
-                </React.Fragment>
+                </Fragment>
               );
             })}
             {benchmarks.length === 0 && (
