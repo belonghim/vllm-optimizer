@@ -197,7 +197,7 @@ curl http://<backend>/api/vllm-config
 # 특정 값 수정 (허용 키만 가능)
 curl -X PATCH http://<backend>/api/vllm-config \
   -H 'Content-Type: application/json' \
-  -d '{"data": {"MAX_NUM_SEQS": "128"}}'
+  -d '{"data": {"max_num_seqs": "128"}}'
 ```
 > ℹ️ **참고**: API를 통해 값만 수정하면 vLLM 파드가 자동으로 재기동되지 않습니다. 새 값을 적용하려면 파드를 수동으로 재기동하거나 자동 튜닝을 통해 적용하십시오.
 

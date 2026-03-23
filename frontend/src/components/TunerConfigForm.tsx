@@ -90,10 +90,23 @@ export default function TunerConfigForm({
 
   const renderCurrentInput = (
     key: string,
-    type: "number" | "text" = "number",
+    type: "number" | "text" | "checkbox" = "number",
     extras?: { step?: string; min?: number; max?: number }
   ) => {
     if (!currentConfig) return <span>—</span>;
+
+    if (type === "checkbox") {
+      const val = getInputValue(key);
+      const isChecked = val.toLowerCase() === "true" || val === "1";
+      return (
+        <input
+          type="checkbox"
+          checked={isChecked}
+          onChange={e => handleCurrentValChange(key, e.target.checked)}
+        />
+      );
+    }
+
     return (
       <input
         className="input"
@@ -241,6 +254,18 @@ export default function TunerConfigForm({
                 </div>
               </td>
               <td className="td-desc">CPU 스왑 공간 크기 (GB)</td>
+            </tr>
+            <tr>
+              <td title="enable_chunked_prefill">Chunked Prefill</td>
+              <td className="td-current">{renderCurrentInput("enable_chunked_prefill", "checkbox")}</td>
+              <td>—</td>
+              <td className="td-desc">Chunked Prefill 활성화 여부</td>
+            </tr>
+            <tr>
+              <td title="enable_enforce_eager">Enforce Eager</td>
+              <td className="td-current">{renderCurrentInput("enable_enforce_eager", "checkbox")}</td>
+              <td>—</td>
+              <td className="td-desc">CUDA Graph 미사용 (Eager 모드 강제)</td>
             </tr>
             <tr>
               <td title="storageUri">모델 스토리지</td>

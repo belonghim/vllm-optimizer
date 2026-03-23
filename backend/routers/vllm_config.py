@@ -2,7 +2,7 @@ import asyncio
 import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, Optional, cast, Literal
 from kubernetes.client import CustomObjectsApi
 from kubernetes.client.exceptions import ApiException as K8sApiException
 from services.shared import runtime_config
@@ -71,17 +71,29 @@ def _config_dict_to_tuning_args(config: dict[str, Any]) -> list[str]:
             continue
         # boolean flags (enable_chunked_prefill, enforce_eager)
         if key in ("enable_chunked_prefill", "enable_enforce_eager"):
-            if value.lower() in ("true", "1", "yes"):
+            if str(value).lower() in ("true", "1", "yes"):
                 result.append(cli_flag)
             # false/empty → 생략
         else:
-            if value:
-                result.append(f"{cli_flag}={value}")
+            if value is not None and str(value):
+                result.append(f"{cli_flag}={str(value)}")
     return result
 
 
+ConfigKey = Literal[
+    "max_num_seqs",
+    "gpu_memory_utilization",
+    "max_model_len",
+    "max_num_batched_tokens",
+    "block_size",
+    "swap_space",
+    "enable_chunked_prefill",
+    "enable_enforce_eager",
+]
+
+
 class VllmConfigPatchRequest(BaseModel):
-    data: dict[str, str] = {}
+    data: dict[ConfigKey, str] = {}
     storageUri: Optional[str] = None
 
 

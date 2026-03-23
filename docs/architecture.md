@@ -119,8 +119,8 @@ The vLLM instance is deployed on OpenShift using KServe. KServe follows a specif
 
 #### New API Endpoints
 
--   **`GET /api/vllm-config`**: Returns the current `vllm-config` ConfigMap data from Kubernetes. Returns 503 if Kubernetes is not available.
--   **`PATCH /api/vllm-config`**: Updates specific keys in the `vllm-config` ConfigMap. Only keys in `ALLOWED_CONFIG_KEYS` are accepted (422 for invalid keys). Returns 409 if the auto-tuner is currently running.
+-   **`GET /api/vllm-config`**: Returns the current vLLM configuration by reading `InferenceService.spec.predictor.model.args` from Kubernetes, parsing the args list into a dictionary. Returns 503 if Kubernetes is not available.
+-   **`PATCH /api/vllm-config`**: Updates the vLLM configuration by writing to `InferenceService.spec.predictor.model.args`. Converts the provided dictionary to a command-line args list and patches the InferenceService. Only keys in `ALLOWED_CONFIG_KEYS` are accepted (422 for invalid keys). Returns 409 if the auto-tuner is currently running.
 -   **`GET /api/config`**: Returns frontend configuration including `vllm_endpoint`, `vllm_model_name` (from `VLLM_MODEL` env), and `resolved_model_name` (queried from vLLM `/v1/models` API with 3-second timeout).
 
 ## Thanos Querier Integration
