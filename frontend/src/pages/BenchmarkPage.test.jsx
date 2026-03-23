@@ -25,9 +25,9 @@ afterEach(() => {
 
 describe("BenchmarkPage", () => {
   describe("mock mode", () => {
-    it("renders Model column header", () => {
+    it("renders Model ID column header", () => {
       render(<BenchmarkPage />);
-      expect(screen.getByText("Model")).toBeInTheDocument();
+      expect(screen.getByText("Model ID")).toBeInTheDocument();
     });
 
     it("renders GPU Eff. column header", () => {
