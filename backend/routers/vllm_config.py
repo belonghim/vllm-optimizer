@@ -20,6 +20,8 @@ def _get_k8s_namespace() -> str:
 def _get_vllm_is_name() -> str:
     return runtime_config.vllm_is_name or "llm-ov"
 
+ALLOWED_RESOURCE_KEYS = {"cpu", "memory", "nvidia.com/gpu"}
+
 ALLOWED_CONFIG_KEYS = {
     "max_num_seqs",
     "gpu_memory_utilization",
@@ -95,6 +97,7 @@ ConfigKey = Literal[
 class VllmConfigPatchRequest(BaseModel):
     data: dict[ConfigKey, str] = {}
     storageUri: Optional[str] = None
+    resources: Optional[dict[Literal["requests", "limits"], dict[str, str]]] = None
 
 
 def _get_k8s_custom() -> Optional[CustomObjectsApi]:
@@ -147,7 +150,13 @@ async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict[str, Any]:
             detail=f"Invalid config keys: {sorted(invalid_keys)}. Allowed: {sorted(ALLOWED_CONFIG_KEYS)}",
         )
 
-    if not request.data and request.storageUri is None:
+    if request.resources is not None:
+        for tier, kvs in request.resources.items():
+            invalid_res_keys = set(kvs.keys()) - ALLOWED_RESOURCE_KEYS
+            if invalid_res_keys:
+                raise HTTPException(status_code=422, detail=f"Invalid resource keys: {invalid_res_keys}")
+
+    if not request.data and request.storageUri is None and request.resources is None:
         return {"success": True, "updated_keys": [], "updated_storageUri": False}
 
     # 튜너 실행 중 체크
@@ -193,6 +202,15 @@ async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict[str, Any]:
 
         if request.storageUri is not None:
             model_patch["storageUri"] = request.storageUri
+
+        if request.resources is not None:
+            clean_resources: dict[str, Any] = {}
+            for tier, kvs in request.resources.items():
+                cleaned = {k: v for k, v in kvs.items() if v != ""}
+                if cleaned:
+                    clean_resources[tier] = cleaned
+            if clean_resources:
+                model_patch["resources"] = clean_resources
 
         patch_body = {"spec": {"predictor": {"model": model_patch}}}
         await asyncio.to_thread(

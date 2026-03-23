@@ -299,3 +299,71 @@ def test_patch_boolean_false_removes_flag(client: TestClient):
         assert "--max-num-seqs=256" in patched_args
         assert "--max-model-len=8192" in patched_args
         assert len(patched_args) == 2
+
+
+def test_patch_resources_valid(client):
+    mock_custom = MagicMock()
+    mock_custom.patch_namespaced_custom_object.return_value = MagicMock()
+
+    handler_globals = _get_vllm_config_globals(client, method="PATCH")
+    if handler_globals is None:
+        pytest.skip("PATCH /api/vllm-config route not found")
+
+    with patch.dict(handler_globals, {"_get_k8s_custom": lambda: mock_custom}):
+        resp = client.patch("/api/vllm-config", json={"resources": {"requests": {"cpu": "4"}}})
+        assert resp.status_code == 200
+
+        body = mock_custom.patch_namespaced_custom_object.call_args.kwargs["body"]
+        model_spec = body["spec"]["predictor"]["model"]
+        assert "resources" in model_spec
+        assert model_spec["resources"]["requests"]["cpu"] == "4"
+
+
+def test_patch_resources_invalid_key(client):
+    handler_globals = _get_vllm_config_globals(client, method="PATCH")
+    if handler_globals is None:
+        pytest.skip("PATCH /api/vllm-config route not found")
+
+    resp = client.patch("/api/vllm-config", json={"resources": {"requests": {"disk": "10Gi"}}})
+    assert resp.status_code == 422
+
+
+def test_patch_resources_only(client):
+    mock_custom = MagicMock()
+    mock_custom.patch_namespaced_custom_object.return_value = MagicMock()
+
+    handler_globals = _get_vllm_config_globals(client, method="PATCH")
+    if handler_globals is None:
+        pytest.skip("PATCH /api/vllm-config route not found")
+
+    with patch.dict(handler_globals, {"_get_k8s_custom": lambda: mock_custom}):
+        resp = client.patch("/api/vllm-config", json={"resources": {"limits": {"memory": "32Gi"}}})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert mock_custom.patch_namespaced_custom_object.called
+
+
+def test_patch_combined_data_and_resources(client):
+    mock_custom = MagicMock()
+    mock_custom.get_namespaced_custom_object.return_value = _MOCK_IS
+    mock_custom.patch_namespaced_custom_object.return_value = MagicMock()
+
+    handler_globals = _get_vllm_config_globals(client, method="PATCH")
+    if handler_globals is None:
+        pytest.skip("PATCH /api/vllm-config route not found")
+
+    with patch.dict(handler_globals, {"_get_k8s_custom": lambda: mock_custom}):
+        resp = client.patch(
+            "/api/vllm-config",
+            json={"data": {"max_num_seqs": "512"}, "resources": {"limits": {"cpu": "8", "memory": "16Gi"}}},
+        )
+        assert resp.status_code == 200
+
+        body = mock_custom.patch_namespaced_custom_object.call_args.kwargs["body"]
+        model_spec = body["spec"]["predictor"]["model"]
+        assert "args" in model_spec
+        assert any("--max-num-seqs=512" in a for a in model_spec["args"])
+        assert "resources" in model_spec
+        assert model_spec["resources"]["limits"]["cpu"] == "8"
+        assert model_spec["resources"]["limits"]["memory"] == "16Gi"
