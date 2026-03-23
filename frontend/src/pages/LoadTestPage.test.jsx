@@ -41,13 +41,19 @@ beforeEach(() => {
   vi.stubGlobal("EventSource", MockEventSource);
   vi.stubGlobal(
     "fetch",
-    vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        test_id: "test-123",
-        status: "started",
-        config: { model: "resolved-model", endpoint: "", total_requests: 200, concurrency: 20 },
-      }),
+    vi.fn().mockImplementation((url) => {
+      const s = url.toString();
+      if (s.includes("/status/interrupted")) {
+        return Promise.resolve({ ok: true, json: async () => ({ interrupted_runs: [] }) });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          test_id: "test-123",
+          status: "started",
+          config: { model: "resolved-model", endpoint: "", total_requests: 200, concurrency: 20 },
+        }),
+      });
     })
   );
 });
@@ -421,5 +427,46 @@ describe("LoadTestPage", () => {
 
       expect(screen.queryByText(/재연결 중/)).not.toBeInTheDocument();
     });
+  });
+
+  it("shows interrupted warning when previous loadtest run was interrupted", async () => {
+    vi.stubGlobal("fetch", vi.fn((url) => {
+      const s = url.toString();
+      if (s.includes("/status/interrupted")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            interrupted_runs: [{ id: 2, task_type: "loadtest", started_at: 1711100000.0 }]
+          })
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    }));
+
+    render(<LoadTestPage isActive={true} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/이전 부하 테스트가 비정상 종료되었습니다/)).toBeInTheDocument();
+    });
+
+    const closeBtn = screen.getByText("×");
+    fireEvent.click(closeBtn);
+    expect(screen.queryByText(/이전 부하 테스트가 비정상 종료되었습니다/)).not.toBeInTheDocument();
+  });
+
+  it("ignores malformed JSON in SSE event without crashing", async () => {
+    render(<LoadTestPage isActive={true} />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("▶ Run Load Test"));
+    });
+    await waitFor(() => expect(mockEsInstance).not.toBeNull());
+
+    act(() => {
+      mockEsInstance.onmessage({ data: "not-json" });
+    });
+
+    expect(screen.queryByText(/오류/)).not.toBeInTheDocument();
+    expect(mockEsInstance.closeSpy).not.toHaveBeenCalled();
   });
 });

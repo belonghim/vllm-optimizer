@@ -70,6 +70,7 @@ function TunerPage({ isActive }: TunerPageProps) {
   const [currentPhase, setCurrentPhase] = useState<TunerPhase | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [applyStatus, setApplyStatus] = useState<string | null>(null);
+  const [interruptedWarning, setInterruptedWarning] = useState<string | null>(null);
   const [currentConfig, setCurrentConfig] = useState<Record<string, unknown> | null>(null);
   const [storageUri, setStorageUri] = useState<string | null>(null);
   const [config, setConfig] = useState<TunerConfig>({
@@ -212,6 +213,22 @@ function TunerPage({ isActive }: TunerPageProps) {
   }, [isActive, isMockEnabled]);
 
   useEffect(() => {
+    if (!isActive) return;
+    if (isMockEnabled) return;
+
+    const controller = new AbortController();
+    authFetch(`${API}/status/interrupted`, { signal: controller.signal })
+      .then(r => r.json())
+      .then(data => {
+        if (data.interrupted_runs && data.interrupted_runs.some((r: any) => r.task_type === "tuner")) {
+          setInterruptedWarning("이전 튜닝이 비정상 종료되었습니다.");
+        }
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [isActive, isMockEnabled]);
+
+  useEffect(() => {
     if (endpoint) {
       setConfig(c => ({ ...c, vllm_endpoint: c.vllm_endpoint || endpoint }));
     }
@@ -292,6 +309,12 @@ function TunerPage({ isActive }: TunerPageProps) {
 
   return (
     <div className="flex-col-16">
+      {interruptedWarning && (
+        <div style={{display: 'flex', alignItems: 'flex-start', gap: '8px'}}>
+          <ErrorAlert message={interruptedWarning} severity="warning" className="error-alert--mb16" />
+          <button onClick={() => setInterruptedWarning(null)} style={{background:'none',border:'none',cursor:'pointer',padding:'4px',color:'var(--muted-color)',fontSize:'18px'}}>×</button>
+        </div>
+      )}
       <ErrorAlert message={error} className="error-alert--mb16" />
       <ErrorAlert message={warning} severity="warning" className="error-alert--mb16" />
       {applyStatus === "success" && (

@@ -1413,3 +1413,32 @@ def test_config_rejects_boundary_violations():
 
     with pytest.raises(ValidationError):
         TuningConfig(eval_requests=0)
+
+
+@pytest.mark.asyncio
+async def test_clear_running_called_on_exception_during_tuning(auto_tuner_instance, mock_k8s_clients):
+    tuner = auto_tuner_instance
+
+    tuner._preflight_check = AsyncMock(return_value={"success": True})
+    tuner._wait_for_ready = AsyncMock(return_value=True)
+    tuner._evaluate = AsyncMock(side_effect=RuntimeError("simulated mid-trial crash"))
+
+    mock_custom = mock_k8s_clients[2].return_value
+    mock_custom.get_namespaced_custom_object.return_value = {
+        "spec": {"predictor": {"model": {"args": []}}},
+        "status": {"conditions": [{"type": "Ready", "status": "True"}]},
+    }
+    mock_custom.patch_namespaced_custom_object.return_value = None
+
+    from ..services import auto_tuner as _at_mod
+    mock_storage = MagicMock()
+    mock_storage.set_running = AsyncMock(return_value=42)
+    mock_storage.clear_running = AsyncMock()
+
+    config = TuningConfig(n_trials=1, eval_requests=5, warmup_requests=0)
+
+    with patch.object(_at_mod, "storage", mock_storage):
+        await tuner.start(config, "http://mock:8080")
+
+    mock_storage.set_running.assert_called_once_with("tuner")
+    mock_storage.clear_running.assert_called_once_with(42)

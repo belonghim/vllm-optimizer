@@ -38,6 +38,7 @@ function LoadTestPage({ isActive }: LoadTestPageProps) {
   });
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
+  const [interruptedWarning, setInterruptedWarning] = useState<string | null>(null);
   const { isMockEnabled } = useMockData();
   const { status, setStatus, isReconnecting, retryCount, error, setError,
     result, setResult, progress, setProgress, latencyData, setLatencyData,
@@ -102,6 +103,22 @@ function LoadTestPage({ isActive }: LoadTestPageProps) {
     }
   }, [isActive, globalIsLoading, globalEndpoint]);
 
+  useEffect(() => {
+    if (!isActive) return;
+    if (isMockEnabled) return;
+
+    const controller = new AbortController();
+    authFetch(`${API}/status/interrupted`, { signal: controller.signal })
+      .then(r => r.json())
+      .then(data => {
+        if (data.interrupted_runs && data.interrupted_runs.some((r: any) => r.task_type === "loadtest")) {
+          setInterruptedWarning("이전 부하 테스트가 비정상 종료되었습니다.");
+        }
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [isActive, isMockEnabled]);
+
   const handleConfigChange = useCallback((key: string, value: string | number | boolean) => setConfig(c => ({ ...c, [key]: value })), []);
 
   const progressFillStyle = { width: `${progress}%` };
@@ -115,6 +132,13 @@ function LoadTestPage({ isActive }: LoadTestPageProps) {
       {isReconnecting && status === "running" && (
         <div className="loadtest-reconnect-banner" aria-live="assertive" role="alert">
           ↺ SSE 재연결 중... ({retryCount}/3회 시도)
+        </div>
+      )}
+
+      {interruptedWarning && (
+        <div style={{display: 'flex', alignItems: 'flex-start', gap: '8px'}}>
+          <ErrorAlert message={interruptedWarning} severity="warning" className="error-alert--mb8" />
+          <button onClick={() => setInterruptedWarning(null)} style={{background:'none',border:'none',cursor:'pointer',padding:'4px',color:'var(--muted-color)',fontSize:'18px'}}>×</button>
         </div>
       )}
 
