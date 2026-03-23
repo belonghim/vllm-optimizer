@@ -89,6 +89,7 @@ class AutoTuner:
         self._poll_count: int = 0
         self._cooldown_secs: int = 30
         self._best_score_history: list[float] = []
+        self._persistence_warning_sent: bool = False
         self._current_task: asyncio.Task[Any] | None = None
         self._init_k8s()
 
@@ -253,10 +254,11 @@ class AutoTuner:
         self._best_score_history = []
         self._best_trial = None
         self._pareto_front_size = None
+        self._persistence_warning_sent = False
         storage_url = os.getenv("OPTUNA_STORAGE_URL")
         self._direction, self._study = await self._setup_study(config, storage_url)
 
-    async def start(self, config: TuningConfig, vllm_endpoint: str) -> dict[str, Any]:
+    async def start(self, config: TuningConfig, vllm_endpoint: str, skip_preflight: bool = False) -> dict[str, Any]:
         state_initialized = False
         try:
             async with self._lock:
@@ -272,16 +274,17 @@ class AutoTuner:
                 await self._init_tuning_state(config)
 
             self._vllm_endpoint = vllm_endpoint
-            logger.info("[AutoTuner] 튜닝 시작 전 K8s 권한 사전 검증 중...")
-            preflight = await self._preflight_check()
-            if not preflight["success"]:
-                error_msg = preflight.get("error", "Preflight 검증 실패")
-                error_type = preflight.get("error_type", "preflight_error")
-                await self._broadcast({
-                    "type": "tuning_error",
-                    "data": {"error": error_msg, "error_type": error_type},
-                })
-                return {"error": error_msg, "error_type": error_type}
+            if not skip_preflight:
+                logger.info("[AutoTuner] 튜닝 시작 전 K8s 권한 사전 검증 중...")
+                preflight = await self._preflight_check()
+                if not preflight["success"]:
+                    error_msg = preflight.get("error", "Preflight 검증 실패")
+                    error_type = preflight.get("error_type", "preflight_error")
+                    await self._broadcast({
+                        "type": "tuning_error",
+                        "data": {"error": error_msg, "error_type": error_type},
+                    })
+                    return {"error": error_msg, "error_type": error_type}
 
             logger.info("[AutoTuner] 튜닝 시작 전 InferenceService 상태 확인 중...")
             if not await self._wait_for_ready(timeout=60, interval=5):
@@ -321,7 +324,21 @@ class AutoTuner:
                 if not await self._wait_for_isvc_ready(trial, trial_num):
                     continue
 
-                score, tps, p99_lat = await self._run_trial_evaluation(trial)
+                try:
+                    score, tps, p99_lat = await self._run_trial_evaluation(trial)
+                except Exception as e:
+                    logger.warning("[AutoTuner] Trial %d evaluation failed: %s", trial_num, e)
+                    await self._broadcast({
+                        "type": "tuning_warning",
+                        "data": {
+                            "message": "트라이얼 평가 실패로 다음 트라이얼로 진행합니다",
+                            "trial": trial_num,
+                        },
+                    })
+                    async with self._study_lock:
+                        assert self._study is not None
+                        self._study.tell(trial, state=optuna.trial.TrialState.FAIL)
+                    continue
 
                 pruned = await self._handle_trial_result(
                     trial, trial_num, score, tps, p99_lat, _trial_start, params
@@ -400,6 +417,12 @@ class AutoTuner:
                     logger.info("[AutoTuner] Warm-start: enqueued previous best params: %s", best_params)
             except Exception as e:  # intentional: storage fallback (SQLAlchemy/Optuna errors too diverse)
                 logger.warning("[AutoTuner] SQLite storage failed, falling back to in-memory: %s", e)
+                await self._broadcast({
+                    "type": "tuning_warning",
+                    "data": {
+                        "message": "스토리지 초기화 실패, 인메모리 모드로 실행합니다",
+                    },
+                })
                 study = optuna.create_study(
                     sampler=sampler, pruner=pruner, **direction_kwarg
                 )  # type: ignore[arg-type]
@@ -421,15 +444,26 @@ class AutoTuner:
             async with self._study_lock:
                 assert self._study is not None
                 self._study.tell(trial, state=optuna.trial.TrialState.FAIL)
-            if apply_result.get("error_type") == "rbac":
-                error_msg = apply_result.get("error", "RBAC 권한 오류")
+            error_type = apply_result.get("error_type", "apply_failed")
+            if error_type in {"rbac", "not_found"}:
+                error_msg = apply_result.get("error", "InferenceService 접근/패치 오류")
                 await self._broadcast({
                     "type": "tuning_error",
-                    "data": {"error": error_msg, "error_type": "rbac"},
+                    "data": {"error": error_msg, "error_type": error_type},
                 })
                 self._cancel_event.set()
                 async with self._lock:
                     self._running = False
+                return False
+
+            error_msg = apply_result.get("error", "InferenceService 파라미터 적용 실패")
+            await self._broadcast({
+                "type": "tuning_error",
+                "data": {"error": error_msg, "error_type": error_type},
+            })
+            self._cancel_event.set()
+            async with self._lock:
+                self._running = False
             return False
         return True
 
@@ -441,6 +475,13 @@ class AutoTuner:
                 logger.info("[AutoTuner] Trial %d: wait cancelled", trial_num)
                 return False
             logger.warning("[AutoTuner] Trial %d: InferenceService not ready, rolling back", trial_num)
+            await self._broadcast({
+                "type": "tuning_warning",
+                "data": {
+                    "message": "IS가 준비되지 않아 롤백합니다",
+                    "trial": trial_num,
+                },
+            })
             await self._rollback_to_snapshot(trial_num)
             async with self._study_lock:
                 assert self._study is not None
@@ -468,6 +509,17 @@ class AutoTuner:
         except Exception as _e:  # intentional: non-critical metrics
             logger.debug("[AutoTuner] Metrics emit failed (non-critical): %s", _e)
 
+    async def _broadcast_persistence_warning_once(self) -> None:
+        if self._persistence_warning_sent:
+            return
+        self._persistence_warning_sent = True
+        await self._broadcast({
+            "type": "tuning_warning",
+            "data": {
+                "message": "트라이얼 저장에 실패했지만 튜닝은 계속 진행합니다",
+            },
+        })
+
     async def _update_pareto_front(self) -> None:
         try:
             assert self._study is not None
@@ -477,7 +529,7 @@ class AutoTuner:
                     recorded.is_pareto_optimal = (recorded.trial_id in pareto_trial_numbers)
             self._pareto_front_size = len(pareto_trial_numbers)
         except Exception as e:  # intentional: non-critical
-            logger.debug("[AutoTuner] Pareto front update failed: %s", e)
+            logger.warning("[AutoTuner] Pareto front update failed: %s", e)
 
     async def _handle_trial_result(
         self, trial, trial_num: int, score, tps, p99_lat, trial_start, params
@@ -497,6 +549,7 @@ class AutoTuner:
                 await storage.save_trial(t)
             except Exception as e:
                 logger.warning("[AutoTuner] Failed to persist trial %d to storage: %s", trial_num, e)
+                await self._broadcast_persistence_warning_once()
             await self._emit_trial_metrics(trial_start, "pruned")
             await self._broadcast({"type": "trial_complete", "data": {
                 "trial_id": trial_num, "score": score, "tps": tps,
@@ -527,6 +580,7 @@ class AutoTuner:
             await storage.save_trial(t)
         except Exception as e:
             logger.warning("[AutoTuner] Failed to persist trial %d to storage: %s", trial_num, e)
+            await self._broadcast_persistence_warning_once()
         await self._emit_trial_metrics(trial_start, "completed")
         if self._config.objective == "pareto":
             await self._update_pareto_front()
@@ -750,6 +804,14 @@ class AutoTuner:
                     "error": "InferenceService 패치 권한 없음 (403 Forbidden)",
                     "error_type": "rbac",
                 }
+            if e.status == 404:
+                namespace = _get_k8s_namespace()
+                is_name = _get_vllm_is_name()
+                return {
+                    "success": False,
+                    "error": f"InferenceService '{is_name}'을(를) '{namespace}'에서 찾을 수 없습니다.",
+                    "error_type": "not_found",
+                }
             return {"success": False, "error": f"InferenceService args patch failed: {e}"}
         except Exception as e:  # intentional: K8s operation fallback
             logger.error(f"[AutoTuner] 파라미터 적용 실패: {e}")
@@ -913,7 +975,7 @@ class AutoTuner:
             if hasattr(self._study, "directions") and len(getattr(self._study, "directions", [])) > 1:
                 return {}
         except optuna.exceptions.OptunaError as e:
-            logger.debug("[AutoTuner] Multi-objective check failed: %s", e)
+            logger.warning("[AutoTuner] Multi-objective check failed: %s", e)
         try:
             importance = await asyncio.to_thread(
                 optuna.importance.get_param_importances, self._study

@@ -266,10 +266,13 @@ def _reload_app(monkeypatch: pytest.MonkeyPatch) -> FastAPI:
 
     load_engine_module = importlib.import_module("services.load_engine")
 
-    async def _stub_run(self: Any, config: Any) -> dict[str, Any]:
+    async def _stub_run(self: Any, config: Any, skip_preflight: bool = False) -> dict[str, Any]:
         self._state = load_engine_module.LoadTestState()
         self._state.status = load_engine_module.LoadTestStatus.COMPLETED
         return {}
+
+    async def _stub_preflight(self: Any, config: Any = None) -> dict[str, Any]:
+        return {"success": True}
 
     monkeypatch.setattr(
         "services.load_engine.LoadTestEngine.run",
@@ -279,6 +282,16 @@ def _reload_app(monkeypatch: pytest.MonkeyPatch) -> FastAPI:
     monkeypatch.setattr(
         "backend.services.load_engine.LoadTestEngine.run",
         _stub_run,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "services.load_engine.LoadTestEngine._preflight_check",
+        _stub_preflight,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "backend.services.load_engine.LoadTestEngine._preflight_check",
+        _stub_preflight,
         raising=False,
     )
 
@@ -339,6 +352,46 @@ def _mock_resolve_model_name() -> Any:
     yield
     for p in patches:
         p.stop()
+
+
+@pytest.fixture(autouse=True)
+def _mock_auto_tuner_preflight() -> Any:
+    """Prevent real K8s calls from AutoTuner._preflight_check in unit tests."""
+    from unittest.mock import AsyncMock
+
+    stub = AsyncMock(return_value={"success": True})
+    patched: list[tuple[Any, Any]] = []
+    seen_ids: set[int] = set()
+
+    def _patch_instance(at: Any) -> None:
+        if id(at) in seen_ids:
+            return
+        seen_ids.add(id(at))
+        patched.append((at, at._preflight_check))
+        at._preflight_check = stub
+
+    for mod_name in ("routers.tuner", "backend.routers.tuner"):
+        mod = sys.modules.get(mod_name)
+        if mod and hasattr(mod, "auto_tuner"):
+            _patch_instance(mod.auto_tuner)
+
+    def _scan_app_routes(app: Any) -> None:
+        for route in getattr(app, "routes", []):
+            ep = getattr(route, "endpoint", None)
+            if ep and hasattr(ep, "__globals__"):
+                at = ep.__globals__.get("auto_tuner")
+                if at is not None:
+                    _patch_instance(at)
+
+    for mod_name, mod in list(sys.modules.items()):
+        app_obj = getattr(mod, "app", None)
+        if app_obj is not None and hasattr(app_obj, "routes"):
+            _scan_app_routes(app_obj)
+
+    yield
+
+    for instance, orig in patched:
+        instance._preflight_check = orig
 
 
 @pytest.fixture

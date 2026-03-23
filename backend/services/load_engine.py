@@ -105,9 +105,8 @@ class LoadTestEngine:
                     resp = await client.get("http://localhost:8000/api/metrics/latest")
                     if resp.status_code == 200:
                         gpu = resp.json().get("gpu_util", 0.0)
-            except Exception:  # intentional: non-critical
-                # GPU metrics fetch, non-critical
-                pass
+            except Exception as e:  # intentional: non-critical
+                logger.debug("[LoadEngine] GPU metrics unavailable: %s", e)
             samples.append({"cpu": cpu, "gpu": gpu})
             for _ in range(30):
                 if stop_event.is_set():
@@ -125,6 +124,19 @@ class LoadTestEngine:
         return semaphore, metric_samples, sample_stop, sampling_task, interval
 
     async def _preflight_check(self, config: "LoadTestConfig") -> dict[str, Any]:
+        if config.total_requests < 1:
+            return {
+                "success": False,
+                "error": "total_requests는 1 이상이어야 합니다",
+                "error_type": "validation",
+            }
+        if config.concurrency < 1:
+            return {
+                "success": False,
+                "error": "concurrency는 1 이상이어야 합니다",
+                "error_type": "validation",
+            }
+
         endpoint = (config.endpoint or "").rstrip("/")
         models_url = f"{endpoint}/v1/models"
 
@@ -348,7 +360,7 @@ class LoadTestEngine:
         await self._broadcast({"type": "completed", "data": final_stats})
         return final_stats
 
-    async def run(self, config: LoadTestConfig) -> dict[str, Any]:
+    async def run(self, config: LoadTestConfig, skip_preflight: bool = False) -> dict[str, Any]:
         """부하 테스트 실행 — 실시간 결과 yield"""
         async with self._state_lock:
             if self._state.status == LoadTestStatus.RUNNING:
@@ -363,9 +375,10 @@ class LoadTestEngine:
             )
 
         semaphore, metric_samples, sample_stop, sampling_task, interval = self._init_run_state(config)
-        preflight = await self._preflight_check(config)
-        if not preflight.get("success"):
-            return await self._fail_run(preflight, sample_stop, sampling_task, [])
+        if not skip_preflight:
+            preflight = await self._preflight_check(config)
+            if not preflight.get("success"):
+                return await self._fail_run(preflight, sample_stop, sampling_task, [])
 
         first_batch_size = min(5, config.total_requests)
         first_batch_results: dict[int, RequestResult] = {}
@@ -382,11 +395,10 @@ class LoadTestEngine:
                 return None
             first_batch_checked = True
             if all(not result.success for result in first_batch_results.values()):
-                common_error = "알 수 없는 오류"
-                for result in first_batch_results.values():
-                    if result.error:
-                        common_error = result.error
-                        break
+                errors = {r.error for r in first_batch_results.values() if not r.success and r.error}
+                if len(errors) != 1:
+                    return None
+                common_error = errors.pop()
                 return {
                     "error": f"연속 {first_batch_size}개 요청 실패. 테스트를 중단합니다: {common_error}",
                     "error_type": "consecutive_failure",

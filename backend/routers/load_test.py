@@ -14,6 +14,7 @@ import logging
 import time as time_module
 
 from models.load_test import (
+    ErrorResponse,
     LoadTestConfig,
     LoadTestResult,
     RequestResult,
@@ -72,7 +73,13 @@ async def start_load_test(config: LoadTestConfig) -> dict[str, Any]:
 
     async with _test_lock:
         if _active_test_task is not None and not _active_test_task.done():
-            raise HTTPException(status_code=409, detail="A load test is already running.")
+            raise HTTPException(
+                status_code=409,
+                detail=ErrorResponse(
+                    error="A load test is already running.",
+                    error_type="already_running",
+                ).model_dump(),
+            )
 
     test_id = str(uuid.uuid4())
 
@@ -84,11 +91,21 @@ async def start_load_test(config: LoadTestConfig) -> dict[str, Any]:
         except asyncio.TimeoutError:
             config.model = os.getenv("VLLM_MODEL", "auto")
 
+    preflight = await load_engine._preflight_check(config)
+    if not preflight.get("success"):
+        raise HTTPException(
+            status_code=400,
+            detail=ErrorResponse(
+                error=preflight.get("error", "Preflight check failed"),
+                error_type=preflight.get("error_type", "preflight_error"),
+            ).model_dump(),
+        )
+
     # Run test in background task
     async def run_test():
         global _active_test_task
         try:
-            result = await load_engine.run(config)
+            result = await load_engine.run(config, skip_preflight=True)
             entry = {
                 "test_id": test_id,
                 "config": config.model_dump(),
@@ -219,4 +236,10 @@ async def get_load_test_history(limit: int = 10) -> list[dict[str, Any]]:
         return await storage.get_load_test_history(limit=limit)
     except Exception as e:
         logger.warning("[LoadTest] Failed to retrieve history (fail-open): %s", e)
-        return []
+        raise HTTPException(
+            status_code=500,
+            detail=ErrorResponse(
+                error="스토리지 조회 실패",
+                error_type="storage",
+            ).model_dump(),
+        )

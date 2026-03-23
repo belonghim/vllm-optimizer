@@ -6,13 +6,13 @@ import asyncio
 import logging
 import json
 import uuid
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Any, Optional, List
 from datetime import datetime
 
-from models.load_test import TuningConfig
+from models.load_test import ErrorResponse, TuningConfig
 from services.shared import multi_target_collector, load_engine
 from services.auto_tuner import AutoTuner
 from services.shared import storage
@@ -122,11 +122,13 @@ class TunerAllResponse(BaseModel):
 async def start_tuning(request: TuningStartRequest) -> dict[str, Any]:
     """Start auto-tuning process."""
     if auto_tuner.is_running:
-        return {
-            "success": False,
-            "message": "Tuning is already running. Wait for it to complete or stop it first.",
-            "tuning_id": None,
-        }
+        raise HTTPException(
+            status_code=409,
+            detail=ErrorResponse(
+                error="Tuning is already running. Wait for it to complete or stop it first.",
+                error_type="already_running",
+            ).model_dump(),
+        )
     try:
         await storage.clear_trials()
     except Exception as e:
@@ -147,9 +149,28 @@ async def start_tuning(request: TuningStartRequest) -> dict[str, Any]:
     )
     import os
     vllm_endpoint = request.vllm_endpoint or os.getenv("VLLM_ENDPOINT", "http://localhost:8000")
+
+    try:
+        preflight = await auto_tuner._preflight_check()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=ErrorResponse(
+                error=f"Preflight check failed: {exc}",
+                error_type="preflight_error",
+            ).model_dump(),
+        )
+    if not preflight.get("success"):
+        raise HTTPException(
+            status_code=400,
+            detail=ErrorResponse(
+                error=preflight.get("error", "Preflight check failed"),
+                error_type=preflight.get("error_type", "preflight_error"),
+            ).model_dump(),
+        )
+
     tuning_id = str(uuid.uuid4())
-    import asyncio
-    auto_tuner._current_task = asyncio.create_task(auto_tuner.start(config, vllm_endpoint))
+    auto_tuner._current_task = asyncio.create_task(auto_tuner.start(config, vllm_endpoint, skip_preflight=True))
     auto_tuner._current_task.add_done_callback(
         lambda t: logger.error("[AutoTuner] Task failed: %s", t.exception()) if t.exception() else None
     )

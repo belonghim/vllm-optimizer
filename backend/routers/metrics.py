@@ -8,7 +8,7 @@ from fastapi.responses import PlainTextResponse
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from models.load_test import BatchMetricsRequest, BatchMetricsResponse, MetricsSnapshot, TargetedMetricsResponse
+from models.load_test import BatchMetricsRequest, BatchMetricsResponse, ErrorResponse, MetricsSnapshot, TargetedMetricsResponse
 from services.shared import multi_target_collector, runtime_config
 
 router = APIRouter()
@@ -84,7 +84,13 @@ async def get_latest_metrics(
     if namespace is not None and is_name is not None:
         registered = await multi_target_collector.register_target(namespace, is_name)
         if not registered:
-            raise HTTPException(status_code=409, detail="Max targets reached")
+            raise HTTPException(
+                status_code=409,
+                detail=ErrorResponse(
+                    error="Max targets reached",
+                    error_type="max_targets",
+                ).model_dump(),
+            )
 
         vllm_metrics = await multi_target_collector.get_metrics(namespace, is_name)
         has_monitoring_label = multi_target_collector.get_has_monitoring_label(namespace, is_name)
