@@ -176,7 +176,14 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
           ...targets[idx],
           [field === 'inferenceservice' ? 'inferenceService' : field]: value,
         };
-        return { ...prev, targets };
+
+        const defaultTarget = targets[idx];
+        const deduped = targets.filter((t, i) =>
+          i === idx ||
+          !(t.namespace === defaultTarget.namespace && t.inferenceService === defaultTarget.inferenceService)
+        );
+
+        return { ...prev, targets: deduped };
       }
       return prev;
     });
