@@ -11,11 +11,12 @@ import asyncio
 import os
 import shutil
 import aiosqlite
-from typing import Optional, List
+from typing import Any, Optional, List
 from datetime import datetime, timezone
 
 from models.load_test import (
     Benchmark,
+    BenchmarkMetadata,
     LoadTestConfig,
     LoadTestResult,
     TuningTrial,
@@ -53,6 +54,7 @@ class Storage:
 
             try:
                 self._conn = await aiosqlite.connect(self._db_path)
+                self._conn.row_factory = aiosqlite.Row
 
                 if db_exists:
                     integrity_result = "ok"
@@ -135,6 +137,12 @@ class Storage:
             )
         """)
 
+        try:
+            await self._conn.execute("ALTER TABLE benchmarks ADD COLUMN metadata_json TEXT DEFAULT NULL")
+            await self._conn.commit()
+        except Exception:
+            pass
+
         # Load test history table
         await self._conn.execute("""
             CREATE TABLE IF NOT EXISTS load_test_history (
@@ -204,25 +212,26 @@ class Storage:
 
             config_json = b.config.model_dump_json()
             result_json = b.result.model_dump_json()
+            metadata_json = b.metadata.model_dump_json() if b.metadata else None
 
             if b.id is None:
                 # Insert new benchmark (auto-generate id)
                 cursor = await self._conn.execute(
                     """
-                    INSERT INTO benchmarks (name, timestamp, config_json, result_json)
-                    VALUES (?, ?, ?, ?)
+                    INSERT INTO benchmarks (name, timestamp, config_json, result_json, metadata_json)
+                    VALUES (?, ?, ?, ?, ?)
                     """,
-                    (b.name, b.timestamp, config_json, result_json),
+                    (b.name, b.timestamp, config_json, result_json, metadata_json),
                 )
                 b.id = cursor.lastrowid
             else:
                 # Insert with explicit id (upsert)
                 await self._conn.execute(
                     """
-                    INSERT OR REPLACE INTO benchmarks (id, name, timestamp, config_json, result_json)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT OR REPLACE INTO benchmarks (id, name, timestamp, config_json, result_json, metadata_json)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     """,
-                    (b.id, b.name, b.timestamp, config_json, result_json),
+                    (b.id, b.name, b.timestamp, config_json, result_json, metadata_json),
                 )
 
             await self._conn.commit()
@@ -240,23 +249,30 @@ class Storage:
 
         try:
             cursor = await self._conn.execute(
-                "SELECT id, name, timestamp, config_json, result_json FROM benchmarks ORDER BY timestamp DESC"
+                "SELECT id, name, timestamp, config_json, result_json, metadata_json FROM benchmarks ORDER BY timestamp DESC"
             )
             rows = await cursor.fetchall()
             benchmarks: List[Benchmark] = []
             for row in rows:
                 try:
-                    config = LoadTestConfig.model_validate_json(row[3])
-                    result = LoadTestResult.model_validate_json(row[4])
+                    config = LoadTestConfig.model_validate_json(row["config_json"])
+                    result = LoadTestResult.model_validate_json(row["result_json"])
+                    metadata = None
+                    if row["metadata_json"]:
+                        try:
+                            metadata = BenchmarkMetadata.model_validate_json(row["metadata_json"])
+                        except Exception:
+                            metadata = None
                     benchmarks.append(Benchmark(
-                        id=row[0],
-                        name=row[1],
-                        timestamp=row[2],
+                        id=row["id"],
+                        name=row["name"],
+                        timestamp=row["timestamp"],
                         config=config,
                         result=result,
+                        metadata=metadata,
                     ))
                 except Exception as e:
-                    logger.warning("[Storage] Failed to parse benchmark row %s: %s", row[0], e)
+                    logger.warning("[Storage] Failed to parse benchmark row %s: %s", row["id"], e)
             return benchmarks
         except Exception as e:
             logger.error("[Storage] Failed to list benchmarks: %s", e)
@@ -270,21 +286,28 @@ class Storage:
 
         try:
             cursor = await self._conn.execute(
-                "SELECT id, name, timestamp, config_json, result_json FROM benchmarks WHERE id = ?",
+                "SELECT id, name, timestamp, config_json, result_json, metadata_json FROM benchmarks WHERE id = ?",
                 (id,),
             )
             row = await cursor.fetchone()
             if row is None:
                 return None
 
-            config = LoadTestConfig.model_validate_json(row[3])
-            result = LoadTestResult.model_validate_json(row[4])
+            config = LoadTestConfig.model_validate_json(row["config_json"])
+            result = LoadTestResult.model_validate_json(row["result_json"])
+            metadata = None
+            if row["metadata_json"]:
+                try:
+                    metadata = BenchmarkMetadata.model_validate_json(row["metadata_json"])
+                except Exception:
+                    metadata = None
             return Benchmark(
-                id=row[0],
-                name=row[1],
-                timestamp=row[2],
+                id=row["id"],
+                name=row["name"],
+                timestamp=row["timestamp"],
                 config=config,
                 result=result,
+                metadata=metadata,
             )
         except Exception as e:
             logger.error("[Storage] Failed to get benchmark id=%s: %s", id, e)
@@ -312,7 +335,7 @@ class Storage:
 
     # ==================== Load Test History CRUD ====================
 
-    async def save_load_test(self, entry: dict) -> None:
+    async def save_load_test(self, entry: dict[str, Any]) -> None:
         """
         Save a load test history entry.
         
@@ -347,7 +370,7 @@ class Storage:
         except Exception as e:
             logger.error("[Storage] Failed to save load test history: %s", e)
 
-    async def get_load_test_history(self, limit: int = 100) -> List[dict]:
+    async def get_load_test_history(self, limit: int = 100) -> List[dict[str, Any]]:
         """Get recent load test history entries, ordered by timestamp descending."""
         if self._conn is None:
             logger.error("[Storage] Cannot get load test history: database not initialized")
@@ -365,7 +388,7 @@ class Storage:
                 (limit,),
             )
             rows = await cursor.fetchall()
-            history: List[dict] = []
+            history: List[dict[str, Any]] = []
             for row in rows:
                 try:
                     history.append({
@@ -667,7 +690,7 @@ class Storage:
         except Exception as e:
             logger.error("[Storage] Failed to clear running: %s", e)
 
-    async def get_interrupted_runs(self) -> List[dict]:
+    async def get_interrupted_runs(self) -> List[dict[str, Any]]:
         """
         Get all interrupted runs (started but not cleared).
 
@@ -688,7 +711,7 @@ class Storage:
                 """
             )
             rows = await cursor.fetchall()
-            result = []
+            result: List[dict[str, Any]] = []
             for row in rows:
                 result.append({
                     "id": row[0],
@@ -701,7 +724,7 @@ class Storage:
             logger.error("[Storage] Failed to get interrupted runs: %s", e)
             return []
 
-    async def get_all_running(self) -> List[dict]:
+    async def get_all_running(self) -> List[dict[str, Any]]:
         """
         Get all uncleared running_state rows (for shutdown cleanup).
 
@@ -721,7 +744,7 @@ class Storage:
                 """
             )
             rows = await cursor.fetchall()
-            result = []
+            result: List[dict[str, Any]] = []
             for row in rows:
                 result.append({
                     "id": row[0],

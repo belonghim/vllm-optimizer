@@ -153,6 +153,16 @@ class MetricsSnapshot(BaseModel):
     pods_ready: int = Field(default=0, description="Number of ready vLLM pods")
 
 
+class BenchmarkMetadata(BaseModel):
+    model_identifier: Optional[str] = Field(default=None, description="모델 식별자 (자동 수집 시 서빙 이름, 사용자가 실제 모델명으로 편집 가능)")
+    hardware_type: Optional[str] = Field(default=None, description="하드웨어 타입 (예: CPU, GPU-A100)")
+    runtime: Optional[str] = Field(default=None, description="런타임 (예: OpenVINO, CUDA)")
+    vllm_version: Optional[str] = Field(default=None, description="vLLM 버전")
+    replica_count: Optional[int] = Field(default=None, description="레플리카 수")
+    notes: Optional[str] = Field(default=None, description="사용자 메모")
+    extra: dict[str, str] = Field(default_factory=dict, description="사용자 자유 key-value (문자열 쌍)")
+
+
 class Benchmark(BaseModel):
     """Saved benchmark result for comparison"""
     id: int | None = Field(default=None, description="Unique benchmark identifier")
@@ -160,6 +170,7 @@ class Benchmark(BaseModel):
     timestamp: float | None = Field(default=None, description="Unix timestamp when benchmark was saved")
     config: LoadTestConfig = Field(description="Load test configuration used")
     result: LoadTestResult = Field(description="Final load test results")
+    metadata: Optional[BenchmarkMetadata] = Field(default=None)
 
 
 class TargetedMetricsResponse(BaseModel):
