@@ -143,6 +143,27 @@ describe("LoadTestPage", () => {
      expect(screen.getByText("COMPLETED")).toBeInTheDocument();
    });
 
+  it("handles error SSE event", async () => {
+    render(<LoadTestPage />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("▶ Run Load Test"));
+    });
+    await waitFor(() => expect(mockEsInstance).not.toBeNull());
+
+    act(() => {
+      mockEsInstance.onmessage({
+        data: JSON.stringify({
+          type: "error",
+          data: { error: "연결 시간 초과", error_type: "timeout" },
+        }),
+      });
+    });
+
+    expect(screen.getByText(/연결 시간 초과/)).toBeInTheDocument();
+    expect(mockEsInstance.closeSpy).toHaveBeenCalled();
+  });
+
   describe("LoadTestPage — Save as Benchmark", () => {
     it("Save as Benchmark button absent when status is idle", () => {
       render(<LoadTestPage />);

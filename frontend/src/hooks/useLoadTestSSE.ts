@@ -69,6 +69,13 @@ export function useLoadTestSSE(): UseLoadTestSSEReturn {
         } catch {
           return;
         }
+        if (data.type === 'error') {
+          setError((data.data as any)?.error ?? "부하 테스트 오류가 발생했습니다.");
+          setStatus('error');
+          es.close();
+          esRef.current = null;
+          return;
+        }
         if (data.type === 'progress' && data.data) {
           const d = data.data;
           if (d.total != null) {
