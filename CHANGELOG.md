@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-24] - 튜너 페이지 현재값 표시/수정 버그 수정
+
+**Status**: Completed
+
+Auto Tuner 페이지에서 모든 vLLM 설정값이 "-"로 표시되고 수정이 불가능한 3개 버그를 수정.
+
+### Fixed
+- **`backend/routers/vllm_config.py`**: `_get_k8s_namespace()` 함수에서 `VLLM_NAMESPACE=vllm-lab-dev`를 무시하고 "default"를 사용하던 로직 수정. `auto_tuner.py`와 동일하게 `namespace if namespace else "default"` 패턴으로 통일
+- **`frontend/src/pages/TunerPage.tsx`**: GET `/api/vllm-config` 응답에서 HTTP 에러 상태 체크 추가. 백엔드가 500/503 에러를 반환해도 프론트엔드에 에러 메시지가 표시되지 않던 문제 해결
+- **`frontend/src/pages/TunerPage.tsx`**: PATCH `/api/vllm-config` 요청 body 키를 `{args: {...}}`에서 `{data: {...}}`로 수정. 백엔드 `VllmConfigPatchRequest` Pydantic 모델과 형식 불일치 해결
+
+### Root Cause
+1. 네임스페이스 로직 오류: `VLLM_NAMESPACE=vllm-lab-dev` 설정 시 "default" 네임스페이스에서 IS를 찾으려다 404 발생
+2. 에러 처리 누락: 백엔드 HTTPException 시 프론트가 `data.success`만 체크하여 에러 미표시
+3. PATCH body 형식 불일치: 프론트 `{args: {...}}` 전송, 백엔드 `{data: {...}}` 기대
+
+### Verification
+- Backend: 232/232 tests passed
+- Frontend: build successful (3.12s)
+- LSP: no diagnostics errors
+
+---
+
 ## [2026-03-24] - UX 개선: 다크/라이트 토글 + 튜너 UI 재설계 + 6개 신규 기능
 
 **Status**: Completed

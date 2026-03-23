@@ -212,11 +212,20 @@ function TunerPage({ isActive }: TunerPageProps) {
 
     const controller = new AbortController();
     authFetch(`${API}/vllm-config`, { signal: controller.signal })
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) {
+          return r.json().then(errData => {
+            throw new Error(errData.detail || `HTTP ${r.status}`);
+          });
+        }
+        return r.json();
+      })
       .then(data => {
         if (data.success) {
           setCurrentConfig(data.data);
           setStorageUri(data.storageUri ?? null);
+        } else {
+          setError(data.message || "vLLM 설정 조회 실패");
         }
       })
       .catch((err: Error) => {
@@ -261,7 +270,7 @@ function TunerPage({ isActive }: TunerPageProps) {
       const res = await authFetch(`${API}/vllm-config`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ args: values }),
+        body: JSON.stringify({ data: values }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {

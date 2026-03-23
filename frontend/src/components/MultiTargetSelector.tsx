@@ -42,13 +42,11 @@ interface TargetState {
 interface MultiTargetSelectorProps {
   targetStatuses?: Record<string, TargetStatus>;
   targetStates?: Record<string, TargetState>;
-  onRefresh?: (namespace: string, inferenceService: string) => void;
 }
 
 export default function MultiTargetSelector({ 
   targetStatuses = {}, 
-  targetStates = {},
-  onRefresh 
+  targetStates = {}
 }: MultiTargetSelectorProps) {
   const { targets, maxTargets, addTarget, removeTarget } = useClusterConfig();
   const [isAdding, setIsAdding] = useState(false);
@@ -123,13 +121,12 @@ export default function MultiTargetSelector({
               </tr>
             ) : (
               targets.map((target, index) => {
-                const key = getTargetKey(target);
-                const state = targetStates[key];
-                const status = state?.status || targetStatuses[key]?.status || 'collecting';
-                const data = state?.data || state?.metrics;
-                const hasMonitoringLabel = state?.hasMonitoringLabel !== false && targetStatuses[key]?.hasMonitoringLabel !== false;
-                const targetColor = TARGET_COLORS[index % TARGET_COLORS.length];
-                const isRefreshing = status === 'collecting';
+                 const key = getTargetKey(target);
+                 const state = targetStates[key];
+                 const status = state?.status || targetStatuses[key]?.status || 'collecting';
+                 const data = state?.data || state?.metrics;
+                 const hasMonitoringLabel = state?.hasMonitoringLabel !== false && targetStatuses[key]?.hasMonitoringLabel !== false;
+                 const targetColor = TARGET_COLORS[index % TARGET_COLORS.length];
 
                 return (
                   <tr key={key} data-testid={`target-row-${index}`}>
@@ -174,15 +171,6 @@ export default function MultiTargetSelector({
                       </>
                     )}
                     <td className="multi-target-action-cell">
-                      <button 
-                        className="btn multi-target-refresh-btn" 
-                        onClick={() => onRefresh?.(target.namespace, target.inferenceService)}
-                        data-testid={`refresh-btn-${index}`}
-                        disabled={isRefreshing}
-                        title="즉시 새로고침"
-                      >
-                        {isRefreshing ? "⏳" : "🔄"}
-                      </button>
                       {target.isDefault ? (
                         <span className="tag tag-completed multi-target-default-tag">기본</span>
                       ) : (

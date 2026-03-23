@@ -210,76 +210,6 @@ function MonitorPage({ isActive }: MonitorPageProps) {
     fetchSlaProfiles();
   }, []);
 
-  const fetchSingleTarget = useCallback(async (namespace: string, inferenceService: string) => {
-    if (isMockEnabled) {
-      const key = `${namespace}/${inferenceService}`;
-      setTargetStates(prev => ({
-        ...prev,
-        [key]: {
-          metrics: mockMetrics(),
-          history: buildGapFill(mockHistory().map(h => ({ ...h, t: h.t })), ['ttft', 'lat_p99']).slice(-450),
-          status: 'ready',
-          error: null
-        }
-      }));
-      return;
-    }
-
-    const key = `${namespace}/${inferenceService}`;
-    setTargetStates(prev => ({
-      ...prev,
-      [key]: { ...prev[key], status: 'collecting' }
-    }));
-
-    try {
-      const res = await authFetch(`${API}/metrics/batch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targets: [{ namespace, inferenceService }] }),
-      });
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const batchData = await res.json();
-      const result = batchData.results[key] as TargetResult;
-
-      if (!result) throw new Error("데이터를 찾을 수 없습니다.");
-
-      if (result.status === 'error') {
-        setTargetStates(prev => ({
-          ...prev,
-          [key]: { status: 'error', error: result.error, data: null, history: [] }
-        }));
-        return;
-      }
-
-      const mapped = (result.history || []).map((m) => ({
-        t: fmtTime(m.timestamp),
-        tps: m.tps, ttft: m.ttft_mean, lat_p99: m.latency_p99,
-        kv: m.kv_cache, running: m.running, waiting: m.waiting,
-        rps: m.rps, ttft_p99: m.ttft_p99, lat_mean: m.latency_mean,
-        kv_hit: m.kv_hit_rate, gpu_util: m.gpu_util,
-        gpu_mem_used: m.gpu_mem_used, gpu_mem_total: m.gpu_mem_total,
-      }));
-      const history = buildGapFill(mapped, ['ttft', 'lat_p99', 'ttft_p99', 'lat_mean']).slice(-450);
-
-      setTargetStates(prev => ({
-        ...prev,
-        [key]: {
-          data: result.data || null,
-          history,
-          status: result.status || 'ready',
-          hasMonitoringLabel: result.hasMonitoringLabel,
-          error: null
-        }
-      }));
-    } catch (err) {
-      setTargetStates(prev => ({
-        ...prev,
-        [key]: { ...prev[key], status: 'error', error: (err as Error).message }
-      }));
-    }
-  }, [isMockEnabled]);
-
   const fetchAllTargets = useCallback(async (signal?: AbortSignal) => {
     if (isMockEnabled) {
       const newStates: Record<string, TargetState> = {};
@@ -487,7 +417,6 @@ function MonitorPage({ isActive }: MonitorPageProps) {
       <MultiTargetSelector 
         targetStatuses={targetStatuses} 
         targetStates={targetStates} 
-        onRefresh={fetchSingleTarget}
       />
       <ErrorAlert message={error} className="error-alert--m08" />
       
