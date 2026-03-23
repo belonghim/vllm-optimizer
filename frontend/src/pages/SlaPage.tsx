@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { authFetch } from '../utils/authFetch';
-import { API, COLORS, TOOLTIP_STYLE } from "../constants";
+import { API, COLORS, TOOLTIP_STYLE, TARGET_COLORS } from "../constants";
 import ErrorAlert from "../components/ErrorAlert";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer, Legend } from 'recharts';
 
 interface SlaThresholds {
   availability_min: number | null;
@@ -14,7 +14,7 @@ interface SlaThresholds {
 interface SlaProfile {
   id: number;
   name: string;
-  model: string;
+  benchmark_ids: number[];
   thresholds: SlaThresholds;
   created_at: number;
 }
@@ -48,7 +48,8 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
   const [loading, setLoading] = useState(false);
 
   const [formName, setFormName] = useState('');
-  const [formModel, setFormModel] = useState('');
+  const [formBenchmarkIds, setFormBenchmarkIds] = useState<number[]>([]);
+  const [availableBenchmarks, setAvailableBenchmarks] = useState<{id: number; name: string; timestamp: number}[]>([]);
   const [formAvailMin, setFormAvailMin] = useState('');
   const [formP95Ms, setFormP95Ms] = useState('');
   const [formErrRate, setFormErrRate] = useState('');
@@ -60,6 +61,16 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
   useEffect(() => {
     if (!isActive) return;
     loadProfiles();
+    const fetchBenchmarks = async () => {
+      try {
+        const res = await authFetch(`${API}/benchmark/list`);
+        if (res.ok) {
+          const data = await res.json();
+          setAvailableBenchmarks(data.map((b: any) => ({ id: b.id, name: b.name, timestamp: b.timestamp })));
+        }
+      } catch {}
+    };
+    fetchBenchmarks();
   }, [isActive]);
 
   async function loadProfiles() {
@@ -94,6 +105,11 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
     e.preventDefault();
     setError(null);
     
+    if (formBenchmarkIds.length === 0) {
+      setError("최소 1개의 벤치마크를 선택해야 합니다.");
+      return;
+    }
+
     const hasAnyThreshold = formAvailMin || formP95Ms || formErrRate || formMinTps;
     if (!hasAnyThreshold) {
       setError("최소 1개의 임계값을 입력해야 합니다.");
@@ -102,7 +118,7 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
     
     const body = {
       name: formName,
-      model: formModel,
+      benchmark_ids: formBenchmarkIds,
       thresholds: {
         availability_min: formAvailMin ? parseFloat(formAvailMin) : null,
         p95_latency_max_ms: formP95Ms ? parseFloat(formP95Ms) : null,
@@ -142,7 +158,7 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
   const handleEdit = (p: SlaProfile) => {
     setEditingId(p.id);
     setFormName(p.name);
-    setFormModel(p.model);
+    setFormBenchmarkIds(p.benchmark_ids);
     setFormAvailMin(p.thresholds.availability_min?.toString() || '');
     setFormP95Ms(p.thresholds.p95_latency_max_ms?.toString() || '');
     setFormErrRate(p.thresholds.error_rate_max_pct?.toString() || '');
@@ -165,7 +181,7 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
   const resetForm = () => {
     setEditingId(null);
     setFormName('');
-    setFormModel('');
+    setFormBenchmarkIds([]);
     setFormAvailMin('');
     setFormP95Ms('');
     setFormErrRate('');
@@ -185,11 +201,20 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
   const chartData = (selectedEval?.results ?? []).map(r => {
     const verdict = r.verdicts.find(v => v.metric === chartMetric);
     return {
-       name: new Date(r.timestamp * 1000).toLocaleString(),
+      name: r.benchmark_name,
       value: verdict?.value ?? null,
       threshold: verdict?.threshold ?? null,
     };
   });
+
+  const legendPayload = (selectedEval?.results ?? []).map((result, index) => ({
+    value: result.benchmark_name,
+    type: 'circle' as const,
+    id: String(result.benchmark_id),
+    color: TARGET_COLORS[index % TARGET_COLORS.length],
+  }));
+
+  const slaThreshold = chartData.find(d => d.threshold != null)?.threshold;
 
   return (
     <div className="flex-col-16">
@@ -217,7 +242,17 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                 <div>
                   <div className="section-title" style={{ fontSize: '1.1rem', margin: 0 }}>{p.name}</div>
-                  <div className="td-muted" style={{ fontSize: '0.85rem' }}>{p.model}</div>
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '2px' }}>
+                    {p.benchmark_ids.map((bid, idx) => {
+                      const bName = availableBenchmarks.find(b => b.id === bid)?.name || `#${bid}`;
+                      return (
+                        <span key={bid} style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.8rem' }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: TARGET_COLORS[idx % TARGET_COLORS.length], display: 'inline-block' }} />
+                          <span className="td-muted">{bName}</span>
+                        </span>
+                      );
+                    })}
+                  </div>
                 </div>
                 {latestResult && (
                   <div style={{ 
@@ -257,9 +292,37 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
             <label>프로필 이름 *</label>
             <input type="text" value={formName} onChange={e => setFormName(e.target.value)} required placeholder="예: Llama3 Production SLA" />
           </div>
-          <div className="form-group">
-            <label>대상 모델 *</label>
-            <input type="text" value={formModel} onChange={e => setFormModel(e.target.value)} required placeholder="예: llm-ov, llm-* (와일드카드)" />
+          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+            <label>벤치마크 선택 (최대 5개) *</label>
+            {availableBenchmarks.length === 0 ? (
+              <div className="td-muted" style={{ padding: '8px 0' }}>벤치마크가 없습니다. 먼저 부하 테스트를 실행하세요.</div>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
+                {availableBenchmarks.map((b) => {
+                  const isSelected = formBenchmarkIds.includes(b.id);
+                  const color = TARGET_COLORS[formBenchmarkIds.indexOf(b.id) % TARGET_COLORS.length];
+                  const isDisabled = !isSelected && formBenchmarkIds.length >= 5;
+                  return (
+                    <label key={b.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: isDisabled ? 'not-allowed' : 'pointer', opacity: isDisabled ? 0.5 : 1 }}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        disabled={isDisabled}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFormBenchmarkIds(prev => [...prev, b.id]);
+                          } else {
+                            setFormBenchmarkIds(prev => prev.filter(id => id !== b.id));
+                          }
+                        }}
+                      />
+                      {isSelected && <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: color, display: 'inline-block' }} />}
+                      <span style={{ fontSize: '0.85rem' }}>{b.name} ({new Date(b.timestamp * 1000).toLocaleDateString()})</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
           </div>
           <div className="form-group">
             <label>가용성 최소 (%)</label>
@@ -288,7 +351,7 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
           <thead>
             <tr>
               <th>이름</th>
-              <th>모델</th>
+              <th>벤치마크</th>
               <th>임계값 요약</th>
               <th style={{ textAlign: 'right' }}>작업</th>
             </tr>
@@ -297,7 +360,12 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
             {profiles.map(p => (
               <tr key={p.id}>
                 <td className="td-text">{p.name}</td>
-                <td className="td-cyan">{p.model}</td>
+                <td style={{ fontSize: '0.85rem' }}>
+                  {p.benchmark_ids.map((bid, idx) => {
+                    const bName = availableBenchmarks.find(b => b.id === bid)?.name || `#${bid}`;
+                    return <span key={bid} style={{ marginRight: '4px' }}><span style={{ color: TARGET_COLORS[idx % TARGET_COLORS.length] }}>●</span> {bName}</span>;
+                  })}
+                </td>
                 <td className="td-muted" style={{ fontSize: '0.85rem' }}>{renderThresholds(p.thresholds)}</td>
                 <td style={{ textAlign: 'right' }}>
                   <button className="btn-small" onClick={() => handleEdit(p)} style={{ marginRight: '8px' }}>편집</button>
@@ -339,34 +407,58 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
             </div>
           </div>
           
-          {chartData.length > 0 ? (
+          {(selectedEval?.results ?? []).length > 0 ? (
             <div style={{ height: '300px', width: '100%' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: COLORS.muted }} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: COLORS.muted }} interval={0} />
                   <YAxis tick={{ fontSize: 11, fill: COLORS.muted }} />
-                  <Tooltip 
+                  <Tooltip
                     contentStyle={TOOLTIP_STYLE}
                     itemStyle={{ fontSize: '12px' }}
                     labelStyle={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}
+                    formatter={(value: any) => [value, chartMetric]}
                   />
-                  <Line 
-                    type="monotone" 
-                    dataKey="value" 
-                    stroke={COLORS.cyan} 
-                    strokeWidth={2}
-                    dot={{ r: 4, fill: COLORS.cyan }} 
-                    activeDot={{ r: 6 }}
-                    name={chartMetric}
+                  <Legend payload={legendPayload} />
+                  <Line
+                    dataKey="value"
+                    stroke="transparent"
                     connectNulls
+                    dot={(props: any) => {
+                      const { cx, cy, payload, index } = props;
+                      if (payload.value === null) return <></>;
+                      return (
+                        <circle
+                          cx={cx}
+                          cy={cy}
+                          r={5}
+                          fill={TARGET_COLORS[index % TARGET_COLORS.length]}
+                        />
+                      );
+                    }}
+                    activeDot={(props: any) => {
+                      const { cx, cy, payload, index } = props;
+                      if (payload.value === null) return <></>;
+                      return (
+                        <circle
+                          cx={cx}
+                          cy={cy}
+                          r={7}
+                          fill={TARGET_COLORS[index % TARGET_COLORS.length]}
+                          stroke={COLORS.surface}
+                          strokeWidth={2}
+                        />
+                      );
+                    }}
+                    isAnimationActive={false}
                   />
-                  {chartData[0]?.threshold != null && (
-                    <ReferenceLine 
-                      y={chartData[0].threshold} 
-                      stroke={COLORS.red} 
-                      strokeDasharray="5 5" 
-                      label={{ position: 'right', value: 'SLA', fill: COLORS.red, fontSize: 10 }} 
+                  {slaThreshold != null && (
+                    <ReferenceLine
+                      y={slaThreshold}
+                      stroke={COLORS.red}
+                      strokeDasharray="5 5"
+                      label={{ position: 'right', value: 'SLA', fill: COLORS.red, fontSize: 10 }}
                     />
                   )}
                 </LineChart>
@@ -374,7 +466,7 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
             </div>
           ) : (
             <div className="td-muted" style={{ textAlign: 'center', padding: '60px' }}>
-              해당 모델의 벤치마크가 없습니다.
+              벤치마크를 할당하세요
             </div>
           )}
         </div>
