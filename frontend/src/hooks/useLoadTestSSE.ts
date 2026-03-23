@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { API } from '../constants';
-import type { SSEState } from '../types';
+import type { SSEState, SSEErrorPayload } from '../types';
 
 interface LatencyPoint {
   t: number;
@@ -70,7 +70,7 @@ export function useLoadTestSSE(): UseLoadTestSSEReturn {
           return;
         }
         if (data.type === 'error') {
-          setError((data.data as any)?.error ?? "부하 테스트 오류가 발생했습니다.");
+           setError((data.data as SSEErrorPayload | undefined)?.error ?? "부하 테스트 오류가 발생했습니다.");
           setStatus('error');
           es.close();
           esRef.current = null;
