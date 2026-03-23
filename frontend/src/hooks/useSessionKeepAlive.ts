@@ -4,7 +4,7 @@ import { API } from '../constants';
 const HEARTBEAT_INTERVAL = 15 * 60 * 1000;
 
 export function useSessionKeepAlive() {
-  const timerRef = useRef<number>();
+  const timerRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     const ping = async () => {
@@ -18,6 +18,10 @@ export function useSessionKeepAlive() {
     };
 
     timerRef.current = window.setInterval(ping, HEARTBEAT_INTERVAL);
-    return () => window.clearInterval(timerRef.current);
+    return () => {
+      if (timerRef.current !== undefined) {
+        window.clearInterval(timerRef.current);
+      }
+    };
   }, []);
 }

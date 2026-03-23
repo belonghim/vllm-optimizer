@@ -6,7 +6,7 @@ describe('authFetch', () => {
   beforeEach(async () => {
     vi.resetModules();
     vi.stubGlobal('fetch', vi.fn());
-    vi.stubGlobal('location', { reload: vi.fn() });
+    vi.stubGlobal('location', { href: '' });
     const mod = await import('./authFetch');
     authFetch = mod.authFetch;
   });
@@ -15,40 +15,40 @@ describe('authFetch', () => {
     vi.unstubAllGlobals();
   });
 
-  it('passes through 200 responses without reload', async () => {
+  it('passes through 200 responses without redirect', async () => {
     const mockResponse = { status: 200, ok: true } as Response;
     vi.mocked(fetch).mockResolvedValue(mockResponse);
 
     const result = await authFetch('/api/test');
 
     expect(result).toBe(mockResponse);
-    expect(window.location.reload).not.toHaveBeenCalled();
+    expect(window.location.href).toBe('');
   });
 
-  it('triggers reload on 403', async () => {
+  it('redirects to /oauth/sign_out on 403', async () => {
     vi.mocked(fetch).mockResolvedValue({ status: 403 } as Response);
 
     await authFetch('/api/test');
 
-    expect(window.location.reload).toHaveBeenCalledOnce();
+    expect(window.location.href).toBe('/oauth/sign_out');
   });
 
-  it('passes through non-403 errors without reload', async () => {
+  it('passes through non-403 errors without redirect', async () => {
     const mockResponse = { status: 500, ok: false } as Response;
     vi.mocked(fetch).mockResolvedValue(mockResponse);
 
     const result = await authFetch('/api/test');
 
     expect(result).toBe(mockResponse);
-    expect(window.location.reload).not.toHaveBeenCalled();
+    expect(window.location.href).toBe('');
   });
 
-  it('does not double-reload on consecutive 403s', async () => {
+  it('redirects to /oauth/sign_out only once on consecutive 403s', async () => {
     vi.mocked(fetch).mockResolvedValue({ status: 403 } as Response);
 
     await authFetch('/api/first');
     await authFetch('/api/second');
 
-    expect(window.location.reload).toHaveBeenCalledOnce();
+    expect(window.location.href).toBe('/oauth/sign_out');
   });
 });
