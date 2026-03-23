@@ -18,7 +18,7 @@ data:
   # SQLite storage path (PVC mount point)
   STORAGE_PATH: "/data/app.db"
   # Optuna RDBStorage URL for persistent study across restarts
-  OPTUNA_STORAGE_URL: "sqlite:///data/optuna.db"
+  OPTUNA_STORAGE_URL: "sqlite:////data/optuna.db"
 ---
 apiVersion: v1
 kind: Secret

@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-23] - SLA Benchmark Feature
+
+**Status**: Completed
+
+모델별 SLA 프로필을 정의하고 벤치마크 결과를 자동으로 판정하는 기능. 가용성, P95 Latency, 오류율, 최소 TPS 4개 메트릭 기준으로 PASS/FAIL/insufficient_data 판정.
+
+### Added (Backend)
+- **`backend/models/sla.py`**: SlaThresholds, SlaProfile, SlaVerdict, SlaEvaluationResult, SlaEvaluateResponse Pydantic 모델. `pass_` 필드는 `"pass"` alias 사용 (Python 예약어 회피)
+- **`backend/services/storage.py`**: `sla_profiles` SQLite 테이블 + 5개 CRUD 메서드 (`save_sla_profile`, `list_sla_profiles`, `get_sla_profile`, `update_sla_profile`, `delete_sla_profile`)
+- **`backend/routers/sla.py`**: 6개 엔드포인트 (POST/GET/GET/PUT/DELETE `/profiles` + GET `/evaluate/{profile_id}`). `evaluate_benchmarks_against_sla()` 순수 함수로 판정 로직 구현 (DB 쓰기 없음)
+- **`backend/main.py`**: `/api/sla` 라우터 등록
+- **`backend/tests/test_sla.py`**: TDD 9개 테스트 (all_pass, latency_fail, availability_fail, error_rate_fail, tps_fail, zero_requests, partial_thresholds, no_benchmarks, profile_crud)
+
+### Added (Frontend)
+- **`frontend/src/pages/SlaPage.tsx`**: SLA 대시보드 탭. 모델별 PASS/FAIL 요약 카드, 프로필 CRUD 폼+테이블, 시계열 LineChart + SLA 기준선 ReferenceLine 오버레이
+- **`frontend/src/App.tsx`**: "SLA" 5번째 탭 등록
+
+### Tests
+- Backend: 9 SLA 테스트 추가, 기존 테스트 전체 regression 없음
+- Frontend: TypeScript 빌드 에러 없음
+
+### Verification
+- F1 Plan Compliance: APPROVE | F2 Code Quality: APPROVE | F3 Manual QA: APPROVE | F4 Scope Fidelity: APPROVE
+
+---
+
 ## [2026-03-23] - SSE Resilience Hardening
 
 **Status**: Completed

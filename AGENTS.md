@@ -48,7 +48,8 @@ vllm-optimizer/
 │   │   ├── load_test.py        # 부하 테스트 API + SSE 스트림
 │   │   ├── metrics.py          # Thanos Querier 메트릭 조회
 │   │   ├── benchmark.py        # 벤치마크 저장/비교
-│   │   └── tuner.py            # Bayesian Optimization 튜너 API
+│   │   ├── tuner.py            # Bayesian Optimization 튜너 API
+│   │   └── sla.py              # SLA 프로필 CRUD + 판정 API
 │   ├── services/
 │   │   ├── __init__.py
 │   │   ├── shared.py           # 싱글톤 인스턴스 (MetricsCollector, load_engine)
@@ -57,7 +58,8 @@ vllm-optimizer/
 │   │   └── auto_tuner.py       # Optuna + InferenceService args 업데이트
 │   ├── models/
 │   │   ├── __init__.py
-│   │   └── load_test.py        # Pydantic 요청/응답 모델
+│   │   ├── load_test.py        # Pydantic 요청/응답 모델
+│   │   └── sla.py              # SLA Pydantic 모델
 │   ├── metrics/
 │   │   ├── __init__.py
 │   │   └── prometheus_metrics.py # Prometheus 메트릭 정의
@@ -70,6 +72,7 @@ vllm-optimizer/
 │       ├── test_metrics.py
 │       ├── test_metrics_collector.py
 │       ├── test_prometheus_metrics.py
+│       ├── test_sla.py
 │       └── integration/
 │           └── performance/     # OpenShift 클러스터 통합 테스트
 │               ├── conftest.py  # 클러스터 연결 픽스처
@@ -90,14 +93,15 @@ vllm-optimizer/
 │   └── src/
 │       ├── main.jsx            # React 엔트리포인트
 │       ├── index.css           # 글로벌 스타일
-│       ├── App.jsx             # React 대시보드 (4개 탭)
+│       ├── App.jsx             # React 대시보드 (5개 탭)
 │       ├── constants.js        # 상수 정의
 │       ├── mockData.js         # 목업 데이터
 │       ├── pages/
 │       │   ├── MonitorPage.jsx    # 메트릭 모니터링 탭
 │       │   ├── LoadTestPage.jsx   # 부하 테스트 탭
 │       │   ├── BenchmarkPage.jsx  # 벤치마크 비교 탭
-│       │   └── TunerPage.jsx      # Auto Tuner 탭
+│       │   ├── TunerPage.jsx      # Auto Tuner 탭
+│       │   └── SlaPage.tsx        # SLA 대시보드 탭
 │       └── components/
 │           ├── Chart.jsx         # 차트 컴포넌트
 │           └── MetricCard.jsx    # 메트릭 카드 컴포넌트
