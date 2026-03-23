@@ -70,16 +70,16 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
       const data: SlaProfile[] = await res.json();
       setProfiles(data);
       
-      const newEvals: Record<number, SlaEvaluateResponse> = {};
-      for (const p of data) {
-        try {
+      const evalResults = await Promise.allSettled(
+        data.map(async (p) => {
           const evalRes = await authFetch(`${API}/sla/evaluate/${p.id}`);
-          if (evalRes.ok) {
-            newEvals[p.id] = await evalRes.json();
-          }
-        } catch (e) {
-          console.error(`Failed to load evaluation for profile ${p.id}`, e);
-        }
+          if (!evalRes.ok) return null;
+          return { id: p.id, data: await evalRes.json() as SlaEvaluateResponse };
+        })
+      );
+      const newEvals: Record<number, SlaEvaluateResponse> = {};
+      for (const r of evalResults) {
+        if (r.status === 'fulfilled' && r.value) newEvals[r.value.id] = r.value.data;
       }
       setEvaluations(newEvals);
       setError(null);
@@ -167,7 +167,7 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
   const chartData = (selectedEval?.results ?? []).map(r => {
     const verdict = r.verdicts.find(v => v.metric === chartMetric);
     return {
-      name: new Date(r.timestamp * 1000).toLocaleDateString(),
+       name: new Date(r.timestamp * 1000).toLocaleString(),
       value: verdict?.value ?? null,
       threshold: verdict?.threshold ?? null,
     };
@@ -241,23 +241,23 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
           </div>
           <div className="form-group">
             <label>대상 모델 *</label>
-            <input type="text" value={formModel} onChange={e => setFormModel(e.target.value)} required placeholder="예: llama-3.1-8b" />
+            <input type="text" value={formModel} onChange={e => setFormModel(e.target.value)} required placeholder="예: llm-ov, llm-* (와일드카드)" />
           </div>
           <div className="form-group">
             <label>가용성 최소 (%)</label>
-            <input type="number" step="0.1" value={formAvailMin} onChange={e => setFormAvailMin(e.target.value)} placeholder="99.9" />
+            <input type="number" min="0" max="100" step="0.1" value={formAvailMin} onChange={e => setFormAvailMin(e.target.value)} placeholder="99.9" />
           </div>
           <div className="form-group">
             <label>P95 지연시간 최대 (ms)</label>
-            <input type="number" value={formP95Ms} onChange={e => setFormP95Ms(e.target.value)} placeholder="500" />
+            <input type="number" min="0" step="1" value={formP95Ms} onChange={e => setFormP95Ms(e.target.value)} placeholder="500" />
           </div>
           <div className="form-group">
             <label>에러율 최대 (%)</label>
-            <input type="number" step="0.1" value={formErrRate} onChange={e => setFormErrRate(e.target.value)} placeholder="1.0" />
+            <input type="number" min="0" max="100" step="0.1" value={formErrRate} onChange={e => setFormErrRate(e.target.value)} placeholder="1.0" />
           </div>
           <div className="form-group">
             <label>최소 TPS</label>
-            <input type="number" step="0.1" value={formMinTps} onChange={e => setFormMinTps(e.target.value)} placeholder="10.0" />
+            <input type="number" min="0" step="0.1" value={formMinTps} onChange={e => setFormMinTps(e.target.value)} placeholder="10.0" />
           </div>
           <div className="form-actions" style={{ gridColumn: '1 / -1', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
             {editingId && <button type="button" className="btn-secondary" onClick={resetForm}>취소</button>}
