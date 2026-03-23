@@ -3,8 +3,8 @@ Pydantic models for SLA management and evaluation
 
 This module defines all data models for SLA profiles, evaluation, and verdicts.
 """
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional
+from pydantic import BaseModel, Field, ConfigDict, model_validator
+from typing import Optional, Literal
 
 
 class SlaThresholds(BaseModel):
@@ -32,6 +32,15 @@ class SlaThresholds(BaseModel):
         gt=0
     )
 
+    @model_validator(mode='after')
+    def at_least_one_threshold(self) -> 'SlaThresholds':
+        if all(v is None for v in [
+            self.availability_min, self.p95_latency_max_ms,
+            self.error_rate_max_pct, self.min_tps
+        ]):
+            raise ValueError("At least one threshold must be set")
+        return self
+
 
 class SlaProfile(BaseModel):
     """SLA profile for a model"""
@@ -48,7 +57,7 @@ class SlaVerdict(BaseModel):
     value: Optional[float] = None
     threshold: Optional[float] = None
     pass_: bool = Field(alias="pass")
-    status: str  # "pass" | "fail" | "insufficient_data"
+    status: Literal["pass", "fail", "insufficient_data"]
 
     model_config = ConfigDict(populate_by_name=True)
 
