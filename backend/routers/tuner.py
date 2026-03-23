@@ -118,7 +118,10 @@ class TunerAllResponse(BaseModel):
     importance: dict[str, Any]
 
 
-@router.post("/start", response_model=TuningStartResponse)
+@router.post("/start", response_model=TuningStartResponse, responses={
+    400: {"model": ErrorResponse},
+    409: {"model": ErrorResponse},
+})
 async def start_tuning(request: TuningStartRequest) -> dict[str, Any]:
     """Start auto-tuning process."""
     if auto_tuner.is_running:

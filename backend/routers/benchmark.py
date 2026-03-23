@@ -12,7 +12,9 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-@router.get("/list", response_model=List[Benchmark])
+@router.get("/list", response_model=List[Benchmark], responses={
+    500: {"model": ErrorResponse},
+})
 async def list_benchmarks() -> List[Benchmark]:
     try:
         return await storage.list_benchmarks()
@@ -24,7 +26,9 @@ async def list_benchmarks() -> List[Benchmark]:
         )
 
 
-@router.post("/save", response_model=Benchmark)
+@router.post("/save", response_model=Benchmark, responses={
+    500: {"model": ErrorResponse},
+})
 async def save_benchmark(benchmark: Benchmark) -> Benchmark:
     try:
         return await storage.save_benchmark(benchmark)
@@ -36,7 +40,9 @@ async def save_benchmark(benchmark: Benchmark) -> Benchmark:
         )
 
 
-@router.get("/by-model", response_model=Dict[str, Any])
+@router.get("/by-model", response_model=Dict[str, Any], responses={
+    500: {"model": ErrorResponse},
+})
 async def benchmarks_by_model() -> Dict[str, Any]:
     try:
         benchmarks = await storage.list_benchmarks()
@@ -60,7 +66,10 @@ async def benchmarks_by_model() -> Dict[str, Any]:
     return {"models": groups}
 
 
-@router.get("/{benchmark_id}", response_model=Benchmark)
+@router.get("/{benchmark_id}", response_model=Benchmark, responses={
+    404: {"model": ErrorResponse},
+    500: {"model": ErrorResponse},
+})
 async def get_benchmark(benchmark_id: int) -> Benchmark:
     try:
         benchmark = await storage.get_benchmark(benchmark_id)
@@ -78,7 +87,10 @@ async def get_benchmark(benchmark_id: int) -> Benchmark:
     return benchmark
 
 
-@router.delete("/{benchmark_id}")
+@router.delete("/{benchmark_id}", responses={
+    404: {"model": ErrorResponse},
+    500: {"model": ErrorResponse},
+})
 async def delete_benchmark(benchmark_id: int) -> Dict[str, Any]:
     try:
         deleted = await storage.delete_benchmark(benchmark_id)

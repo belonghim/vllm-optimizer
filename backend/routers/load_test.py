@@ -60,7 +60,10 @@ class StatusResponse(BaseModel):
     elapsed: float = 0.0
 
 
-@router.post("/start", response_model=StartResponse)
+@router.post("/start", response_model=StartResponse, responses={
+    400: {"model": ErrorResponse},
+    409: {"model": ErrorResponse},
+})
 async def start_load_test(config: LoadTestConfig) -> dict[str, Any]:
     """
     Start a new load test with the given configuration.
@@ -223,7 +226,9 @@ async def stream_load_test_results(test_id: Optional[str] = None) -> StreamingRe
     )
 
 
-@router.get("/history")
+@router.get("/history", responses={
+    500: {"model": ErrorResponse},
+})
 async def get_load_test_history(limit: int = 10) -> list[dict[str, Any]]:
     """
     Get list of recent load test runs and their final results.

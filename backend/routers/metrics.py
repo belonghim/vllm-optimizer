@@ -61,7 +61,9 @@ def _convert_to_snapshot(vllm_metrics) -> MetricsSnapshot:
     )
 
 
-@router.get("/latest")
+@router.get("/latest", responses={
+    409: {"model": ErrorResponse},
+})
 async def get_latest_metrics(
     namespace: str | None = None,
     is_name: str | None = None,
