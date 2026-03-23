@@ -4,6 +4,7 @@ import MonitorPage from "./pages/MonitorPage";
 import LoadTestPage from "./pages/LoadTestPage";
 import BenchmarkPage from "./pages/BenchmarkPage";
 import TunerPage from "./pages/TunerPage";
+import SlaPage from "./pages/SlaPage";
 import MockDataSwitch from "./components/MockDataSwitch";
 import ErrorBoundary from "./components/ErrorBoundary";
 import ClusterConfigBar from "./components/ClusterConfigBar";
@@ -19,6 +20,7 @@ const PAGES: PageDef[] = [
   { id: "tuner", label: "자동 파라미터 튜닝", Component: TunerPage },
   { id: "loadtest", label: "부하 테스트", Component: LoadTestPage },
   { id: "benchmark", label: "벤치마크 비교", Component: BenchmarkPage },
+  { id: "sla", label: "SLA", Component: SlaPage },
 ];
 
 export default function App() {

@@ -21,6 +21,7 @@ from models.load_test import (
     LoadTestResult,
     TuningTrial,
 )
+from models.sla import SlaProfile, SlaThresholds
 
 logger = logging.getLogger(__name__)
 
@@ -176,6 +177,17 @@ class Storage:
                 task_type TEXT NOT NULL,
                 started_at REAL NOT NULL,
                 cleared_at REAL
+            )
+        """)
+
+        # SLA profiles table
+        await self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS sla_profiles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                model TEXT NOT NULL,
+                thresholds_json TEXT NOT NULL,
+                created_at REAL NOT NULL
             )
         """)
 
@@ -779,6 +791,145 @@ class Storage:
         except Exception as e:
             logger.warning("[Storage] get_all_running failed: %s", e)
             return []
+
+    # ==================== SLA Profiles CRUD ====================
+
+    async def save_sla_profile(self, profile: SlaProfile) -> SlaProfile:
+        """Save an SLA profile to the database."""
+        if self._conn is None:
+            logger.error("[Storage] Cannot save SLA profile: database not initialized")
+            return profile
+
+        try:
+            import time
+            created_at = time.time()
+            thresholds_json = profile.thresholds.model_dump_json()
+            cursor = await self._conn.execute(
+                "INSERT INTO sla_profiles (name, model, thresholds_json, created_at) VALUES (?, ?, ?, ?)",
+                (profile.name, profile.model, thresholds_json, created_at),
+            )
+            profile_id = cursor.lastrowid
+            await self._conn.commit()
+            logger.debug("[Storage] Saved SLA profile id=%s name=%s", profile_id, profile.name)
+            return SlaProfile(
+                id=profile_id,
+                name=profile.name,
+                model=profile.model,
+                thresholds=profile.thresholds,
+                created_at=created_at,
+            )
+        except Exception as e:
+            logger.error("[Storage] Failed to save SLA profile: %s", e)
+            return profile
+
+    async def list_sla_profiles(self) -> List[SlaProfile]:
+        """Get all saved SLA profiles, ordered by created_at descending."""
+        if self._conn is None:
+            logger.error("[Storage] Cannot list SLA profiles: database not initialized")
+            return []
+
+        try:
+            cursor = await self._conn.execute(
+                "SELECT id, name, model, thresholds_json, created_at FROM sla_profiles ORDER BY created_at DESC"
+            )
+            rows = await cursor.fetchall()
+            profiles: List[SlaProfile] = []
+            for row in rows:
+                try:
+                    thresholds = SlaThresholds.model_validate_json(row[3])
+                    profiles.append(SlaProfile(
+                        id=row[0],
+                        name=row[1],
+                        model=row[2],
+                        thresholds=thresholds,
+                        created_at=row[4],
+                    ))
+                except Exception as e:
+                    logger.warning("[Storage] Failed to parse SLA profile row %s: %s", row[0], e)
+            return profiles
+        except Exception as e:
+            logger.error("[Storage] Failed to list SLA profiles: %s", e)
+            return []
+
+    async def get_sla_profile(self, profile_id: int) -> Optional[SlaProfile]:
+        """Get a single SLA profile by id."""
+        if self._conn is None:
+            logger.error("[Storage] Cannot get SLA profile: database not initialized")
+            return None
+
+        try:
+            cursor = await self._conn.execute(
+                "SELECT id, name, model, thresholds_json, created_at FROM sla_profiles WHERE id = ?",
+                (profile_id,),
+            )
+            row = await cursor.fetchone()
+            if row is None:
+                return None
+
+            thresholds = SlaThresholds.model_validate_json(row[3])
+            return SlaProfile(
+                id=row[0],
+                name=row[1],
+                model=row[2],
+                thresholds=thresholds,
+                created_at=row[4],
+            )
+        except Exception as e:
+            logger.error("[Storage] Failed to get SLA profile id=%s: %s", profile_id, e)
+            return None
+
+    async def update_sla_profile(self, profile_id: int, profile: SlaProfile) -> Optional[SlaProfile]:
+        """Update an SLA profile by id."""
+        if self._conn is None:
+            logger.error("[Storage] Cannot update SLA profile: database not initialized")
+            return None
+
+        try:
+            existing = await self.get_sla_profile(profile_id)
+            if existing is None:
+                return None
+
+            thresholds_json = profile.thresholds.model_dump_json()
+            await self._conn.execute(
+                "UPDATE sla_profiles SET name = ?, model = ?, thresholds_json = ? WHERE id = ?",
+                (profile.name, profile.model, thresholds_json, profile_id),
+            )
+            await self._conn.commit()
+            logger.debug("[Storage] Updated SLA profile id=%s", profile_id)
+            return SlaProfile(
+                id=profile_id,
+                name=profile.name,
+                model=profile.model,
+                thresholds=profile.thresholds,
+                created_at=existing.created_at,
+            )
+        except Exception as e:
+            logger.error("[Storage] Failed to update SLA profile id=%s: %s", profile_id, e)
+            return None
+
+    async def delete_sla_profile(self, profile_id: int) -> bool:
+        """Delete an SLA profile by id. Returns True if deleted, False otherwise."""
+        if self._conn is None:
+            logger.error("[Storage] Cannot delete SLA profile: database not initialized")
+            return False
+
+        try:
+            existing = await self.get_sla_profile(profile_id)
+            if existing is None:
+                return False
+
+            cursor = await self._conn.execute(
+                "DELETE FROM sla_profiles WHERE id = ?",
+                (profile_id,),
+            )
+            await self._conn.commit()
+            deleted = cursor.rowcount > 0
+            if deleted:
+                logger.debug("[Storage] Deleted SLA profile id=%s", profile_id)
+            return deleted
+        except Exception as e:
+            logger.error("[Storage] Failed to delete SLA profile id=%s: %s", profile_id, e)
+            return False
 
 
 # Use `from services.shared import storage` instead.

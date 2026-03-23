@@ -173,7 +173,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from routers import load_test, metrics, benchmark, tuner, vllm_config, config as config_router, status
+from routers import load_test, metrics, benchmark, tuner, vllm_config, config as config_router, status, sla
 
 # Mount routers under /api prefix with route-specific paths
 # Note: routers are imported directly as APIRouter instances, not modules
@@ -184,6 +184,7 @@ app.include_router(tuner, prefix="/api/tuner", tags=["tuner"])
 app.include_router(vllm_config, prefix="/api/vllm-config", tags=["vllm-config"])
 app.include_router(config_router)
 app.include_router(status, prefix="/api", tags=["status"])
+app.include_router(sla, prefix="/api/sla", tags=["sla"])
 
 
 @app.get("/health", tags=["health"], response_model=None)
