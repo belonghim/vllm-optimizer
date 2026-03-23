@@ -4,6 +4,7 @@ import { API } from "../constants";
 import { useMockData } from "../contexts/MockDataContext";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
 import { mockTrials } from "../mockData";
+import type { SSEErrorPayload, SSEWarningPayload } from '../types';
 import TunerConfigForm from "../components/TunerConfigForm";
 import TunerResults from "../components/TunerResults";
 import ErrorAlert from "../components/ErrorAlert";
@@ -149,47 +150,63 @@ function TunerPage({ isActive }: TunerPageProps) {
     if (isMockEnabled) return;
 
     let retryCount = 0;
-    const es = new EventSource(`${API}/tuner/stream`);
-    es.onmessage = (event) => {
-      retryCount = 0;
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === "phase") {
-          setCurrentPhase(data.data);
-        }
-        if (data.type === "tuning_error") {
-          setError(data.data?.error ?? "튜닝 중 오류가 발생했습니다.");
-          es.close();
-          return;
-        }
-        if (data.type === "tuning_warning") {
-          setWarning(data.data?.message ?? "튜닝 경고가 발생했습니다.");
-          return;
-        }
-        if (data.type === "trial_complete" || data.type === "tuning_complete") {
-          setCurrentPhase(null);
-          fetchStatus();
-        }
-      } catch (e) {
-        if (import.meta.env.DEV) console.error("[TunerSSE] parse error:", e);
-      }
-    };
-    es.onerror = () => {
-      if (es.readyState === EventSource.CONNECTING && retryCount < 3) {
-        retryCount += 1;
-        return;
-      }
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let currentEs: EventSource | null = null;
 
-      es.close();
-      setError("튜너 SSE 연결 실패: 최대 재시도 횟수를 초과했습니다.");
+    const openConnection = () => {
+      const es = new EventSource(`${API}/tuner/stream`);
+      currentEs = es;
 
-      if (es.readyState === EventSource.CLOSED) {
-        authFetch(`${API}/tuner/status`).then(r => {
-          if (r.status === 403) window.location.reload();
-        }).catch(() => {});
-      }
+      es.onmessage = (event) => {
+        retryCount = 0;
+        try {
+          const data = JSON.parse(event.data as string);
+          if (data.type === "phase") {
+            setCurrentPhase(data.data);
+          }
+          if (data.type === "tuning_error") {
+            const payload = data.data as SSEErrorPayload | undefined;
+            setError(payload?.error ?? "튜닝 중 오류가 발생했습니다.");
+            es.close();
+            return;
+          }
+          if (data.type === "tuning_warning") {
+            const payload = data.data as SSEWarningPayload | undefined;
+            setWarning(payload?.message ?? "튜닝 경고가 발생했습니다.");
+            return;
+          }
+          if (data.type === "trial_complete" || data.type === "tuning_complete") {
+            setCurrentPhase(null);
+            fetchStatus();
+          }
+        } catch (e) {
+          if (import.meta.env.DEV) console.error("[TunerSSE] parse error:", e);
+        }
+      };
+
+      es.onerror = () => {
+        es.close();
+        currentEs = null;
+        const count = retryCount + 1;
+        retryCount = count;
+        if (count <= 3) {
+          const delay = Math.min(1000 * Math.pow(2, count - 1), 8000);
+          retryTimer = setTimeout(() => { openConnection(); }, delay);
+        } else {
+          setError("튜너 SSE 연결 실패: 최대 재시도 횟수를 초과했습니다.");
+          authFetch(`${API}/tuner/status`).then(r => {
+            if (r.status === 403) window.location.reload();
+          }).catch(() => {});
+        }
+      };
     };
-    return () => { es.close(); };
+
+    openConnection();
+
+    return () => {
+      if (retryTimer !== null) clearTimeout(retryTimer);
+      if (currentEs) { currentEs.close(); currentEs = null; }
+    };
   }, [isActive, status.running, isMockEnabled, fetchStatus]);
 
   useEffect(() => {
