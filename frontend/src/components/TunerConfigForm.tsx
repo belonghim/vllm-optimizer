@@ -41,6 +41,7 @@ interface TunerConfigFormProps {
   storageUri: string | null;
   onSaveStorageUri: (uri: string) => void;
   onApplyCurrentValues?: (values: Record<string, unknown>) => void;
+  currentResources?: Record<string, Record<string, string>> | null;
 }
 
 const PHASE_LABELS: Record<string, string> = {
@@ -65,6 +66,7 @@ export default function TunerConfigForm({
   storageUri,
   onSaveStorageUri,
   onApplyCurrentValues,
+  currentResources,
 }: TunerConfigFormProps) {
   const [localStorageUri, setLocalStorageUri] = useState(storageUri ?? "");
   const [editedValues, setEditedValues] = useState<Record<string, unknown>>({});
@@ -86,6 +88,14 @@ export default function TunerConfigForm({
 
   const handleCurrentValChange = (key: string, value: unknown) => {
     setEditedValues(prev => ({ ...prev, [key]: value }));
+  };
+
+  const getResourceValue = (tier: string, key: string): string => {
+    return currentResources?.[tier]?.[key] ?? "";
+  };
+
+  const handleResourceChange = (resourceKey: string, value: string) => {
+    setEditedValues(prev => ({ ...prev, [resourceKey]: value }));
   };
 
   const renderCurrentInput = (
@@ -266,6 +276,57 @@ export default function TunerConfigForm({
               <td className="td-current">{renderCurrentInput("enable_enforce_eager", "checkbox")}</td>
               <td>—</td>
               <td className="td-desc">CUDA Graph 미사용 (Eager 모드 강제)</td>
+            </tr>
+            <tr>
+              <td title="resources.requests.cpu">CPU Requests</td>
+              <td className="td-current">
+                <input type="text" value={editedValues["resources.requests.cpu"] as string ?? getResourceValue("requests", "cpu")}
+                       onChange={e => handleResourceChange("resources.requests.cpu", e.target.value)}
+                       placeholder="예: 4, 500m" />
+              </td>
+              <td>—</td>
+              <td className="td-desc">CPU 요청량 (예: 4, 500m)</td>
+            </tr>
+            <tr>
+              <td title="resources.limits.cpu">CPU Limits</td>
+              <td className="td-current">
+                <input type="text" value={editedValues["resources.limits.cpu"] as string ?? getResourceValue("limits", "cpu")}
+                       onChange={e => handleResourceChange("resources.limits.cpu", e.target.value)}
+                       placeholder="예: 8, 1000m" />
+              </td>
+              <td>—</td>
+              <td className="td-desc">CPU 상한 (예: 8, 1000m)</td>
+            </tr>
+            <tr>
+              <td title="resources.requests.memory">Memory Requests</td>
+              <td className="td-current">
+                <input type="text" value={editedValues["resources.requests.memory"] as string ?? getResourceValue("requests", "memory")}
+                       onChange={e => handleResourceChange("resources.requests.memory", e.target.value)}
+                       placeholder="예: 8Gi, 512Mi" />
+              </td>
+              <td>—</td>
+              <td className="td-desc">메모리 요청량 (예: 8Gi, 512Mi)</td>
+            </tr>
+            <tr>
+              <td title="resources.limits.memory">Memory Limits</td>
+              <td className="td-current">
+                <input type="text" value={editedValues["resources.limits.memory"] as string ?? getResourceValue("limits", "memory")}
+                       onChange={e => handleResourceChange("resources.limits.memory", e.target.value)}
+                       placeholder="예: 16Gi" />
+              </td>
+              <td>—</td>
+              <td className="td-desc">메모리 상한 (예: 16Gi)</td>
+            </tr>
+            <tr>
+              <td title="resources.limits.nvidia.com/gpu">GPU Limits</td>
+              <td className="td-current">
+                <input type="number" min={0} step={1}
+                       value={editedValues["resources.limits.nvidia.com/gpu"] as string ?? getResourceValue("limits", "nvidia.com/gpu")}
+                       onChange={e => handleResourceChange("resources.limits.nvidia.com/gpu", e.target.value)}
+                       placeholder="0" />
+              </td>
+              <td>—</td>
+              <td className="td-desc">GPU 수량</td>
             </tr>
             <tr>
               <td title="storageUri">모델 스토리지</td>

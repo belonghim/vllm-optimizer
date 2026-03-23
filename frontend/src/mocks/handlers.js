@@ -17,5 +17,13 @@ export const handlers = [
   http.delete(`${API}/benchmark/:id`, ({ params }) =>
     HttpResponse.json({ status: 'deleted', benchmark_id: params.id })
   ),
-  http.get(`${API}/vllm-config`, () => HttpResponse.json({ success: true, data: null, storageUri: null })),
+  http.get(`${API}/vllm-config`, () => HttpResponse.json({
+    success: true,
+    data: null,
+    storageUri: null,
+    resources: {
+      requests: { cpu: "4", memory: "8Gi" },
+      limits: { cpu: "8", memory: "16Gi" },
+    },
+  })),
 ];

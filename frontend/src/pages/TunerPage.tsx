@@ -73,6 +73,7 @@ function TunerPage({ isActive }: TunerPageProps) {
   const [applyStatus, setApplyStatus] = useState<string | null>(null);
   const [interruptedWarning, setInterruptedWarning] = useState<string | null>(null);
   const [currentConfig, setCurrentConfig] = useState<Record<string, unknown> | null>(null);
+  const [currentResources, setCurrentResources] = useState<Record<string, Record<string, string>> | null>(null);
   const [storageUri, setStorageUri] = useState<string | null>(null);
   const [config, setConfig] = useState<TunerConfig>({
     objective: "balanced",
@@ -224,6 +225,7 @@ function TunerPage({ isActive }: TunerPageProps) {
         if (data.success) {
           setCurrentConfig(data.data);
           setStorageUri(data.storageUri ?? null);
+          setCurrentResources(data.resources ?? null);
         } else {
           setError(data.message || "vLLM 설정 조회 실패");
         }
@@ -267,10 +269,29 @@ function TunerPage({ isActive }: TunerPageProps) {
     );
     if (!confirmed) return;
     try {
+      const dataPayload: Record<string, string> = {};
+      const resourcesPayload: Record<string, Record<string, string>> = {};
+
+      for (const [key, val] of Object.entries(values)) {
+        if (key.startsWith("resources.")) {
+          const parts = key.split(".");
+          const tier = parts[1];
+          const resKey = parts.slice(2).join(".");
+          if (!resourcesPayload[tier]) resourcesPayload[tier] = {};
+          resourcesPayload[tier][resKey] = String(val);
+        } else {
+          dataPayload[key] = String(val);
+        }
+      }
+
+      const patchBody: Record<string, unknown> = {};
+      if (Object.keys(dataPayload).length > 0) patchBody.data = dataPayload;
+      if (Object.keys(resourcesPayload).length > 0) patchBody.resources = resourcesPayload;
+
       const res = await authFetch(`${API}/vllm-config`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: values }),
+        body: JSON.stringify(patchBody),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -383,6 +404,7 @@ function TunerPage({ isActive }: TunerPageProps) {
         isRunning={status.running}
         hasBest={!!status.best}
         currentConfig={currentConfig}
+        currentResources={currentResources}
         storageUri={storageUri}
         onSaveStorageUri={handleSaveStorageUri}
         onApplyCurrentValues={handleApplyCurrentValues}

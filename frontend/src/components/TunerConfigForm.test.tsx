@@ -69,7 +69,7 @@ describe("TunerConfigForm", () => {
       enable_enforce_eager: false,
     };
     render(<TunerConfigForm {...baseProps} currentConfig={currentConfig} />);
-    expect(screen.queryAllByText("—")).toHaveLength(2);
+    expect(screen.queryAllByText("—")).toHaveLength(7);
   });
 
   it("현재값 적용 button is disabled when editedValues is empty", () => {
@@ -122,5 +122,47 @@ describe("TunerConfigForm", () => {
   it("does not render 현재값 적용 button when onApplyCurrentValues is not provided", () => {
     render(<TunerConfigForm {...baseProps} currentConfig={{ max_num_seqs: 64 }} />);
     expect(screen.queryByText("현재값 적용")).not.toBeInTheDocument();
+  });
+
+  it("resource rows show dash in range column", () => {
+    const currentConfig = {
+      max_num_seqs: 64,
+      gpu_memory_utilization: 0.9,
+      max_model_len: 4096,
+      max_num_batched_tokens: 2048,
+      block_size: 16,
+      swap_space: 0,
+      enable_chunked_prefill: true,
+      enable_enforce_eager: false,
+    };
+    render(<TunerConfigForm {...baseProps} currentConfig={currentConfig} />);
+    // 2 boolean range dashes + 5 resource range dashes = 7
+    expect(screen.queryAllByText("—")).toHaveLength(7);
+  });
+
+  it("resource inputs show values from currentResources", () => {
+    const currentConfig = {
+      max_num_seqs: 64,
+      gpu_memory_utilization: 0.9,
+      max_model_len: 4096,
+      max_num_batched_tokens: 2048,
+      block_size: 16,
+      swap_space: 0,
+    };
+    const currentResources = {
+      requests: { cpu: "4" },
+      limits: { memory: "16Gi" },
+    };
+    render(
+      <TunerConfigForm
+        {...baseProps}
+        currentConfig={currentConfig}
+        currentResources={currentResources}
+      />
+    );
+    const cpuReqInput = screen.getByPlaceholderText("예: 4, 500m") as HTMLInputElement;
+    expect(cpuReqInput.value).toBe("4");
+    const memLimInput = screen.getByPlaceholderText("예: 16Gi") as HTMLInputElement;
+    expect(memLimInput.value).toBe("16Gi");
   });
 });
