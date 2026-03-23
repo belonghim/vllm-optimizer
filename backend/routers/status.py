@@ -21,8 +21,19 @@ def set_interrupted_runs(runs: list[dict[str, Any]]) -> None:
 
 @router.get("/status/interrupted")
 async def get_interrupted_runs() -> dict[str, Any]:
-    """Return interrupted runs and clear the stored list."""
+    """Return interrupted runs, clear the stored list, and mark DB rows as cleared."""
     global _interrupted_runs
     runs = _interrupted_runs
     _interrupted_runs = []
+
+    # Clear DB rows so they don't reappear on next Pod restart
+    if runs:
+        try:
+            from services.shared import storage
+            for run in runs:
+                if run.get("id") is not None:
+                    await storage.clear_running(run["id"])
+        except Exception as e:
+            logger.warning("[Status] Failed to clear interrupted run rows from DB: %s", e)
+
     return {"interrupted_runs": runs}
