@@ -63,6 +63,7 @@ function TunerPage({ isActive }: TunerPageProps) {
   const { isMockEnabled } = useMockData();
   const { endpoint, namespace, inferenceservice } = useClusterConfig();
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [status, setStatus] = useState<TunerStatus>({ running: false, trials_completed: 0 });
   const [trials, setTrials] = useState<Trial[]>([]);
   const [importance, setImportance] = useState<Record<string, number>>({});
@@ -155,6 +156,15 @@ function TunerPage({ isActive }: TunerPageProps) {
         if (data.type === "phase") {
           setCurrentPhase(data.data);
         }
+        if (data.type === "tuning_error") {
+          setError(data.data?.error ?? "튜닝 중 오류가 발생했습니다.");
+          es.close();
+          return;
+        }
+        if (data.type === "tuning_warning") {
+          setWarning(data.data?.message ?? "튜닝 경고가 발생했습니다.");
+          return;
+        }
         if (data.type === "trial_complete" || data.type === "tuning_complete") {
           setCurrentPhase(null);
           fetchStatus();
@@ -231,6 +241,7 @@ function TunerPage({ isActive }: TunerPageProps) {
 
   const start = async () => {
     setError(null);
+    setWarning(null);
     try {
       const res = await authFetch(`${API}/tuner/start`, {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -282,6 +293,7 @@ function TunerPage({ isActive }: TunerPageProps) {
   return (
     <div className="flex-col-16">
       <ErrorAlert message={error} className="error-alert--mb16" />
+      <ErrorAlert message={warning} severity="warning" className="error-alert--mb16" />
       {applyStatus === "success" && (
         <div className="success-msg" role="status">
           최적 파라미터를 InferenceService에 적용했습니다.
