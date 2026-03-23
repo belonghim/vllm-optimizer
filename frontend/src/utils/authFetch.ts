@@ -3,7 +3,7 @@ let isRedirecting = false;
 function handleAuthError(): never {
   if (isRedirecting) return undefined as never;
   isRedirecting = true;
-  window.location.reload(); // OAuth Proxy redirects to login
+  window.location.href = '/oauth/sign_out';
   return undefined as never;
 }
 

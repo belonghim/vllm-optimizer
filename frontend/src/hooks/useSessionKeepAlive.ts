@@ -11,7 +11,7 @@ export function useSessionKeepAlive() {
       try {
         const res = await fetch(`${API}/metrics/latest`);
         if (res.status === 403) {
-          window.location.reload();
+          window.location.href = '/oauth/sign_out';
         }
       } catch {
       }

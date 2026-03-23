@@ -194,9 +194,6 @@ function TunerPage({ isActive }: TunerPageProps) {
           retryTimer = setTimeout(() => { openConnection(); }, delay);
         } else {
           setError("튜너 SSE 연결 실패: 최대 재시도 횟수를 초과했습니다.");
-          authFetch(`${API}/tuner/status`).then(r => {
-            if (r.status === 403) window.location.reload();
-          }).catch(() => {});
         }
       };
     };
