@@ -333,6 +333,29 @@ class Storage:
             logger.error("[Storage] Failed to delete benchmark id=%s: %s", id, e)
             return False
 
+    async def update_benchmark_metadata(
+        self, benchmark_id: int, metadata: BenchmarkMetadata
+    ) -> Optional[Benchmark]:
+        if self._conn is None:
+            logger.error("[Storage] Cannot update benchmark metadata: database not initialized")
+            return None
+
+        existing = await self.get_benchmark(benchmark_id)
+        if existing is None:
+            return None
+
+        try:
+            metadata_json = metadata.model_dump_json()
+            await self._conn.execute(
+                "UPDATE benchmarks SET metadata_json = ? WHERE id = ?",
+                (metadata_json, benchmark_id),
+            )
+            await self._conn.commit()
+            return await self.get_benchmark(benchmark_id)
+        except Exception as e:
+            logger.error("[Storage] Failed to update benchmark metadata id=%s: %s", benchmark_id, e)
+            return None
+
     # ==================== Load Test History CRUD ====================
 
     async def save_load_test(self, entry: dict[str, Any]) -> None:

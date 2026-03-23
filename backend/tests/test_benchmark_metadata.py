@@ -1,8 +1,13 @@
 import os
 import tempfile
+import asyncio
+import sys
+from types import SimpleNamespace
+from typing import Any
 
 import aiosqlite
 import pytest
+from fastapi.testclient import TestClient
 
 from models.load_test import (
     Benchmark,
@@ -21,6 +26,30 @@ async def storage():
     await s.initialize()
     yield s
     await s.close()
+
+
+@pytest.fixture
+def client(monkeypatch):
+    from services import shared
+
+    test_storage = Storage(":memory:")
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(test_storage.initialize())
+
+    monkeypatch.setattr(shared, "storage", test_storage)
+
+    benchmark_module = sys.modules.get("routers.benchmark")
+    if benchmark_module is not None:
+        monkeypatch.setattr(benchmark_module, "storage", test_storage)
+
+    from main import app
+
+    with TestClient(app) as test_client:
+        yield test_client
+
+    loop.run_until_complete(test_storage.close())
+    loop.close()
 
 
 def _make_benchmark(*, metadata: BenchmarkMetadata | None = None) -> Benchmark:
@@ -179,3 +208,119 @@ async def test_metadata_json_parse_failure_fallback(storage):
     listed = await storage.list_benchmarks()
     assert len(listed) == 1
     assert listed[0].metadata is None
+
+
+def _benchmark_payload(metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+    payload = {
+        "name": "benchmark-api-test",
+        "config": {
+            "endpoint": "http://localhost:8000",
+            "model": "test-model",
+            "total_requests": 10,
+            "concurrency": 2,
+        },
+        "result": {
+            "elapsed": 1.0,
+            "total": 10,
+            "success": 10,
+            "failed": 0,
+            "rps_actual": 10.0,
+            "latency": {"mean": 0.1, "p50": 0.1, "p95": 0.2, "p99": 0.3, "min": 0.05, "max": 0.5},
+            "ttft": {"mean": 0.05, "p50": 0.05, "p95": 0.08, "p99": 0.1, "min": 0.01, "max": 0.2},
+            "tps": {"mean": 100.0, "total": 1000.0},
+        },
+    }
+    if metadata is not None:
+        payload["metadata"] = metadata
+    return payload
+
+
+def test_patch_metadata_success(client):
+    save_resp = client.post(
+        "/api/benchmark/save",
+        json=_benchmark_payload(metadata={"model_identifier": "before", "notes": "old-note", "extra": {"a": "1"}}),
+    )
+    assert save_resp.status_code == 200
+    benchmark_id = save_resp.json()["id"]
+
+    patch_resp = client.patch(
+        f"/api/benchmark/{benchmark_id}/metadata",
+        json={
+            "model_identifier": "after",
+            "runtime": "OpenVINO",
+            "replica_count": 3,
+            "extra": {"env": "dev"},
+        },
+    )
+
+    assert patch_resp.status_code == 200
+    patched = patch_resp.json()
+    assert patched["id"] == benchmark_id
+    assert patched["metadata"]["model_identifier"] == "after"
+    assert patched["metadata"]["runtime"] == "OpenVINO"
+    assert patched["metadata"]["replica_count"] == 3
+    assert patched["metadata"]["extra"] == {"env": "dev"}
+
+
+def test_patch_metadata_not_found(client):
+    response = client.patch(
+        "/api/benchmark/99999/metadata",
+        json={"model_identifier": "does-not-exist"},
+    )
+    assert response.status_code == 404
+
+
+def test_patch_metadata_partial_update(client):
+    save_resp = client.post(
+        "/api/benchmark/save",
+        json=_benchmark_payload(
+            metadata={
+                "model_identifier": "llm-ov",
+                "hardware_type": "CPU",
+                "runtime": "OpenVINO",
+                "notes": "before",
+                "extra": {"env": "dev"},
+            }
+        ),
+    )
+    assert save_resp.status_code == 200
+    benchmark_id = save_resp.json()["id"]
+
+    patch_resp = client.patch(
+        f"/api/benchmark/{benchmark_id}/metadata",
+        json={"notes": "after"},
+    )
+    assert patch_resp.status_code == 200
+
+    metadata = patch_resp.json()["metadata"]
+    assert metadata["model_identifier"] == "llm-ov"
+    assert metadata["hardware_type"] == "CPU"
+    assert metadata["runtime"] == "OpenVINO"
+    assert metadata["notes"] == "after"
+    assert metadata["extra"] == {"env": "dev"}
+
+
+def test_save_benchmark_auto_collects_metadata(client, monkeypatch):
+    benchmark_module = sys.modules.get("routers.benchmark")
+    assert benchmark_module is not None
+
+    async def _mock_resolve_model_name(endpoint: str, fallback: str = "") -> str:
+        return "resolved-model"
+
+    monkeypatch.setattr(benchmark_module, "resolve_model_name", _mock_resolve_model_name)
+    monkeypatch.setattr(
+        benchmark_module,
+        "multi_target_collector",
+        SimpleNamespace(latest=SimpleNamespace(pod_ready=4)),
+    )
+
+    response = client.post(
+        "/api/benchmark/save",
+        json=_benchmark_payload(metadata={"model_identifier": "user-model", "notes": "manual"}),
+    )
+    assert response.status_code == 200
+
+    metadata = response.json()["metadata"]
+    assert metadata["model_identifier"] == "user-model"
+    assert metadata["replica_count"] == 4
+    assert metadata["notes"] == "manual"

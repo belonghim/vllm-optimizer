@@ -3,13 +3,21 @@ Benchmark Router
 Provides endpoints for saving, retrieving, and managing benchmark results.
 """
 import logging
-from fastapi import APIRouter, HTTPException
+import os
+from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Dict, Any
-from models.load_test import Benchmark, ErrorResponse
-from services.shared import storage
+from models.load_test import Benchmark, BenchmarkMetadata, ErrorResponse
+from services.model_resolver import resolve_model_name
+from services.shared import multi_target_collector, storage as shared_storage
+from services.storage import Storage
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+storage = shared_storage
+
+
+def get_storage() -> Storage:
+    return storage
 
 
 @router.get("/list", response_model=List[Benchmark], responses={
@@ -29,8 +37,39 @@ async def list_benchmarks() -> List[Benchmark]:
 @router.post("/save", response_model=Benchmark, responses={
     500: {"model": ErrorResponse},
 })
-async def save_benchmark(benchmark: Benchmark) -> Benchmark:
+async def save_benchmark(
+    benchmark: Benchmark,
+    storage: Storage = Depends(get_storage),
+) -> Benchmark:
     try:
+        auto_meta: Dict[str, Any] = {}
+
+        try:
+            endpoint = benchmark.config.endpoint or os.getenv("VLLM_ENDPOINT", "")
+            if endpoint:
+                model_name = await resolve_model_name(endpoint, fallback="")
+                if model_name:
+                    auto_meta["model_identifier"] = model_name
+        except Exception:
+            pass
+
+        try:
+            snapshot = multi_target_collector.latest
+            if snapshot and snapshot.pod_ready is not None:
+                auto_meta["replica_count"] = snapshot.pod_ready
+        except Exception:
+            pass
+
+        if auto_meta:
+            existing_meta = benchmark.metadata or BenchmarkMetadata()
+            merged = BenchmarkMetadata(
+                **{
+                    **auto_meta,
+                    **existing_meta.model_dump(exclude_none=True),
+                }
+            )
+            benchmark = benchmark.model_copy(update={"metadata": merged})
+
         return await storage.save_benchmark(benchmark)
     except Exception as e:
         logger.error("[Benchmark] Failed to save benchmark: %s", e)
@@ -70,7 +109,10 @@ async def benchmarks_by_model() -> Dict[str, Any]:
     404: {"model": ErrorResponse},
     500: {"model": ErrorResponse},
 })
-async def get_benchmark(benchmark_id: int) -> Benchmark:
+async def get_benchmark(
+    benchmark_id: int,
+    storage: Storage = Depends(get_storage),
+) -> Benchmark:
     try:
         benchmark = await storage.get_benchmark(benchmark_id)
     except Exception as e:
@@ -91,7 +133,10 @@ async def get_benchmark(benchmark_id: int) -> Benchmark:
     404: {"model": ErrorResponse},
     500: {"model": ErrorResponse},
 })
-async def delete_benchmark(benchmark_id: int) -> Dict[str, Any]:
+async def delete_benchmark(
+    benchmark_id: int,
+    storage: Storage = Depends(get_storage),
+) -> Dict[str, Any]:
     try:
         deleted = await storage.delete_benchmark(benchmark_id)
     except Exception as e:
@@ -110,3 +155,44 @@ async def delete_benchmark(benchmark_id: int) -> Dict[str, Any]:
         "benchmark_id": benchmark_id,
         "message": "Benchmark deleted successfully"
     }
+
+
+@router.patch("/{benchmark_id}/metadata", response_model=Benchmark, responses={
+    404: {"model": ErrorResponse},
+    500: {"model": ErrorResponse},
+})
+async def patch_benchmark_metadata(
+    benchmark_id: int,
+    metadata: BenchmarkMetadata,
+    storage: Storage = Depends(get_storage),
+) -> Benchmark:
+    try:
+        existing = await storage.get_benchmark(benchmark_id)
+        if existing is None:
+            raise HTTPException(
+                status_code=404,
+                detail=ErrorResponse(error=f"Benchmark {benchmark_id} not found", error_type="not_found").model_dump(),
+            )
+
+        existing_metadata = existing.metadata or BenchmarkMetadata()
+        merged_metadata = BenchmarkMetadata(
+            **{
+                **existing_metadata.model_dump(),
+                **metadata.model_dump(exclude_unset=True),
+            }
+        )
+        updated = await storage.update_benchmark_metadata(benchmark_id, merged_metadata)
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        logger.error("[Benchmark] Failed to patch benchmark metadata %d: %s", benchmark_id, e)
+        raise HTTPException(
+            status_code=500,
+            detail=ErrorResponse(error="Failed to update benchmark metadata", error_type="storage").model_dump(),
+        )
+    if updated is None:
+        raise HTTPException(
+            status_code=404,
+            detail=ErrorResponse(error=f"Benchmark {benchmark_id} not found", error_type="not_found").model_dump(),
+        )
+    return updated
