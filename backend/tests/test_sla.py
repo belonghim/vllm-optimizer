@@ -71,7 +71,7 @@ async def test_evaluate_all_pass(storage: Storage) -> None:
     assert storage is not None
     profile = SlaProfile(
         name="strict",
-        model="llm-ov",
+        benchmark_ids=[1],
         thresholds=SlaThresholds(
             availability_min=99.0,
             p95_latency_max_ms=500.0,
@@ -94,7 +94,7 @@ async def test_evaluate_latency_fail(storage: Storage) -> None:
     assert storage is not None
     profile = SlaProfile(
         name="latency-only",
-        model="llm-ov",
+        benchmark_ids=[1],
         thresholds=SlaThresholds(p95_latency_max_ms=500.0),
     )
     benchmark = _make_benchmark(p95_seconds=0.6)
@@ -113,7 +113,7 @@ async def test_evaluate_availability_fail(storage: Storage) -> None:
     assert storage is not None
     profile = SlaProfile(
         name="avail-only",
-        model="llm-ov",
+        benchmark_ids=[1],
         thresholds=SlaThresholds(availability_min=99.9),
     )
     benchmark = _make_benchmark(success=950, failed=50)
@@ -132,7 +132,7 @@ async def test_evaluate_error_rate_fail(storage: Storage) -> None:
     assert storage is not None
     profile = SlaProfile(
         name="error-only",
-        model="llm-ov",
+        benchmark_ids=[1],
         thresholds=SlaThresholds(error_rate_max_pct=0.1),
     )
     benchmark = _make_benchmark(success=990, failed=10)
@@ -151,7 +151,7 @@ async def test_evaluate_tps_fail(storage: Storage) -> None:
     assert storage is not None
     profile = SlaProfile(
         name="tps-only",
-        model="llm-ov",
+        benchmark_ids=[1],
         thresholds=SlaThresholds(min_tps=50.0),
     )
     benchmark = _make_benchmark(tps_mean=30.0)
@@ -170,7 +170,7 @@ async def test_evaluate_zero_requests(storage: Storage) -> None:
     assert storage is not None
     profile = SlaProfile(
         name="zero-requests",
-        model="llm-ov",
+        benchmark_ids=[1],
         thresholds=SlaThresholds(availability_min=99.9, p95_latency_max_ms=500.0),
     )
     benchmark = _make_benchmark(success=0, failed=0, p95_seconds=0.0)
@@ -189,7 +189,7 @@ async def test_evaluate_partial_thresholds(storage: Storage) -> None:
     assert storage is not None
     profile = SlaProfile(
         name="partial",
-        model="llm-ov",
+        benchmark_ids=[1],
         thresholds=SlaThresholds(p95_latency_max_ms=500.0),
     )
     benchmark = _make_benchmark(p95_seconds=0.3)
@@ -208,7 +208,7 @@ async def test_evaluate_no_benchmarks(storage: Storage) -> None:
     assert storage is not None
     profile = SlaProfile(
         name="empty",
-        model="llm-ov",
+        benchmark_ids=[1],
         thresholds=SlaThresholds(availability_min=99.0),
     )
 
@@ -221,7 +221,7 @@ async def test_evaluate_no_benchmarks(storage: Storage) -> None:
 async def test_sla_profile_crud(storage: Storage) -> None:
     profile = SlaProfile(
         name="prod-sla",
-        model="llm-ov",
+        benchmark_ids=[1, 2, 3],
         thresholds=SlaThresholds(
             availability_min=99.9,
             p95_latency_max_ms=500.0,
@@ -237,7 +237,7 @@ async def test_sla_profile_crud(storage: Storage) -> None:
     assert loaded is not None
     assert loaded.id == saved.id
     assert loaded.name == "prod-sla"
-    assert loaded.model == "llm-ov"
+    assert loaded.benchmark_ids == [1, 2, 3]
     assert loaded.thresholds.availability_min == 99.9
     assert loaded.thresholds.p95_latency_max_ms == 500.0
     assert loaded.thresholds.error_rate_max_pct == 0.5
@@ -246,28 +246,24 @@ async def test_sla_profile_crud(storage: Storage) -> None:
 
 @pytest.mark.asyncio
 async def test_thresholds_all_none_rejected(storage: Storage) -> None:
-    """SlaThresholds()는 최소 1개 threshold 필수 — ValidationError 발생해야 함 (RED)"""
     with pytest.raises(ValidationError):
         SlaThresholds()
 
 
 @pytest.mark.asyncio
 async def test_thresholds_at_least_one_valid(storage: Storage) -> None:
-    """최소 1개 threshold 설정 시 정상 생성"""
     t = SlaThresholds(min_tps=10.0)
     assert t.min_tps == 10.0
 
 
 @pytest.mark.asyncio
 async def test_verdict_invalid_status_rejected(storage: Storage) -> None:
-    """SlaVerdict.status가 Literal 외 값이면 ValidationError (RED)"""
     with pytest.raises(ValidationError):
         SlaVerdict.model_validate({"metric": "x", "pass": True, "status": "invalid"})
 
 
 @pytest.mark.asyncio
 async def test_verdict_valid_statuses(storage: Storage) -> None:
-    """pass, fail, insufficient_data 세 값 모두 정상"""
     for status in ["pass", "fail", "insufficient_data"]:
         v = SlaVerdict.model_validate({"metric": "x", "pass": status == "pass", "status": status})
         assert v.status == status
@@ -275,13 +271,11 @@ async def test_verdict_valid_statuses(storage: Storage) -> None:
 
 @pytest.mark.asyncio
 async def test_evaluate_boundary_exact_threshold(storage: Storage) -> None:
-    """가용성 정확히 threshold와 동일 → >= 이므로 PASS"""
     profile = SlaProfile(
         name="boundary",
-        model="llm-ov",
+        benchmark_ids=[1],
         thresholds=SlaThresholds(availability_min=99.0),
     )
-    # 990 success / 1000 total = 99.0% — 정확히 threshold
     benchmark = _make_benchmark(success=990, failed=10)
     results = _evaluate(profile, [benchmark])
     assert results[0].overall_pass is True
@@ -289,63 +283,11 @@ async def test_evaluate_boundary_exact_threshold(storage: Storage) -> None:
 
 
 @pytest.mark.asyncio
-async def test_evaluate_case_insensitive_model_match(storage: Storage) -> None:
-    """profile.model 대소문자가 달라도 벤치마크 매칭되어야 함 (RED — 미구현)"""
-    b = _make_benchmark()  # config.model="llm-ov"
-    await storage.save_benchmark(b)
-    # list_benchmarks_by_model이 없으므로 AttributeError → FAIL
-    result = await storage.list_benchmarks_by_model("LLM-OV")  # pyright: ignore
-    assert len(result) == 1  # 대소문자 무시 매칭 → 현재 미구현이므로 FAIL
-
-
-@pytest.mark.asyncio
-async def test_evaluate_wildcard_model_match(storage: Storage) -> None:
-    """profile.model='llm-*' 와일드카드로 여러 모델 매칭 (RED — 미구현)"""
-    b1 = _make_benchmark(benchmark_id=1, name="b1")  # config.model="llm-ov"
-    b2 = Benchmark(
-        id=2,
-        name="b2",
-        timestamp=1700000001.0,
-        config=LoadTestConfig(
-            endpoint="http://localhost:8000",
-            model="llm-phi",
-            total_requests=10,
-            concurrency=1,
-        ),
-        result=LoadTestResult(
-            elapsed=1.0,
-            total=10,
-            total_requested=10,
-            success=10,
-            failed=0,
-            rps_actual=0.0,
-            latency=LatencyStats(mean=0.1, p50=0.1, p95=0.1, p99=0.1, min=0.1, max=0.1),
-            ttft=LatencyStats(),
-            tps=TpsStats(mean=10.0, total=100.0),
-        ),
-    )
-    await storage.save_benchmark(b1)
-    await storage.save_benchmark(b2)
-    result = await storage.list_benchmarks_by_model("llm-*")  # pyright: ignore
-    assert len(result) == 2  # 와일드카드 매칭 → 현재 미구현이므로 FAIL
-
-
-@pytest.mark.asyncio
-async def test_evaluate_wildcard_star_matches_all(storage: Storage) -> None:
-    """profile.model='*' 는 모든 벤치마크 매칭 (RED — 미구현)"""
-    b1 = _make_benchmark(benchmark_id=1, name="any1")
-    await storage.save_benchmark(b1)
-    result = await storage.list_benchmarks_by_model("*")  # pyright: ignore
-    assert len(result) == 1  # * → 전체 매칭 → 현재 미구현이므로 FAIL
-
-
-@pytest.mark.asyncio
 async def test_evaluate_multi_benchmark_mixed(storage: Storage) -> None:
-    """3개 벤치마크: pass 2개, fail 1개 → results 3개, 각 overall_pass 검증"""
     assert storage is not None
     profile = SlaProfile(
         name="multi",
-        model="llm-ov",
+        benchmark_ids=[1, 2, 3],
         thresholds=SlaThresholds(p95_latency_max_ms=500.0),
     )
     b_pass1 = _make_benchmark(benchmark_id=1, name="b1", p95_seconds=0.3)
@@ -359,24 +301,22 @@ async def test_evaluate_multi_benchmark_mixed(storage: Storage) -> None:
 
 
 @pytest.mark.asyncio
-async def test_evaluate_model_mismatch_excluded(storage: Storage) -> None:
-    """다른 모델 벤치마크는 _evaluate에 전달하지 않으면 결과에 미포함"""
+async def test_evaluate_benchmark_ids_excluded_when_not_passed(storage: Storage) -> None:
     assert storage is not None
     profile = SlaProfile(
         name="excl",
-        model="llm-ov",
+        benchmark_ids=[1],
         thresholds=SlaThresholds(p95_latency_max_ms=500.0),
     )
-    results = _evaluate(profile, [])  # 이미 필터된 빈 리스트
+    results = _evaluate(profile, [])
     assert results == []
 
 
 @pytest.mark.asyncio
 async def test_sla_profile_update(storage: Storage) -> None:
-    """save 후 update → get으로 변경 확인"""
     profile = SlaProfile(
         name="original",
-        model="llm-ov",
+        benchmark_ids=[1],
         thresholds=SlaThresholds(availability_min=99.0),
     )
     saved = await storage.save_sla_profile(profile)
@@ -384,7 +324,7 @@ async def test_sla_profile_update(storage: Storage) -> None:
 
     updated_profile = SlaProfile(
         name="updated",
-        model="llm-ov",
+        benchmark_ids=[2, 3],
         thresholds=SlaThresholds(availability_min=95.0, min_tps=5.0),
     )
     updated = await storage.update_sla_profile(saved.id, updated_profile)
@@ -400,10 +340,9 @@ async def test_sla_profile_update(storage: Storage) -> None:
 
 @pytest.mark.asyncio
 async def test_sla_profile_delete(storage: Storage) -> None:
-    """save 후 delete → get returns None"""
     profile = SlaProfile(
         name="to-delete",
-        model="llm-ov",
+        benchmark_ids=[1],
         thresholds=SlaThresholds(min_tps=10.0),
     )
     saved = await storage.save_sla_profile(profile)
@@ -418,22 +357,20 @@ async def test_sla_profile_delete(storage: Storage) -> None:
 
 @pytest.mark.asyncio
 async def test_sla_profile_list(storage: Storage) -> None:
-    """save 3개 → list → 3개 반환, created_at DESC 정렬 확인"""
     import time
     profiles = []
     for i in range(3):
         p = SlaProfile(
             name=f"profile-{i}",
-            model="llm-ov",
+            benchmark_ids=[i + 1],
             thresholds=SlaThresholds(min_tps=float(i + 1)),
         )
         saved = await storage.save_sla_profile(p)
         profiles.append(saved)
-        time.sleep(0.01)  # created_at 차이 보장
+        time.sleep(0.01)
 
     listed = await storage.list_sla_profiles()
     assert len(listed) >= 3
-    # created_at DESC 정렬 확인 (가장 최근 것이 앞)
     our_profiles = [p for p in listed if p.name.startswith("profile-")]
     assert len(our_profiles) == 3
     timestamps = [p.created_at for p in our_profiles]
@@ -446,15 +383,15 @@ async def test_create_profile_http_201(storage: Storage, monkeypatch: pytest.Mon
     from starlette.testclient import TestClient
     from fastapi import FastAPI
     from unittest.mock import patch
-    
+
     with patch("routers.sla.storage", storage):
         app = FastAPI()
         app.include_router(router, prefix="/api/sla")
         client = TestClient(app)
-        
+
         body = {
             "name": "Test Profile",
-            "model": "llm-ov",
+            "benchmark_ids": [1],
             "thresholds": {
                 "availability_min": 99.9,
                 "p95_latency_max_ms": None,
@@ -467,7 +404,7 @@ async def test_create_profile_http_201(storage: Storage, monkeypatch: pytest.Mon
         data = resp.json()
         assert data["id"] is not None
         assert data["name"] == "Test Profile"
-        assert data["model"] == "llm-ov"
+        assert data["benchmark_ids"] == [1]
 
 
 @pytest.mark.asyncio
@@ -476,15 +413,15 @@ async def test_create_profile_http_422_no_thresholds(storage: Storage, monkeypat
     from starlette.testclient import TestClient
     from fastapi import FastAPI
     from unittest.mock import patch
-    
+
     with patch("routers.sla.storage", storage):
         app = FastAPI()
         app.include_router(router, prefix="/api/sla")
         client = TestClient(app)
-        
+
         body = {
             "name": "Test Profile",
-            "model": "llm-ov",
+            "benchmark_ids": [1],
             "thresholds": {
                 "availability_min": None,
                 "p95_latency_max_ms": None,
@@ -494,3 +431,64 @@ async def test_create_profile_http_422_no_thresholds(storage: Storage, monkeypat
         }
         resp = client.post("/api/sla/profiles", json=body)
         assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_evaluate_with_missing_benchmarks(storage: Storage, monkeypatch: pytest.MonkeyPatch) -> None:
+    from routers.sla import router
+    from starlette.testclient import TestClient
+    from fastapi import FastAPI
+    from unittest.mock import patch
+
+    b = _make_benchmark(benchmark_id=1)
+    saved_b = await storage.save_benchmark(b)
+    real_id = saved_b.id
+
+    missing_id = 9999
+    profile = SlaProfile(
+        name="missing-bench",
+        benchmark_ids=[real_id, missing_id],
+        thresholds=SlaThresholds(availability_min=99.0),
+    )
+    saved_profile = await storage.save_sla_profile(profile)
+
+    with patch("routers.sla.storage", storage):
+        app = FastAPI()
+        app.include_router(router, prefix="/api/sla")
+        client = TestClient(app)
+
+        resp = client.get(f"/api/sla/evaluate/{saved_profile.id}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["warnings"]) == 1
+        assert str(missing_id) in data["warnings"][0]
+
+
+@pytest.mark.asyncio
+async def test_evaluate_warnings_field_in_response(storage: Storage, monkeypatch: pytest.MonkeyPatch) -> None:
+    from routers.sla import router
+    from starlette.testclient import TestClient
+    from fastapi import FastAPI
+    from unittest.mock import patch
+
+    b = _make_benchmark(benchmark_id=1)
+    saved_b = await storage.save_benchmark(b)
+    real_id = saved_b.id
+
+    profile = SlaProfile(
+        name="all-found",
+        benchmark_ids=[real_id],
+        thresholds=SlaThresholds(availability_min=99.0),
+    )
+    saved_profile = await storage.save_sla_profile(profile)
+
+    with patch("routers.sla.storage", storage):
+        app = FastAPI()
+        app.include_router(router, prefix="/api/sla")
+        client = TestClient(app)
+
+        resp = client.get(f"/api/sla/evaluate/{saved_profile.id}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "warnings" in data
+        assert data["warnings"] == []

@@ -1,7 +1,6 @@
 import logging
-from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException
 
 from models.load_test import Benchmark
 from models.sla import SlaEvaluateResponse, SlaEvaluationResult, SlaProfile, SlaVerdict
@@ -111,12 +110,16 @@ async def delete_profile(profile_id: int) -> dict[str, bool]:
 @router.get("/evaluate/{profile_id}", response_model=SlaEvaluateResponse)
 async def evaluate_profile(
     profile_id: int,
-    limit: Annotated[int, Query(ge=1, le=1000)] = 50,
 ) -> SlaEvaluateResponse:
     profile = await storage.get_sla_profile(profile_id)
     if profile is None:
         raise HTTPException(status_code=404, detail=f"SLA profile {profile_id} not found")
 
-    benchmarks = await storage.list_benchmarks_by_model(profile.model, limit=limit)
+    benchmarks = await storage.get_benchmarks_by_ids(profile.benchmark_ids)
+
+    found_ids = {b.id for b in benchmarks if b.id is not None}
+    missing_ids = [bid for bid in profile.benchmark_ids if bid not in found_ids]
+    warnings = [f"Benchmark {bid} not found (may have been deleted)" for bid in missing_ids]
+
     results = evaluate_benchmarks_against_sla(profile, benchmarks)
-    return SlaEvaluateResponse(profile=profile, results=results)
+    return SlaEvaluateResponse(profile=profile, results=results, warnings=warnings)

@@ -185,7 +185,7 @@ class Storage:
             CREATE TABLE IF NOT EXISTS sla_profiles (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
-                model TEXT NOT NULL,
+                benchmark_ids_json TEXT NOT NULL,
                 thresholds_json TEXT NOT NULL,
                 created_at REAL NOT NULL
             )
@@ -979,10 +979,12 @@ class Storage:
         try:
             import time
             created_at = time.time()
+            import json as _json
             thresholds_json = profile.thresholds.model_dump_json()
+            benchmark_ids_json = _json.dumps(profile.benchmark_ids)
             cursor = await self._conn.execute(
-                "INSERT INTO sla_profiles (name, model, thresholds_json, created_at) VALUES (?, ?, ?, ?)",
-                (profile.name, profile.model, thresholds_json, created_at),
+                "INSERT INTO sla_profiles (name, benchmark_ids_json, thresholds_json, created_at) VALUES (?, ?, ?, ?)",
+                (profile.name, benchmark_ids_json, thresholds_json, created_at),
             )
             profile_id = cursor.lastrowid
             await self._conn.commit()
@@ -990,7 +992,7 @@ class Storage:
             return SlaProfile(
                 id=profile_id,
                 name=profile.name,
-                model=profile.model,
+                benchmark_ids=profile.benchmark_ids,
                 thresholds=profile.thresholds,
                 created_at=created_at,
             )
@@ -1005,8 +1007,9 @@ class Storage:
             return []
 
         try:
+            import json as _json
             cursor = await self._conn.execute(
-                "SELECT id, name, model, thresholds_json, created_at FROM sla_profiles ORDER BY created_at DESC"
+                "SELECT id, name, benchmark_ids_json, thresholds_json, created_at FROM sla_profiles ORDER BY created_at DESC"
             )
             rows = await cursor.fetchall()
             profiles: List[SlaProfile] = []
@@ -1016,7 +1019,7 @@ class Storage:
                     profiles.append(SlaProfile(
                         id=row[0],
                         name=row[1],
-                        model=row[2],
+                        benchmark_ids=_json.loads(row[2]),
                         thresholds=thresholds,
                         created_at=row[4],
                     ))
@@ -1034,8 +1037,9 @@ class Storage:
             return None
 
         try:
+            import json as _json
             cursor = await self._conn.execute(
-                "SELECT id, name, model, thresholds_json, created_at FROM sla_profiles WHERE id = ?",
+                "SELECT id, name, benchmark_ids_json, thresholds_json, created_at FROM sla_profiles WHERE id = ?",
                 (profile_id,),
             )
             row = await cursor.fetchone()
@@ -1046,7 +1050,7 @@ class Storage:
             return SlaProfile(
                 id=row[0],
                 name=row[1],
-                model=row[2],
+                benchmark_ids=_json.loads(row[2]),
                 thresholds=thresholds,
                 created_at=row[4],
             )
@@ -1065,17 +1069,19 @@ class Storage:
             if existing is None:
                 return None
 
+            import json as _json
             thresholds_json = profile.thresholds.model_dump_json()
+            benchmark_ids_json = _json.dumps(profile.benchmark_ids)
             await self._conn.execute(
-                "UPDATE sla_profiles SET name = ?, model = ?, thresholds_json = ? WHERE id = ?",
-                (profile.name, profile.model, thresholds_json, profile_id),
+                "UPDATE sla_profiles SET name = ?, benchmark_ids_json = ?, thresholds_json = ? WHERE id = ?",
+                (profile.name, benchmark_ids_json, thresholds_json, profile_id),
             )
             await self._conn.commit()
             logger.debug("[Storage] Updated SLA profile id=%s", profile_id)
             return SlaProfile(
                 id=profile_id,
                 name=profile.name,
-                model=profile.model,
+                benchmark_ids=profile.benchmark_ids,
                 thresholds=profile.thresholds,
                 created_at=existing.created_at,
             )
