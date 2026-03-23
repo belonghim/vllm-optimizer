@@ -43,12 +43,29 @@ class SlaThresholds(BaseModel):
 
 
 class SlaProfile(BaseModel):
-    """SLA profile for a model"""
+    """SLA profile"""
     id: Optional[int] = None
     name: str
-    model: str = Field(description="대상 모델명 (SLA 매칭에 사용)")
+    benchmark_ids: list[int] = Field(description="할당된 벤치마크 ID 목록 (1~5개)")
     thresholds: SlaThresholds
     created_at: Optional[float] = None
+
+    @model_validator(mode='after')
+    def validate_benchmark_ids(self) -> 'SlaProfile':
+        # 중복 제거 (순서 유지)
+        seen = set()
+        deduped = [x for x in self.benchmark_ids if x not in seen and not seen.add(x)]
+        # 양수만 허용
+        if any(x <= 0 for x in deduped):
+            raise ValueError("benchmark_ids must contain only positive integers")
+        # 최소 1개
+        if len(deduped) == 0:
+            raise ValueError("benchmark_ids must contain at least one benchmark")
+        # 최대 5개
+        if len(deduped) > 5:
+            raise ValueError("benchmark_ids can contain at most 5 benchmarks")
+        self.benchmark_ids = deduped
+        return self
 
 
 class SlaVerdict(BaseModel):
@@ -75,3 +92,4 @@ class SlaEvaluateResponse(BaseModel):
     """Response for SLA evaluation"""
     profile: SlaProfile
     results: list[SlaEvaluationResult]
+    warnings: list[str] = []
