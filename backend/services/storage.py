@@ -701,5 +701,38 @@ class Storage:
             logger.error("[Storage] Failed to get interrupted runs: %s", e)
             return []
 
+    async def get_all_running(self) -> List[dict]:
+        """
+        Get all uncleared running_state rows (for shutdown cleanup).
+
+        Returns:
+            List of dicts with keys: id, task_type, started_at
+        """
+        if self._conn is None:
+            logger.error("[Storage] Cannot get all running: database not initialized")
+            return []
+
+        try:
+            cursor = await self._conn.execute(
+                """
+                SELECT id, task_type, started_at
+                FROM running_state
+                WHERE cleared_at IS NULL
+                """
+            )
+            rows = await cursor.fetchall()
+            result = []
+            for row in rows:
+                result.append({
+                    "id": row[0],
+                    "task_type": row[1],
+                    "started_at": row[2],
+                })
+            logger.debug("[Storage] Retrieved %s uncleared running rows", len(result))
+            return result
+        except Exception as e:
+            logger.warning("[Storage] get_all_running failed: %s", e)
+            return []
+
 
 # Use `from services.shared import storage` instead.

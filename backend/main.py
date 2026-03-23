@@ -66,7 +66,7 @@ async def lifespan(app: FastAPI):
         interrupted = await _storage.get_interrupted_runs()
         if interrupted:
             logger.warning("[Lifespan] Detected %d interrupted run(s) from previous lifecycle", len(interrupted))
-            set_interrupted_runs(interrupted)
+            await set_interrupted_runs(interrupted)
     except Exception as e:
         logger.warning("[Lifespan] Failed to detect interrupted runs (continuing): %s", e)
 
@@ -87,6 +87,20 @@ async def lifespan(app: FastAPI):
         logger.info("[Lifespan] Storage health monitor stopped")
     except Exception as e:
         logger.debug("[Lifespan] Storage health monitor stop failed (non-critical): %s", e)
+
+    # ── Cleanup running_state on shutdown (fail-open) ──
+    try:
+        from services.shared import storage as _shutdown_storage
+        running_rows = await _shutdown_storage.get_all_running()
+        for row in running_rows:
+            try:
+                await _shutdown_storage.clear_running(row["id"])
+            except Exception:
+                pass
+        if running_rows:
+            logger.info("[Lifespan] Cleared %d running_state row(s) on shutdown", len(running_rows))
+    except Exception as e:
+        logger.debug("[Lifespan] running_state shutdown cleanup failed (non-critical): %s", e)
 
     # ── Storage shutdown (fail-open) ──
     try:
