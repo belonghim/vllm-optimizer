@@ -377,6 +377,8 @@ class Storage:
                     ))
                 except Exception as e:
                     logger.warning("[Storage] Failed to parse benchmark row %s: %s", row["id"], e)
+            id_order = {bid: i for i, bid in enumerate(ids)}
+            benchmarks.sort(key=lambda b: id_order.get(b.id, 999))
             return benchmarks
         except Exception as e:
             logger.error("[Storage] Failed to get benchmarks by ids: %s", e)
