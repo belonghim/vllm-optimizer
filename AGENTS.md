@@ -20,6 +20,33 @@
 - **CI/CD**: Tekton Pipelines (Buildah 빌드 → Quay.io 푸시 → Kustomize 배포)
 - **모니터링**: OpenShift Monitoring Stack (Thanos Querier)
 
+### 프로젝트 포지셔닝과 차별점
+
+vLLM Optimizer는 Red Hat GuideLLM 같은 **벤치마크 도구와 경쟁하지 않는다**. 오히려 보완 관계이다.
+
+| 관점 | GuideLLM (벤치마크) | vLLM Optimizer (운영 최적화) |
+|------|-------------------|--------------------------|
+| 핵심 질문 | "이 모델이 얼마나 빠른가?" | "이 모델을 어떻게 더 빠르게 만드는가?" |
+| 사용 시점 | 배포 전 성능 측정 | 배포 후 지속적 운영 최적화 |
+| 실행 방식 | CLI / K8s Job (일회성) | 상주 서비스 (FastAPI + React) |
+| 출력 | JSON/HTML 리포트 (정적) | 실시간 대시보드 + 자동 튜닝 |
+
+**핵심 차별점 — 클로즈드 루프 최적화:**
+- 측정(부하 테스트) → 분석(벤치마크 비교 + SLA 판정) → 최적화(Optuna 자동 튜닝) → 적용(KServe IS 패치) → 재측정
+- GuideLLM은 "측정"만 담당. vLLM Optimizer는 **전체 루프를 하나의 플랫폼에서 제공**.
+
+**컴팩트 아키텍처의 장점:**
+- Backend(FastAPI) + Frontend(React) 2-Pod 구성으로 배포 단순성 유지
+- 외부 DB 없이 **SQLite + PVC**로 데이터 영구 저장 (운영 복잡도 최소화)
+- OpenShift Monitoring Stack 재사용 — 별도 Prometheus 설치 불필요
+- 단일 `deploy.sh`로 dev/prod 완전 배포 가능
+
+**설계 시 지켜야 할 방향:**
+- 컴팩트 구조를 유지한다. 기능 추가 시 별도 마이크로서비스로 분리하지 않는다.
+- 기존 OpenShift 인프라(Monitoring Stack, KServe, RBAC)를 최대한 활용한다.
+- 벤치마크 도구와의 차별점(자동 튜닝, 실시간 모니터링, KServe 통합)을 강화하는 방향으로 발전한다.
+- 벤치마크 도구(GuideLLM 등)의 결과를 임포트하여 통합 분석할 수 있는 확장점을 고려한다.
+
 ---
 
 ## 디렉토리 구조

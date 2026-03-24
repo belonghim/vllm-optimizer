@@ -70,7 +70,6 @@ def _verdict_by_metric(result: SlaEvaluationResult, metric: str) -> SlaVerdict:
 async def test_evaluate_all_pass(storage: Storage) -> None:
     profile = SlaProfile(
         name="strict",
-        benchmark_ids=[1],
         thresholds=SlaThresholds(
             availability_min=99.0,
             p95_latency_max_ms=500.0,
@@ -92,7 +91,6 @@ async def test_evaluate_all_pass(storage: Storage) -> None:
 async def test_evaluate_latency_fail(storage: Storage) -> None:
     profile = SlaProfile(
         name="latency-only",
-        benchmark_ids=[1],
         thresholds=SlaThresholds(p95_latency_max_ms=500.0),
     )
     benchmark = _make_benchmark(p95_seconds=0.6)
@@ -110,7 +108,6 @@ async def test_evaluate_latency_fail(storage: Storage) -> None:
 async def test_evaluate_availability_fail(storage: Storage) -> None:
     profile = SlaProfile(
         name="avail-only",
-        benchmark_ids=[1],
         thresholds=SlaThresholds(availability_min=99.9),
     )
     benchmark = _make_benchmark(success=950, failed=50)
@@ -128,7 +125,6 @@ async def test_evaluate_availability_fail(storage: Storage) -> None:
 async def test_evaluate_error_rate_fail(storage: Storage) -> None:
     profile = SlaProfile(
         name="error-only",
-        benchmark_ids=[1],
         thresholds=SlaThresholds(error_rate_max_pct=0.1),
     )
     benchmark = _make_benchmark(success=990, failed=10)
@@ -146,7 +142,6 @@ async def test_evaluate_error_rate_fail(storage: Storage) -> None:
 async def test_evaluate_tps_fail(storage: Storage) -> None:
     profile = SlaProfile(
         name="tps-only",
-        benchmark_ids=[1],
         thresholds=SlaThresholds(min_tps=50.0),
     )
     benchmark = _make_benchmark(tps_mean=30.0)
@@ -164,7 +159,6 @@ async def test_evaluate_tps_fail(storage: Storage) -> None:
 async def test_evaluate_zero_requests(storage: Storage) -> None:
     profile = SlaProfile(
         name="zero-requests",
-        benchmark_ids=[1],
         thresholds=SlaThresholds(availability_min=99.9, p95_latency_max_ms=500.0),
     )
     benchmark = _make_benchmark(success=0, failed=0, p95_seconds=0.0)
@@ -182,7 +176,6 @@ async def test_evaluate_zero_requests(storage: Storage) -> None:
 async def test_evaluate_partial_thresholds(storage: Storage) -> None:
     profile = SlaProfile(
         name="partial",
-        benchmark_ids=[1],
         thresholds=SlaThresholds(p95_latency_max_ms=500.0),
     )
     benchmark = _make_benchmark(p95_seconds=0.3)
@@ -200,7 +193,6 @@ async def test_evaluate_partial_thresholds(storage: Storage) -> None:
 async def test_evaluate_no_benchmarks(storage: Storage) -> None:
     profile = SlaProfile(
         name="empty",
-        benchmark_ids=[1],
         thresholds=SlaThresholds(availability_min=99.0),
     )
 
@@ -213,7 +205,6 @@ async def test_evaluate_no_benchmarks(storage: Storage) -> None:
 async def test_sla_profile_crud(storage: Storage) -> None:
     profile = SlaProfile(
         name="prod-sla",
-        benchmark_ids=[1, 2, 3],
         thresholds=SlaThresholds(
             availability_min=99.9,
             p95_latency_max_ms=500.0,
@@ -229,7 +220,6 @@ async def test_sla_profile_crud(storage: Storage) -> None:
     assert loaded is not None
     assert loaded.id == saved.id
     assert loaded.name == "prod-sla"
-    assert loaded.benchmark_ids == [1, 2, 3]
     assert loaded.thresholds.availability_min == 99.9
     assert loaded.thresholds.p95_latency_max_ms == 500.0
     assert loaded.thresholds.error_rate_max_pct == 0.5
@@ -265,7 +255,6 @@ async def test_verdict_valid_statuses(storage: Storage) -> None:
 async def test_evaluate_boundary_exact_threshold(storage: Storage) -> None:
     profile = SlaProfile(
         name="boundary",
-        benchmark_ids=[1],
         thresholds=SlaThresholds(availability_min=99.0),
     )
     benchmark = _make_benchmark(success=990, failed=10)
@@ -278,7 +267,6 @@ async def test_evaluate_boundary_exact_threshold(storage: Storage) -> None:
 async def test_evaluate_multi_benchmark_mixed(storage: Storage) -> None:
     profile = SlaProfile(
         name="multi",
-        benchmark_ids=[1, 2, 3],
         thresholds=SlaThresholds(p95_latency_max_ms=500.0),
     )
     b_pass1 = _make_benchmark(benchmark_id=1, name="b1", p95_seconds=0.3)
@@ -295,7 +283,6 @@ async def test_evaluate_multi_benchmark_mixed(storage: Storage) -> None:
 async def test_evaluate_benchmark_ids_excluded_when_not_passed(storage: Storage) -> None:
     profile = SlaProfile(
         name="excl",
-        benchmark_ids=[1],
         thresholds=SlaThresholds(p95_latency_max_ms=500.0),
     )
     results = _evaluate(profile, [])
@@ -306,7 +293,6 @@ async def test_evaluate_benchmark_ids_excluded_when_not_passed(storage: Storage)
 async def test_sla_profile_update(storage: Storage) -> None:
     profile = SlaProfile(
         name="original",
-        benchmark_ids=[1],
         thresholds=SlaThresholds(availability_min=99.0),
     )
     saved = await storage.save_sla_profile(profile)
@@ -314,7 +300,6 @@ async def test_sla_profile_update(storage: Storage) -> None:
 
     updated_profile = SlaProfile(
         name="updated",
-        benchmark_ids=[2, 3],
         thresholds=SlaThresholds(availability_min=95.0, min_tps=5.0),
     )
     updated = await storage.update_sla_profile(saved.id, updated_profile)
@@ -332,7 +317,6 @@ async def test_sla_profile_update(storage: Storage) -> None:
 async def test_sla_profile_delete(storage: Storage) -> None:
     profile = SlaProfile(
         name="to-delete",
-        benchmark_ids=[1],
         thresholds=SlaThresholds(min_tps=10.0),
     )
     saved = await storage.save_sla_profile(profile)
@@ -352,7 +336,6 @@ async def test_sla_profile_list(storage: Storage) -> None:
     for i in range(3):
         p = SlaProfile(
             name=f"profile-{i}",
-            benchmark_ids=[i + 1],
             thresholds=SlaThresholds(min_tps=float(i + 1)),
         )
         saved = await storage.save_sla_profile(p)
@@ -381,7 +364,6 @@ async def test_create_profile_http_201(storage: Storage, monkeypatch: pytest.Mon
 
         body = {
             "name": "Test Profile",
-            "benchmark_ids": [1],
             "thresholds": {
                 "availability_min": 99.9,
                 "p95_latency_max_ms": None,
@@ -394,7 +376,6 @@ async def test_create_profile_http_201(storage: Storage, monkeypatch: pytest.Mon
         data = resp.json()
         assert data["id"] is not None
         assert data["name"] == "Test Profile"
-        assert data["benchmark_ids"] == [1]
 
 
 @pytest.mark.asyncio
@@ -411,7 +392,6 @@ async def test_create_profile_http_422_no_thresholds(storage: Storage, monkeypat
 
         body = {
             "name": "Test Profile",
-            "benchmark_ids": [1],
             "thresholds": {
                 "availability_min": None,
                 "p95_latency_max_ms": None,
@@ -437,7 +417,6 @@ async def test_evaluate_with_missing_benchmarks(storage: Storage, monkeypatch: p
     missing_id = 9999
     profile = SlaProfile(
         name="missing-bench",
-        benchmark_ids=[real_id, missing_id],
         thresholds=SlaThresholds(availability_min=99.0),
     )
     saved_profile = await storage.save_sla_profile(profile)
@@ -447,7 +426,7 @@ async def test_evaluate_with_missing_benchmarks(storage: Storage, monkeypatch: p
         app.include_router(router, prefix="/api/sla")
         client = TestClient(app)
 
-        resp = client.get(f"/api/sla/evaluate/{saved_profile.id}")
+        resp = client.post("/api/sla/evaluate", json={"profile_id": saved_profile.id, "benchmark_ids": [real_id, missing_id]})
         assert resp.status_code == 200
         data = resp.json()
         assert len(data["warnings"]) == 1
@@ -467,7 +446,6 @@ async def test_evaluate_warnings_field_in_response(storage: Storage, monkeypatch
 
     profile = SlaProfile(
         name="all-found",
-        benchmark_ids=[real_id],
         thresholds=SlaThresholds(availability_min=99.0),
     )
     saved_profile = await storage.save_sla_profile(profile)
@@ -477,23 +455,11 @@ async def test_evaluate_warnings_field_in_response(storage: Storage, monkeypatch
         app.include_router(router, prefix="/api/sla")
         client = TestClient(app)
 
-        resp = client.get(f"/api/sla/evaluate/{saved_profile.id}")
+        resp = client.post("/api/sla/evaluate", json={"profile_id": saved_profile.id, "benchmark_ids": [real_id]})
         assert resp.status_code == 200
         data = resp.json()
         assert "warnings" in data
         assert data["warnings"] == []
-
-
-@pytest.mark.asyncio
-async def test_create_profile_empty_benchmarks(storage: Storage) -> None:
-    profile = SlaProfile(
-        name="empty-benchmarks",
-        benchmark_ids=[],
-        thresholds=SlaThresholds(min_tps=10.0),
-    )
-    saved = await storage.save_sla_profile(profile)
-    assert saved.id is not None
-    assert saved.benchmark_ids == []
 
 
 @pytest.mark.asyncio
@@ -505,7 +471,6 @@ async def test_evaluate_profile_empty_benchmarks(storage: Storage, monkeypatch: 
 
     profile = SlaProfile(
         name="empty-benchmarks-eval",
-        benchmark_ids=[],
         thresholds=SlaThresholds(availability_min=99.0),
     )
     saved_profile = await storage.save_sla_profile(profile)
@@ -515,7 +480,7 @@ async def test_evaluate_profile_empty_benchmarks(storage: Storage, monkeypatch: 
         app.include_router(router, prefix="/api/sla")
         client = TestClient(app)
 
-        resp = client.get(f"/api/sla/evaluate/{saved_profile.id}")
+        resp = client.post("/api/sla/evaluate", json={"profile_id": saved_profile.id, "benchmark_ids": []})
         assert resp.status_code == 200
         data = resp.json()
         assert data["results"] == []

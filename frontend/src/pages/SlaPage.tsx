@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { authFetch } from '../utils/authFetch';
 import { API, COLORS, TOOLTIP_STYLE, TARGET_COLORS } from "../constants";
 import ErrorAlert from "../components/ErrorAlert";
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer, Legend } from 'recharts';
+import { useBenchmarkSelection } from '../contexts/BenchmarkSelectionContext';
 
 interface SlaThresholds {
   availability_min: number | null;
@@ -14,7 +15,6 @@ interface SlaThresholds {
 interface SlaProfile {
   id: number;
   name: string;
-  benchmark_ids: number[];
   thresholds: SlaThresholds;
   created_at: number;
 }
@@ -42,14 +42,14 @@ interface SlaEvaluateResponse {
 }
 
 export default function SlaPage({ isActive }: { isActive: boolean }) {
+  const { selectedIds } = useBenchmarkSelection();
   const [profiles, setProfiles] = useState<SlaProfile[]>([]);
-  const [evaluations, setEvaluations] = useState<Record<number, SlaEvaluateResponse>>({});
+  const [currentEval, setCurrentEval] = useState<SlaEvaluateResponse | null>(null);
   const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const [formName, setFormName] = useState('');
-  const [availableBenchmarks, setAvailableBenchmarks] = useState<{id: number; name: string; timestamp: number}[]>([]);
   const [formAvailMin, setFormAvailMin] = useState('');
   const [formP95Ms, setFormP95Ms] = useState('');
   const [formErrRate, setFormErrRate] = useState('');
@@ -61,16 +61,6 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
   useEffect(() => {
     if (!isActive) return;
     loadProfiles();
-    const fetchBenchmarks = async () => {
-      try {
-        const res = await authFetch(`${API}/benchmark/list`);
-        if (res.ok) {
-          const data = await res.json();
-          setAvailableBenchmarks(data.map((b: any) => ({ id: b.id, name: b.name, timestamp: b.timestamp })));
-        }
-       } catch { setAvailableBenchmarks([]); }
-    };
-    fetchBenchmarks();
   }, [isActive]);
 
   async function loadProfiles() {
@@ -80,19 +70,6 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: SlaProfile[] = await res.json();
       setProfiles(data);
-      
-      const evalResults = await Promise.allSettled(
-        data.map(async (p) => {
-          const evalRes = await authFetch(`${API}/sla/evaluate/${p.id}`);
-          if (!evalRes.ok) return null;
-          return { id: p.id, data: await evalRes.json() as SlaEvaluateResponse };
-        })
-      );
-      const newEvals: Record<number, SlaEvaluateResponse> = {};
-      for (const r of evalResults) {
-        if (r.status === 'fulfilled' && r.value) newEvals[r.value.id] = r.value.data;
-      }
-      setEvaluations(newEvals);
       setError(null);
     } catch (err) {
       setError(`SLA 프로필 로드 실패: ${(err as Error).message}`);
@@ -101,7 +78,35 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleProfileSelect = async (profileId: number) => {
+    setSelectedProfileId(profileId);
+    if (selectedIds.length === 0) {
+      setCurrentEval(null);
+      return;
+    }
+    try {
+      const res = await authFetch(`${API}/sla/evaluate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile_id: profileId, benchmark_ids: selectedIds.map(Number) }),
+      });
+      if (res.ok) {
+        setCurrentEval(await res.json() as SlaEvaluateResponse);
+      } else {
+        setCurrentEval(null);
+      }
+    } catch {
+      setCurrentEval(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!isActive || !selectedProfileId) return;
+    handleProfileSelect(selectedProfileId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedIds, isActive]);
+
+  const handleSubmit = async (e: any) => {
     e.preventDefault();
     setError(null);
     
@@ -113,7 +118,6 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
     
     const body = {
       name: formName,
-      benchmark_ids: editingId ? (profiles.find(p => p.id === editingId)?.benchmark_ids ?? []) : [],
       thresholds: {
         availability_min: formAvailMin ? parseFloat(formAvailMin) : null,
         p95_latency_max_ms: formP95Ms ? parseFloat(formP95Ms) : null,
@@ -167,7 +171,10 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
       const res = await authFetch(`${API}/sla/profiles/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await loadProfiles();
-      if (selectedProfileId === id) setSelectedProfileId(null);
+      if (selectedProfileId === id) {
+        setSelectedProfileId(null);
+        setCurrentEval(null);
+      }
     } catch (err) {
       setError(`SLA 프로필 삭제 실패: ${(err as Error).message}`);
     }
@@ -191,8 +198,7 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
     return parts.join(' · ') || 'No thresholds set';
   };
 
-  const selectedEval = selectedProfileId ? evaluations[selectedProfileId] : null;
-  const chartData = (selectedEval?.results ?? []).map(r => {
+  const chartData = (currentEval?.results ?? []).map(r => {
     const verdict = r.verdicts.find(v => v.metric === chartMetric);
     return {
       name: r.benchmark_name,
@@ -201,7 +207,7 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
     };
   });
 
-  const legendPayload = (selectedEval?.results ?? []).map((result, index) => ({
+  const legendPayload = (currentEval?.results ?? []).map((result, index) => ({
     value: result.benchmark_name,
     type: 'circle' as const,
     id: String(result.benchmark_id),
@@ -216,10 +222,6 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
 
       <div className="grid-responsive" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
         {profiles.map(p => {
-          const evalData = evaluations[p.id];
-          const latestResult = evalData?.results?.[evalData.results.length - 1];
-          const passCount = latestResult?.verdicts.filter(v => v.status === 'pass').length || 0;
-          const totalCount = latestResult?.verdicts.length || 0;
           const isSelected = selectedProfileId === p.id;
 
           return (
@@ -231,54 +233,11 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
                 border: isSelected ? `2px solid ${COLORS.cyan}` : `1px solid ${COLORS.border}`,
                 transition: 'all 0.2s ease'
               }}
-              onClick={() => setSelectedProfileId(p.id)}
+              onClick={() => handleProfileSelect(p.id)}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                <div>
-                  <div className="section-title" style={{ fontSize: '1.1rem', margin: 0 }}>{p.name}</div>
-                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '2px' }}>
-                    {p.benchmark_ids.map((bid, idx) => {
-                      const bName = availableBenchmarks.find(b => b.id === bid)?.name || `#${bid}`;
-                      return (
-                        <span key={bid} style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.8rem' }}>
-                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: TARGET_COLORS[idx % TARGET_COLORS.length], display: 'inline-block' }} />
-                          <span className="td-muted">{bName}</span>
-                        </span>
-                      );
-                    })}
-                  </div>
-                </div>
-                {latestResult && (
-                  <div>
-                    <div style={{ 
-                      padding: '4px 8px', 
-                      borderRadius: '4px', 
-                      fontSize: '0.8rem', 
-                      fontWeight: 'bold',
-                      backgroundColor: latestResult.overall_pass ? 'rgba(0, 255, 135, 0.1)' : 'rgba(255, 59, 107, 0.1)',
-                      color: latestResult.overall_pass ? COLORS.green : COLORS.red,
-                      border: `1px solid ${latestResult.overall_pass ? COLORS.green : COLORS.red}`
-                    }}>
-                      {latestResult.overall_pass ? 'PASS' : 'FAIL'}
-                    </div>
-                    {(evaluations[p.id]?.warnings?.length ?? 0) > 0 && (
-                      <div style={{
-                        fontSize: '0.75rem',
-                        color: COLORS.red,
-                        marginTop: '4px'
-                      }}>
-                        ⚠️ 일부 벤치마크 삭제됨
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+              <div className="section-title" style={{ fontSize: '1.1rem', margin: '0 0 8px 0' }}>{p.name}</div>
               <div style={{ fontSize: '0.85rem' }}>
-                {latestResult ? (
-                  <span className="td-muted">최근 결과: <b style={{ color: COLORS.text }}>{passCount}/{totalCount}</b> 지표 통과</span>
-                ) : (
-                  <span className="td-muted">평가 데이터 없음</span>
-                )}
+                <span className="td-muted">{renderThresholds(p.thresholds)}</span>
               </div>
             </div>
           );
@@ -324,7 +283,6 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
           <thead>
             <tr>
               <th>이름</th>
-              <th>벤치마크</th>
               <th>임계값 요약</th>
               <th style={{ textAlign: 'right' }}>작업</th>
             </tr>
@@ -333,12 +291,6 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
             {profiles.map(p => (
               <tr key={p.id}>
                 <td className="td-text">{p.name}</td>
-                <td style={{ fontSize: '0.85rem' }}>
-                  {p.benchmark_ids.map((bid, idx) => {
-                    const bName = availableBenchmarks.find(b => b.id === bid)?.name || `#${bid}`;
-                    return <span key={bid} style={{ marginRight: '4px' }}><span style={{ color: TARGET_COLORS[idx % TARGET_COLORS.length] }}>●</span> {bName}</span>;
-                  })}
-                </td>
                 <td className="td-muted" style={{ fontSize: '0.85rem' }}>{renderThresholds(p.thresholds)}</td>
                 <td style={{ textAlign: 'right' }}>
                   <button className="btn-small" onClick={() => handleEdit(p)} style={{ marginRight: '8px' }}>편집</button>
@@ -347,7 +299,7 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
               </tr>
             ))}
             {profiles.length === 0 && (
-              <tr><td colSpan={4} className="td-muted" style={{ textAlign: 'center', padding: '20px' }}>등록된 프로필이 없습니다.</td></tr>
+              <tr><td colSpan={3} className="td-muted" style={{ textAlign: 'center', padding: '20px' }}>등록된 프로필이 없습니다.</td></tr>
             )}
           </tbody>
         </table>
@@ -356,7 +308,7 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
       {selectedProfileId && (
         <div className="panel">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <div className="section-title" style={{ margin: 0 }}>{evaluations[selectedProfileId]?.profile.name} - 지표 추이</div>
+            <div className="section-title" style={{ margin: 0 }}>{currentEval?.profile.name ?? profiles.find(p => p.id === selectedProfileId)?.name} - 지표 추이</div>
             <div className="tab-group" style={{ display: 'flex', gap: '4px' }}>
               {([
                 { id: 'p95_latency' as const, label: 'P95 Latency' },
@@ -380,7 +332,11 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
             </div>
           </div>
           
-          {(selectedEval?.results ?? []).length > 0 ? (
+          {selectedIds.length === 0 ? (
+            <div className="td-muted" style={{ textAlign: 'center', padding: '60px' }}>
+              벤치마크 비교 페이지에서 벤치마크를 선택하세요
+            </div>
+          ) : (currentEval?.results ?? []).length > 0 ? (
             <div style={{ height: '300px', width: '100%' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -412,7 +368,7 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
             </div>
           ) : (
             <div className="td-muted" style={{ textAlign: 'center', padding: '60px' }}>
-              벤치마크를 할당하세요
+              평가 결과 없음
             </div>
           )}
         </div>

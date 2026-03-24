@@ -4,11 +4,11 @@ import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import SlaPage from "./SlaPage";
 
 beforeEach(() => {
-  global.ResizeObserver = class ResizeObserver {
+  vi.stubGlobal("ResizeObserver", class ResizeObserver {
     observe() {}
     unobserve() {}
     disconnect() {}
-  };
+  });
   vi.stubGlobal("location", { href: "" });
 });
 
@@ -18,7 +18,7 @@ afterEach(() => {
 });
 
 const EMPTY_EVAL = {
-  profile: { id: 1, name: "", benchmark_ids: [], thresholds: { availability_min: null, p95_latency_max_ms: null, error_rate_max_pct: null, min_tps: null }, created_at: 0 },
+  profile: { id: 1, name: "", thresholds: { availability_min: null, p95_latency_max_ms: null, error_rate_max_pct: null, min_tps: null }, created_at: 0 },
   results: [],
   warnings: [],
 };
@@ -72,7 +72,6 @@ describe("SlaPage", () => {
             json: async () => ({
               id: 1,
               name: "Test Profile",
-              benchmark_ids: [],
               thresholds: { availability_min: 99, p95_latency_max_ms: null, error_rate_max_pct: null, min_tps: null },
               created_at: 0,
             }),
@@ -173,17 +172,14 @@ describe("SlaPage", () => {
   });
 
   describe("TC6: initial profile list loading", () => {
-    it("renders empty state messages when no profiles exist", async () => {
-      const fetchMock = vi.fn().mockImplementation((url: string) => {
-        if (url.includes("/sla/profiles")) {
-          return Promise.resolve({ ok: true, status: 200, json: async () => [] });
-        }
-        if (url.includes("/benchmark/list")) {
-          return Promise.resolve({ ok: true, status: 200, json: async () => [] });
-        }
-        return Promise.resolve({ ok: true, status: 200, json: async () => [] });
-      });
-      vi.stubGlobal("fetch", fetchMock);
+     it("renders empty state messages when no profiles exist", async () => {
+       const fetchMock = vi.fn().mockImplementation((url: string) => {
+         if (url.includes("/sla/profiles")) {
+           return Promise.resolve({ ok: true, status: 200, json: async () => [] });
+         }
+         return Promise.resolve({ ok: true, status: 200, json: async () => [] });
+       });
+       vi.stubGlobal("fetch", fetchMock);
 
       render(<SlaPage isActive={true} />);
 
@@ -200,13 +196,12 @@ describe("SlaPage", () => {
       const user = userEvent.setup();
       vi.stubGlobal("confirm", vi.fn(() => true));
 
-      const profile = {
-        id: 42,
-        name: "Delete Me",
-        benchmark_ids: [],
-        thresholds: { availability_min: 99, p95_latency_max_ms: null, error_rate_max_pct: null, min_tps: null },
-        created_at: 0,
-      };
+       const profile = {
+         id: 42,
+         name: "Delete Me",
+         thresholds: { availability_min: 99, p95_latency_max_ms: null, error_rate_max_pct: null, min_tps: null },
+         created_at: 0,
+       };
 
       const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
         if ((init as RequestInit)?.method === "DELETE") {

@@ -1,6 +1,7 @@
 import logging
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from models.load_test import Benchmark
 from models.sla import SlaEvaluateResponse, SlaEvaluationResult, SlaProfile, SlaVerdict
@@ -8,6 +9,11 @@ from services.shared import storage
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+class SlaEvaluateRequest(BaseModel):
+    profile_id: int
+    benchmark_ids: list[int] = []
 
 
 def evaluate_benchmarks_against_sla(
@@ -107,18 +113,16 @@ async def delete_profile(profile_id: int) -> dict[str, bool]:
     return {"deleted": True}
 
 
-@router.get("/evaluate/{profile_id}", response_model=SlaEvaluateResponse)
-async def evaluate_profile(
-    profile_id: int,
-) -> SlaEvaluateResponse:
-    profile = await storage.get_sla_profile(profile_id)
+@router.post("/evaluate", response_model=SlaEvaluateResponse)
+async def evaluate_profile(request: SlaEvaluateRequest) -> SlaEvaluateResponse:
+    profile = await storage.get_sla_profile(request.profile_id)
     if profile is None:
-        raise HTTPException(status_code=404, detail=f"SLA profile {profile_id} not found")
+        raise HTTPException(status_code=404, detail=f"SLA profile {request.profile_id} not found")
 
-    benchmarks = await storage.get_benchmarks_by_ids(profile.benchmark_ids)
+    benchmarks = await storage.get_benchmarks_by_ids(request.benchmark_ids)
 
     found_ids = {b.id for b in benchmarks if b.id is not None}
-    missing_ids = [bid for bid in profile.benchmark_ids if bid not in found_ids]
+    missing_ids = [bid for bid in request.benchmark_ids if bid not in found_ids]
     warnings = [f"Benchmark {bid} not found (may have been deleted)" for bid in missing_ids]
 
     results = evaluate_benchmarks_against_sla(profile, benchmarks)

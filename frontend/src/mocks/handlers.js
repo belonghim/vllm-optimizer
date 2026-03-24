@@ -45,12 +45,12 @@ export const handlers = [
   http.delete(`${API}/sla/profiles/:id`, ({ params }) =>
     HttpResponse.json({ deleted: true })
   ),
-  http.get(`${API}/sla/evaluate/:id`, ({ params }) =>
-    HttpResponse.json({
+  http.post(`${API}/sla/evaluate`, async ({ request }) => {
+    const body = await request.json();
+    return HttpResponse.json({
       profile: {
-        id: Number(params.id),
+        id: body.profile_id,
         name: 'Test',
-        benchmark_ids: [],
         thresholds: {
           availability_min: 99,
           p95_latency_max_ms: null,
@@ -61,6 +61,6 @@ export const handlers = [
       },
       results: [],
       warnings: [],
-    })
-  ),
+    });
+  }),
 ];

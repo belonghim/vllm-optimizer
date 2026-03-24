@@ -8,6 +8,7 @@ import { calcGpuEfficiency } from "../utils/metrics";
 import { downloadJSON, downloadCSV, benchmarksToCSV } from '../utils/export';
 import { BarChart, Bar, Cell, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { useMockData } from "../contexts/MockDataContext";
+import { useBenchmarkSelection } from "../contexts/BenchmarkSelectionContext";
 import ErrorAlert from "../components/ErrorAlert";
 
 interface BenchmarkMetadata {
@@ -43,18 +44,6 @@ interface Benchmark {
   metadata?: BenchmarkMetadata | null;
 }
 
-interface SlaProfile {
-  id: number;
-  name: string;
-  benchmark_ids: number[];
-  thresholds: {
-    availability_min: number | null;
-    p95_latency_max_ms: number | null;
-    error_rate_max_pct: number | null;
-    min_tps: number | null;
-  };
-}
-
 interface BenchmarkPageProps {
   isActive: boolean;
   onRerun?: (config: BenchmarkConfig) => void;
@@ -63,16 +52,11 @@ interface BenchmarkPageProps {
 function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
   const { COLORS, TOOLTIP_STYLE } = useThemeColors();
   const [benchmarks, setBenchmarks] = useState<Benchmark[]>([]);
-  const [selected, setSelected] = useState<(string | number)[]>([]);
+  const { selectedIds: selected, setSelectedIds: setSelected } = useBenchmarkSelection();
   const [expanded, setExpanded] = useState<(string | number)[]>([]);
   const [editing, setEditing] = useState<Benchmark | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { isMockEnabled } = useMockData();
-  const [slaProfiles, setSlaProfiles] = useState<SlaProfile[]>([]);
-  const [selectedSlaProfileId, setSelectedSlaProfileId] = useState<number | null>(null);
-  const [assignLoading, setAssignLoading] = useState(false);
-  const [assignError, setAssignError] = useState<string | null>(null);
-  const [assignSuccess, setAssignSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isActive) return;
@@ -99,22 +83,9 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
     return () => controller.abort();
   }, [isMockEnabled, isActive]);
 
-  useEffect(() => {
-    if (!isActive) return;
-    authFetch(`${API}/sla/profiles`)
-      .then(r => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then(data => setSlaProfiles(data))
-      .catch(() => {});
-  }, [isActive]);
-
   const toggleSelect = (id: string | number, e: React.MouseEvent) => {
     e.stopPropagation();
-    setSelected(s =>
-      s.includes(id) ? s.filter(x => x !== id) : [...s, id]
-    );
+    setSelected(selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id]);
   };
 
   const toggleExpand = (id: string | number) => {
@@ -129,7 +100,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
 
     if (isMockEnabled) {
       setBenchmarks(prev => prev.filter(x => x.id !== b.id));
-      setSelected(prev => prev.filter(x => x !== b.id));
+      setSelected(selected.filter(x => x !== b.id));
       setExpanded(prev => prev.filter(x => x !== b.id));
       return;
     }
@@ -138,7 +109,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
       const res = await authFetch(`${API}/benchmark/${b.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setBenchmarks(prev => prev.filter(x => x.id !== b.id));
-      setSelected(prev => prev.filter(x => x !== b.id));
+      setSelected(selected.filter(x => x !== b.id));
       setExpanded(prev => prev.filter(x => x !== b.id));
     } catch (err) {
       setError(`삭제 실패: ${(err as Error).message}`);
@@ -218,48 +189,6 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
     const { headers, rows } = benchmarksToCSV(dataToExport);
     const timestamp = new Date().getTime();
     downloadCSV(headers, rows, `benchmarks-${timestamp}.csv`);
-  };
-
-  const handleAssignToSla = async () => {
-    if (!selectedSlaProfileId || selected.length === 0) return;
-    setAssignLoading(true);
-    setAssignError(null);
-    setAssignSuccess(null);
-    try {
-      const profileRes = await authFetch(`${API}/sla/profiles/${selectedSlaProfileId}`);
-      if (!profileRes.ok) throw new Error(`프로필 조회 실패: HTTP ${profileRes.status}`);
-      const profile: SlaProfile = await profileRes.json();
-
-      const selectedNums = selected.map(id => Number(id));
-      const merged = Array.from(new Set([...profile.benchmark_ids, ...selectedNums]));
-
-      const putRes = await authFetch(`${API}/sla/profiles/${selectedSlaProfileId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...profile, benchmark_ids: merged }),
-      });
-      if (!putRes.ok) {
-        let detail = `HTTP ${putRes.status}`;
-        try {
-          const errBody = await putRes.json();
-          if (errBody.detail) {
-            detail = typeof errBody.detail === 'string'
-              ? errBody.detail
-              : errBody.detail.map((d: { msg: string }) => d.msg).join(', ');
-          }
-        } catch {}
-        throw new Error(detail);
-      }
-
-      const refreshRes = await authFetch(`${API}/sla/profiles`);
-      if (refreshRes.ok) setSlaProfiles(await refreshRes.json());
-
-      setAssignSuccess(`${selected.length}개 벤치마크를 프로필에 추가했습니다.`);
-    } catch (err) {
-      setAssignError(`할당 실패: ${(err as Error).message}`);
-    } finally {
-      setAssignLoading(false);
-    }
   };
 
   const compareData = useMemo(() => benchmarks
@@ -406,35 +335,6 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
           </tbody>
         </table>
       </div>
-
-      {selected.length > 0 && (
-        <div className="panel">
-          <div className="section-title">SLA 프로필에 할당</div>
-          {assignError && <div style={{ color: COLORS.red, fontSize: '0.85rem', marginBottom: '8px' }}>{assignError}</div>}
-          {assignSuccess && <div style={{ color: COLORS.green, fontSize: '0.85rem', marginBottom: '8px' }}>{assignSuccess}</div>}
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <span className="td-muted" style={{ fontSize: '0.85rem' }}>선택된 벤치마크 {selected.length}개를</span>
-            <select
-              value={selectedSlaProfileId ?? ''}
-              onChange={e => setSelectedSlaProfileId(e.target.value ? Number(e.target.value) : null)}
-              style={{ padding: '6px 8px', background: 'var(--color-surface)', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: '4px' }}
-            >
-              <option value="">프로필 선택...</option>
-              {slaProfiles.map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-            <span className="td-muted" style={{ fontSize: '0.85rem' }}>에 추가</span>
-            <button
-              className="btn-primary"
-              onClick={handleAssignToSla}
-              disabled={!selectedSlaProfileId || assignLoading}
-            >
-              {assignLoading ? '추가 중...' : 'SLA 프로필에 추가'}
-            </button>
-          </div>
-        </div>
-      )}
 
       {editing && (
         <div className="modal-overlay">

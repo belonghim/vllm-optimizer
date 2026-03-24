@@ -10,6 +10,7 @@ import MockDataSwitch from "./components/MockDataSwitch";
 import ThemeToggle from "./components/ThemeToggle";
 import ErrorBoundary from "./components/ErrorBoundary";
 import ClusterConfigBar from "./components/ClusterConfigBar";
+import { BenchmarkSelectionProvider } from "./contexts/BenchmarkSelectionContext";
 
 interface PageDef {
   id: string;
@@ -50,7 +51,7 @@ export default function App() {
   const handleConfigConsumed = useCallback(() => setPendingLoadTestConfig(null), []);
 
   return (
-    <>
+    <BenchmarkSelectionProvider>
       <div className="scanline" />
 
       <header className="app-header">
@@ -101,6 +102,6 @@ export default function App() {
           </div>
         ))}
       </main>
-    </>
+    </BenchmarkSelectionProvider>
   );
 }

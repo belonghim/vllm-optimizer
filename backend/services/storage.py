@@ -185,19 +185,10 @@ class Storage:
             CREATE TABLE IF NOT EXISTS sla_profiles (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
-                benchmark_ids_json TEXT NOT NULL,
                 thresholds_json TEXT NOT NULL,
                 created_at REAL NOT NULL
             )
         """)
-
-        try:
-            await self._conn.execute(
-                "ALTER TABLE sla_profiles ADD COLUMN benchmark_ids_json TEXT NOT NULL DEFAULT '[]'"
-            )
-            await self._conn.commit()
-        except Exception:
-            pass
 
         # Migration: remove legacy 'model' column from sla_profiles
         try:
@@ -225,6 +216,30 @@ class Storage:
                 logger.info("[Storage] Migrated sla_profiles: removed legacy 'model' column")
         except Exception as e:
             logger.warning("[Storage] sla_profiles model column migration failed: %s", e)
+
+        try:
+            cursor = await self._conn.execute("PRAGMA table_info(sla_profiles)")
+            cols = [row[1] for row in await cursor.fetchall()]
+            await cursor.close()  # close before DDL to release read lock
+            if 'benchmark_ids_json' in cols:
+                await self._conn.execute("""
+                    CREATE TABLE IF NOT EXISTS sla_profiles_v2 (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL,
+                        thresholds_json TEXT NOT NULL,
+                        created_at REAL NOT NULL
+                    )
+                """)
+                await self._conn.execute("""
+                    INSERT INTO sla_profiles_v2 (id, name, thresholds_json, created_at)
+                    SELECT id, name, thresholds_json, created_at FROM sla_profiles
+                """)
+                await self._conn.execute("DROP TABLE sla_profiles")
+                await self._conn.execute("ALTER TABLE sla_profiles_v2 RENAME TO sla_profiles")
+                await self._conn.commit()
+                logger.info("[Storage] Migrated sla_profiles: removed benchmark_ids_json column")
+        except Exception as e:
+            logger.warning("[Storage] sla_profiles benchmark_ids_json migration failed: %s", e)
 
         # Tuning sessions table
         await self._conn.execute("""
@@ -413,7 +428,7 @@ class Storage:
                 except Exception as e:
                     logger.warning("[Storage] Failed to parse benchmark row %s: %s", row["id"], e)
             id_order = {bid: i for i, bid in enumerate(ids)}
-            benchmarks.sort(key=lambda b: id_order.get(b.id, 999))
+            benchmarks.sort(key=lambda b: id_order.get(b.id if b.id is not None else -1, 999))
             return benchmarks
         except Exception as e:
             logger.error("[Storage] Failed to get benchmarks by ids: %s", e)
@@ -619,7 +634,7 @@ class Storage:
 
     # ==================== Tuning Sessions CRUD ====================
 
-    async def save_tuning_session(self, session_data: dict) -> int:
+    async def save_tuning_session(self, session_data: dict[str, Any]) -> int:
         if self._conn is None:
             logger.error("[Storage] Cannot save tuning session: database not initialized")
             return -1
@@ -653,14 +668,14 @@ class Storage:
                 ),
             )
             await self._conn.commit()
-            session_id = cursor.lastrowid
+            session_id = int(cursor.lastrowid) if cursor.lastrowid is not None else -1
             logger.debug("[Storage] Saved tuning session id=%s", session_id)
             return session_id
         except Exception as e:
             logger.error("[Storage] Failed to save tuning session: %s", e)
             return -1
 
-    async def list_tuning_sessions(self) -> list:
+    async def list_tuning_sessions(self) -> list[dict[str, Any]]:
         if self._conn is None:
             logger.error("[Storage] Cannot list tuning sessions: database not initialized")
             return []
@@ -686,7 +701,7 @@ class Storage:
             logger.error("[Storage] Failed to list tuning sessions: %s", e)
             return []
 
-    async def get_tuning_session(self, id: int) -> dict | None:
+    async def get_tuning_session(self, id: int) -> dict[str, Any] | None:
         if self._conn is None:
             logger.error("[Storage] Cannot get tuning session: database not initialized")
             return None
@@ -1016,12 +1031,10 @@ class Storage:
         try:
             import time
             created_at = time.time()
-            import json as _json
             thresholds_json = profile.thresholds.model_dump_json()
-            benchmark_ids_json = _json.dumps(profile.benchmark_ids)
             cursor = await self._conn.execute(
-                "INSERT INTO sla_profiles (name, benchmark_ids_json, thresholds_json, created_at) VALUES (?, ?, ?, ?)",
-                (profile.name, benchmark_ids_json, thresholds_json, created_at),
+                "INSERT INTO sla_profiles (name, thresholds_json, created_at) VALUES (?, ?, ?)",
+                (profile.name, thresholds_json, created_at),
             )
             profile_id = cursor.lastrowid
             await self._conn.commit()
@@ -1029,7 +1042,6 @@ class Storage:
             return SlaProfile(
                 id=profile_id,
                 name=profile.name,
-                benchmark_ids=profile.benchmark_ids,
                 thresholds=profile.thresholds,
                 created_at=created_at,
             )
@@ -1044,21 +1056,19 @@ class Storage:
             return []
 
         try:
-            import json as _json
             cursor = await self._conn.execute(
-                "SELECT id, name, benchmark_ids_json, thresholds_json, created_at FROM sla_profiles ORDER BY created_at DESC"
+                "SELECT id, name, thresholds_json, created_at FROM sla_profiles ORDER BY created_at DESC"
             )
             rows = await cursor.fetchall()
             profiles: List[SlaProfile] = []
             for row in rows:
                 try:
-                    thresholds = SlaThresholds.model_validate_json(row[3])
+                    thresholds = SlaThresholds.model_validate_json(row[2])
                     profiles.append(SlaProfile(
                         id=row[0],
                         name=row[1],
-                        benchmark_ids=_json.loads(row[2]),
                         thresholds=thresholds,
-                        created_at=row[4],
+                        created_at=row[3],
                     ))
                 except Exception as e:
                     logger.warning("[Storage] Failed to parse SLA profile row %s: %s", row[0], e)
@@ -1074,22 +1084,20 @@ class Storage:
             return None
 
         try:
-            import json as _json
             cursor = await self._conn.execute(
-                "SELECT id, name, benchmark_ids_json, thresholds_json, created_at FROM sla_profiles WHERE id = ?",
+                "SELECT id, name, thresholds_json, created_at FROM sla_profiles WHERE id = ?",
                 (profile_id,),
             )
             row = await cursor.fetchone()
             if row is None:
                 return None
 
-            thresholds = SlaThresholds.model_validate_json(row[3])
+            thresholds = SlaThresholds.model_validate_json(row[2])
             return SlaProfile(
                 id=row[0],
                 name=row[1],
-                benchmark_ids=_json.loads(row[2]),
                 thresholds=thresholds,
-                created_at=row[4],
+                created_at=row[3],
             )
         except Exception as e:
             logger.error("[Storage] Failed to get SLA profile id=%s: %s", profile_id, e)
@@ -1106,19 +1114,16 @@ class Storage:
             if existing is None:
                 return None
 
-            import json as _json
             thresholds_json = profile.thresholds.model_dump_json()
-            benchmark_ids_json = _json.dumps(profile.benchmark_ids)
             await self._conn.execute(
-                "UPDATE sla_profiles SET name = ?, benchmark_ids_json = ?, thresholds_json = ? WHERE id = ?",
-                (profile.name, benchmark_ids_json, thresholds_json, profile_id),
+                "UPDATE sla_profiles SET name = ?, thresholds_json = ? WHERE id = ?",
+                (profile.name, thresholds_json, profile_id),
             )
             await self._conn.commit()
             logger.debug("[Storage] Updated SLA profile id=%s", profile_id)
             return SlaProfile(
                 id=profile_id,
                 name=profile.name,
-                benchmark_ids=profile.benchmark_ids,
                 thresholds=profile.thresholds,
                 created_at=existing.created_at,
             )
