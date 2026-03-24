@@ -199,6 +199,32 @@ class Storage:
         except Exception:
             pass
 
+        # Migration: remove legacy 'model' column from sla_profiles
+        try:
+            cursor = await self._conn.execute("PRAGMA table_info(sla_profiles)")
+            cols = [row[1] for row in await cursor.fetchall()]
+            if 'model' in cols:
+                await self._conn.execute("""
+                    CREATE TABLE IF NOT EXISTS sla_profiles_v2 (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL,
+                        benchmark_ids_json TEXT NOT NULL DEFAULT '[]',
+                        thresholds_json TEXT NOT NULL,
+                        created_at REAL NOT NULL
+                    )
+                """)
+                await self._conn.execute("""
+                    INSERT INTO sla_profiles_v2 (id, name, benchmark_ids_json, thresholds_json, created_at)
+                    SELECT id, name, COALESCE(benchmark_ids_json, '[]'), thresholds_json, created_at
+                    FROM sla_profiles
+                """)
+                await self._conn.execute("DROP TABLE sla_profiles")
+                await self._conn.execute("ALTER TABLE sla_profiles_v2 RENAME TO sla_profiles")
+                await self._conn.commit()
+                logger.info("[Storage] Migrated sla_profiles: removed legacy 'model' column")
+        except Exception as e:
+            logger.warning("[Storage] sla_profiles model column migration failed: %s", e)
+
         # Tuning sessions table
         await self._conn.execute("""
             CREATE TABLE IF NOT EXISTS tuning_sessions (
