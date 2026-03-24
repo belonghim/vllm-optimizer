@@ -38,6 +38,7 @@ interface SlaEvaluationResult {
 interface SlaEvaluateResponse {
   profile: SlaProfile;
   results: SlaEvaluationResult[];
+  warnings?: string[];
 }
 
 export default function SlaPage({ isActive }: { isActive: boolean }) {
@@ -144,7 +145,9 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
               ? errBody.detail
               : errBody.detail.map((d: any) => d.msg).join(', ');
           }
-        } catch {}
+      } catch {
+        setAvailableBenchmarks([]);
+      }
         throw new Error(detail);
       }
       
@@ -255,16 +258,27 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
                   </div>
                 </div>
                 {latestResult && (
-                  <div style={{ 
-                    padding: '4px 8px', 
-                    borderRadius: '4px', 
-                    fontSize: '0.8rem', 
-                    fontWeight: 'bold',
-                    backgroundColor: latestResult.overall_pass ? 'rgba(0, 255, 135, 0.1)' : 'rgba(255, 59, 107, 0.1)',
-                    color: latestResult.overall_pass ? COLORS.green : COLORS.red,
-                    border: `1px solid ${latestResult.overall_pass ? COLORS.green : COLORS.red}`
-                  }}>
-                    {latestResult.overall_pass ? 'PASS' : 'FAIL'}
+                  <div>
+                    <div style={{ 
+                      padding: '4px 8px', 
+                      borderRadius: '4px', 
+                      fontSize: '0.8rem', 
+                      fontWeight: 'bold',
+                      backgroundColor: latestResult.overall_pass ? 'rgba(0, 255, 135, 0.1)' : 'rgba(255, 59, 107, 0.1)',
+                      color: latestResult.overall_pass ? COLORS.green : COLORS.red,
+                      border: `1px solid ${latestResult.overall_pass ? COLORS.green : COLORS.red}`
+                    }}>
+                      {latestResult.overall_pass ? 'PASS' : 'FAIL'}
+                    </div>
+                    {(evaluations[p.id]?.warnings?.length ?? 0) > 0 && (
+                      <div style={{
+                        fontSize: '0.75rem',
+                        color: COLORS.red,
+                        marginTop: '4px'
+                      }}>
+                        ⚠️ 일부 벤치마크 삭제됨
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
