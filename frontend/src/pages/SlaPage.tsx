@@ -49,7 +49,6 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
   const [loading, setLoading] = useState(false);
 
   const [formName, setFormName] = useState('');
-  const [formBenchmarkIds, setFormBenchmarkIds] = useState<number[]>([]);
   const [availableBenchmarks, setAvailableBenchmarks] = useState<{id: number; name: string; timestamp: number}[]>([]);
   const [formAvailMin, setFormAvailMin] = useState('');
   const [formP95Ms, setFormP95Ms] = useState('');
@@ -106,11 +105,6 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
     e.preventDefault();
     setError(null);
     
-    if (formBenchmarkIds.length === 0) {
-      setError("최소 1개의 벤치마크를 선택해야 합니다.");
-      return;
-    }
-
     const hasAnyThreshold = formAvailMin || formP95Ms || formErrRate || formMinTps;
     if (!hasAnyThreshold) {
       setError("최소 1개의 임계값을 입력해야 합니다.");
@@ -119,7 +113,7 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
     
     const body = {
       name: formName,
-      benchmark_ids: formBenchmarkIds,
+      benchmark_ids: editingId ? (profiles.find(p => p.id === editingId)?.benchmark_ids ?? []) : [],
       thresholds: {
         availability_min: formAvailMin ? parseFloat(formAvailMin) : null,
         p95_latency_max_ms: formP95Ms ? parseFloat(formP95Ms) : null,
@@ -160,7 +154,6 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
   const handleEdit = (p: SlaProfile) => {
     setEditingId(p.id);
     setFormName(p.name);
-    setFormBenchmarkIds(p.benchmark_ids);
     setFormAvailMin(p.thresholds.availability_min?.toString() || '');
     setFormP95Ms(p.thresholds.p95_latency_max_ms?.toString() || '');
     setFormErrRate(p.thresholds.error_rate_max_pct?.toString() || '');
@@ -183,7 +176,6 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
   const resetForm = () => {
     setEditingId(null);
     setFormName('');
-    setFormBenchmarkIds([]);
     setFormAvailMin('');
     setFormP95Ms('');
     setFormErrRate('');
@@ -304,38 +296,6 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
           <div className="form-group">
             <label>프로필 이름 *</label>
             <input type="text" value={formName} onChange={e => setFormName(e.target.value)} required placeholder="예: Llama3 Production SLA" />
-          </div>
-          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-            <label>벤치마크 선택 (최대 5개) *</label>
-            {availableBenchmarks.length === 0 ? (
-              <div className="td-muted" style={{ padding: '8px 0' }}>벤치마크가 없습니다. 먼저 부하 테스트를 실행하세요.</div>
-            ) : (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
-                {availableBenchmarks.map((b) => {
-                  const isSelected = formBenchmarkIds.includes(b.id);
-                  const color = TARGET_COLORS[formBenchmarkIds.indexOf(b.id) % TARGET_COLORS.length];
-                  const isDisabled = !isSelected && formBenchmarkIds.length >= 5;
-                  return (
-                    <label key={b.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: isDisabled ? 'not-allowed' : 'pointer', opacity: isDisabled ? 0.5 : 1 }}>
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        disabled={isDisabled}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setFormBenchmarkIds(prev => [...prev, b.id]);
-                          } else {
-                            setFormBenchmarkIds(prev => prev.filter(id => id !== b.id));
-                          }
-                        }}
-                      />
-                      {isSelected && <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: color, display: 'inline-block' }} />}
-                      <span style={{ fontSize: '0.85rem' }}>{b.name} ({new Date(b.timestamp * 1000).toLocaleDateString()})</span>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
           </div>
           <div className="form-group">
             <label>가용성 최소 (%)</label>

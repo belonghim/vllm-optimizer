@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo, Fragment } from "react";
 import { authFetch } from '../utils/authFetch';
-import { API } from "../constants";
+import { API, TARGET_COLORS } from "../constants";
 import { useThemeColors } from "../contexts/ThemeContext";
 import { fmt } from "../utils/format";
 import { mockBenchmarks } from "../mockData";
 import { calcGpuEfficiency } from "../utils/metrics";
 import { downloadJSON, downloadCSV, benchmarksToCSV } from '../utils/export';
-import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { BarChart, Bar, Cell, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { useMockData } from "../contexts/MockDataContext";
 import ErrorAlert from "../components/ErrorAlert";
 
@@ -441,42 +441,57 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
         <div className="panel">
           <div className="section-title">비교 차트</div>
           <div className="benchmark-compare-charts">
-            <div>
-              <div className="label">TPS 비교</div>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={compareData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
-                  <XAxis dataKey="name" tick={{ fontSize: 9, fill: COLORS.muted }} />
-                  <YAxis tick={{ fontSize: 9, fill: COLORS.muted }} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} />
-                  <Bar dataKey="tps" fill={COLORS.accent} name="TPS" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <div>
-              <div className="label">P99 Latency 비교 (ms)</div>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={compareData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
-                  <XAxis dataKey="name" tick={{ fontSize: 9, fill: COLORS.muted }} />
-                  <YAxis tick={{ fontSize: 9, fill: COLORS.muted }} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} />
-                  <Bar dataKey="p99" fill={COLORS.red} name="P99 ms" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <div>
-              <div className="label">GPU 효율 비교 (TPS/GPU%)</div>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={compareData.filter(d => d.metricsTargetMatched)}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
-                  <XAxis dataKey="name" tick={{ fontSize: 9, fill: COLORS.muted }} />
-                  <YAxis tick={{ fontSize: 9, fill: COLORS.muted }} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} />
-                  <Bar dataKey="gpuEff" fill={COLORS.green} name="GPU Eff." />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+             <div>
+               <div className="label">TPS 비교</div>
+               <ResponsiveContainer width="100%" height={200}>
+                 <BarChart data={compareData}>
+                   <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
+                   <XAxis dataKey="name" tick={{ fontSize: 9, fill: COLORS.muted }} />
+                   <YAxis tick={{ fontSize: 9, fill: COLORS.muted }} />
+                   <Tooltip contentStyle={TOOLTIP_STYLE} />
+                   <Bar dataKey="tps" name="TPS">
+                     {compareData.map((_, index) => (
+                       <Cell key={index} fill={TARGET_COLORS[index % TARGET_COLORS.length]} />
+                     ))}
+                   </Bar>
+                 </BarChart>
+               </ResponsiveContainer>
+             </div>
+             <div>
+               <div className="label">P99 Latency 비교 (ms)</div>
+               <ResponsiveContainer width="100%" height={200}>
+                 <BarChart data={compareData}>
+                   <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
+                   <XAxis dataKey="name" tick={{ fontSize: 9, fill: COLORS.muted }} />
+                   <YAxis tick={{ fontSize: 9, fill: COLORS.muted }} />
+                   <Tooltip contentStyle={TOOLTIP_STYLE} />
+                   <Bar dataKey="p99" name="P99 ms">
+                     {compareData.map((_, index) => (
+                       <Cell key={index} fill={TARGET_COLORS[index % TARGET_COLORS.length]} />
+                     ))}
+                   </Bar>
+                 </BarChart>
+               </ResponsiveContainer>
+             </div>
+             <div>
+               <div className="label">GPU 효율 비교 (TPS/GPU%)</div>
+               <ResponsiveContainer width="100%" height={200}>
+                 <BarChart data={compareData.filter(d => d.metricsTargetMatched)}>
+                   <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
+                   <XAxis dataKey="name" tick={{ fontSize: 9, fill: COLORS.muted }} />
+                   <YAxis tick={{ fontSize: 9, fill: COLORS.muted }} />
+                   <Tooltip contentStyle={TOOLTIP_STYLE} />
+                   <Bar dataKey="gpuEff" name="GPU Eff.">
+                     {compareData
+                       .filter(d => d.metricsTargetMatched)
+                       .map((item) => {
+                         const index = compareData.indexOf(item);
+                         return <Cell key={index} fill={TARGET_COLORS[index % TARGET_COLORS.length]} />;
+                       })}
+                   </Bar>
+                 </BarChart>
+               </ResponsiveContainer>
+             </div>
           </div>
         </div>
       )}
