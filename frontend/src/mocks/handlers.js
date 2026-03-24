@@ -26,4 +26,41 @@ export const handlers = [
       limits: { cpu: "8", memory: "16Gi" },
     },
   })),
+  http.get(`${API}/sla/profiles`, () => HttpResponse.json([])),
+  http.post(`${API}/sla/profiles`, async ({ request }) => {
+    const body = await request.json();
+    return HttpResponse.json({
+      id: 1,
+      created_at: Date.now() / 1000,
+      ...body,
+    });
+  }),
+  http.put(`${API}/sla/profiles/:id`, async ({ request, params }) => {
+    const body = await request.json();
+    return HttpResponse.json({
+      id: Number(params.id),
+      ...body,
+    });
+  }),
+  http.delete(`${API}/sla/profiles/:id`, ({ params }) =>
+    HttpResponse.json({ deleted: true })
+  ),
+  http.get(`${API}/sla/evaluate/:id`, ({ params }) =>
+    HttpResponse.json({
+      profile: {
+        id: Number(params.id),
+        name: 'Test',
+        benchmark_ids: [],
+        thresholds: {
+          availability_min: 99,
+          p95_latency_max_ms: null,
+          error_rate_max_pct: null,
+          min_tps: null,
+        },
+        created_at: 0,
+      },
+      results: [],
+      warnings: [],
+    })
+  ),
 ];
