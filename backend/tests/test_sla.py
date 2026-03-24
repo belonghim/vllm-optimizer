@@ -482,3 +482,41 @@ async def test_evaluate_warnings_field_in_response(storage: Storage, monkeypatch
         data = resp.json()
         assert "warnings" in data
         assert data["warnings"] == []
+
+
+@pytest.mark.asyncio
+async def test_create_profile_empty_benchmarks(storage: Storage) -> None:
+    profile = SlaProfile(
+        name="empty-benchmarks",
+        benchmark_ids=[],
+        thresholds=SlaThresholds(min_tps=10.0),
+    )
+    saved = await storage.save_sla_profile(profile)
+    assert saved.id is not None
+    assert saved.benchmark_ids == []
+
+
+@pytest.mark.asyncio
+async def test_evaluate_profile_empty_benchmarks(storage: Storage, monkeypatch: pytest.MonkeyPatch) -> None:
+    from routers.sla import router
+    from starlette.testclient import TestClient
+    from fastapi import FastAPI
+    from unittest.mock import patch
+
+    profile = SlaProfile(
+        name="empty-benchmarks-eval",
+        benchmark_ids=[],
+        thresholds=SlaThresholds(availability_min=99.0),
+    )
+    saved_profile = await storage.save_sla_profile(profile)
+
+    with patch("routers.sla.storage", storage):
+        app = FastAPI()
+        app.include_router(router, prefix="/api/sla")
+        client = TestClient(app)
+
+        resp = client.get(f"/api/sla/evaluate/{saved_profile.id}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["results"] == []
+        assert data["warnings"] == []

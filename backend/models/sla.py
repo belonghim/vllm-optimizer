@@ -46,7 +46,7 @@ class SlaProfile(BaseModel):
     """SLA profile"""
     id: Optional[int] = None
     name: str
-    benchmark_ids: list[int] = Field(description="할당된 벤치마크 ID 목록 (1~5개)")
+    benchmark_ids: list[int] = Field(description="할당된 벤치마크 ID 목록 (0~5개)")
     thresholds: SlaThresholds
     created_at: Optional[float] = None
 
@@ -58,9 +58,6 @@ class SlaProfile(BaseModel):
         # 양수만 허용
         if any(x <= 0 for x in deduped):
             raise ValueError("benchmark_ids must contain only positive integers")
-        # 최소 1개
-        if len(deduped) == 0:
-            raise ValueError("benchmark_ids must contain at least one benchmark")
         # 최대 5개
         if len(deduped) > 5:
             raise ValueError("benchmark_ids can contain at most 5 benchmarks")

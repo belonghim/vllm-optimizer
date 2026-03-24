@@ -69,7 +69,7 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
           const data = await res.json();
           setAvailableBenchmarks(data.map((b: any) => ({ id: b.id, name: b.name, timestamp: b.timestamp })));
         }
-      } catch {}
+       } catch { setAvailableBenchmarks([]); }
     };
     fetchBenchmarks();
   }, [isActive]);
@@ -145,9 +145,8 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
               ? errBody.detail
               : errBody.detail.map((d: any) => d.msg).join(', ');
           }
-      } catch {
-        setAvailableBenchmarks([]);
-      }
+       } catch {
+       }
         throw new Error(detail);
       }
       
