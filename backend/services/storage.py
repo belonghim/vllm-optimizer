@@ -191,6 +191,14 @@ class Storage:
             )
         """)
 
+        try:
+            await self._conn.execute(
+                "ALTER TABLE sla_profiles ADD COLUMN benchmark_ids_json TEXT NOT NULL DEFAULT '[]'"
+            )
+            await self._conn.commit()
+        except Exception:
+            pass
+
         # Tuning sessions table
         await self._conn.execute("""
             CREATE TABLE IF NOT EXISTS tuning_sessions (
@@ -1000,7 +1008,7 @@ class Storage:
             )
         except Exception as e:
             logger.error("[Storage] Failed to save SLA profile: %s", e)
-            return profile
+            raise
 
     async def list_sla_profiles(self) -> List[SlaProfile]:
         """Get all saved SLA profiles, ordered by created_at descending."""
