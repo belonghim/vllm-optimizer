@@ -203,6 +203,7 @@ class Storage:
         try:
             cursor = await self._conn.execute("PRAGMA table_info(sla_profiles)")
             cols = [row[1] for row in await cursor.fetchall()]
+            await cursor.close()  # close before DDL to release read lock
             if 'model' in cols:
                 await self._conn.execute("""
                     CREATE TABLE IF NOT EXISTS sla_profiles_v2 (
