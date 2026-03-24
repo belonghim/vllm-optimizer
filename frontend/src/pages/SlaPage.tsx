@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { authFetch } from '../utils/authFetch';
 import { API, COLORS, TOOLTIP_STYLE, TARGET_COLORS } from "../constants";
 import ErrorAlert from "../components/ErrorAlert";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer, Legend } from 'recharts';
+import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer, Legend } from 'recharts';
 
 interface SlaThresholds {
   availability_min: number | null;
@@ -383,7 +383,7 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
           {(selectedEval?.results ?? []).length > 0 ? (
             <div style={{ height: '300px', width: '100%' }}>
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <BarChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
                   <XAxis dataKey="name" tick={{ fontSize: 11, fill: COLORS.muted }} interval={0} />
                   <YAxis tick={{ fontSize: 11, fill: COLORS.muted }} />
@@ -394,38 +394,11 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
                     formatter={(value: any) => [value, chartMetric]}
                   />
                   <Legend payload={legendPayload} />
-                  <Line
-                    dataKey="value"
-                    stroke="transparent"
-                    connectNulls
-                    dot={(props: any) => {
-                      const { cx, cy, payload, index } = props;
-                      if (payload.value === null) return <></>;
-                      return (
-                        <circle
-                          cx={cx}
-                          cy={cy}
-                          r={5}
-                          fill={TARGET_COLORS[index % TARGET_COLORS.length]}
-                        />
-                      );
-                    }}
-                    activeDot={(props: any) => {
-                      const { cx, cy, payload, index } = props;
-                      if (payload.value === null) return <></>;
-                      return (
-                        <circle
-                          cx={cx}
-                          cy={cy}
-                          r={7}
-                          fill={TARGET_COLORS[index % TARGET_COLORS.length]}
-                          stroke={COLORS.surface}
-                          strokeWidth={2}
-                        />
-                      );
-                    }}
-                    isAnimationActive={false}
-                  />
+                  <Bar dataKey="value" isAnimationActive={false}>
+                    {chartData.map((_, index) => (
+                      <Cell key={index} fill={TARGET_COLORS[index % TARGET_COLORS.length]} />
+                    ))}
+                  </Bar>
                   {slaThreshold != null && (
                     <ReferenceLine
                       y={slaThreshold}
@@ -434,7 +407,7 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
                       label={{ position: 'right', value: 'SLA', fill: COLORS.red, fontSize: 10 }}
                     />
                   )}
-                </LineChart>
+                </BarChart>
               </ResponsiveContainer>
             </div>
           ) : (
