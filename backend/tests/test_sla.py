@@ -68,7 +68,6 @@ def _verdict_by_metric(result: SlaEvaluationResult, metric: str) -> SlaVerdict:
 
 @pytest.mark.asyncio
 async def test_evaluate_all_pass(storage: Storage) -> None:
-    assert storage is not None
     profile = SlaProfile(
         name="strict",
         benchmark_ids=[1],
@@ -91,7 +90,6 @@ async def test_evaluate_all_pass(storage: Storage) -> None:
 
 @pytest.mark.asyncio
 async def test_evaluate_latency_fail(storage: Storage) -> None:
-    assert storage is not None
     profile = SlaProfile(
         name="latency-only",
         benchmark_ids=[1],
@@ -110,7 +108,6 @@ async def test_evaluate_latency_fail(storage: Storage) -> None:
 
 @pytest.mark.asyncio
 async def test_evaluate_availability_fail(storage: Storage) -> None:
-    assert storage is not None
     profile = SlaProfile(
         name="avail-only",
         benchmark_ids=[1],
@@ -129,7 +126,6 @@ async def test_evaluate_availability_fail(storage: Storage) -> None:
 
 @pytest.mark.asyncio
 async def test_evaluate_error_rate_fail(storage: Storage) -> None:
-    assert storage is not None
     profile = SlaProfile(
         name="error-only",
         benchmark_ids=[1],
@@ -148,7 +144,6 @@ async def test_evaluate_error_rate_fail(storage: Storage) -> None:
 
 @pytest.mark.asyncio
 async def test_evaluate_tps_fail(storage: Storage) -> None:
-    assert storage is not None
     profile = SlaProfile(
         name="tps-only",
         benchmark_ids=[1],
@@ -167,7 +162,6 @@ async def test_evaluate_tps_fail(storage: Storage) -> None:
 
 @pytest.mark.asyncio
 async def test_evaluate_zero_requests(storage: Storage) -> None:
-    assert storage is not None
     profile = SlaProfile(
         name="zero-requests",
         benchmark_ids=[1],
@@ -186,7 +180,6 @@ async def test_evaluate_zero_requests(storage: Storage) -> None:
 
 @pytest.mark.asyncio
 async def test_evaluate_partial_thresholds(storage: Storage) -> None:
-    assert storage is not None
     profile = SlaProfile(
         name="partial",
         benchmark_ids=[1],
@@ -205,7 +198,6 @@ async def test_evaluate_partial_thresholds(storage: Storage) -> None:
 
 @pytest.mark.asyncio
 async def test_evaluate_no_benchmarks(storage: Storage) -> None:
-    assert storage is not None
     profile = SlaProfile(
         name="empty",
         benchmark_ids=[1],
@@ -284,7 +276,6 @@ async def test_evaluate_boundary_exact_threshold(storage: Storage) -> None:
 
 @pytest.mark.asyncio
 async def test_evaluate_multi_benchmark_mixed(storage: Storage) -> None:
-    assert storage is not None
     profile = SlaProfile(
         name="multi",
         benchmark_ids=[1, 2, 3],
@@ -302,7 +293,6 @@ async def test_evaluate_multi_benchmark_mixed(storage: Storage) -> None:
 
 @pytest.mark.asyncio
 async def test_evaluate_benchmark_ids_excluded_when_not_passed(storage: Storage) -> None:
-    assert storage is not None
     profile = SlaProfile(
         name="excl",
         benchmark_ids=[1],
