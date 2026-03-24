@@ -8,7 +8,6 @@ import { useThemeColors } from "../contexts/ThemeContext";
 import Chart from "../components/Chart";
 import ErrorAlert from "../components/ErrorAlert";
 import MultiTargetSelector from "../components/MultiTargetSelector";
-import MetricCard from "../components/MetricCard";
 import { buildGapFill } from "../utils/gapFill";
 import type { ClusterTarget } from "../types";
 
@@ -347,46 +346,6 @@ function MonitorPage({ isActive }: MonitorPageProps) {
     saveChartConfig(newOrder, newHidden);
   }, [chartOrder, hiddenCharts]);
 
-  const defaultTargetData = useMemo(() => {
-    if (!defaultKey) return null;
-    return targetStates[defaultKey]?.metrics || targetStates[defaultKey]?.data || null;
-  }, [defaultKey, targetStates]);
-
-  const slaAlerts = useMemo(() => {
-    const alerts: Record<string, boolean> = {};
-    if (!selectedSlaProfile || !defaultTargetData) return alerts;
-
-    const { thresholds } = selectedSlaProfile;
-    const metrics = defaultTargetData as any;
-
-    if (thresholds.min_tps != null && metrics.tps != null && metrics.tps < thresholds.min_tps) {
-      alerts.tps = true;
-    }
-    if (thresholds.p95_latency_max_ms != null && metrics.lat_p99 != null && metrics.lat_p99 > thresholds.p95_latency_max_ms) {
-      alerts.latency = true;
-    }
-    if (thresholds.error_rate_max_pct != null && metrics.error_rate != null && metrics.error_rate > thresholds.error_rate_max_pct) {
-      alerts.error_rate = true;
-    }
-    return alerts;
-  }, [selectedSlaProfile, defaultTargetData]);
-
-  const getMetricValue = (key: string) => {
-    if (!defaultTargetData) return null;
-    const metrics = defaultTargetData as any;
-    switch(key) {
-      case 'tps': return metrics.tps?.toFixed(1);
-      case 'latency': return metrics.lat_p99?.toFixed(1);
-      case 'ttft': return metrics.ttft?.toFixed(1);
-      case 'kv': return metrics.kv?.toFixed(1);
-      case 'kv_hit': return metrics.kv_hit?.toFixed(1);
-      case 'rps': return metrics.rps?.toFixed(1);
-      case 'gpu_util': return metrics.gpu_util?.toFixed(1);
-      case 'gpu_mem': return metrics.gpu_mem_used?.toFixed(1);
-      default: return null;
-    }
-  };
-
   const getSlaThreshold = (id: string) => {
     if (!selectedSlaProfile) return undefined;
     const { thresholds } = selectedSlaProfile;
@@ -420,16 +379,6 @@ function MonitorPage({ isActive }: MonitorPageProps) {
       />
       <ErrorAlert message={error} className="error-alert--m08" />
       
-      {targets.length === 1 && (
-        <div className="grid-5 gap-1" style={{ marginBottom: '1px' }}>
-           <MetricCard label="처리량(TPS)" value={getMetricValue('tps')} unit="req/s" color="green" alert={slaAlerts.tps} />
-          <MetricCard label="P99 LATENCY" value={getMetricValue('latency')} unit="ms" color="red" alert={slaAlerts.latency} />
-          <MetricCard label="TTFT" value={getMetricValue('ttft')} unit="ms" color="cyan" />
-          <MetricCard label="KV CACHE" value={getMetricValue('kv')} unit="%" color="amber" />
-          <MetricCard label="GPU UTIL" value={getMetricValue('gpu_util')} unit="%" color="purple" />
-        </div>
-      )}
-
       <div className="grid-2 gap-1">
         {chartOrder
           .filter(id => !hiddenCharts.includes(id))
