@@ -220,35 +220,6 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
     <div className="flex-col-16">
       <ErrorAlert message={error} className="error-alert--mb8" />
 
-      <div className="grid-responsive" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-        {profiles.map(p => {
-          const isSelected = selectedProfileId === p.id;
-
-          return (
-            <div 
-              key={p.id} 
-              className={`panel sla-summary-card ${isSelected ? 'selected' : ''}`}
-              style={{ 
-                cursor: 'pointer',
-                border: isSelected ? `2px solid ${COLORS.cyan}` : `1px solid ${COLORS.border}`,
-                transition: 'all 0.2s ease'
-              }}
-              onClick={() => handleProfileSelect(p.id)}
-            >
-              <div className="section-title" style={{ fontSize: '1.1rem', margin: '0 0 8px 0' }}>{p.name}</div>
-              <div style={{ fontSize: '0.85rem' }}>
-                <span className="td-muted">{renderThresholds(p.thresholds)}</span>
-              </div>
-            </div>
-          );
-        })}
-        {profiles.length === 0 && !loading && (
-          <div className="panel" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px' }}>
-            <div className="td-muted">SLA 프로필을 생성하세요</div>
-          </div>
-        )}
-      </div>
-
       <div className="panel">
         <div className="section-title">{editingId ? 'SLA 프로필 편집' : '새 SLA 프로필 생성'}</div>
         <form onSubmit={handleSubmit} className="form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
@@ -282,6 +253,7 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
         <table className="table">
           <thead>
             <tr>
+              <th style={{ width: '40px' }}></th>
               <th>이름</th>
               <th>임계값 요약</th>
               <th style={{ textAlign: 'right' }}>작업</th>
@@ -290,6 +262,15 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
           <tbody>
             {profiles.map(p => (
               <tr key={p.id}>
+                <td>
+                  <input
+                    type="radio"
+                    name="sla-profile"
+                    checked={selectedProfileId === p.id}
+                    onChange={() => handleProfileSelect(p.id)}
+                    style={{ cursor: 'pointer', accentColor: COLORS.cyan }}
+                  />
+                </td>
                 <td className="td-text">{p.name}</td>
                 <td className="td-muted" style={{ fontSize: '0.85rem' }}>{renderThresholds(p.thresholds)}</td>
                 <td style={{ textAlign: 'right' }}>
@@ -299,7 +280,7 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
               </tr>
             ))}
             {profiles.length === 0 && (
-              <tr><td colSpan={3} className="td-muted" style={{ textAlign: 'center', padding: '20px' }}>등록된 프로필이 없습니다.</td></tr>
+              <tr><td colSpan={4} className="td-muted" style={{ textAlign: 'center', padding: '20px' }}>등록된 프로필이 없습니다.</td></tr>
             )}
           </tbody>
         </table>
@@ -359,8 +340,18 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
                     <ReferenceLine
                       y={slaThreshold}
                       stroke={COLORS.red}
-                      strokeDasharray="5 5"
-                      label={{ position: 'right', value: 'SLA', fill: COLORS.red, fontSize: 10 }}
+                      strokeWidth={2.5}
+                      label={{
+                        position: 'insideTopRight',
+                        value: `SLA: ${
+                          chartMetric === 'p95_latency' ? `${slaThreshold}ms` :
+                          chartMetric === 'min_tps' ? `${slaThreshold} req/s` :
+                          `${slaThreshold}%`
+                        }`,
+                        fill: COLORS.red,
+                        fontSize: 11,
+                        fontWeight: 'bold',
+                      }}
                     />
                   )}
                 </BarChart>
