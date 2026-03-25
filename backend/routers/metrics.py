@@ -3,12 +3,18 @@ Metrics Router - vLLM Optimizer API
 
 Provides endpoints for retrieving real-time and historical metrics.
 """
+
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import PlainTextResponse
-from datetime import datetime, timezone
-from typing import List, Optional
-
-from models.load_test import BatchMetricsRequest, BatchMetricsResponse, ErrorResponse, MetricsSnapshot, TargetedMetricsResponse
+from models.load_test import (
+    BatchMetricsRequest,
+    BatchMetricsResponse,
+    ErrorResponse,
+    MetricsSnapshot,
+    TargetedMetricsResponse,
+)
 from services.shared import multi_target_collector, runtime_config
 
 router = APIRouter()
@@ -16,14 +22,14 @@ router = APIRouter()
 
 def _convert_to_snapshot(vllm_metrics) -> MetricsSnapshot:
     """Convert VLLMMetrics to MetricsSnapshot
-    
+
     Known limitation: /latest returns 0.0 for idle latency fields;
     /history returns null. This is intentional — /latest shows "last known"
     while /history provides chart-friendly nullable time series.
     """
     if vllm_metrics is None:
         return MetricsSnapshot(
-            timestamp=datetime.now(timezone.utc).timestamp(),
+            timestamp=datetime.now(UTC).timestamp(),
             tps=0.0,
             rps=0.0,
             ttft_mean=0.0,
@@ -40,7 +46,7 @@ def _convert_to_snapshot(vllm_metrics) -> MetricsSnapshot:
             pods=0,
             pods_ready=0,
         )
-    
+
     return MetricsSnapshot(
         timestamp=vllm_metrics.timestamp,
         tps=vllm_metrics.tokens_per_second,
@@ -61,9 +67,12 @@ def _convert_to_snapshot(vllm_metrics) -> MetricsSnapshot:
     )
 
 
-@router.get("/latest", responses={
-    409: {"model": ErrorResponse},
-})
+@router.get(
+    "/latest",
+    responses={
+        409: {"model": ErrorResponse},
+    },
+)
 async def get_latest_metrics(
     namespace: str | None = None,
     is_name: str | None = None,
@@ -134,26 +143,40 @@ async def get_batch_metrics(request: BatchMetricsRequest) -> BatchMetricsRespons
             continue
 
         vllm_metrics = await multi_target_collector.get_metrics(target.namespace, target.inferenceService)
-        has_monitoring_label = multi_target_collector.get_has_monitoring_label(target.namespace, target.inferenceService)
+        has_monitoring_label = multi_target_collector.get_has_monitoring_label(
+            target.namespace, target.inferenceService
+        )
 
         target_cache = multi_target_collector._targets.get(key)
-        history = [_convert_to_snapshot(m).model_dump() for m in list(target_cache.history)[-60:]] if target_cache else []
+        history = (
+            [_convert_to_snapshot(m).model_dump() for m in list(target_cache.history)[-60:]] if target_cache else []
+        )
 
         if vllm_metrics is None:
-            results[key] = {"data": None, "status": "collecting", "hasMonitoringLabel": has_monitoring_label, "history": history}
+            results[key] = {
+                "data": None,
+                "status": "collecting",
+                "hasMonitoringLabel": has_monitoring_label,
+                "history": history,
+            }
         else:
             snapshot = _convert_to_snapshot(vllm_metrics)
-            results[key] = {"data": snapshot.model_dump(), "status": "ready", "hasMonitoringLabel": has_monitoring_label, "history": history}
+            results[key] = {
+                "data": snapshot.model_dump(),
+                "status": "ready",
+                "hasMonitoringLabel": has_monitoring_label,
+                "history": history,
+            }
 
     return BatchMetricsResponse(results=results)
 
 
-@router.get("/history", response_model=List[MetricsSnapshot])
+@router.get("/history", response_model=list[MetricsSnapshot])
 async def get_metrics_history(
-    last_n: Optional[int] = 60,
+    last_n: int | None = 60,
     namespace: str | None = None,
     is_name: str | None = None,
-) -> List[MetricsSnapshot]:
+) -> list[MetricsSnapshot]:
     """
     Get historical metrics for the last N data points.
 
@@ -172,9 +195,9 @@ async def get_metrics_history(
         n = last_n if last_n is not None else 60
         history = list(target.history)[-n:]
         return [_convert_to_snapshot(m) for m in history]
-    
+
     history_dict = multi_target_collector.get_history_dict(last_n or 60)
-    
+
     return [
         MetricsSnapshot(
             timestamp=h["timestamp"],
@@ -206,10 +229,7 @@ async def get_prometheus_metrics() -> PlainTextResponse:
     Returns plaintext Prometheus format. This endpoint is scraped by ServiceMonitor
     and does not require authentication.
     """
-    from metrics.prometheus_metrics import generate_metrics
     from fastapi.responses import PlainTextResponse
+    from metrics.prometheus_metrics import generate_metrics
+
     return PlainTextResponse(generate_metrics(), media_type="text/plain; version=0.0.4")
-
-
-
-

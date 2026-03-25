@@ -53,12 +53,17 @@ async def test_interrupted_without_clear(storage):
 
 def test_status_interrupted_endpoint(isolated_client):
     import asyncio
-    from routers.status import set_interrupted_runs, _interrupted_runs
 
-    asyncio.run(set_interrupted_runs([
-        {"id": 1, "task_type": "tuner", "started_at": 1711100000.0},
-        {"id": 2, "task_type": "loadtest", "started_at": 1711100001.0},
-    ]))
+    from routers.status import set_interrupted_runs
+
+    asyncio.run(
+        set_interrupted_runs(
+            [
+                {"id": 1, "task_type": "tuner", "started_at": 1711100000.0},
+                {"id": 2, "task_type": "loadtest", "started_at": 1711100001.0},
+            ]
+        )
+    )
 
     resp = isolated_client.get("/api/status/interrupted")
     assert resp.status_code == 200

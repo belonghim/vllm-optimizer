@@ -1,11 +1,11 @@
 import time
+
 import pytest
 
 pytestmark = [pytest.mark.integration, pytest.mark.performance]
 
 
 class TestMetricsCollection:
-
     def test_metrics_response_time(self, http_client):
         """GET /api/metrics/latest 응답 시간 측정 (5회 median)."""
         times = []

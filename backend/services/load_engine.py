@@ -1,23 +1,23 @@
 """
 부하 테스트 엔진 — 동시 요청, RPS 제어, 실시간 결과 스트리밍
 """
-import asyncio
-import json
-import time
-import os
-import logging
-import importlib
-import httpx
-import statistics
-import psutil
 
+import asyncio
+import contextlib
+import importlib
+import json
+import logging
+import os
+import statistics
+import time
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 from urllib.parse import urlparse
 
+import httpx
+import psutil
 from models.load_test import LoadTestConfig, RequestResult
-
 
 logger = logging.getLogger(__name__)
 
@@ -25,10 +25,10 @@ logger = logging.getLogger(__name__)
 def _normalize_url(url: str) -> str:
     """
     Normalize URL for comparison: lowercase scheme/host/path, remove trailing slash.
-    
+
     Args:
         url: The URL to normalize (e.g., "http://server:8080/v1/")
-        
+
     Returns:
         Normalized URL (e.g., "http://server:8080/v1")
     """
@@ -41,7 +41,7 @@ def _normalize_url(url: str) -> str:
     return f"{normalized_scheme}://{normalized_netloc}{normalized_path}"
 
 
-class LoadTestStatus(str, Enum):
+class LoadTestStatus(StrEnum):
     IDLE = "idle"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -179,11 +179,7 @@ class LoadTestEngine:
             logger.warning("[LoadTest] Failed to parse /v1/models response in preflight: %s", e)
             return {"success": True}
 
-        available_models = [
-            str(item.get("id"))
-            for item in model_data
-            if isinstance(item, dict) and item.get("id")
-        ]
+        available_models = [str(item.get("id")) for item in model_data if isinstance(item, dict) and item.get("id")]
         if config.model not in available_models:
             available = ", ".join(available_models) if available_models else "없음"
             return {
@@ -194,7 +190,9 @@ class LoadTestEngine:
 
         return {"success": True}
 
-    async def _dispatch_request(self, config: LoadTestConfig, semaphore: asyncio.Semaphore, request_id: int) -> RequestResult:
+    async def _dispatch_request(
+        self, config: LoadTestConfig, semaphore: asyncio.Semaphore, request_id: int
+    ) -> RequestResult:
         """Send a single async HTTP request."""
         async with semaphore:
             payload = {
@@ -269,6 +267,8 @@ class LoadTestEngine:
             processed_results.append(result)
             async with self._state_lock:
                 self._state.results.append(result)
+                if len(self._state.results) > 1000:
+                    self._state.results = self._state.results[-1000:]
                 if result.success:
                     self._state.completed_requests += 1
                 else:
@@ -303,10 +303,8 @@ class LoadTestEngine:
             await asyncio.gather(*pending_tasks, return_exceptions=True)
         sample_stop.set()
         sampling_task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await sampling_task
-        except asyncio.CancelledError:
-            pass
         async with self._state_lock:
             self._state.status = LoadTestStatus.FAILED
         return {
@@ -316,36 +314,34 @@ class LoadTestEngine:
         }
 
     async def _finalize_results(
-        self, 
+        self,
         config: LoadTestConfig,
-        metric_samples: list[dict[str, float]], 
-        sample_stop: asyncio.Event, 
-        sampling_task: asyncio.Task[Any]
+        metric_samples: list[dict[str, float]],
+        sample_stop: asyncio.Event,
+        sampling_task: asyncio.Task[Any],
     ) -> dict[str, Any]:
         """Finalize test: set status, stop sampling, compute final stats, broadcast, return."""
         shared_module = importlib.import_module("services.shared")
         runtime_config = shared_module.runtime_config
-        
+
         async with self._state_lock:
             self._state.status = LoadTestStatus.COMPLETED
         sample_stop.set()
         sampling_task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await sampling_task
-        except asyncio.CancelledError:
-            pass
         final_stats = self._compute_stats()
-        
+
         # Check if load test target matches monitored vLLM endpoint
         test_endpoint = config.endpoint if config.endpoint else runtime_config.vllm_endpoint
         monitored_endpoint = runtime_config.vllm_endpoint
         endpoints_match = _normalize_url(test_endpoint) == _normalize_url(monitored_endpoint)
-        
+
         if metric_samples:
             cpu_values = [s["cpu"] for s in metric_samples]
             gpu_values = [s["gpu"] for s in metric_samples]
             final_stats["backend_cpu_avg"] = round(sum(cpu_values) / len(cpu_values), 2)
-            
+
             # Only include GPU metrics if target matches monitored endpoint
             if endpoints_match:
                 final_stats["gpu_utilization_avg"] = round(sum(gpu_values) / len(gpu_values), 2)
@@ -354,10 +350,22 @@ class LoadTestEngine:
         else:
             final_stats["backend_cpu_avg"] = 0.0
             final_stats["gpu_utilization_avg"] = None if not endpoints_match else 0.0
-        
+
         final_stats["metrics_target_matched"] = endpoints_match
         final_stats["tokens_per_sec"] = final_stats.get("tps", {}).get("mean", 0.0)
         await self._broadcast({"type": "completed", "data": final_stats})
+        try:
+            storage = shared_module.storage
+            import time as _time
+            await storage.save_load_test({
+                "test_id": f"run-{int(_time.time())}",
+                "config": config.model_dump(),
+                "result": final_stats,
+                "timestamp": _time.time(),
+            })
+        except Exception as _e:
+            import logging as _logging
+            _logging.getLogger(__name__).warning("Failed to persist load test result: %s", _e)
         return final_stats
 
     async def run(self, config: LoadTestConfig, skip_preflight: bool = False) -> dict[str, Any]:
@@ -378,6 +386,7 @@ class LoadTestEngine:
         try:
             try:
                 from services.shared import storage as _storage
+
                 _running_row_id = await _storage.set_running("loadtest")
             except Exception as e:
                 logger.warning("[LoadEngine] Failed to record running state: %s", e)
@@ -444,6 +453,8 @@ class LoadTestEngine:
                         )
                     async with self._state_lock:
                         self._state.results.append(result)
+                        if len(self._state.results) > 1000:
+                            self._state.results = self._state.results[-1000:]
                         if result.success:
                             self._state.completed_requests += 1
                         else:
@@ -458,6 +469,7 @@ class LoadTestEngine:
             if _running_row_id is not None:
                 try:
                     from services.shared import storage as _storage
+
                     await _storage.clear_running(_running_row_id)
                 except Exception as e:
                     logger.warning("[LoadEngine] Failed to clear running state: %s", e)

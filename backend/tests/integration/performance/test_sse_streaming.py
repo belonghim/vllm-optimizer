@@ -1,5 +1,5 @@
-
 import json
+
 import httpx
 import pytest
 
@@ -7,12 +7,10 @@ pytestmark = [pytest.mark.integration, pytest.mark.performance]
 
 
 class TestSSEStreaming:
-
     @pytest.mark.asyncio
     async def test_load_test_sse_events(self, async_http_client, skip_if_overloaded, vllm_endpoint, vllm_model):
         """부하 테스트 중 SSE 이벤트가 정상적으로 수신되는지 확인."""
         base_url = async_http_client
-
 
         async with httpx.AsyncClient(base_url=base_url, timeout=60) as client:
             config = {

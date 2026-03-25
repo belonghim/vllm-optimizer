@@ -1,10 +1,11 @@
 import asyncio
 import logging
+from typing import Any, Literal, cast
+
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from typing import Any, Dict, Optional, cast, Literal
 from kubernetes.client import CustomObjectsApi
 from kubernetes.client.exceptions import ApiException as K8sApiException
+from pydantic import BaseModel
 from services.shared import runtime_config
 
 logger = logging.getLogger(__name__)
@@ -19,6 +20,7 @@ def _get_k8s_namespace() -> str:
 
 def _get_vllm_is_name() -> str:
     return runtime_config.vllm_is_name or "llm-ov"
+
 
 ALLOWED_RESOURCE_KEYS = {"cpu", "memory", "nvidia.com/gpu"}
 
@@ -96,13 +98,15 @@ ConfigKey = Literal[
 
 class VllmConfigPatchRequest(BaseModel):
     data: dict[ConfigKey, str] = {}
-    storageUri: Optional[str] = None
-    resources: Optional[dict[Literal["requests", "limits"], dict[str, str]]] = None
+    storageUri: str | None = None
+    resources: dict[Literal["requests", "limits"], dict[str, str]] | None = None
 
 
-def _get_k8s_custom() -> Optional[CustomObjectsApi]:
+def _get_k8s_custom() -> CustomObjectsApi | None:
     try:
-        from kubernetes import client, config as k8s_config
+        from kubernetes import client
+        from kubernetes import config as k8s_config
+
         try:
             k8s_config.load_incluster_config()
         except Exception:  # intentional: non-critical
@@ -122,14 +126,17 @@ async def get_vllm_config() -> dict[str, Any]:
     namespace = _get_k8s_namespace()
     is_name = _get_vllm_is_name()
     try:
-        is_obj = cast(dict[str, Any], await asyncio.to_thread(
-            _api.get_namespaced_custom_object,
-            group="serving.kserve.io",
-            version="v1beta1",
-            namespace=namespace,
-            plural="inferenceservices",
-            name=is_name,
-        ))
+        is_obj = cast(
+            dict[str, Any],
+            await asyncio.to_thread(
+                _api.get_namespaced_custom_object,
+                group="serving.kserve.io",
+                version="v1beta1",
+                namespace=namespace,
+                plural="inferenceservices",
+                name=is_name,
+            ),
+        )
         model_spec: dict[str, Any] = is_obj.get("spec", {}).get("predictor", {}).get("model", {})  # type: ignore[index]
         args = model_spec.get("args") or []
         storage_uri = model_spec.get("storageUri")
@@ -137,13 +144,13 @@ async def get_vllm_config() -> dict[str, Any]:
         return {"success": True, "data": _args_to_config_dict(args), "storageUri": storage_uri, "resources": resources}
     except K8sApiException as e:
         logger.error("[VllmConfig] Failed to read InferenceService: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.patch("")
 async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict[str, Any]:
     # 키 유효성 검증
-    invalid_keys = {str(k) for k in request.data.keys()} - ALLOWED_CONFIG_KEYS
+    invalid_keys = {str(k) for k in request.data} - ALLOWED_CONFIG_KEYS
     if invalid_keys:
         raise HTTPException(
             status_code=422,
@@ -151,7 +158,7 @@ async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict[str, Any]:
         )
 
     if request.resources is not None:
-        for tier, kvs in request.resources.items():
+        for _tier, kvs in request.resources.items():
             invalid_res_keys = set(kvs.keys()) - ALLOWED_RESOURCE_KEYS
             if invalid_res_keys:
                 raise HTTPException(status_code=422, detail=f"Invalid resource keys: {invalid_res_keys}")
@@ -163,6 +170,7 @@ async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict[str, Any]:
     try:
         from services.shared import load_engine as _le  # noqa
         from routers.tuner import auto_tuner
+
         if auto_tuner.is_running:
             raise HTTPException(status_code=409, detail="Tuner is running, cannot modify config")
     except HTTPException:
@@ -180,20 +188,27 @@ async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict[str, Any]:
         model_patch: dict[str, Any] = {}
 
         if request.data:
-            is_obj = cast(dict[str, Any], await asyncio.to_thread(
-                _api.get_namespaced_custom_object,
-                group="serving.kserve.io",
-                version="v1beta1",
-                namespace=namespace,
-                plural="inferenceservices",
-                name=is_name,
-            ))
-            current_args: list[str] = (is_obj.get("spec", {}).get("predictor", {})  # type: ignore[index]
-                            .get("model", {}).get("args") or [])
+            is_obj = cast(
+                dict[str, Any],
+                await asyncio.to_thread(
+                    _api.get_namespaced_custom_object,
+                    group="serving.kserve.io",
+                    version="v1beta1",
+                    namespace=namespace,
+                    plural="inferenceservices",
+                    name=is_name,
+                ),
+            )
+            current_args: list[str] = (
+                is_obj.get("spec", {})
+                .get("predictor", {})  # type: ignore[index]
+                .get("model", {})
+                .get("args")
+                or []
+            )
 
             # 정적 args (튜닝 파라미터 아닌 것) 보존
-            static_args = [a for a in current_args
-                           if not a.startswith(_TUNING_ARG_PREFIXES)]
+            static_args = [a for a in current_args if not a.startswith(_TUNING_ARG_PREFIXES)]
 
             current_config = _args_to_config_dict(current_args)
             current_config.update(cast(dict[str, Any], request.data))
@@ -205,10 +220,10 @@ async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict[str, Any]:
 
         if request.resources is not None:
             clean_resources: dict[str, Any] = {}
-            for tier, kvs in request.resources.items():
+            for _tier, kvs in request.resources.items():
                 cleaned = {k: v for k, v in kvs.items() if v != ""}
                 if cleaned:
-                    clean_resources[tier] = cleaned
+                    clean_resources[_tier] = cleaned
             if clean_resources:
                 model_patch["resources"] = clean_resources
 
@@ -229,4 +244,4 @@ async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict[str, Any]:
         }
     except K8sApiException as e:
         logger.error("[VllmConfig] Failed to patch InferenceService: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

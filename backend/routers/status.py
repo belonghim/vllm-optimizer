@@ -2,6 +2,7 @@
 Status Router
 Provides endpoint for querying interrupted runs detected at startup.
 """
+
 import asyncio
 import logging
 from typing import Any
@@ -34,6 +35,7 @@ async def get_interrupted_runs() -> dict[str, Any]:
     if runs:
         try:
             from services.shared import storage
+
             for run in runs:
                 if run.get("id") is not None:
                     await storage.clear_running(run["id"])

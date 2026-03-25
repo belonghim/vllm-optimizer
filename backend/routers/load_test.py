@@ -2,27 +2,24 @@
 Load Test Router
 Provides endpoints for starting, stopping, and monitoring load tests.
 """
-from fastapi import APIRouter, HTTPException, Depends
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
-from typing import Optional, Dict, Any, List
-import json
-import asyncio
-import os
-import uuid
-import logging
-import time as time_module
 
+import asyncio
+import json
+import logging
+import os
+import time as time_module
+import uuid
+from typing import Any
+
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from models.load_test import (
     ErrorResponse,
     LoadTestConfig,
     LoadTestResult,
-    RequestResult,
-    LatencyStats,
-    TpsStats,
 )
-
-from services.load_engine import load_engine, LoadTestStatus
+from pydantic import BaseModel
+from services.load_engine import LoadTestStatus, load_engine
 from services.model_resolver import resolve_model_name
 from services.shared import storage
 
@@ -30,22 +27,24 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 # In-memory state for active test (in production, use proper state management)
-_active_test_task: Optional[asyncio.Task[Any]] = None
-_current_config: Optional[LoadTestConfig] = None
+_active_test_task: asyncio.Task[Any] | None = None
+_current_config: LoadTestConfig | None = None
 _test_lock = asyncio.Lock()
 
 
 # Simple response models for start/stop
 class StartResponse(BaseModel):
     """Response when starting a load test"""
+
     test_id: str
     status: str
     message: str
-    config: Dict[str, Any]
+    config: dict[str, Any]
 
 
 class StopResponse(BaseModel):
     """Response when stopping a load test"""
+
     status: str
     test_id: str
     message: str
@@ -53,17 +52,22 @@ class StopResponse(BaseModel):
 
 class StatusResponse(BaseModel):
     """Response for load test status"""
-    test_id: Optional[str] = None
+
+    test_id: str | None = None
     running: bool = False
-    config: Optional[LoadTestConfig] = None
-    current_result: Optional[LoadTestResult] = None
+    config: LoadTestConfig | None = None
+    current_result: LoadTestResult | None = None
     elapsed: float = 0.0
 
 
-@router.post("/start", response_model=StartResponse, responses={
-    400: {"model": ErrorResponse},
-    409: {"model": ErrorResponse},
-})
+@router.post(
+    "/start",
+    response_model=StartResponse,
+    responses={
+        400: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+    },
+)
 async def start_load_test(config: LoadTestConfig) -> dict[str, Any]:
     """
     Start a new load test with the given configuration.
@@ -88,10 +92,8 @@ async def start_load_test(config: LoadTestConfig) -> dict[str, Any]:
 
     if config.model == "auto":
         try:
-            config.model = await asyncio.wait_for(
-                resolve_model_name(config.endpoint), timeout=3.0
-            )
-        except asyncio.TimeoutError:
+            config.model = await asyncio.wait_for(resolve_model_name(config.endpoint), timeout=3.0)
+        except TimeoutError:
             config.model = os.getenv("VLLM_MODEL", "auto")
 
     preflight = await load_engine._preflight_check(config)
@@ -123,11 +125,11 @@ async def start_load_test(config: LoadTestConfig) -> dict[str, Any]:
             logger.error("[LoadTest] Error: %s", e)
         finally:
             _active_test_task = None
-    
+
     # Start the test in background
     _active_test_task = asyncio.create_task(run_test())
     _current_config = config
-    
+
     return {
         "test_id": test_id,
         "status": "started",
@@ -137,7 +139,7 @@ async def start_load_test(config: LoadTestConfig) -> dict[str, Any]:
 
 
 @router.post("/stop", response_model=StopResponse)
-async def stop_load_test(test_id: Optional[str] = None) -> dict[str, Any]:
+async def stop_load_test(test_id: str | None = None) -> dict[str, Any]:
     """
     Stop a running load test.
 
@@ -146,15 +148,15 @@ async def stop_load_test(test_id: Optional[str] = None) -> dict[str, Any]:
     - Final results will be available via /status
     """
     global _active_test_task
-    
+
     # Stop the engine
     await load_engine.stop()
-    
+
     # Cancel the active task if exists
     if _active_test_task and not _active_test_task.done():
         _active_test_task.cancel()
         _active_test_task = None
-    
+
     return {
         "status": "stopped",
         "test_id": test_id,
@@ -163,7 +165,7 @@ async def stop_load_test(test_id: Optional[str] = None) -> dict[str, Any]:
 
 
 @router.get("/status", response_model=StatusResponse)
-async def get_load_test_status(test_id: Optional[str] = None) -> dict[str, Any]:
+async def get_load_test_status(test_id: str | None = None) -> dict[str, Any]:
     """
     Get current status and intermediate results of a load test.
 
@@ -172,13 +174,11 @@ async def get_load_test_status(test_id: Optional[str] = None) -> dict[str, Any]:
     - Includes elapsed time, success/failed counts, and current latency/TPS stats
     """
     global _active_test_task, _current_config
-    
+
     is_running = (
-        _active_test_task is not None 
-        and not _active_test_task.done()
-        and load_engine.status == LoadTestStatus.RUNNING
+        _active_test_task is not None and not _active_test_task.done() and load_engine.status == LoadTestStatus.RUNNING
     )
-    
+
     return {
         "test_id": test_id,
         "running": is_running,
@@ -189,7 +189,7 @@ async def get_load_test_status(test_id: Optional[str] = None) -> dict[str, Any]:
 
 
 @router.get("/stream")
-async def stream_load_test_results(test_id: Optional[str] = None) -> StreamingResponse:
+async def stream_load_test_results(test_id: str | None = None) -> StreamingResponse:
     """
     Server-Sent Events (SSE) endpoint for real-time load test results.
 
@@ -209,7 +209,7 @@ async def stream_load_test_results(test_id: Optional[str] = None) -> StreamingRe
                     yield f"data: {json.dumps(data)}\n\n"
                     if data.get("type") in ("completed", "stopped"):
                         break
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     yield ": keepalive\n\n"
         except asyncio.CancelledError:
             pass
@@ -226,9 +226,12 @@ async def stream_load_test_results(test_id: Optional[str] = None) -> StreamingRe
     )
 
 
-@router.get("/history", responses={
-    500: {"model": ErrorResponse},
-})
+@router.get(
+    "/history",
+    responses={
+        500: {"model": ErrorResponse},
+    },
+)
 async def get_load_test_history(limit: int = 10) -> list[dict[str, Any]]:
     """
     Get list of recent load test runs and their final results.
@@ -247,4 +250,4 @@ async def get_load_test_history(limit: int = 10) -> list[dict[str, Any]]:
                 error="스토리지 조회 실패",
                 error_type="storage",
             ).model_dump(),
-        )
+        ) from e

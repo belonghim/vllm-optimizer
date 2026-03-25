@@ -1,10 +1,10 @@
 import os
 
-from services.multi_target_collector import MultiTargetMetricsCollector
 from services.load_engine import load_engine  # re-export existing singleton
+from services.multi_target_collector import MultiTargetMetricsCollector
+from services.runtime_config import RuntimeConfig
 from services.storage import Storage
 from services.storage_health import StorageHealthMonitor
-from services.runtime_config import RuntimeConfig
 
 multi_target_collector = MultiTargetMetricsCollector()
 

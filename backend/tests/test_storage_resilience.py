@@ -11,32 +11,28 @@ Tests cover:
 All tests use ':memory:' SQLite for complete isolation except
 test_integrity_check_corrupted which requires file-based DB for corruption testing.
 """
+
 import asyncio
 import os
 import tempfile
 import time
+from contextlib import suppress
 
 import pytest
-
-from services.storage import Storage
-from services.storage_health import StorageHealthMonitor
 from metrics.storage_metrics import (
-    storage_benchmark_count,
     storage_db_size_bytes,
-    storage_last_checkpoint_timestamp,
-    storage_load_test_count,
-    storage_prune_total,
     storage_wal_size_bytes,
 )
 from models.load_test import (
     Benchmark,
+    LatencyStats,
     LoadTestConfig,
     LoadTestResult,
-    LatencyStats,
     TpsStats,
     TuningTrial,
 )
-
+from services.storage import Storage
+from services.storage_health import StorageHealthMonitor
 
 # ==================== Fixtures ====================
 
@@ -392,6 +388,7 @@ async def test_integrity_check_corrupted():
         # Verify the file is now corrupted by attempting to connect
         # (SQLite raises DatabaseError immediately on corrupted files)
         import aiosqlite
+
         corrupted_conn = None
         try:
             corrupted_conn = await aiosqlite.connect(db_path)
@@ -400,8 +397,9 @@ async def test_integrity_check_corrupted():
             await cursor.fetchone()
         except Exception as e:
             # Expected: either connection fails or query fails with DatabaseError
-            assert "malformed" in str(e).lower() or isinstance(e, aiosqlite.DatabaseError), \
+            assert "malformed" in str(e).lower() or isinstance(e, aiosqlite.DatabaseError), (
                 f"Expected corruption error, got: {e}"
+            )
         finally:
             if corrupted_conn:
                 await corrupted_conn.close()
@@ -491,10 +489,8 @@ async def test_health_monitor_lifecycle():
         assert monitor._running is False
 
         # Wait for task to complete cancellation
-        try:
+        with suppress(TimeoutError):
             await asyncio.wait_for(monitor._task, timeout=2.0)
-        except asyncio.TimeoutError:
-            pass  # Task may still be running, that's ok
 
     finally:
         monitor.stop()

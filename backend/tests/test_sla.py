@@ -2,10 +2,9 @@ from collections.abc import AsyncIterator, Callable
 from typing import cast
 
 import pytest
-from pydantic import ValidationError
-
 from models.load_test import Benchmark, LatencyStats, LoadTestConfig, LoadTestResult, TpsStats
 from models.sla import SlaEvaluationResult, SlaProfile, SlaThresholds, SlaVerdict
+from pydantic import ValidationError
 from services.storage import Storage
 
 
@@ -45,7 +44,9 @@ def _make_benchmark(
             success=success,
             failed=failed,
             rps_actual=0.0,
-            latency=LatencyStats(mean=p95_seconds, p50=p95_seconds, p95=p95_seconds, p99=p95_seconds, min=p95_seconds, max=p95_seconds),
+            latency=LatencyStats(
+                mean=p95_seconds, p50=p95_seconds, p95=p95_seconds, p99=p95_seconds, min=p95_seconds, max=p95_seconds
+            ),
             ttft=LatencyStats(),
             tps=TpsStats(mean=tps_mean, total=tps_mean * max(total, 1)),
         ),
@@ -53,7 +54,9 @@ def _make_benchmark(
 
 
 def _evaluate(profile: SlaProfile, benchmarks: list[Benchmark]) -> list[SlaEvaluationResult]:
-    from routers.sla import evaluate_benchmarks_against_sla  # pyright: ignore[reportMissingImports, reportUnknownVariableType]
+    from routers.sla import (
+        evaluate_benchmarks_against_sla,  # pyright: ignore[reportMissingImports, reportUnknownVariableType]
+    )
 
     evaluate_fn = cast(
         Callable[[SlaProfile, list[Benchmark]], list[SlaEvaluationResult]],
@@ -332,6 +335,7 @@ async def test_sla_profile_delete(storage: Storage) -> None:
 @pytest.mark.asyncio
 async def test_sla_profile_list(storage: Storage) -> None:
     import time
+
     profiles = []
     for i in range(3):
         p = SlaProfile(
@@ -352,10 +356,11 @@ async def test_sla_profile_list(storage: Storage) -> None:
 
 @pytest.mark.asyncio
 async def test_create_profile_http_201(storage: Storage, monkeypatch: pytest.MonkeyPatch) -> None:
+    from unittest.mock import patch
+
+    from fastapi import FastAPI
     from routers.sla import router
     from starlette.testclient import TestClient
-    from fastapi import FastAPI
-    from unittest.mock import patch
 
     with patch("routers.sla.storage", storage):
         app = FastAPI()
@@ -380,10 +385,11 @@ async def test_create_profile_http_201(storage: Storage, monkeypatch: pytest.Mon
 
 @pytest.mark.asyncio
 async def test_create_profile_http_422_no_thresholds(storage: Storage, monkeypatch: pytest.MonkeyPatch) -> None:
+    from unittest.mock import patch
+
+    from fastapi import FastAPI
     from routers.sla import router
     from starlette.testclient import TestClient
-    from fastapi import FastAPI
-    from unittest.mock import patch
 
     with patch("routers.sla.storage", storage):
         app = FastAPI()
@@ -405,10 +411,11 @@ async def test_create_profile_http_422_no_thresholds(storage: Storage, monkeypat
 
 @pytest.mark.asyncio
 async def test_evaluate_with_missing_benchmarks(storage: Storage, monkeypatch: pytest.MonkeyPatch) -> None:
+    from unittest.mock import patch
+
+    from fastapi import FastAPI
     from routers.sla import router
     from starlette.testclient import TestClient
-    from fastapi import FastAPI
-    from unittest.mock import patch
 
     b = _make_benchmark(benchmark_id=1)
     saved_b = await storage.save_benchmark(b)
@@ -426,7 +433,9 @@ async def test_evaluate_with_missing_benchmarks(storage: Storage, monkeypatch: p
         app.include_router(router, prefix="/api/sla")
         client = TestClient(app)
 
-        resp = client.post("/api/sla/evaluate", json={"profile_id": saved_profile.id, "benchmark_ids": [real_id, missing_id]})
+        resp = client.post(
+            "/api/sla/evaluate", json={"profile_id": saved_profile.id, "benchmark_ids": [real_id, missing_id]}
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert len(data["warnings"]) == 1
@@ -435,10 +444,11 @@ async def test_evaluate_with_missing_benchmarks(storage: Storage, monkeypatch: p
 
 @pytest.mark.asyncio
 async def test_evaluate_warnings_field_in_response(storage: Storage, monkeypatch: pytest.MonkeyPatch) -> None:
+    from unittest.mock import patch
+
+    from fastapi import FastAPI
     from routers.sla import router
     from starlette.testclient import TestClient
-    from fastapi import FastAPI
-    from unittest.mock import patch
 
     b = _make_benchmark(benchmark_id=1)
     saved_b = await storage.save_benchmark(b)
@@ -464,10 +474,11 @@ async def test_evaluate_warnings_field_in_response(storage: Storage, monkeypatch
 
 @pytest.mark.asyncio
 async def test_evaluate_profile_empty_benchmarks(storage: Storage, monkeypatch: pytest.MonkeyPatch) -> None:
+    from unittest.mock import patch
+
+    from fastapi import FastAPI
     from routers.sla import router
     from starlette.testclient import TestClient
-    from fastapi import FastAPI
-    from unittest.mock import patch
 
     profile = SlaProfile(
         name="empty-benchmarks-eval",

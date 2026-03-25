@@ -2,21 +2,21 @@
 Auto Tuner Router
 Provides endpoints for viewing tuning status, trials, and applying best parameters.
 """
+
 import asyncio
-import logging
 import json
+import logging
 import time
 import uuid
+from datetime import datetime
+from typing import Any
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
+from models.load_test import ErrorResponse, TuningConfig, TuningSessionDetail, TuningSessionSummary
 from pydantic import BaseModel
-from typing import Any, Optional, List
-from datetime import datetime
-
-from models.load_test import ErrorResponse, TuningConfig, TuningSessionSummary, TuningSessionDetail
-from services.shared import multi_target_collector, load_engine
 from services.auto_tuner import AutoTuner
-from services.shared import storage
+from services.shared import load_engine, multi_target_collector, storage
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -26,6 +26,7 @@ auto_tuner = AutoTuner(metrics_collector=multi_target_collector, load_engine=loa
 
 class TunerStatusResponse(BaseModel):
     """Response for tuner status"""
+
     status: str = "idle"  # "idle", "running", "completed", "error"
     current_trial: int | None = None
     total_trials: int | None = None
@@ -37,6 +38,7 @@ class TunerStatusResponse(BaseModel):
 
 class TrialInfo(BaseModel):
     """Information about a single tuning trial"""
+
     trial_number: int
     parameters: dict[str, Any]
     metrics: dict[str, float]
@@ -46,6 +48,7 @@ class TrialInfo(BaseModel):
 
 class ApplyBestResponse(BaseModel):
     """Response when applying best parameters"""
+
     success: bool
     message: str
     applied_parameters: dict[str, Any] | None = None
@@ -54,6 +57,7 @@ class ApplyBestResponse(BaseModel):
 
 class TuningStartRequest(BaseModel):
     """Request to start auto-tuning (flat schema matching frontend)"""
+
     objective: str = "balanced"
     n_trials: int = 10
     eval_requests: int = 100
@@ -73,10 +77,12 @@ class TuningStartRequest(BaseModel):
     swap_space_max: float = 8.0
     eval_concurrency: int = 16
     eval_rps: int = 20
+    auto_benchmark: bool = False
 
 
 class TuningStartResponse(BaseModel):
     """Response when starting auto-tuning"""
+
     success: bool
     message: str
     tuning_id: str | None = None
@@ -84,6 +90,7 @@ class TuningStartResponse(BaseModel):
 
 class BestTrialInfo(BaseModel):
     """Best trial info for frontend"""
+
     params: dict[str, Any]
     tps: float
     p99_latency: float
@@ -91,9 +98,10 @@ class BestTrialInfo(BaseModel):
 
 class TunerStatusFrontendResponse(BaseModel):
     """Frontend-compatible tuner status response"""
+
     running: bool
     trials_completed: int = 0
-    best: Optional[BestTrialInfo] = None
+    best: BestTrialInfo | None = None
     status: str | None = None
     best_score_history: list[float] = []
     pareto_front_size: int | None = None
@@ -102,6 +110,7 @@ class TunerStatusFrontendResponse(BaseModel):
 
 class TrialFrontendInfo(BaseModel):
     """Frontend-compatible trial info"""
+
     id: int
     tps: float
     p99_latency: float  # milliseconds
@@ -114,15 +123,20 @@ class TrialFrontendInfo(BaseModel):
 
 class TunerAllResponse(BaseModel):
     """Combined response for status, trials, and importance"""
+
     status: TunerStatusFrontendResponse
     trials: list[TrialFrontendInfo]
     importance: dict[str, Any]
 
 
-@router.post("/start", response_model=TuningStartResponse, responses={
-    400: {"model": ErrorResponse},
-    409: {"model": ErrorResponse},
-})
+@router.post(
+    "/start",
+    response_model=TuningStartResponse,
+    responses={
+        400: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+    },
+)
 async def start_tuning(request: TuningStartRequest) -> dict[str, Any]:
     """Start auto-tuning process."""
     if auto_tuner.is_running:
@@ -138,14 +152,14 @@ async def start_tuning(request: TuningStartRequest) -> dict[str, Any]:
         if existing_trials:
             best = auto_tuner.best
             session_data = {
-                'timestamp': time.time(),
-                'objective': getattr(auto_tuner, '_last_objective', 'balanced'),
-                'n_trials': len(existing_trials),
-                'best_tps': best.tps if best else None,
-                'best_p99': best.p99_latency * 1000 if best else None,
-                'best_score': getattr(auto_tuner, '_best_score', None),
-                'trials_json': json.dumps([t.model_dump() for t in existing_trials], default=str),
-                'importance_json': json.dumps(await auto_tuner.get_importance()),
+                "timestamp": time.time(),
+                "objective": getattr(auto_tuner, "_last_objective", "balanced"),
+                "n_trials": len(existing_trials),
+                "best_tps": best.tps if best else None,
+                "best_p99": best.p99_latency * 1000 if best else None,
+                "best_score": getattr(auto_tuner, "_best_score", None),
+                "trials_json": json.dumps([t.model_dump() for t in existing_trials], default=str),
+                "importance_json": json.dumps(await auto_tuner.get_importance()),
             }
             await storage.save_tuning_session(session_data)
     except Exception as e:
@@ -169,6 +183,7 @@ async def start_tuning(request: TuningStartRequest) -> dict[str, Any]:
         n_trials=request.n_trials,
     )
     import os
+
     vllm_endpoint = request.vllm_endpoint or os.getenv("VLLM_ENDPOINT", "http://localhost:8000")
 
     try:
@@ -180,7 +195,7 @@ async def start_tuning(request: TuningStartRequest) -> dict[str, Any]:
                 error=f"Preflight check failed: {exc}",
                 error_type="preflight_error",
             ).model_dump(),
-        )
+        ) from exc
     if not preflight.get("success"):
         raise HTTPException(
             status_code=400,
@@ -191,7 +206,14 @@ async def start_tuning(request: TuningStartRequest) -> dict[str, Any]:
         )
 
     tuning_id = str(uuid.uuid4())
-    auto_tuner._current_task = asyncio.create_task(auto_tuner.start(config, vllm_endpoint, skip_preflight=True))
+    auto_tuner._current_task = asyncio.create_task(
+        auto_tuner.start(
+            config,
+            vllm_endpoint,
+            auto_benchmark=request.auto_benchmark,
+            skip_preflight=True,
+        )
+    )
     auto_tuner._current_task.add_done_callback(
         lambda t: logger.error("[AutoTuner] Task failed: %s", t.exception()) if t.exception() else None
     )
@@ -255,23 +277,25 @@ async def stop_tuning() -> dict[str, Any]:
     """Stop the running auto-tuning process."""
     return await auto_tuner.stop()
 
+
 @router.get("/stream")
 async def stream_tuner_events() -> StreamingResponse:
     """Stream tuning events via Server-Sent Events (SSE)."""
+
     async def event_generator():
         q = await auto_tuner.subscribe()
         try:
             yield f"data: {json.dumps({'type': 'connected', 'data': {'running': auto_tuner.is_running}})}\n\n"
-            
+
             keepalive_count = 0
             while True:
                 try:
                     event = await asyncio.wait_for(q.get(), timeout=30.0)
                     yield f"data: {json.dumps(event)}\n\n"
-                    
+
                     if event.get("type") == "tuning_complete":
                         break
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     yield ": keepalive\n\n"
                     keepalive_count += 1
                     if keepalive_count > 20:  # Max 10 minutes of keepalive
@@ -280,7 +304,7 @@ async def stream_tuner_events() -> StreamingResponse:
             pass
         finally:
             await auto_tuner.unsubscribe(q)
-    
+
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
@@ -313,6 +337,7 @@ async def get_tuner_all() -> TunerAllResponse:
 async def apply_best_parameters() -> ApplyBestResponse:
     """Apply the best parameters found by auto-tuning to vLLM deployment."""
     import os
+
     # If no best trial is available yet
     if auto_tuner.best is None:
         return ApplyBestResponse(

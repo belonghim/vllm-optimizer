@@ -9,11 +9,12 @@ Bugs being tested:
 - Bug 3: Final asyncio.gather loop never updates completed_requests/failed_requests.
 - Bug 4: asyncio.wait([]) ValueError when task list is empty.
 """
-import asyncio
-from unittest.mock import patch, MagicMock, AsyncMock
 
-from services.load_engine import LoadTestEngine
+import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
+
 from models.load_test import LoadTestConfig
+from services.load_engine import LoadTestEngine
 
 
 def _make_mock_httpx_client():
@@ -25,6 +26,7 @@ def _make_mock_httpx_client():
     filtered out by the buggy `not t.done()` check,
     so its result is never collected. Most of 20 results are lost.
     """
+
     async def _post(url, json=None, **kwargs):
         await asyncio.sleep(0)  # Force event loop yield — DO NOT REMOVE
         resp = MagicMock()
@@ -64,19 +66,13 @@ async def test_run_collects_all_results_when_tasks_complete_during_sleep():
     with patch("httpx.AsyncClient", return_value=_make_mock_httpx_client()):
         final_stats = await engine.run(config)
 
-    assert len(engine._state.results) == 20, (
-        f"Expected 20 results, got {len(engine._state.results)}"
-    )
+    assert len(engine._state.results) == 20, f"Expected 20 results, got {len(engine._state.results)}"
     assert engine._state.completed_requests == 20, (
         f"Expected completed_requests=20, got {engine._state.completed_requests}"
     )
     req_ids = {r.req_id for r in engine._state.results}
-    assert len(req_ids) == 20, (
-        f"Expected 20 unique req_ids, got {len(req_ids)} — duplicates present"
-    )
-    assert final_stats["total"] == 20, (
-        f"Expected final_stats['total']=20, got {final_stats.get('total')}"
-    )
+    assert len(req_ids) == 20, f"Expected 20 unique req_ids, got {len(req_ids)} — duplicates present"
+    assert final_stats["total"] == 20, f"Expected final_stats['total']=20, got {final_stats.get('total')}"
 
 
 async def test_run_counter_matches_result_count():
@@ -85,7 +81,7 @@ async def test_run_counter_matches_result_count():
     With rps=0 (no sleep), tasks complete and go through the final asyncio.gather
     path. Bug 3: the gather loop appends results but never increments the counters.
     After run(), counters are less than total_requests even though results are collected.
-    
+
     FAILS BEFORE FIX: completed+failed=10
     PASSES AFTER FIX: sum == 10
     """
@@ -189,12 +185,8 @@ async def test_run_failed_requests_counted_correctly():
     with patch("httpx.AsyncClient", return_value=mock_client):
         await engine.run(config)
 
-    assert engine._state.failed_requests == 5, (
-        f"Expected 5 failed requests, got {engine._state.failed_requests}"
-    )
-    assert len(engine._state.results) == 10, (
-        f"Expected 10 total results, got {len(engine._state.results)}"
-    )
+    assert engine._state.failed_requests == 5, f"Expected 5 failed requests, got {engine._state.failed_requests}"
+    assert len(engine._state.results) == 10, f"Expected 10 total results, got {len(engine._state.results)}"
 
 
 async def test_run_no_duplicate_results():

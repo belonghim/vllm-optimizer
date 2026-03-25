@@ -8,19 +8,19 @@ Tests cover:
 - Concurrent write handling (WAL mode + busy_timeout)
 - Data persistence across re-initialization
 """
-import asyncio
-import pytest
 
-from services.storage import Storage
+import asyncio
+
+import pytest
 from models.load_test import (
     Benchmark,
+    LatencyStats,
     LoadTestConfig,
     LoadTestResult,
-    LatencyStats,
     TpsStats,
     TuningTrial,
 )
-
+from services.storage import Storage
 
 # ==================== Fixtures ====================
 
@@ -80,9 +80,7 @@ async def test_create_tables(storage):
     assert storage._conn is not None
 
     # Check benchmarks table exists
-    cursor = await storage._conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='benchmarks'"
-    )
+    cursor = await storage._conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='benchmarks'")
     row = await cursor.fetchone()
     assert row is not None, "benchmarks table should exist"
 
@@ -94,9 +92,7 @@ async def test_create_tables(storage):
     assert row is not None, "load_test_history table should exist"
 
     # Check tuner_trials table exists
-    cursor = await storage._conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='tuner_trials'"
-    )
+    cursor = await storage._conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='tuner_trials'")
     row = await cursor.fetchone()
     assert row is not None, "tuner_trials table should exist"
 
@@ -314,8 +310,8 @@ async def test_concurrent_writes(storage):
 @pytest.mark.asyncio
 async def test_wal_mode_on_file_db():
     """Test that WAL mode is enabled on file-based databases."""
-    import tempfile
     import os
+    import tempfile
 
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
@@ -342,8 +338,8 @@ async def test_wal_mode_on_file_db():
 @pytest.mark.asyncio
 async def test_startup_with_existing_db():
     """Test that re-initializing Storage preserves existing data."""
-    import tempfile
     import os
+    import tempfile
 
     # Create a temp file for the database
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:

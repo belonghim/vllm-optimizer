@@ -1,5 +1,6 @@
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import patch, AsyncMock, MagicMock
 
 
 @pytest.mark.asyncio
@@ -15,6 +16,7 @@ async def test_resolve_model_name_success():
 
     with patch("services.model_resolver.httpx.AsyncClient", return_value=mock_client):
         from services.model_resolver import resolve_model_name
+
         result = await resolve_model_name("http://test-endpoint")
 
     assert result == "my-model"
@@ -29,6 +31,7 @@ async def test_resolve_model_name_fallback():
 
     with patch("services.model_resolver.httpx.AsyncClient", return_value=mock_client):
         from services.model_resolver import resolve_model_name
+
         result = await resolve_model_name("http://bad-endpoint")
 
     assert result == "auto"
@@ -47,6 +50,7 @@ async def test_resolve_model_name_empty_data():
 
     with patch("services.model_resolver.httpx.AsyncClient", return_value=mock_client):
         from services.model_resolver import resolve_model_name
+
         result = await resolve_model_name("http://test-endpoint", fallback="auto")
 
     assert result == "auto"

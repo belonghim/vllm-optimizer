@@ -6,14 +6,16 @@ Provides persistent storage for:
 - Load test history (recent test runs)
 - Tuner trials (Bayesian optimization results)
 """
-import logging
+
 import asyncio
+import contextlib
+import logging
 import os
 import shutil
-import aiosqlite
-from typing import Any, Optional, List
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
+import aiosqlite
 from models.load_test import (
     Benchmark,
     BenchmarkMetadata,
@@ -29,29 +31,27 @@ logger = logging.getLogger(__name__)
 class Storage:
     """
     Async SQLite storage with WAL mode for concurrent reads.
-    
+
     Default DB path is /data/app.db (PVC mount point).
     Use ':memory:' for testing.
     """
 
     def __init__(self, db_path: str = "/data/app.db") -> None:
         self._db_path = db_path
-        self._conn: Optional[aiosqlite.Connection] = None
+        self._conn: aiosqlite.Connection | None = None
 
     async def initialize(self) -> None:
         """
         Initialize DB connection, enable WAL mode, and create tables.
-        
+
         WAL mode allows concurrent reads while writing.
         busy_timeout prevents SQLITE_BUSY errors under contention.
         """
         max_attempts = 3
-        last_error: Optional[Exception] = None
+        last_error: Exception | None = None
 
         for attempt in range(1, max_attempts + 1):
-            db_exists = self._db_path != ":memory:" and await asyncio.to_thread(
-                os.path.exists, self._db_path
-            )
+            db_exists = self._db_path != ":memory:" and await asyncio.to_thread(os.path.exists, self._db_path)
 
             try:
                 self._conn = await aiosqlite.connect(self._db_path)
@@ -75,7 +75,7 @@ class Storage:
                         await self._conn.close()
                         self._conn = None
 
-                        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+                        timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
                         backup_path = f"{self._db_path}.corrupted.{timestamp}"
                         try:
                             await asyncio.to_thread(shutil.move, self._db_path, backup_path)
@@ -111,10 +111,8 @@ class Storage:
                 )
 
                 if self._conn is not None:
-                    try:
+                    with contextlib.suppress(Exception):
                         await self._conn.close()
-                    except Exception:
-                        pass
                     self._conn = None
 
                 if attempt == max_attempts:
@@ -195,7 +193,7 @@ class Storage:
             cursor = await self._conn.execute("PRAGMA table_info(sla_profiles)")
             cols = [row[1] for row in await cursor.fetchall()]
             await cursor.close()  # close before DDL to release read lock
-            if 'model' in cols:
+            if "model" in cols:
                 await self._conn.execute("""
                     CREATE TABLE IF NOT EXISTS sla_profiles_v2 (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -221,7 +219,7 @@ class Storage:
             cursor = await self._conn.execute("PRAGMA table_info(sla_profiles)")
             cols = [row[1] for row in await cursor.fetchall()]
             await cursor.close()  # close before DDL to release read lock
-            if 'benchmark_ids_json' in cols:
+            if "benchmark_ids_json" in cols:
                 await self._conn.execute("""
                     CREATE TABLE IF NOT EXISTS sla_profiles_v2 (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -275,7 +273,7 @@ class Storage:
     async def save_benchmark(self, b: Benchmark) -> Benchmark:
         """
         Save a benchmark to the database.
-        
+
         If id is None, auto-generates a new id.
         Returns the benchmark with id and timestamp set.
         """
@@ -285,6 +283,7 @@ class Storage:
 
         try:
             import time
+
             if b.timestamp is None:
                 b.timestamp = time.time()
 
@@ -319,7 +318,7 @@ class Storage:
             logger.error("[Storage] Failed to save benchmark: %s", e)
             return b
 
-    async def list_benchmarks(self) -> List[Benchmark]:
+    async def list_benchmarks(self) -> list[Benchmark]:
         """Get all saved benchmarks, ordered by timestamp descending."""
         if self._conn is None:
             logger.error("[Storage] Cannot list benchmarks: database not initialized")
@@ -330,7 +329,7 @@ class Storage:
                 "SELECT id, name, timestamp, config_json, result_json, metadata_json FROM benchmarks ORDER BY timestamp DESC"
             )
             rows = await cursor.fetchall()
-            benchmarks: List[Benchmark] = []
+            benchmarks: list[Benchmark] = []
             for row in rows:
                 try:
                     config = LoadTestConfig.model_validate_json(row["config_json"])
@@ -341,14 +340,16 @@ class Storage:
                             metadata = BenchmarkMetadata.model_validate_json(row["metadata_json"])
                         except Exception:
                             metadata = None
-                    benchmarks.append(Benchmark(
-                        id=row["id"],
-                        name=row["name"],
-                        timestamp=row["timestamp"],
-                        config=config,
-                        result=result,
-                        metadata=metadata,
-                    ))
+                    benchmarks.append(
+                        Benchmark(
+                            id=row["id"],
+                            name=row["name"],
+                            timestamp=row["timestamp"],
+                            config=config,
+                            result=result,
+                            metadata=metadata,
+                        )
+                    )
                 except Exception as e:
                     logger.warning("[Storage] Failed to parse benchmark row %s: %s", row["id"], e)
             return benchmarks
@@ -356,7 +357,7 @@ class Storage:
             logger.error("[Storage] Failed to list benchmarks: %s", e)
             return []
 
-    async def get_benchmark(self, id: int) -> Optional[Benchmark]:
+    async def get_benchmark(self, id: int) -> Benchmark | None:
         """Get a single benchmark by id."""
         if self._conn is None:
             logger.error("[Storage] Cannot get benchmark: database not initialized")
@@ -417,14 +418,16 @@ class Storage:
                             metadata = BenchmarkMetadata.model_validate_json(row["metadata_json"])
                         except Exception:
                             metadata = None
-                    benchmarks.append(Benchmark(
-                        id=row["id"],
-                        name=row["name"],
-                        timestamp=row["timestamp"],
-                        config=config,
-                        result=result,
-                        metadata=metadata,
-                    ))
+                    benchmarks.append(
+                        Benchmark(
+                            id=row["id"],
+                            name=row["name"],
+                            timestamp=row["timestamp"],
+                            config=config,
+                            result=result,
+                            metadata=metadata,
+                        )
+                    )
                 except Exception as e:
                     logger.warning("[Storage] Failed to parse benchmark row %s: %s", row["id"], e)
             id_order = {bid: i for i, bid in enumerate(ids)}
@@ -454,9 +457,7 @@ class Storage:
             logger.error("[Storage] Failed to delete benchmark id=%s: %s", id, e)
             return False
 
-    async def update_benchmark_metadata(
-        self, benchmark_id: int, metadata: BenchmarkMetadata
-    ) -> Optional[Benchmark]:
+    async def update_benchmark_metadata(self, benchmark_id: int, metadata: BenchmarkMetadata) -> Benchmark | None:
         if self._conn is None:
             logger.error("[Storage] Cannot update benchmark metadata: database not initialized")
             return None
@@ -482,7 +483,7 @@ class Storage:
     async def save_load_test(self, entry: dict[str, Any]) -> None:
         """
         Save a load test history entry.
-        
+
         Expected entry format:
         {
             "test_id": str,
@@ -497,6 +498,7 @@ class Storage:
 
         try:
             import json
+
             test_id = entry.get("test_id", "")
             config_json = json.dumps(entry.get("config", {}))
             result_json = json.dumps(entry.get("result", {}))
@@ -514,7 +516,7 @@ class Storage:
         except Exception as e:
             logger.error("[Storage] Failed to save load test history: %s", e)
 
-    async def get_load_test_history(self, limit: int = 100) -> List[dict[str, Any]]:
+    async def get_load_test_history(self, limit: int = 100) -> list[dict[str, Any]]:
         """Get recent load test history entries, ordered by timestamp descending."""
         if self._conn is None:
             logger.error("[Storage] Cannot get load test history: database not initialized")
@@ -522,6 +524,7 @@ class Storage:
 
         try:
             import json
+
             cursor = await self._conn.execute(
                 """
                 SELECT test_id, config_json, result_json, timestamp
@@ -532,15 +535,17 @@ class Storage:
                 (limit,),
             )
             rows = await cursor.fetchall()
-            history: List[dict[str, Any]] = []
+            history: list[dict[str, Any]] = []
             for row in rows:
                 try:
-                    history.append({
-                        "test_id": row[0],
-                        "config": json.loads(row[1]),
-                        "result": json.loads(row[2]),
-                        "timestamp": row[3],
-                    })
+                    history.append(
+                        {
+                            "test_id": row[0],
+                            "config": json.loads(row[1]),
+                            "result": json.loads(row[2]),
+                            "timestamp": row[3],
+                        }
+                    )
                 except Exception as e:
                     logger.warning("[Storage] Failed to parse load test row: %s", e)
             return history
@@ -558,6 +563,7 @@ class Storage:
 
         try:
             import json
+
             params_json = json.dumps(t.params)
 
             await self._conn.execute(
@@ -583,7 +589,7 @@ class Storage:
         except Exception as e:
             logger.error("[Storage] Failed to save trial: %s", e)
 
-    async def get_trials(self) -> List[TuningTrial]:
+    async def get_trials(self) -> list[TuningTrial]:
         """Get all tuner trials, ordered by trial_id ascending."""
         if self._conn is None:
             logger.error("[Storage] Cannot get trials: database not initialized")
@@ -591,6 +597,7 @@ class Storage:
 
         try:
             import json
+
             cursor = await self._conn.execute(
                 """
                 SELECT trial_id, params_json, tps, p99_latency, score, status, is_pareto_optimal, pruned
@@ -599,19 +606,21 @@ class Storage:
                 """
             )
             rows = await cursor.fetchall()
-            trials: List[TuningTrial] = []
+            trials: list[TuningTrial] = []
             for row in rows:
                 try:
-                    trials.append(TuningTrial(
-                        trial_id=row[0],
-                        params=json.loads(row[1]),
-                        tps=row[2],
-                        p99_latency=row[3],
-                        score=row[4],
-                        status=row[5],
-                        is_pareto_optimal=bool(row[6]),
-                        pruned=bool(row[7]),
-                    ))
+                    trials.append(
+                        TuningTrial(
+                            trial_id=row[0],
+                            params=json.loads(row[1]),
+                            tps=row[2],
+                            p99_latency=row[3],
+                            score=row[4],
+                            status=row[5],
+                            is_pareto_optimal=bool(row[6]),
+                            pruned=bool(row[7]),
+                        )
+                    )
                 except Exception as e:
                     logger.warning("[Storage] Failed to parse trial row %s: %s", row[0], e)
             return trials
@@ -641,6 +650,7 @@ class Storage:
 
         try:
             import json
+
             trials = json.loads(session_data.get("trials_json", "[]"))
             best_params_json = ""
             if trials:
@@ -708,6 +718,7 @@ class Storage:
 
         try:
             import json
+
             cursor = await self._conn.execute(
                 "SELECT id, timestamp, objective, n_trials, best_tps, best_p99, best_score, trials_json, importance_json, best_params_json FROM tuning_sessions WHERE id = ?",
                 (id,),
@@ -883,8 +894,7 @@ class Storage:
             if row:
                 wal_mode, pages_written, pages_moved = row
                 logger.info(
-                    "[Storage] WAL checkpoint completed: "
-                    "mode=%s pages_written=%s pages_moved=%s",
+                    "[Storage] WAL checkpoint completed: mode=%s pages_written=%s pages_moved=%s",
                     wal_mode,
                     pages_written,
                     pages_moved,
@@ -911,7 +921,7 @@ class Storage:
             return -1
 
         try:
-            started_at = datetime.now(timezone.utc).timestamp()
+            started_at = datetime.now(UTC).timestamp()
             cursor = await self._conn.execute(
                 """
                 INSERT INTO running_state (task_type, started_at, cleared_at)
@@ -939,7 +949,7 @@ class Storage:
             return
 
         try:
-            cleared_at = datetime.now(timezone.utc).timestamp()
+            cleared_at = datetime.now(UTC).timestamp()
             await self._conn.execute(
                 """
                 UPDATE running_state
@@ -953,7 +963,7 @@ class Storage:
         except Exception as e:
             logger.error("[Storage] Failed to clear running: %s", e)
 
-    async def get_interrupted_runs(self) -> List[dict[str, Any]]:
+    async def get_interrupted_runs(self) -> list[dict[str, Any]]:
         """
         Get all interrupted runs (started but not cleared).
 
@@ -974,20 +984,22 @@ class Storage:
                 """
             )
             rows = await cursor.fetchall()
-            result: List[dict[str, Any]] = []
+            result: list[dict[str, Any]] = []
             for row in rows:
-                result.append({
-                    "id": row[0],
-                    "task_type": row[1],
-                    "started_at": row[2],
-                })
+                result.append(
+                    {
+                        "id": row[0],
+                        "task_type": row[1],
+                        "started_at": row[2],
+                    }
+                )
             logger.debug("[Storage] Retrieved %s interrupted runs", len(result))
             return result
         except Exception as e:
             logger.error("[Storage] Failed to get interrupted runs: %s", e)
             return []
 
-    async def get_all_running(self) -> List[dict[str, Any]]:
+    async def get_all_running(self) -> list[dict[str, Any]]:
         """
         Get all uncleared running_state rows (for shutdown cleanup).
 
@@ -1007,13 +1019,15 @@ class Storage:
                 """
             )
             rows = await cursor.fetchall()
-            result: List[dict[str, Any]] = []
+            result: list[dict[str, Any]] = []
             for row in rows:
-                result.append({
-                    "id": row[0],
-                    "task_type": row[1],
-                    "started_at": row[2],
-                })
+                result.append(
+                    {
+                        "id": row[0],
+                        "task_type": row[1],
+                        "started_at": row[2],
+                    }
+                )
             logger.debug("[Storage] Retrieved %s uncleared running rows", len(result))
             return result
         except Exception as e:
@@ -1030,6 +1044,7 @@ class Storage:
 
         try:
             import time
+
             created_at = time.time()
             thresholds_json = profile.thresholds.model_dump_json()
             cursor = await self._conn.execute(
@@ -1049,7 +1064,7 @@ class Storage:
             logger.error("[Storage] Failed to save SLA profile: %s", e)
             raise
 
-    async def list_sla_profiles(self) -> List[SlaProfile]:
+    async def list_sla_profiles(self) -> list[SlaProfile]:
         """Get all saved SLA profiles, ordered by created_at descending."""
         if self._conn is None:
             logger.error("[Storage] Cannot list SLA profiles: database not initialized")
@@ -1060,16 +1075,18 @@ class Storage:
                 "SELECT id, name, thresholds_json, created_at FROM sla_profiles ORDER BY created_at DESC"
             )
             rows = await cursor.fetchall()
-            profiles: List[SlaProfile] = []
+            profiles: list[SlaProfile] = []
             for row in rows:
                 try:
                     thresholds = SlaThresholds.model_validate_json(row[2])
-                    profiles.append(SlaProfile(
-                        id=row[0],
-                        name=row[1],
-                        thresholds=thresholds,
-                        created_at=row[3],
-                    ))
+                    profiles.append(
+                        SlaProfile(
+                            id=row[0],
+                            name=row[1],
+                            thresholds=thresholds,
+                            created_at=row[3],
+                        )
+                    )
                 except Exception as e:
                     logger.warning("[Storage] Failed to parse SLA profile row %s: %s", row[0], e)
             return profiles
@@ -1077,7 +1094,7 @@ class Storage:
             logger.error("[Storage] Failed to list SLA profiles: %s", e)
             return []
 
-    async def get_sla_profile(self, profile_id: int) -> Optional[SlaProfile]:
+    async def get_sla_profile(self, profile_id: int) -> SlaProfile | None:
         """Get a single SLA profile by id."""
         if self._conn is None:
             logger.error("[Storage] Cannot get SLA profile: database not initialized")
@@ -1103,7 +1120,7 @@ class Storage:
             logger.error("[Storage] Failed to get SLA profile id=%s: %s", profile_id, e)
             return None
 
-    async def update_sla_profile(self, profile_id: int, profile: SlaProfile) -> Optional[SlaProfile]:
+    async def update_sla_profile(self, profile_id: int, profile: SlaProfile) -> SlaProfile | None:
         """Update an SLA profile by id."""
         if self._conn is None:
             logger.error("[Storage] Cannot update SLA profile: database not initialized")

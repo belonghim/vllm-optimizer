@@ -516,6 +516,17 @@ select.input option { background: var(--surface-color); }
   border-color: var(--cyan-color);
 }
 
+.sla-violation-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: color-mix(in srgb, var(--red-color) 10%, transparent);
+  border: 1px solid var(--red-color);
+  color: var(--text-color);
+  padding: 10px 12px;
+}
+
 /* MultiTargetSelector styles */
 .multi-target-header {
   margin-bottom: 12px;

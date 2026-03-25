@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+
 from ..main import app
 
 client = TestClient(app)
@@ -19,10 +20,16 @@ def test_integration_metrics_endpoint_no_mock():
             parts = line.split()
             if len(parts) >= 3:
                 names.add(parts[2])
-    assert any(n.startswith("vllm_optimizer") for n in names), \
+    assert any(n.startswith("vllm_optimizer") for n in names), (
         f"Expected at least one vllm_optimizer metric in output, found: {sorted(list(names))}"
-    assert not any(n in (
-        "vllm:num_requests_running", "vllm:num_requests_waiting",
-        "vllm:gpu_cache_usage_perc", "vllm:gpu_utilization",
-    ) for n in names), \
-        f"Old colliding metric names must not be exported: {sorted(list(names))}"
+    )
+    assert not any(
+        n
+        in (
+            "vllm:num_requests_running",
+            "vllm:num_requests_waiting",
+            "vllm:gpu_cache_usage_perc",
+            "vllm:gpu_utilization",
+        )
+        for n in names
+    ), f"Old colliding metric names must not be exported: {sorted(list(names))}"

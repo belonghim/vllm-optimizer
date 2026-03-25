@@ -16,7 +16,6 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-
 # Add the 'backend' directory to sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -59,8 +58,8 @@ _MODULES_TO_CLEAR = [
 def _noop(*args: Any, **kwargs: Any) -> None:
     return None
 
-class _StubMetricsCollector:
 
+class _StubMetricsCollector:
     """Lightweight stand-in for the real collector."""
 
     instances: list["_StubMetricsCollector"] = []
@@ -120,7 +119,6 @@ class _DummyK8sApi:
 
 
 class _StubMultiTargetMetricsCollector:
-
     """Lightweight stand-in for MultiTargetMetricsCollector."""
 
     instances: list["_StubMultiTargetMetricsCollector"] = []
@@ -233,8 +231,9 @@ def _install_stub_metrics_collector_modules() -> list[str]:
     stub_multi_target_instance = _StubMultiTargetMetricsCollector()
     load_engine_module = importlib.import_module("services.load_engine")
     backend_load_engine_module = importlib.import_module("backend.services.load_engine")
-    from services.storage import Storage
     from services.runtime_config import RuntimeConfig
+    from services.storage import Storage
+
     for module_name, load_engine_target in (
         ("services.shared", load_engine_module),
         ("backend.services.shared", backend_load_engine_module),
@@ -310,7 +309,6 @@ def _reload_app(monkeypatch: pytest.MonkeyPatch) -> FastAPI:
 
 @pytest.fixture
 def isolated_client(monkeypatch: pytest.MonkeyPatch):
-
     """TestClient isolated from kubernetes and metrics collector side effects."""
 
     _ensure_kubernetes(monkeypatch)
@@ -329,12 +327,11 @@ def isolated_client(monkeypatch: pytest.MonkeyPatch):
             sys.modules.pop(module_name, None)
 
 
-
 @pytest.fixture(autouse=True)
 def _mock_resolve_model_name() -> Any:
     """Prevent real HTTP calls to vLLM /v1/models in unit tests."""
-    from unittest.mock import AsyncMock, patch as mock_patch
     import sys
+    from unittest.mock import patch as mock_patch
 
     async def _fast_resolve(endpoint: str = "", fallback: str = "auto") -> str:
         return fallback
@@ -385,7 +382,7 @@ def _mock_auto_tuner_preflight() -> Any:
                 if at is not None:
                     _patch_instance(at)
 
-    for mod_name, mod in list(sys.modules.items()):
+    for _mod_name, mod in list(sys.modules.items()):
         app_obj = getattr(mod, "app", None)
         if app_obj is not None and hasattr(app_obj, "routes"):
             _scan_app_routes(app_obj)

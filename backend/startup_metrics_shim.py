@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from typing import Any, Optional
+from typing import Any
 from weakref import WeakKeyDictionary
 
 logger = logging.getLogger(__name__)
@@ -9,13 +9,13 @@ logger = logging.getLogger(__name__)
 _app_state: WeakKeyDictionary[Any, dict[str, Any]] = WeakKeyDictionary()
 
 
-def _build_state() -> Optional[dict[str, Any]]:
+def _build_state() -> dict[str, Any] | None:
     try:
         from services.shared import multi_target_collector as collector
     except Exception:  # intentional: fail-open
         return None
 
-    task_holder: dict[str, Optional[asyncio.Task[Any]]] = {"task": None}
+    task_holder: dict[str, asyncio.Task[Any] | None] = {"task": None}
 
     def _on_task_done(task: asyncio.Task[Any]) -> None:
         if not task.cancelled() and task.exception():
@@ -49,6 +49,7 @@ def create_lifespan(app):
             _app_state[app] = state
 
     if state is None:
+
         @asynccontextmanager
         async def _noop_lifespan(app):
             yield
@@ -74,9 +75,9 @@ def create_lifespan(app):
             except Exception as e:  # intentional: non-critical
                 logger.debug("[StartupShim] Ignoring exception while awaiting task: %s", e)
 
-    setattr(lifespan, "_collector", collector)
-    setattr(lifespan, "_task_holder", task_holder)
-    setattr(lifespan, "_ensure_metrics_task", _ensure_metrics_task)
+    lifespan._collector = collector
+    lifespan._task_holder = task_holder
+    lifespan._ensure_metrics_task = _ensure_metrics_task
     return lifespan
 
 

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
 import { authFetch } from "../utils/authFetch";
 import { API } from "../constants";
+import ErrorAlert from "./ErrorAlert";
 
 interface StatusIndicatorProps {
   isDirty: boolean;
@@ -30,6 +31,7 @@ export default function ClusterConfigBar() {
   const [localConfig, setLocalConfig] = useState<LocalConfig>({ endpoint: "", namespace: "", inferenceservice: "" });
   const [isDirty, setIsDirty] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isLoading) {
@@ -46,15 +48,13 @@ export default function ClusterConfigBar() {
   }, [localConfig, endpoint, namespace, inferenceservice]);
 
   const handleInputChange = (field: keyof LocalConfig, value: string) => {
+    setError(null);
     setLocalConfig(prev => ({ ...prev, [field]: value }));
   };
 
   const handleSave = async () => {
     if (!isDirty) return;
-    // React 18: multiple setState calls in event handlers are automatically batched (single re-render)
-    updateContextConfig('endpoint', localConfig.endpoint);
-    updateContextConfig('namespace', localConfig.namespace);
-    updateContextConfig('inferenceservice', localConfig.inferenceservice);
+    setError(null);
     
     try {
       await authFetch(`${API}/config`, {
@@ -66,12 +66,17 @@ export default function ClusterConfigBar() {
           vllm_is_name: localConfig.inferenceservice,
         }),
       });
+      // React 18: multiple setState calls in event handlers are automatically batched (single re-render)
+      updateContextConfig('endpoint', localConfig.endpoint);
+      updateContextConfig('namespace', localConfig.namespace);
+      updateContextConfig('inferenceservice', localConfig.inferenceservice);
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 2000);
     } catch (err) {
       console.warn('[ClusterConfig] backend sync failed:', err);
+      setError("설정 저장에 실패했습니다.");
+      setIsSaved(false);
     }
-    
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2000);
   };
 
   if (isLoading) {
@@ -89,6 +94,7 @@ export default function ClusterConfigBar() {
 
   return (
     <div className="cluster-config-bar panel">
+       <ErrorAlert message={error} className="mb-3" />
       <div className="grid-form grid-form-compact">
         <div>
           <label htmlFor="cfg-endpoint">vLLM Endpoint</label>

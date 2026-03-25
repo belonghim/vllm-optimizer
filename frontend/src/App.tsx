@@ -1,11 +1,11 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, lazy, Suspense } from "react";
 import type { RerunConfig } from "./components/LoadTestConfig";
 import { useSessionKeepAlive } from './hooks/useSessionKeepAlive';
-import MonitorPage from "./pages/MonitorPage";
-import LoadTestPage from "./pages/LoadTestPage";
-import BenchmarkPage from "./pages/BenchmarkPage";
-import TunerPage from "./pages/TunerPage";
-import SlaPage from "./pages/SlaPage";
+const MonitorPage = lazy(() => import("./pages/MonitorPage"));
+const LoadTestPage = lazy(() => import("./pages/LoadTestPage"));
+const BenchmarkPage = lazy(() => import("./pages/BenchmarkPage"));
+const TunerPage = lazy(() => import("./pages/TunerPage"));
+const SlaPage = lazy(() => import("./pages/SlaPage"));
 import MockDataSwitch from "./components/MockDataSwitch";
 import ThemeToggle from "./components/ThemeToggle";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -15,15 +15,14 @@ import { BenchmarkSelectionProvider } from "./contexts/BenchmarkSelectionContext
 interface PageDef {
   id: string;
   label: string;
-  Component: React.ComponentType<{ isActive: boolean }>;
 }
 
 const PAGES: PageDef[] = [
-  { id: "monitor", label: "실시간 모니터링", Component: MonitorPage },
-  { id: "tuner", label: "자동 파라미터 튜닝", Component: TunerPage },
-  { id: "loadtest", label: "부하 테스트", Component: LoadTestPage },
-  { id: "benchmark", label: "벤치마크 비교", Component: BenchmarkPage },
-  { id: "sla", label: "SLA", Component: SlaPage },
+  { id: "monitor", label: "실시간 모니터링" },
+  { id: "tuner", label: "자동 파라미터 튜닝" },
+  { id: "loadtest", label: "부하 테스트" },
+  { id: "benchmark", label: "벤치마크 비교" },
+  { id: "sla", label: "SLA" },
 ];
 
 export default function App() {
@@ -88,19 +87,15 @@ export default function App() {
       {page === "tuner" && <ClusterConfigBar />}
 
       <main className="app-main">
-        {PAGES.map(p => (
-          <div key={p.id} className={page === p.id ? undefined : 'app-page--hidden'}>
-            <ErrorBoundary>
-              {p.id === 'benchmark' ? (
-                <BenchmarkPage isActive={page === p.id} onRerun={handleRerun} />
-              ) : p.id === 'loadtest' ? (
-                <LoadTestPage isActive={page === p.id} pendingConfig={pendingLoadTestConfig} onConfigConsumed={handleConfigConsumed} />
-              ) : (
-                <p.Component isActive={page === p.id} />
-              )}
-            </ErrorBoundary>
-          </div>
-        ))}
+        <ErrorBoundary>
+          <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>Loading...</div>}>
+            {page === 'monitor' && <MonitorPage isActive={page === 'monitor'} onTabChange={handleSetPage} />}
+            {page === 'tuner' && <TunerPage isActive={page === 'tuner'} onTabChange={handleSetPage} />}
+            {page === 'loadtest' && <LoadTestPage isActive={page === 'loadtest'} pendingConfig={pendingLoadTestConfig} onConfigConsumed={handleConfigConsumed} />}
+            {page === 'benchmark' && <BenchmarkPage isActive={page === 'benchmark'} onRerun={handleRerun} />}
+            {page === 'sla' && <SlaPage isActive={page === 'sla'} />}
+          </Suspense>
+        </ErrorBoundary>
       </main>
     </BenchmarkSelectionProvider>
   );

@@ -56,7 +56,7 @@ spec:
         - name: output
           workspace: source-code
 
-    # ── 2. Python 테스트 ───────────────────────────────────────────────────────
+     # ── 2. Python 테스트 ───────────────────────────────────────────────────────
     - name: test-backend
       runAfter: ["git-clone"]
       taskRef:
@@ -77,9 +77,36 @@ spec:
         - name: source
           workspace: source-code
 
-    # ── 3. Backend 이미지 빌드 & Quay.io 푸시 (Buildah) ──────────────────────
-    - name: build-backend
+    # ── 3. Backend Type Check (basedpyright) ───────────────────────────────────
+    - name: typecheck-backend
       runAfter: ["test-backend"]
+      taskSpec:
+        workspaces:
+          - name: source
+        steps:
+          - name: basedpyright-check
+            image: registry.access.redhat.com/ubi9/python-311:latest
+            workingDir: $(workspaces.source.path)
+            script: |
+              #!/bin/bash
+              set -euo pipefail
+              echo "=== Installing basedpyright ==="
+              pip install basedpyright --quiet
+              echo "=== Running basedpyright on backend/ ==="
+              basedpyright backend/
+              echo "✓ Type check passed"
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+              capabilities:
+                drop: ["ALL"]
+      workspaces:
+        - name: source
+          workspace: source-code
+
+     # ── 4. Backend 이미지 빌드 & Quay.io 푸시 (Buildah) ──────────────────────
+    - name: build-backend
+      runAfter: ["typecheck-backend"]
       taskRef:
         resolver: cluster
         params:

@@ -1,16 +1,14 @@
 import asyncio
 import sys
 import time
-
 from typing import cast
 
 import pytest
-
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from .conftest import _StubMultiTargetMetricsCollector
 from ..models.load_test import LoadTestConfig
+from .conftest import _StubMultiTargetMetricsCollector
 
 
 def _collector_for_creator(fragment: str):
@@ -94,15 +92,16 @@ def test_startup_metrics_endpoint_triggers_collector(isolated_client: TestClient
     assert isinstance(payload.get("collector_version"), str)
     time.sleep(0.2)
     assert _StubMultiTargetMetricsCollector.instances, "No collector stub was instantiated"
-    assert any(
-        instance.start_requests for instance in _StubMultiTargetMetricsCollector.instances
-    ), "collector.start_collection was not triggered by the shim"
+    assert any(instance.start_requests for instance in _StubMultiTargetMetricsCollector.instances), (
+        "collector.start_collection was not triggered by the shim"
+    )
 
 
 def test_compute_stats_includes_total_requested():
     import time
-    from services.load_engine import LoadTestEngine, LoadTestState, LoadTestStatus
+
     from models.load_test import RequestResult
+    from services.load_engine import LoadTestEngine, LoadTestState, LoadTestStatus
 
     engine = LoadTestEngine()
     engine._state = LoadTestState(
@@ -121,8 +120,9 @@ def test_compute_stats_includes_total_requested():
 
 def test_compute_stats_total_requested_defaults_to_zero():
     import time
-    from services.load_engine import LoadTestEngine, LoadTestState, LoadTestStatus
+
     from models.load_test import RequestResult
+    from services.load_engine import LoadTestEngine, LoadTestState, LoadTestStatus
 
     engine = LoadTestEngine()
     engine._state = LoadTestState(
@@ -140,8 +140,8 @@ def test_compute_stats_total_requested_defaults_to_zero():
 
 async def test_gather_phase_broadcasts_progress_per_result():
     """gather 구간에서 per-result broadcast가 발생하는지 검증"""
-    from services.load_engine import LoadTestEngine, LoadTestState, LoadTestStatus
     from models.load_test import LoadTestConfig, RequestResult
+    from services.load_engine import LoadTestEngine, LoadTestState, LoadTestStatus
 
     engine = LoadTestEngine()
     q = await engine.subscribe()
@@ -204,8 +204,8 @@ async def test_gather_phase_broadcasts_progress_per_result():
 
 async def test_gather_phase_handles_exceptions_as_failed_results():
     """gather 구간 exception이 failed_requests 카운터에 반영되는지 검증"""
-    from services.load_engine import LoadTestEngine, LoadTestState, LoadTestStatus
     from models.load_test import RequestResult
+    from services.load_engine import LoadTestEngine, LoadTestState, LoadTestStatus
 
     engine = LoadTestEngine()
     q = await engine.subscribe()
@@ -248,9 +248,7 @@ async def test_gather_phase_handles_exceptions_as_failed_results():
         stats = engine._compute_stats()
         await engine._broadcast({"type": "progress", "data": stats})
 
-    assert engine._state.failed_requests == 1, (
-        f"Expected failed_requests=1, got {engine._state.failed_requests}"
-    )
+    assert engine._state.failed_requests == 1, f"Expected failed_requests=1, got {engine._state.failed_requests}"
     assert engine._state.completed_requests == 1
 
     events = []
@@ -265,10 +263,11 @@ async def test_gather_phase_handles_exceptions_as_failed_results():
 
 
 async def test_preflight_fails_on_unreachable_endpoint():
+    from unittest.mock import AsyncMock, MagicMock, patch
+
     import httpx
-    from unittest.mock import patch, AsyncMock, MagicMock
-    from services.load_engine import LoadTestEngine, LoadTestStatus
     from models.load_test import LoadTestConfig
+    from services.load_engine import LoadTestEngine, LoadTestStatus
 
     engine = LoadTestEngine()
 
@@ -287,9 +286,10 @@ async def test_preflight_fails_on_unreachable_endpoint():
 
 
 async def test_preflight_fails_on_nonexistent_model():
-    from unittest.mock import patch, AsyncMock, MagicMock
-    from services.load_engine import LoadTestEngine, LoadTestStatus
+    from unittest.mock import AsyncMock, MagicMock, patch
+
     from models.load_test import LoadTestConfig
+    from services.load_engine import LoadTestEngine
 
     engine = LoadTestEngine()
 
@@ -312,9 +312,10 @@ async def test_preflight_fails_on_nonexistent_model():
 
 
 async def test_preflight_skips_model_check_for_auto():
-    from unittest.mock import patch, AsyncMock, MagicMock
-    from services.load_engine import LoadTestEngine
+    from unittest.mock import AsyncMock, MagicMock, patch
+
     from models.load_test import LoadTestConfig
+    from services.load_engine import LoadTestEngine
 
     engine = LoadTestEngine()
 
@@ -334,9 +335,10 @@ async def test_preflight_skips_model_check_for_auto():
 
 
 async def test_consecutive_failures_abort_test_early():
-    from unittest.mock import patch, AsyncMock, MagicMock
-    from services.load_engine import LoadTestEngine, LoadTestStatus
+    from unittest.mock import AsyncMock, MagicMock, patch
+
     from models.load_test import LoadTestConfig, RequestResult
+    from services.load_engine import LoadTestEngine, LoadTestStatus
 
     engine = LoadTestEngine()
 
@@ -362,10 +364,11 @@ async def test_consecutive_failures_abort_test_early():
 
 
 async def test_sse_broadcasts_error_on_preflight_fail():
+    from unittest.mock import AsyncMock, MagicMock, patch
+
     import httpx
-    from unittest.mock import patch, AsyncMock, MagicMock
-    from services.load_engine import LoadTestEngine
     from models.load_test import LoadTestConfig
+    from services.load_engine import LoadTestEngine
 
     engine = LoadTestEngine()
     q = await engine.subscribe()
@@ -388,9 +391,10 @@ async def test_sse_broadcasts_error_on_preflight_fail():
 
 
 async def test_happy_path_unaffected_by_preflight():
-    from unittest.mock import patch, AsyncMock, MagicMock
-    from services.load_engine import LoadTestEngine, LoadTestStatus
+    from unittest.mock import AsyncMock, MagicMock, patch
+
     from models.load_test import LoadTestConfig, RequestResult
+    from services.load_engine import LoadTestEngine, LoadTestStatus
 
     engine = LoadTestEngine()
 
@@ -411,14 +415,15 @@ async def test_happy_path_unaffected_by_preflight():
             result = await engine.run(config)
 
     assert engine._state.status == LoadTestStatus.COMPLETED
-    assert result.get("total") == 5 or result.get("success") != False
+    assert result.get("total") == 5 or result.get("success")
 
 
 async def test_mixed_failure_reasons_no_abort():
     """A1: 다른 에러의 연속 실패 시 consecutive_failure abort가 발생하지 않아야 한다."""
-    from unittest.mock import patch, AsyncMock, MagicMock
-    from services.load_engine import LoadTestEngine, LoadTestStatus
+    from unittest.mock import AsyncMock, MagicMock, patch
+
     from models.load_test import LoadTestConfig, RequestResult
+    from services.load_engine import LoadTestEngine, LoadTestStatus
 
     engine = LoadTestEngine()
 
@@ -453,16 +458,15 @@ async def test_mixed_failure_reasons_no_abort():
 
 async def test_same_failure_reason_aborts():
     """A1: 동일 에러의 연속 실패 시 consecutive_failure abort가 발생해야 한다."""
-    from unittest.mock import patch, AsyncMock, MagicMock
-    from services.load_engine import LoadTestEngine, LoadTestStatus
+    from unittest.mock import AsyncMock, MagicMock, patch
+
     from models.load_test import LoadTestConfig, RequestResult
+    from services.load_engine import LoadTestEngine, LoadTestStatus
 
     engine = LoadTestEngine()
 
     async def fail_with_same_error(config, semaphore, request_id):
-        return RequestResult(
-            req_id=request_id, success=False, latency=0.1, error="Connection refused"
-        )
+        return RequestResult(req_id=request_id, success=False, latency=0.1, error="Connection refused")
 
     with patch("services.load_engine.httpx.AsyncClient") as mock_cls:
         mock_ctx = MagicMock()
@@ -484,10 +488,11 @@ async def test_same_failure_reason_aborts():
 
 async def test_dispatch_request_connect_error():
     """G3: httpx ConnectError 시 RequestResult(success=False) 반환."""
+    from unittest.mock import AsyncMock, MagicMock, patch
+
     import httpx
-    from unittest.mock import patch, AsyncMock, MagicMock
-    from services.load_engine import LoadTestEngine
     from models.load_test import LoadTestConfig
+    from services.load_engine import LoadTestEngine
 
     engine = LoadTestEngine()
     config = LoadTestConfig(endpoint="http://localhost:8080", model="test", stream=False)
@@ -508,10 +513,11 @@ async def test_dispatch_request_connect_error():
 
 async def test_dispatch_request_timeout_error():
     """G3: httpx TimeoutException 시 RequestResult(success=False) 반환."""
+    from unittest.mock import AsyncMock, MagicMock, patch
+
     import httpx
-    from unittest.mock import patch, AsyncMock, MagicMock
-    from services.load_engine import LoadTestEngine
     from models.load_test import LoadTestConfig
+    from services.load_engine import LoadTestEngine
 
     engine = LoadTestEngine()
     config = LoadTestConfig(endpoint="http://localhost:8080", model="test", stream=False)
@@ -532,9 +538,10 @@ async def test_dispatch_request_timeout_error():
 
 async def test_concurrent_run_rejected():
     """D5: 이미 RUNNING 중에 두 번째 run() 호출 시 에러 반환."""
-    from unittest.mock import patch, AsyncMock, MagicMock
-    from services.load_engine import LoadTestEngine
+    from unittest.mock import AsyncMock, MagicMock, patch
+
     from models.load_test import LoadTestConfig, RequestResult
+    from services.load_engine import LoadTestEngine
 
     engine = LoadTestEngine()
 
@@ -570,9 +577,10 @@ async def test_concurrent_run_rejected():
 
 async def test_sse_subscriber_disconnect_graceful():
     """G5: 구독자가 중간에 해제되어도 에러 없이 계속 진행."""
-    from unittest.mock import patch, AsyncMock, MagicMock
-    from services.load_engine import LoadTestEngine, LoadTestStatus
+    from unittest.mock import AsyncMock, MagicMock, patch
+
     from models.load_test import LoadTestConfig, RequestResult
+    from services.load_engine import LoadTestEngine, LoadTestStatus
 
     engine = LoadTestEngine()
     disconnect_queue: asyncio.Queue[object] | None = None
@@ -607,9 +615,9 @@ async def test_sse_subscriber_disconnect_graceful():
 
 async def test_preflight_rejects_invalid_config():
     """E3: total_requests=0 또는 concurrency=-1 시 validation 에러 반환."""
+    from models.load_test import LoadTestConfig
     from pydantic import ValidationError
     from services.load_engine import LoadTestEngine
-    from models.load_test import LoadTestConfig
 
     engine = LoadTestEngine()
 
@@ -619,16 +627,12 @@ async def test_preflight_rejects_invalid_config():
     with pytest.raises(ValidationError):
         LoadTestConfig(endpoint="http://localhost:8080", total_requests=10, concurrency=-1)
 
-    config_zero = LoadTestConfig.model_construct(
-        endpoint="http://localhost:8080", total_requests=0, concurrency=10
-    )
+    config_zero = LoadTestConfig.model_construct(endpoint="http://localhost:8080", total_requests=0, concurrency=10)
     result_zero = await engine._preflight_check(config_zero)
     assert result_zero.get("success") is False
     assert result_zero.get("error_type") == "validation"
 
-    config_neg = LoadTestConfig.model_construct(
-        endpoint="http://localhost:8080", total_requests=10, concurrency=-1
-    )
+    config_neg = LoadTestConfig.model_construct(endpoint="http://localhost:8080", total_requests=10, concurrency=-1)
     result_neg = await engine._preflight_check(config_neg)
     assert result_neg.get("success") is False
     assert result_neg.get("error_type") == "validation"

@@ -1,11 +1,11 @@
 import time
+
 import pytest
 
 pytestmark = [pytest.mark.integration, pytest.mark.performance]
 
 
 class TestClusterHealth:
-
     def test_backend_health_deep(self, http_client):
         """GET /health?deep=1 → Prometheus + K8s 연결 확인."""
         start = time.time()

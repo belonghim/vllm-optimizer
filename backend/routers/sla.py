@@ -1,10 +1,9 @@
 import logging
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-
 from models.load_test import Benchmark
 from models.sla import SlaEvaluateResponse, SlaEvaluationResult, SlaProfile, SlaVerdict
+from pydantic import BaseModel
 from services.shared import storage
 
 router = APIRouter()
@@ -41,7 +40,13 @@ def evaluate_benchmarks_against_sla(
             for metric, threshold in metric_thresholds:
                 verdicts.append(
                     SlaVerdict.model_validate(
-                        {"metric": metric, "value": None, "threshold": threshold, "pass": False, "status": "insufficient_data"}
+                        {
+                            "metric": metric,
+                            "value": None,
+                            "threshold": threshold,
+                            "pass": False,
+                            "status": "insufficient_data",
+                        }
                     )
                 )
         else:
@@ -61,7 +66,13 @@ def evaluate_benchmarks_against_sla(
 
                 verdicts.append(
                     SlaVerdict.model_validate(
-                        {"metric": metric, "value": value, "threshold": threshold, "pass": pass_bool, "status": "pass" if pass_bool else "fail"}
+                        {
+                            "metric": metric,
+                            "value": value,
+                            "threshold": threshold,
+                            "pass": pass_bool,
+                            "status": "pass" if pass_bool else "fail",
+                        }
                     )
                 )
 

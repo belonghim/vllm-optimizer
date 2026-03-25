@@ -2,7 +2,8 @@ import os
 import ssl
 import time
 import urllib.request
-from urllib.error import URLError, HTTPError
+from urllib.error import HTTPError, URLError
+
 
 def test_dev_integration_metrics_endpoint():
     # Dev integration 테스트는 선택적이며 DEV_INTEGRATION_ENABLED로 게이트합니다.
@@ -22,8 +23,8 @@ def test_dev_integration_metrics_endpoint():
     try:
         with urllib.request.urlopen(url, timeout=5, context=ctx) as resp:
             status = resp.getcode()
-            content_type = resp.headers.get('Content-Type', '')
-            content = resp.read().decode('utf-8')
+            content_type = resp.headers.get("Content-Type", "")
+            content = resp.read().decode("utf-8")
     except (URLError, HTTPError):
         return
 
@@ -43,8 +44,8 @@ def test_dev_integration_metrics_endpoint():
     assert len(metric_names) >= 2, f"Expected at least 2 vllm: metrics, got {sorted(metric_names)}"
 
     # 각 메트릭에 최소 하나의 샘플 값이 존재하는지 확인
-    def _has_numeric_value(l: str) -> bool:
-        parts = l.split()
+    def _has_numeric_value(line: str) -> bool:
+        parts = line.split()
         if len(parts) < 2:
             return False
         try:
@@ -53,8 +54,9 @@ def test_dev_integration_metrics_endpoint():
         except ValueError:
             return False
 
-    has_value = any(_has_numeric_value(l) for l in lines if l.startswith("vllm:"))
+    has_value = any(_has_numeric_value(line) for line in lines if line.startswith("vllm:"))
     assert has_value, "No numeric sample values found for vllm: metrics"
+
 
 def test_dev_integration_metrics_format_headers():
     if os.environ.get("DEV_INTEGRATION_ENABLED") != "1":
@@ -67,10 +69,11 @@ def test_dev_integration_metrics_format_headers():
     ctx = None
     if use_tls:
         import ssl
+
         ctx = ssl._create_unverified_context()
     try:
         with urllib.request.urlopen(url, timeout=5, context=ctx) as resp:
-            content = resp.read().decode('utf-8')
+            content = resp.read().decode("utf-8")
     except (URLError, HTTPError):
         return
     lines = content.splitlines()
@@ -78,6 +81,7 @@ def test_dev_integration_metrics_format_headers():
     type_lines = [ln for ln in lines if ln.startswith("# TYPE ")]
     assert any(line.startswith("# HELP vllm:") for line in help_lines), "Missing # HELP header for vllm: metrics"
     assert any(line.startswith("# TYPE vllm:") for line in type_lines), "Missing # TYPE for vllm: metrics"
+
 
 def test_dev_integration_metrics_endpoint_multihost():
     if os.environ.get("DEV_INTEGRATION_ENABLED") != "1":
@@ -92,6 +96,7 @@ def test_dev_integration_metrics_endpoint_multihost():
     ctx = None
     if use_tls:
         import ssl
+
         ctx = ssl._create_unverified_context()
         for host in hosts:
             url = f"{scheme}://{host}:{port}/metrics"
@@ -104,6 +109,7 @@ def test_dev_integration_metrics_endpoint_multihost():
             assert content_type.startswith("text/plain")
             lines = [ln for ln in content.splitlines() if ln.strip() and not ln.startswith("#")]
             assert any(line.split()[0].startswith("vllm:") for line in lines)
+
 
 def test_dev_integration_metrics_endpoint_multihost_parallel():
     if os.environ.get("DEV_INTEGRATION_ENABLED") != "1":
@@ -119,16 +125,19 @@ def test_dev_integration_metrics_endpoint_multihost_parallel():
     if use_tls:
         ctx = ssl._create_unverified_context()
     import concurrent.futures
+
     def fetch(host):
         url = f"{scheme}://{host}:{port}/metrics"
         r = _fetch_metrics_with_retries(url, retries=2, delay=1, ctx=ctx)
         return r is not None and r[0] == 200
+
     results = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=min(8, len(hosts))) as executor:
         futures = [executor.submit(fetch, h) for h in hosts]
         for fut in concurrent.futures.as_completed(futures):
             results.append(fut.result())
     assert any(results), f"No successful metrics fetch from any host in {hosts}"
+
 
 def test_dev_integration_smoke_http_metrics_endpoint():
     # Simple smoke test for default dev/dev-host setup
@@ -148,13 +157,14 @@ def test_dev_integration_smoke_http_metrics_endpoint():
     lines = [ln for ln in content.splitlines() if ln.strip() and not ln.startswith("#")]
     assert any(line.split()[0].startswith("vllm:") for line in lines)
 
+
 def _fetch_metrics_with_retries(url, retries=3, delay=2, ctx=None):
     for attempt in range(1, retries + 1):
         try:
             with urllib.request.urlopen(url, timeout=5, context=ctx) as resp:
                 status = resp.getcode()
-                content_type = resp.headers.get('Content-Type', '')
-                content = resp.read().decode('utf-8')
+                content_type = resp.headers.get("Content-Type", "")
+                content = resp.read().decode("utf-8")
                 return status, content_type, content
         except (URLError, HTTPError):
             if attempt < retries:
@@ -163,6 +173,7 @@ def _fetch_metrics_with_retries(url, retries=3, delay=2, ctx=None):
             else:
                 return None
     return None
+
 
 def test_dev_integration_metrics_endpoint_with_retries():
     if os.environ.get("DEV_INTEGRATION_ENABLED") != "1":

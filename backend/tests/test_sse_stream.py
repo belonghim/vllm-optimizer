@@ -3,6 +3,7 @@ SSE event_generator 동작 단위 테스트
 - heartbeat keepalive (idle 시 ": keepalive" comment 전송)
 - completed 이벤트 후 generator 자동 종료 및 subscriber 정리
 """
+
 import asyncio
 import json
 
@@ -23,7 +24,7 @@ async def test_event_generator_sends_keepalive_on_idle():
                     collected.append(f"data: {json.dumps(data)}\n\n")
                     if data.get("type") in ("completed", "stopped"):
                         break
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     collected.append(": keepalive\n\n")
                     break  # 첫 keepalive 후 종료 (테스트용)
         finally:
@@ -52,7 +53,7 @@ async def test_event_generator_breaks_after_completed_event():
                     collected.append(f"data: {json.dumps(data)}\n\n")
                     if data.get("type") in ("completed", "stopped"):
                         break
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     collected.append(": keepalive\n\n")
         finally:
             await engine.unsubscribe(q)
@@ -82,7 +83,7 @@ async def test_event_generator_sends_data_before_keepalive():
                     collected.append(f"data: {json.dumps(data)}\n\n")
                     if data.get("type") in ("completed", "stopped"):
                         break
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     collected.append(": keepalive\n\n")
         finally:
             await engine.unsubscribe(q)

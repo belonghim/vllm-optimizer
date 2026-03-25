@@ -1,17 +1,18 @@
+import asyncio
+import contextlib
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import AsyncMock, MagicMock, patch
-import asyncio
-
+from kubernetes.client import AppsV1Api, CoreV1Api, CustomObjectsApi
 from pydantic import ValidationError
 
 from ..main import app
-from ..services.auto_tuner import AutoTuner, K8S_NAMESPACE, K8S_DEPLOYMENT, VLLM_IS_NAME
+from ..models.load_test import LoadTestConfig, TuningConfig, TuningTrial
+from ..services.auto_tuner import K8S_NAMESPACE, VLLM_IS_NAME, AutoTuner
 from ..services.load_engine import LoadTestEngine
 from ..services.multi_target_collector import MultiTargetMetricsCollector
-from ..models.load_test import TuningConfig, TuningTrial, LoadTestConfig
-from kubernetes.client import CoreV1Api, AppsV1Api, CustomObjectsApi
- 
+
 
 def test_stream_endpoint_exists(client):
     routes = [route.path for route in client.app.routes]
@@ -19,21 +20,27 @@ def test_stream_endpoint_exists(client):
 
 
 def test_stream_endpoint_returns_sse_content_type(client):
-    from unittest.mock import patch
     import asyncio
+    from unittest.mock import patch
+
     class DummyAutoTuner:
         is_running = False
+
         async def subscribe(self):
             q = asyncio.Queue()
+
             async def pump():
                 await asyncio.sleep(0.05)
                 await q.put({"type": "test_event", "data": {"value": 42}})
                 await asyncio.sleep(0.2)
                 await q.put({"type": "tuning_complete"})
+
             asyncio.create_task(pump())
             return q
+
         async def unsubscribe(self, q):
             pass
+
     handler_globals = None
     for route in client.app.routes:
         if getattr(route, "path", None) == "/api/tuner/stream":
@@ -53,26 +60,28 @@ def client():
 
 @pytest.fixture
 def mock_k8s_clients():
-    with patch('kubernetes.client.AppsV1Api') as mock_apps_api, \
-         patch('kubernetes.client.CoreV1Api') as mock_core_api, \
-         patch('kubernetes.client.CustomObjectsApi') as mock_custom_api:
-        
+    with (
+        patch("kubernetes.client.AppsV1Api") as mock_apps_api,
+        patch("kubernetes.client.CoreV1Api") as mock_core_api,
+        patch("kubernetes.client.CustomObjectsApi") as mock_custom_api,
+    ):
         mock_apps_api.return_value = MagicMock(spec=AppsV1Api)
         mock_core_api.return_value = MagicMock(spec=CoreV1Api)
         mock_custom_api.return_value = MagicMock(spec=CustomObjectsApi)
-        
+
         mock_custom_api.return_value.get_namespaced_custom_object.return_value = {
             "status": {"conditions": [{"type": "Ready", "status": "True"}]}
         }
         mock_custom_api.return_value.patch_namespaced_custom_object = MagicMock()
         yield mock_apps_api, mock_core_api, mock_custom_api
 
+
 @pytest.fixture
 def auto_tuner_instance(mock_k8s_clients):
     mock_metrics_collector = AsyncMock(spec=MultiTargetMetricsCollector)
     mock_load_engine = AsyncMock(spec=LoadTestEngine)
     tuner = AutoTuner(mock_metrics_collector, mock_load_engine)
-    tuner._k8s_available = True # Force K8s available for testing
+    tuner._k8s_available = True  # Force K8s available for testing
     tuner._cooldown_secs = 0  # Skip cooldown in tests
     tuner._k8s_apps = mock_k8s_clients[0].return_value
     tuner._k8s_core = mock_k8s_clients[1].return_value  # type: ignore
@@ -146,7 +155,7 @@ async def test_wait_for_ready_polls_inferenceservice_status(auto_tuner_instance,
         {"status": {"conditions": [{"type": "Ready", "status": "True"}]}},
     ]
 
-    with patch('asyncio.sleep', new=AsyncMock()) as mock_sleep:
+    with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
         ready = await tuner._wait_for_ready(timeout=10, interval=1)
         assert ready
         assert mock_custom_api.get_namespaced_custom_object.call_count == 3
@@ -162,7 +171,7 @@ async def test_wait_for_ready_times_out(auto_tuner_instance, mock_k8s_clients):
         "status": {"conditions": [{"type": "Ready", "status": "False"}]}
     }
 
-    with patch('asyncio.sleep', new=AsyncMock()) as mock_sleep:
+    with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
         ready = await tuner._wait_for_ready(timeout=3, interval=1)
         assert not ready
         assert mock_custom_api.get_namespaced_custom_object.call_count > 1
@@ -194,14 +203,16 @@ async def test_start_reapplies_best_params_at_end(auto_tuner_instance, mock_k8s_
     mock_custom_api = mock_k8s_clients[2].return_value
 
     # Mock _evaluate to return increasing scores
-    tuner._evaluate = AsyncMock(side_effect=[
-        (10, 10, 100), # Trial 0
-        (20, 20, 50),  # Trial 1 (best)
-    ])
-    
+    tuner._evaluate = AsyncMock(
+        side_effect=[
+            (10, 10, 100),  # Trial 0
+            (20, 20, 50),  # Trial 1 (best)
+        ]
+    )
+
     # Mock _wait_for_ready to always return True
     tuner._wait_for_ready = AsyncMock(return_value=True)
-    
+
     # Mock _apply_params to track calls
     tuner._apply_params = AsyncMock(wraps=tuner._apply_params)
 
@@ -225,10 +236,58 @@ async def test_start_reapplies_best_params_at_end(auto_tuner_instance, mock_k8s_
     expected_tuning_args.append(f"--gpu-memory-utilization={tuner._best_trial.params['gpu_memory_utilization']}")
     expected_tuning_args.append(f"--max-num-batched-tokens={tuner._best_trial.params['max_num_batched_tokens']}")
     for expected_arg in expected_tuning_args:
-        assert any(expected_arg in arg for arg in patched_args), f"Expected {expected_arg} in patched args: {patched_args}"
+        assert any(expected_arg in arg for arg in patched_args), (
+            f"Expected {expected_arg} in patched args: {patched_args}"
+        )
 
     # IS patch should be called once per trial + once for final best params reapplication
     assert mock_custom_api.patch_namespaced_custom_object.call_count == config.n_trials + 1
+
+
+@pytest.mark.asyncio
+async def test_auto_benchmark_saves_on_completion(auto_tuner_instance, mock_k8s_clients):
+    tuner = auto_tuner_instance
+    tuner._evaluate = AsyncMock(return_value=(120.0, 60.0, 0.2))
+    tuner._wait_for_ready = AsyncMock(return_value=True)
+    tuner._apply_params = AsyncMock(return_value={"success": True})
+
+    from ..services import auto_tuner as _at_mod
+
+    save_benchmark_mock = AsyncMock(return_value=MagicMock(id=321))
+    q = await tuner.subscribe()
+    with patch.object(_at_mod.storage, "save_benchmark", save_benchmark_mock):
+        with patch("services.auto_tuner.resolve_model_name", new=AsyncMock(return_value="llm-ov")):
+            config = TuningConfig(n_trials=1, eval_requests=5, warmup_requests=0)
+            result = await tuner.start(config, "http://mock:8080", auto_benchmark=True)
+
+    events = []
+    while not q.empty():
+        events.append(q.get_nowait())
+    await tuner.unsubscribe(q)
+
+    assert result["completed"] is True
+    save_benchmark_mock.assert_awaited_once()
+    benchmark_events = [e for e in events if e.get("type") == "benchmark_saved"]
+    assert len(benchmark_events) == 1
+    assert benchmark_events[0]["data"]["benchmark_id"] == 321
+
+
+@pytest.mark.asyncio
+async def test_auto_benchmark_skipped_when_false(auto_tuner_instance, mock_k8s_clients):
+    tuner = auto_tuner_instance
+    tuner._evaluate = AsyncMock(return_value=(120.0, 60.0, 0.2))
+    tuner._wait_for_ready = AsyncMock(return_value=True)
+    tuner._apply_params = AsyncMock(return_value={"success": True})
+
+    from ..services import auto_tuner as _at_mod
+
+    save_benchmark_mock = AsyncMock(return_value=MagicMock(id=321))
+    with patch.object(_at_mod.storage, "save_benchmark", save_benchmark_mock):
+        config = TuningConfig(n_trials=1, eval_requests=5, warmup_requests=0)
+        result = await tuner.start(config, "http://mock:8080", auto_benchmark=False)
+
+    assert result["completed"] is True
+    save_benchmark_mock.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -304,12 +363,14 @@ async def test_unsubscribe_stops_events(auto_tuner_instance):
     await tuner.unsubscribe(q)
     await tuner._broadcast({"type": "should_not_arrive"})
     import asyncio
+
     try:
         # If any event arrives, this will succeed and fail the test
         await asyncio.wait_for(q.get(), timeout=0.2)
-        assert False, "Queue should be empty after unsubscribe"
-    except asyncio.TimeoutError:
+        raise AssertionError("Queue should be empty after unsubscribe")
+    except TimeoutError:
         pass
+
 
 def test_tuner_status_has_trials_completed(client):
     resp = client.get("/api/tuner/status")
@@ -329,7 +390,7 @@ def test_tuner_status_best_is_null_when_idle(client):
 
 
 def test_tuner_trials_item_shape_with_data(client):
-    from unittest.mock import patch, MagicMock
+    from unittest.mock import MagicMock, patch
 
     trial = TuningTrial(
         trial_id=0,
@@ -373,20 +434,13 @@ def test_tuner_trials_item_shape_with_data(client):
         assert item["p99_latency"] == pytest.approx(500.0)
     assert item["status"] == "completed"
 
+
 @pytest.mark.asyncio
 async def test_apply_params_uses_correct_configmap_keys(auto_tuner_instance, mock_k8s_clients):
     tuner = auto_tuner_instance
     mock_custom_api = mock_k8s_clients[2].return_value
 
-    mock_custom_api.get_namespaced_custom_object.return_value = {
-        "spec": {
-            "predictor": {
-                "model": {
-                    "args": []
-                }
-            }
-        }
-    }
+    mock_custom_api.get_namespaced_custom_object.return_value = {"spec": {"predictor": {"model": {"args": []}}}}
 
     params = {
         "max_num_seqs": 128,
@@ -403,6 +457,7 @@ async def test_apply_params_uses_correct_configmap_keys(auto_tuner_instance, moc
 
     # enable_chunked_prefill should map to --enable-chunked-prefill
     assert "--enable-chunked-prefill" in patch_args
+
 
 def test_importance_returns_empty_when_no_trials(client):
     """When no trials have been run, /importance should return {}"""
@@ -432,7 +487,7 @@ def test_apply_best_returns_no_best_message_when_idle(client):
 
 def test_apply_best_with_existing_trial(client):
     """When best trial exists, /apply-best should attempt to apply it"""
-    from unittest.mock import patch, MagicMock, AsyncMock
+    from unittest.mock import AsyncMock, MagicMock, patch
 
     best_trial = TuningTrial(
         trial_id=0,
@@ -474,8 +529,9 @@ async def test_suggest_params_batched_tokens_constraint(auto_tuner_instance, moc
     for _ in range(10):
         trial = study.ask()
         params = auto_tuner_instance._suggest_params(trial, config)
-        assert params["max_num_batched_tokens"] >= params["max_num_seqs"], \
+        assert params["max_num_batched_tokens"] >= params["max_num_seqs"], (
             f"Constraint violated: batched={params['max_num_batched_tokens']} < seqs={params['max_num_seqs']}"
+        )
         study.tell(trial, 0)
 
 
@@ -508,15 +564,7 @@ async def test_apply_params_includes_new_configmap_keys(auto_tuner_instance, moc
     tuner = auto_tuner_instance
     mock_custom_api = mock_k8s_clients[2].return_value
 
-    mock_custom_api.get_namespaced_custom_object.return_value = {
-        "spec": {
-            "predictor": {
-                "model": {
-                    "args": []
-                }
-            }
-        }
-    }
+    mock_custom_api.get_namespaced_custom_object.return_value = {"spec": {"predictor": {"model": {"args": []}}}}
 
     params = {
         "max_num_seqs": 128,
@@ -528,11 +576,11 @@ async def test_apply_params_includes_new_configmap_keys(auto_tuner_instance, moc
     }
 
     await tuner._apply_params(params)
-    
+
     mock_custom_api.patch_namespaced_custom_object.assert_called_once()
     call_args = mock_custom_api.patch_namespaced_custom_object.call_args
     patch_args = call_args.kwargs["body"]["spec"]["predictor"]["model"]["args"]
-    
+
     assert "--max-num-batched-tokens=512" in patch_args
     assert "--block-size=16" in patch_args
     assert "--enable-chunked-prefill" not in patch_args
@@ -543,6 +591,7 @@ async def test_eval_uses_config_concurrency_and_rps(auto_tuner_instance, mock_k8
     tuner = auto_tuner_instance
 
     captured_configs = []
+
     async def mock_run(load_config):
         captured_configs.append(load_config)
         return {"tps": {"total": 50.0}, "latency": {"p99": 0.2}}
@@ -570,6 +619,7 @@ async def test_warmup_runs_before_evaluation(auto_tuner_instance, mock_k8s_clien
 
     call_count = 0
     captured_total_requests: list[int] = []
+
     async def mock_run(load_config):
         nonlocal call_count
         call_count += 1
@@ -593,6 +643,7 @@ async def test_no_warmup_when_zero(auto_tuner_instance, mock_k8s_clients):
 
     call_count = 0
     captured_total_requests: list[int] = []
+
     async def mock_run(load_config):
         nonlocal call_count
         call_count += 1
@@ -620,7 +671,6 @@ def test_start_uses_inmemory_when_no_storage_url(auto_tuner_instance, mock_k8s_c
 
 @pytest.mark.asyncio
 async def test_warmstart_enqueues_previous_best(auto_tuner_instance, mock_k8s_clients):
-    import optuna
 
     tuner = auto_tuner_instance
 
@@ -631,15 +681,11 @@ async def test_warmstart_enqueues_previous_best(auto_tuner_instance, mock_k8s_cl
     mock_study.ask = MagicMock(side_effect=StopIteration)
 
     with patch.dict("os.environ", {"OPTUNA_STORAGE_URL": "sqlite:////tmp/test_optuna_warmstart.db"}):
-        with patch("optuna.storages.RDBStorage"), \
-             patch("optuna.create_study", return_value=mock_study):
-
+        with patch("optuna.storages.RDBStorage"), patch("optuna.create_study", return_value=mock_study):
             config = TuningConfig(n_trials=1, eval_requests=5, warmup_requests=0)
 
-            try:
+            with contextlib.suppress(Exception):
                 await tuner.start(config, "http://mock:8080")
-            except Exception:
-                pass
 
             mock_study.enqueue_trial.assert_called_once_with(
                 params={"max_num_seqs": 256, "gpu_memory_utilization": 0.9}
@@ -676,7 +722,6 @@ def test_start_accepts_pareto_objective(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["success"] is True, f"Expected success=true, got: {data}"
-
 
 
 @pytest.mark.asyncio
@@ -858,15 +903,7 @@ async def test_apply_params_swap_space_configmap_key(auto_tuner_instance, mock_k
     tuner = auto_tuner_instance
     mock_custom_api = mock_k8s_clients[2].return_value
 
-    mock_custom_api.get_namespaced_custom_object.return_value = {
-        "spec": {
-            "predictor": {
-                "model": {
-                    "args": []
-                }
-            }
-        }
-    }
+    mock_custom_api.get_namespaced_custom_object.return_value = {"spec": {"predictor": {"model": {"args": []}}}}
 
     params = {
         "max_num_seqs": 64,
@@ -918,15 +955,7 @@ async def test_chunked_prefill_false_writes_empty_string(auto_tuner_instance, mo
     tuner = auto_tuner_instance
     mock_custom_api = mock_k8s_clients[2].return_value
 
-    mock_custom_api.get_namespaced_custom_object.return_value = {
-        "spec": {
-            "predictor": {
-                "model": {
-                    "args": []
-                }
-            }
-        }
-    }
+    mock_custom_api.get_namespaced_custom_object.return_value = {"spec": {"predictor": {"model": {"args": []}}}}
 
     params = {
         "max_num_seqs": 64,
@@ -947,7 +976,9 @@ async def test_chunked_prefill_false_writes_empty_string(auto_tuner_instance, mo
     mock_custom_api.patch_namespaced_custom_object.reset_mock()
     params_true = {**params, "enable_chunked_prefill": True}
     await tuner._apply_params(params_true)
-    patch_args_true = mock_custom_api.patch_namespaced_custom_object.call_args.kwargs["body"]["spec"]["predictor"]["model"]["args"]
+    patch_args_true = mock_custom_api.patch_namespaced_custom_object.call_args.kwargs["body"]["spec"]["predictor"][
+        "model"
+    ]["args"]
     assert "--enable-chunked-prefill" in patch_args_true
 
 
@@ -956,15 +987,7 @@ async def test_enforce_eager_writes_correct_values(auto_tuner_instance, mock_k8s
     tuner = auto_tuner_instance
     mock_custom_api = mock_k8s_clients[2].return_value
 
-    mock_custom_api.get_namespaced_custom_object.return_value = {
-        "spec": {
-            "predictor": {
-                "model": {
-                    "args": []
-                }
-            }
-        }
-    }
+    mock_custom_api.get_namespaced_custom_object.return_value = {"spec": {"predictor": {"model": {"args": []}}}}
 
     params_false = {
         "max_num_seqs": 64,
@@ -976,13 +999,17 @@ async def test_enforce_eager_writes_correct_values(auto_tuner_instance, mock_k8s
     }
 
     await tuner._apply_params(params_false)
-    patch_args_false = mock_custom_api.patch_namespaced_custom_object.call_args.kwargs["body"]["spec"]["predictor"]["model"]["args"]
+    patch_args_false = mock_custom_api.patch_namespaced_custom_object.call_args.kwargs["body"]["spec"]["predictor"][
+        "model"
+    ]["args"]
     assert "--enforce-eager" not in patch_args_false
 
     mock_custom_api.patch_namespaced_custom_object.reset_mock()
     params_true = {**params_false, "enable_enforce_eager": True}
     await tuner._apply_params(params_true)
-    patch_args_true = mock_custom_api.patch_namespaced_custom_object.call_args.kwargs["body"]["spec"]["predictor"]["model"]["args"]
+    patch_args_true = mock_custom_api.patch_namespaced_custom_object.call_args.kwargs["body"]["spec"]["predictor"][
+        "model"
+    ]["args"]
     assert "--enforce-eager" in patch_args_true
 
 
@@ -1100,6 +1127,7 @@ async def test_preflight_fails_when_k8s_unavailable(auto_tuner_instance):
 async def test_preflight_fails_on_rbac_403(auto_tuner_instance, mock_k8s_clients):
     tuner = auto_tuner_instance
     from kubernetes.client.exceptions import ApiException
+
     mock_custom_api = mock_k8s_clients[2].return_value
     mock_custom_api.get_namespaced_custom_object.side_effect = ApiException(status=403)
     config = TuningConfig(n_trials=2, eval_requests=5, warmup_requests=0)
@@ -1113,6 +1141,7 @@ async def test_preflight_fails_on_rbac_403(auto_tuner_instance, mock_k8s_clients
 async def test_preflight_fails_on_is_not_found_404(auto_tuner_instance, mock_k8s_clients):
     tuner = auto_tuner_instance
     from kubernetes.client.exceptions import ApiException
+
     mock_custom_api = mock_k8s_clients[2].return_value
     mock_custom_api.get_namespaced_custom_object.side_effect = ApiException(status=404)
     config = TuningConfig(n_trials=2, eval_requests=5, warmup_requests=0)
@@ -1126,12 +1155,11 @@ async def test_preflight_fails_on_is_not_found_404(auto_tuner_instance, mock_k8s
 async def test_circuit_breaker_stops_on_consecutive_rbac_failure(auto_tuner_instance, mock_k8s_clients):
     tuner = auto_tuner_instance
     from kubernetes.client.exceptions import ApiException
+
     tuner._preflight_check = AsyncMock(return_value={"success": True})
     tuner._wait_for_ready = AsyncMock(return_value=True)
     mock_custom_api = mock_k8s_clients[2].return_value
-    mock_custom_api.get_namespaced_custom_object.return_value = {
-        "spec": {"predictor": {"model": {"args": []}}}
-    }
+    mock_custom_api.get_namespaced_custom_object.return_value = {"spec": {"predictor": {"model": {"args": []}}}}
     mock_custom_api.patch_namespaced_custom_object.side_effect = ApiException(status=403)
     config = TuningConfig(n_trials=3, eval_requests=5, warmup_requests=0)
     await tuner.start(config, "http://mock:8080")
@@ -1143,6 +1171,7 @@ async def test_circuit_breaker_stops_on_consecutive_rbac_failure(auto_tuner_inst
 async def test_sse_broadcasts_tuning_error_on_preflight_fail(auto_tuner_instance, mock_k8s_clients):
     tuner = auto_tuner_instance
     from kubernetes.client.exceptions import ApiException
+
     mock_custom_api = mock_k8s_clients[2].return_value
     mock_custom_api.get_namespaced_custom_object.side_effect = ApiException(status=403)
     q = await tuner.subscribe()
@@ -1160,9 +1189,10 @@ async def test_sse_broadcasts_tuning_error_on_preflight_fail(auto_tuner_instance
 async def test_wait_for_ready_stops_polling_on_403(auto_tuner_instance, mock_k8s_clients):
     tuner = auto_tuner_instance
     from kubernetes.client.exceptions import ApiException
+
     mock_custom_api = mock_k8s_clients[2].return_value
     mock_custom_api.get_namespaced_custom_object.side_effect = ApiException(status=403)
-    with patch('asyncio.sleep', new=AsyncMock()):
+    with patch("asyncio.sleep", new=AsyncMock()):
         ready = await tuner._wait_for_ready(timeout=10, interval=1)
     assert not ready
     assert mock_custom_api.get_namespaced_custom_object.call_count == 1
@@ -1316,6 +1346,7 @@ async def test_storage_fallback_broadcasts_warning(auto_tuner_instance, mock_k8s
     config = TuningConfig(n_trials=1, eval_requests=5, warmup_requests=0)
 
     from ..services import auto_tuner as _at_mod
+
     with patch.object(_at_mod, "storage") as mock_storage:
         mock_storage.save_trial = AsyncMock(side_effect=Exception("disk full"))
         await tuner.start(config, "http://mock:8080")
@@ -1431,6 +1462,7 @@ async def test_clear_running_called_on_exception_during_tuning(auto_tuner_instan
     mock_custom.patch_namespaced_custom_object.return_value = None
 
     from ..services import auto_tuner as _at_mod
+
     mock_storage = MagicMock()
     mock_storage.set_running = AsyncMock(return_value=42)
     mock_storage.clear_running = AsyncMock()

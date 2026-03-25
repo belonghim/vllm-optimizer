@@ -7,13 +7,18 @@ and internal data structures. Models are divided into:
 - Performance statistics
 - Auto-tuning configuration and trial results
 """
+
+from typing import Any
+
 from pydantic import BaseModel, Field, model_validator
-from typing import Any, Optional
 
 
 class LoadTestConfig(BaseModel):
     """Load test configuration"""
-    endpoint: str = Field(default="", description="vLLM endpoint URL (empty = use server default from VLLM_ENDPOINT env)")
+
+    endpoint: str = Field(
+        default="", description="vLLM endpoint URL (empty = use server default from VLLM_ENDPOINT env)"
+    )
     model: str = Field(default="auto", description="Model name")
     prompt_template: str = Field(default="Hello, how are you?", description="Prompt for generation")
     total_requests: int = Field(default=100, ge=1, description="Total number of requests")
@@ -26,6 +31,7 @@ class LoadTestConfig(BaseModel):
 
 class RequestResult(BaseModel):
     """Single request result"""
+
     req_id: int
     success: bool
     latency: float = Field(description="Total latency in seconds")
@@ -37,6 +43,7 @@ class RequestResult(BaseModel):
 
 class ErrorResponse(BaseModel):
     """Standard error response model"""
+
     success: bool = False
     error: str
     error_type: str | None = None
@@ -45,6 +52,7 @@ class ErrorResponse(BaseModel):
 
 class LatencyStats(BaseModel):
     """Latency statistics"""
+
     mean: float = 0.0
     p50: float = 0.0
     p95: float = 0.0
@@ -55,12 +63,14 @@ class LatencyStats(BaseModel):
 
 class TpsStats(BaseModel):
     """Tokens per second statistics"""
+
     mean: float = 0.0
     total: float = 0.0
 
 
 class LoadTestResult(BaseModel):
     """Aggregated load test result"""
+
     elapsed: float = 0.0
     total: int = 0
     total_requested: int = 0
@@ -72,47 +82,51 @@ class LoadTestResult(BaseModel):
     tps: TpsStats = Field(default_factory=TpsStats)
     # Performance sampling fields — populated during load test
     backend_cpu_avg: float = 0.0
-    gpu_utilization_avg: float = 0.0
+    gpu_utilization_avg: float | None = 0.0
     tokens_per_sec: float = 0.0
-    metrics_target_matched: bool = Field(default=True, description="GPU 메트릭 수집 대상이 부하 테스트 대상과 일치하는지 여부 (불일치 시 GPU Eff. 계산값이 무의미)")
-
-
-
-
-
-
-
-
+    metrics_target_matched: bool = Field(
+        default=True,
+        description="GPU 메트릭 수집 대상이 부하 테스트 대상과 일치하는지 여부 (불일치 시 GPU Eff. 계산값이 무의미)",
+    )
 
 
 class TuningConfig(BaseModel):
     """Configuration for auto-tuning parameters"""
+
     # Search space ranges
     max_num_seqs_range: tuple[int, int] = Field(default=(64, 512), description="Range for max-num-seqs parameter")
-    gpu_memory_utilization_range: tuple[float, float] = Field(default=(0.80, 0.95), description="Range for GPU memory utilization")
+    gpu_memory_utilization_range: tuple[float, float] = Field(
+        default=(0.80, 0.95), description="Range for GPU memory utilization"
+    )
     max_model_len_range: tuple[int, int] = Field(default=(2048, 8192), description="Range for max-model-len parameter")
     # Expanded search space and tuning controls
-    max_num_batched_tokens_range: tuple[int, int] = Field(default=(256, 2048), description="Range for max-num-batched-tokens parameter")
+    max_num_batched_tokens_range: tuple[int, int] = Field(
+        default=(256, 2048), description="Range for max-num-batched-tokens parameter"
+    )
     block_size_options: list[int] = Field(default=[8, 16, 32], description="KV cache block size options")
-    include_swap_space: bool = Field(default=False, description="Enable swap_space parameter search (disable on CPU/OpenVINO)")
+    include_swap_space: bool = Field(
+        default=False, description="Enable swap_space parameter search (disable on CPU/OpenVINO)"
+    )
     swap_space_range: tuple[float, float] = Field(default=(1.0, 8.0), description="Range for swap-space parameter (GB)")
     eval_concurrency: int = Field(default=16, ge=1, description="Concurrent requests during evaluation load test")
     eval_rps: int = Field(default=20, ge=0, description="Requests per second during evaluation (0=unlimited)")
-    eval_fast_fraction: float = Field(default=0.5, ge=0.1, le=1.0, description="Fraction of eval_requests for MedianPruner fast probe")
+    eval_fast_fraction: float = Field(
+        default=0.5, ge=0.1, le=1.0, description="Fraction of eval_requests for MedianPruner fast probe"
+    )
     # Optimization objectives
     objective: str = Field(default="tps", description="Optimization objective: tps, latency, or balanced")
     n_trials: int = Field(default=10, ge=1, description="Number of optimization trials")
     warmup_requests: int = Field(default=20, ge=0, description="Number of warmup requests per trial")
     eval_requests: int = Field(default=100, ge=1, description="Number of evaluation requests per trial")
 
-    @model_validator(mode='after')
-    def validate_ranges(self) -> 'TuningConfig':
+    @model_validator(mode="after")
+    def validate_ranges(self) -> "TuningConfig":
         ranges = {
-            'max_num_seqs_range': self.max_num_seqs_range,
-            'gpu_memory_utilization_range': self.gpu_memory_utilization_range,
-            'max_model_len_range': self.max_model_len_range,
-            'max_num_batched_tokens_range': self.max_num_batched_tokens_range,
-            'swap_space_range': self.swap_space_range,
+            "max_num_seqs_range": self.max_num_seqs_range,
+            "gpu_memory_utilization_range": self.gpu_memory_utilization_range,
+            "max_model_len_range": self.max_model_len_range,
+            "max_num_batched_tokens_range": self.max_num_batched_tokens_range,
+            "swap_space_range": self.swap_space_range,
         }
         for name, r in ranges.items():
             if r[0] >= r[1]:
@@ -120,9 +134,9 @@ class TuningConfig(BaseModel):
         return self
 
 
-
 class TuningTrial(BaseModel):
     """Individual tuning trial result"""
+
     trial_id: int = Field(description="Trial number")
     params: dict[str, Any] = Field(default_factory=dict, description="Trial parameters")
     tps: float = Field(description="Tokens per second achieved")
@@ -135,13 +149,14 @@ class TuningTrial(BaseModel):
 
 class MetricsSnapshot(BaseModel):
     """Real-time vLLM performance metrics snapshot"""
+
     timestamp: float = Field(description="Unix timestamp of the snapshot")
     tps: float = Field(default=0.0, description="Tokens per second")
     rps: float = Field(default=0.0, description="Requests per second")
-    ttft_mean: Optional[float] = Field(default=None, description="Time to first token (mean) in ms")
-    ttft_p99: Optional[float] = Field(default=None, description="Time to first token (P99) in ms")
-    latency_mean: Optional[float] = Field(default=None, description="End-to-end latency (mean) in ms")
-    latency_p99: Optional[float] = Field(default=None, description="End-to-end latency (P99) in ms")
+    ttft_mean: float | None = Field(default=None, description="Time to first token (mean) in ms")
+    ttft_p99: float | None = Field(default=None, description="Time to first token (P99) in ms")
+    latency_mean: float | None = Field(default=None, description="End-to-end latency (mean) in ms")
+    latency_p99: float | None = Field(default=None, description="End-to-end latency (P99) in ms")
     kv_cache: float = Field(default=0.0, description="KV cache usage percentage")
     kv_hit_rate: float = Field(default=0.0, description="KV cache hit rate")
     running: int = Field(default=0, description="Number of currently running requests")
@@ -154,45 +169,56 @@ class MetricsSnapshot(BaseModel):
 
 
 class BenchmarkMetadata(BaseModel):
-    model_identifier: Optional[str] = Field(default=None, description="모델 식별자 (자동 수집 시 서빙 이름, 사용자가 실제 모델명으로 편집 가능)")
-    hardware_type: Optional[str] = Field(default=None, description="하드웨어 타입 (예: CPU, GPU-A100)")
-    runtime: Optional[str] = Field(default=None, description="런타임 (예: OpenVINO, CUDA)")
-    vllm_version: Optional[str] = Field(default=None, description="vLLM 버전")
-    replica_count: Optional[int] = Field(default=None, description="레플리카 수")
-    notes: Optional[str] = Field(default=None, description="사용자 메모")
+    model_identifier: str | None = Field(
+        default=None, description="모델 식별자 (자동 수집 시 서빙 이름, 사용자가 실제 모델명으로 편집 가능)"
+    )
+    hardware_type: str | None = Field(default=None, description="하드웨어 타입 (예: CPU, GPU-A100)")
+    runtime: str | None = Field(default=None, description="런타임 (예: OpenVINO, CUDA)")
+    vllm_version: str | None = Field(default=None, description="vLLM 버전")
+    replica_count: int | None = Field(default=None, description="레플리카 수")
+    notes: str | None = Field(default=None, description="사용자 메모")
     extra: dict[str, str] = Field(default_factory=dict, description="사용자 자유 key-value (문자열 쌍)")
 
 
 class Benchmark(BaseModel):
     """Saved benchmark result for comparison"""
+
     id: int | None = Field(default=None, description="Unique benchmark identifier")
     name: str = Field(description="User-provided benchmark name")
     timestamp: float | None = Field(default=None, description="Unix timestamp when benchmark was saved")
     config: LoadTestConfig = Field(description="Load test configuration used")
     result: LoadTestResult = Field(description="Final load test results")
-    metadata: Optional[BenchmarkMetadata] = Field(default=None)
+    metadata: BenchmarkMetadata | None = Field(default=None)
 
 
 class TargetedMetricsResponse(BaseModel):
     """Response for targeted metrics queries via namespace + is_name."""
+
     status: str = Field(description='"collecting" if metrics not yet available, "ready" if data present')
-    data: MetricsSnapshot | None = Field(default=None, description="Latest metrics snapshot, null when status is collecting")
-    hasMonitoringLabel: bool = Field(default=False, description="Whether namespace has openshift.io/cluster-monitoring=true label")
+    data: MetricsSnapshot | None = Field(
+        default=None, description="Latest metrics snapshot, null when status is collecting"
+    )
+    hasMonitoringLabel: bool = Field(
+        default=False, description="Whether namespace has openshift.io/cluster-monitoring=true label"
+    )
 
 
 class MetricsTarget(BaseModel):
     """Single target for batch metrics query."""
+
     namespace: str = Field(description="Kubernetes namespace")
     inferenceService: str = Field(description="InferenceService name")
 
 
 class BatchMetricsRequest(BaseModel):
     """Request body for batch metrics endpoint."""
+
     targets: list[MetricsTarget] = Field(description="List of targets to query")
 
 
 class BatchMetricsResponse(BaseModel):
     """Response for batch metrics queries."""
+
     results: dict[str, dict[str, Any]] = Field(description="Mapping of ns/is to data and status")
 
 
@@ -201,12 +227,12 @@ class TuningSessionSummary(BaseModel):
     timestamp: float
     objective: str
     n_trials: int
-    best_tps: Optional[float]
-    best_p99: Optional[float]
-    best_score: Optional[float]
+    best_tps: float | None
+    best_p99: float | None
+    best_score: float | None
 
 
 class TuningSessionDetail(TuningSessionSummary):
-    best_params: Optional[dict] = None
+    best_params: dict | None = None
     trials: list[dict]
     importance: dict

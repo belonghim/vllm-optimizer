@@ -1,6 +1,5 @@
 import importlib
 
-import pytest
 from fastapi.testclient import TestClient
 
 
@@ -15,7 +14,7 @@ def _patch_generate_metrics(monkeypatch, fake_fn):
 
 def test_metrics_endpoint_plaintext(monkeypatch):
     """Test /api/metrics endpoint returns correct Prometheus format"""
-    
+
     # Generate realistic Prometheus output for all 8 metrics
     fake_metrics_output = b"""# HELP vllm:request_success_total Total number of successful vLLM requests
 # TYPE vllm:request_success_total counter
@@ -62,92 +61,91 @@ vllm:e2e_request_latency_seconds_count{model="default"} 150.0
 
     def fake_generate_metrics():
         return fake_metrics_output
-    
+
     _patch_generate_metrics(monkeypatch, fake_generate_metrics)
 
     from backend.main import app
+
     client = TestClient(app)
     resp = client.get("/api/metrics")
-    
+
     # Test basic response properties
     assert resp.status_code == 200
     assert resp.headers.get("content-type", "").startswith("text/plain")
-    
+
     # Test that all base metric names are present
     text = resp.text
     base_metrics = [
         "vllm:request_success_total",
-        "vllm:generation_tokens_total", 
+        "vllm:generation_tokens_total",
         "vllm:num_requests_running",
         "vllm:num_requests_waiting",
         "vllm:gpu_cache_usage_perc",
         "vllm:gpu_utilization",
         "vllm:time_to_first_token_seconds",
-        "vllm:e2e_request_latency_seconds"
+        "vllm:e2e_request_latency_seconds",
     ]
-    
+
     for metric in base_metrics:
         assert metric in text, f"Metric {metric} not found in response"
-    
+
     # Test that HELP and TYPE lines are present for each metric
     for metric in base_metrics:
         help_line = f"# HELP {metric}"
         type_line = f"# TYPE {metric}"
         assert help_line in text, f"HELP line for {metric} not found"
         assert type_line in text, f"TYPE line for {metric} not found"
-    
+
     # Test histogram-specific elements for both histograms
-    histogram_metrics = [
-        "vllm:time_to_first_token_seconds",
-        "vllm:e2e_request_latency_seconds"
-    ]
-    
+    histogram_metrics = ["vllm:time_to_first_token_seconds", "vllm:e2e_request_latency_seconds"]
+
     for metric in histogram_metrics:
         # Check buckets
         assert f"{metric}_bucket" in text, f"Bucket lines for {metric} not found"
         assert f"{metric}_sum" in text, f"Sum line for {metric} not found"
         assert f"{metric}_count" in text, f"Count line for {metric} not found"
-        
+
         # Verify bucket structure
-        bucket_lines = [line for line in text.split('\n') if f'{metric}_bucket' in line]
+        bucket_lines = [line for line in text.split("\n") if f"{metric}_bucket" in line]
         assert len(bucket_lines) >= 3, f"Insufficient bucket lines for {metric}"
-        
+
         # Verify sum and count lines
-        sum_lines = [line for line in text.split('\n') if f'{metric}_sum' in line]
-        count_lines = [line for line in text.split('\n') if f'{metric}_count' in line]
+        sum_lines = [line for line in text.split("\n") if f"{metric}_sum" in line]
+        count_lines = [line for line in text.split("\n") if f"{metric}_count" in line]
         assert len(sum_lines) >= 1, f"Missing sum line for {metric}"
         assert len(count_lines) >= 1, f"Missing count line for {metric}"
-    
+
     # Test that counters are properly formatted
     counter_metrics = ["vllm:request_success_total", "vllm:generation_tokens_total"]
     for metric in counter_metrics:
-        counter_lines = [line for line in text.split('\n') if metric in line and not line.startswith('#')]
+        counter_lines = [line for line in text.split("\n") if metric in line and not line.startswith("#")]
         assert len(counter_lines) >= 1, f"Missing counter value line for {metric}"
-    
-    # Test that gauges are properly formatted  
+
+    # Test that gauges are properly formatted
     gauge_metrics = [
         "vllm:num_requests_running",
-        "vllm:num_requests_waiting", 
+        "vllm:num_requests_waiting",
         "vllm:gpu_cache_usage_perc",
-        "vllm:gpu_utilization"
+        "vllm:gpu_utilization",
     ]
     for metric in gauge_metrics:
-        gauge_lines = [line for line in text.split('\n') if metric in line and not line.startswith('#')]
+        gauge_lines = [line for line in text.split("\n") if metric in line and not line.startswith("#")]
         assert len(gauge_lines) >= 1, f"Missing gauge value line for {metric}"
 
 
 def test_metrics_endpoint_no_server_required(monkeypatch):
     """Test that endpoint works without requiring external server or backend services"""
-    
+
     # Minimal valid Prometheus output
     def fake_generate_metrics():
         return b"# HELP test_metric Test metric\n# TYPE test_metric gauge\ntest_metric 1.0\n"
-    
+
     _patch_generate_metrics(monkeypatch, fake_generate_metrics)
 
     from backend.main import app
+
     client = TestClient(app)
     resp = client.get("/api/metrics")
-    
+
     assert resp.status_code == 200
     assert "test_metric" in resp.text

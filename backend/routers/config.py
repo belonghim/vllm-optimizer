@@ -1,8 +1,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-
-from services.shared import runtime_config
 from services.model_resolver import resolve_model_name
+from services.shared import runtime_config
 
 router = APIRouter(prefix="/api/config", tags=["config"])
 
@@ -24,6 +23,7 @@ class ConfigPatch(BaseModel):
 @router.get("", response_model=ConfigResponse)
 async def get_config() -> ConfigResponse:
     import os
+
     endpoint = runtime_config.vllm_endpoint
     model_name = os.getenv("VLLM_MODEL", "auto")
     try:

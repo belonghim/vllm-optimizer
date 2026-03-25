@@ -1,15 +1,16 @@
-import pytest
-from fastapi.testclient import TestClient
-from typing import Any
 import asyncio
 import sys
+from typing import Any
+
+import pytest
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture(autouse=True)
 def setup_test_storage(monkeypatch):
     """Setup in-memory storage for each test."""
-    from services.storage import Storage
     from services import shared
+    from services.storage import Storage
 
     test_storage = Storage(":memory:")
 
@@ -33,6 +34,7 @@ def setup_test_storage(monkeypatch):
 def client():
     """Create test client."""
     from main import app
+
     return TestClient(app)
 
 
@@ -67,7 +69,7 @@ def test_benchmark_save_get_and_delete_in_one(client):
             "latency": {"mean": 0.0, "p50": 0.0, "p95": 0.0, "p99": 0.0, "min": 0.0, "max": 0.0},
             "ttft": {"mean": 0.0, "p50": 0.0, "p95": 0.0, "p99": 0.0, "min": 0.0, "max": 0.0},
             "tps": {"mean": 0.0, "total": 0.0},
-        }
+        },
     }
     resp = client.post("/api/benchmark/save", json=payload)
     assert resp.status_code == 200

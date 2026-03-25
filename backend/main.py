@@ -8,16 +8,16 @@ and mounts placeholder routers for the vLLM optimizer backend.
 import logging
 import os
 import time
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
+from typing import Any
 
-from typing import Any, Union
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-
-from kubernetes import config as k8s_config, client
-
-
+from kubernetes import client
+from kubernetes import config as k8s_config
+from routers import alerts, benchmark, load_test, metrics, sla, status, tuner, vllm_config
+from routers import config as config_router
 
 # ── Logging Configuration ──
 logging.basicConfig(
@@ -54,6 +54,7 @@ async def lifespan(app: FastAPI):
     # ── Storage initialization (fail-open) ──
     try:
         from services.shared import storage
+
         await storage.initialize()
         logger.info("[Lifespan] Storage initialized")
     except Exception as e:
@@ -61,8 +62,9 @@ async def lifespan(app: FastAPI):
 
     # ── Detect interrupted runs from previous lifecycle ──
     try:
-        from services.shared import storage as _storage
         from routers.status import set_interrupted_runs
+        from services.shared import storage as _storage
+
         interrupted = await _storage.get_interrupted_runs()
         if interrupted:
             logger.warning("[Lifespan] Detected %d interrupted run(s) from previous lifecycle", len(interrupted))
@@ -72,6 +74,7 @@ async def lifespan(app: FastAPI):
 
     try:
         from services.shared import storage_health_monitor
+
         storage_health_monitor.start()
         logger.info("[Lifespan] Storage health monitor started")
     except Exception as e:
@@ -83,6 +86,7 @@ async def lifespan(app: FastAPI):
     # ── Storage health monitor shutdown (fail-open) ──
     try:
         from services.shared import storage_health_monitor
+
         storage_health_monitor.stop()
         logger.info("[Lifespan] Storage health monitor stopped")
     except Exception as e:
@@ -91,12 +95,11 @@ async def lifespan(app: FastAPI):
     # ── Cleanup running_state on shutdown (fail-open) ──
     try:
         from services.shared import storage as _shutdown_storage
+
         running_rows = await _shutdown_storage.get_all_running()
         for row in running_rows:
-            try:
+            with suppress(Exception):
                 await _shutdown_storage.clear_running(row["id"])
-            except Exception:
-                pass
         if running_rows:
             logger.info("[Lifespan] Cleared %d running_state row(s) on shutdown", len(running_rows))
     except Exception as e:
@@ -105,10 +108,12 @@ async def lifespan(app: FastAPI):
     # ── Storage shutdown (fail-open) ──
     try:
         from services.shared import storage
+
         await storage.close()
         logger.info("[Lifespan] Storage closed")
     except Exception as e:
         logger.debug("[Lifespan] Storage close failed (non-critical): %s", e)
+
 
 app = FastAPI(
     title="vLLM Optimizer API",
@@ -120,22 +125,23 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
 # Helper function for Prometheus connectivity check
 async def check_prometheus_health() -> bool:
     """Check Prometheus/Thanos connectivity with a lightweight query."""
     try:
         import httpx
-        
+
         thanos_url = os.getenv("PROMETHEUS_URL", "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091")
-        
+
         token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
         token = None
         if os.path.exists(token_path):
-            with open(token_path, 'r') as f:
+            with open(token_path) as f:
                 token = f.read().strip()
-        
+
         headers = {"Authorization": f"Bearer {token}"} if token else {}
-        
+
         query = "1"
         async with httpx.AsyncClient(timeout=3, verify=False) as client:
             resp = await client.get(
@@ -146,8 +152,6 @@ async def check_prometheus_health() -> bool:
             return resp.status_code == 200
     except Exception:  # intentional: non-critical
         return False
-
-
 
 
 try:
@@ -173,8 +177,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from routers import load_test, metrics, benchmark, tuner, vllm_config, config as config_router, status, sla
-
 # Mount routers under /api prefix with route-specific paths
 # Note: routers are imported directly as APIRouter instances, not modules
 app.include_router(load_test, prefix="/api/load_test", tags=["load_test"])
@@ -185,10 +187,11 @@ app.include_router(vllm_config, prefix="/api/vllm-config", tags=["vllm-config"])
 app.include_router(config_router)
 app.include_router(status, prefix="/api", tags=["status"])
 app.include_router(sla, prefix="/api/sla", tags=["sla"])
+app.include_router(alerts, prefix="/api/alerts", tags=["alerts"])
 
 
 @app.get("/health", tags=["health"], response_model=None)
-async def health_check(request: Request) -> Union[dict[str, Any], JSONResponse]:
+async def health_check(request: Request) -> dict[str, Any] | JSONResponse:
     """Health check with dependency validation.
     Query param: deep=1 enables full connectivity checks (slow)."""
     health: dict[str, Any] = {"status": "healthy", "dependencies": {}}
@@ -219,9 +222,6 @@ async def health_check(request: Request) -> Union[dict[str, Any], JSONResponse]:
     return health
 
 
-
-
-
 @app.get("/", tags=["root"])
 async def root() -> dict[str, Any]:
     """Root endpoint with API information."""
@@ -234,6 +234,6 @@ async def root() -> dict[str, Any]:
             "load_test": "/api/load_test",
             "metrics": "/api/metrics",
             "benchmark": "/api/benchmark",
-            "tuner": "/api/tuner"
-        }
+            "tuner": "/api/tuner",
+        },
     }

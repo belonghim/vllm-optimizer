@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, Fragment } from "react";
+import { useState, useEffect, useMemo, Fragment, useCallback } from "react";
 import { authFetch } from '../utils/authFetch';
 import { API, TARGET_COLORS } from "../constants";
 import { useThemeColors } from "../contexts/ThemeContext";
@@ -58,13 +58,11 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
   const [error, setError] = useState<string | null>(null);
   const { isMockEnabled } = useMockData();
 
-  useEffect(() => {
-    if (!isActive) return;
-
+  const fetchBenchmarks = useCallback(() => {
     if (isMockEnabled) {
       setBenchmarks(mockBenchmarks());
       setError(null);
-      return;
+      return () => {};
     }
     const controller = new AbortController();
     authFetch(`${API}/benchmark/list`, { signal: controller.signal })
@@ -81,7 +79,14 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
         setError(`벤치마크 조회 실패: ${(err as Error).message}`);
       });
     return () => controller.abort();
-  }, [isMockEnabled, isActive]);
+  }, [isMockEnabled]);
+
+  useEffect(() => {
+    if (isActive) {
+      const cleanup = fetchBenchmarks();
+      return cleanup;
+    }
+  }, [isActive, fetchBenchmarks]);
 
   const toggleSelect = (id: string | number, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -100,7 +105,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
 
     if (isMockEnabled) {
       setBenchmarks(prev => prev.filter(x => x.id !== b.id));
-      setSelected(selected.filter(x => x !== b.id));
+      setSelected(prev => prev.filter(x => x !== b.id));
       setExpanded(prev => prev.filter(x => x !== b.id));
       return;
     }
@@ -108,9 +113,8 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
     try {
       const res = await authFetch(`${API}/benchmark/${b.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setBenchmarks(prev => prev.filter(x => x.id !== b.id));
-      setSelected(selected.filter(x => x !== b.id));
-      setExpanded(prev => prev.filter(x => x !== b.id));
+      setSelected(prev => prev.filter(x => x !== b.id));
+      fetchBenchmarks();
     } catch (err) {
       setError(`삭제 실패: ${(err as Error).message}`);
     }
@@ -172,6 +176,30 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
     updateMetadataField('extra', extra);
   };
 
+  const handleBulkDelete = async () => {
+    if (selected.length === 0) return;
+    if (!window.confirm(`${selected.length}개의 벤치마크를 삭제하시겠습니까?`)) return;
+
+    if (isMockEnabled) {
+      setBenchmarks(prev => prev.filter(b => !selected.includes(b.id)));
+      setSelected([]);
+      return;
+    }
+
+    try {
+      for (const id of selected) {
+        const res = await authFetch(`${API}/benchmark/${id}`, { method: 'DELETE' });
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status} for benchmark ID ${id}`);
+        }
+      }
+      setSelected([]);
+      fetchBenchmarks();
+    } catch (err) {
+      setError(`일괄 삭제 실패: ${(err as Error).message}`);
+    }
+  };
+
   const handleExportJSON = () => {
     const dataToExport = selected.length > 0
       ? benchmarks.filter(b => selected.includes(b.id))
@@ -224,10 +252,17 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
              disabled={benchmarks.length === 0}
              onClick={handleExportCSV}
            >
-             CSV 내보내기
-           </button>
-         </div>
-         <table className="table" aria-label="저장된 벤치마크 목록">
+              CSV 내보내기
+            </button>
+            <button
+              className="btn-danger"
+              disabled={selected.length === 0}
+              onClick={handleBulkDelete}
+            >
+              선택 삭제 ({selected.length})
+            </button>
+          </div>
+          <table className="table" aria-label="저장된 벤치마크 목록">
           <thead>
             <tr>
               <th></th>

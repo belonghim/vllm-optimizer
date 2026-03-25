@@ -68,7 +68,7 @@ describe("BenchmarkPage", () => {
   describe("delete", () => {
     it("shows delete button for each row", () => {
       render(<BenchmarkPage isActive={true} />);
-      const buttons = screen.getAllByRole("button", { name: /삭제/ });
+      const buttons = screen.getAllByRole("button", { name: "벤치마크 삭제" });
       expect(buttons.length).toBeGreaterThan(0);
     });
 
@@ -77,7 +77,7 @@ describe("BenchmarkPage", () => {
       vi.stubGlobal("confirm", vi.fn(() => true));
       render(<BenchmarkPage isActive={true} />);
 
-      const buttons = screen.getAllByRole("button", { name: /삭제/ });
+      const buttons = screen.getAllByRole("button", { name: "벤치마크 삭제" });
       const initialRows = screen.getAllByRole("row").length;
       await user.click(buttons[0]);
 
@@ -91,7 +91,7 @@ describe("BenchmarkPage", () => {
       vi.stubGlobal("confirm", vi.fn(() => false));
       render(<BenchmarkPage isActive={true} />);
 
-      const buttons = screen.getAllByRole("button", { name: /삭제/ });
+      const buttons = screen.getAllByRole("button", { name: "벤치마크 삭제" });
       const initialRows = screen.getAllByRole("row").length;
       await user.click(buttons[0]);
 

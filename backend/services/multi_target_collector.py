@@ -275,7 +275,7 @@ class MultiTargetMetricsCollector:
                         *(self._collect_target(target) for target in active_targets),
                         return_exceptions=True,
                     )
-                    for target, result in zip(active_targets, results):
+                    for target, result in zip(active_targets, results, strict=False):
                         if isinstance(result, Exception):
                             logger.warning(
                                 "[MultiTargetMetricsCollector] target=%s collect failed: %s",
@@ -298,8 +298,7 @@ class MultiTargetMetricsCollector:
                     keys_to_remove = [
                         key
                         for key, target in self._targets.items()
-                        if not target.is_default
-                        and (now - target.last_accessed) > self.INACTIVE_TIMEOUT
+                        if not target.is_default and (now - target.last_accessed) > self.INACTIVE_TIMEOUT
                     ]
                     for key in keys_to_remove:
                         target = self._targets[key]
@@ -318,49 +317,47 @@ class MultiTargetMetricsCollector:
         dcgm_selector = f'exported_namespace="{namespace}", exported_pod=~"{is_name}-predictor.*"'
         return {
             "tokens_per_second": (
-                f'sum(rate(vllm:num_generated_tokens{{{selector}}}[1m])) '
-                f'or sum(rate(vllm:generation_tokens_total{{{selector}}}[1m]))'
+                f"sum(rate(vllm:num_generated_tokens{{{selector}}}[1m])) "
+                f"or sum(rate(vllm:generation_tokens_total{{{selector}}}[1m]))"
             ),
             "requests_per_second": (
-                f'sum(rate(vllm:num_requests_finished{{{selector}}}[1m])) '
-                f'or sum(rate(vllm:request_success_total{{{selector}}}[1m]))'
+                f"sum(rate(vllm:num_requests_finished{{{selector}}}[1m])) "
+                f"or sum(rate(vllm:request_success_total{{{selector}}}[1m]))"
             ),
             "mean_ttft_ms": (
-                f'histogram_quantile(0.5, sum by (le) '
-                f'(rate(vllm:time_to_first_token_seconds_bucket{{{selector}}}[1m]))) * 1000'
+                f"histogram_quantile(0.5, sum by (le) "
+                f"(rate(vllm:time_to_first_token_seconds_bucket{{{selector}}}[1m]))) * 1000"
             ),
             "p99_ttft_ms": (
-                f'histogram_quantile(0.99, sum by (le) '
-                f'(rate(vllm:time_to_first_token_seconds_bucket{{{selector}}}[1m]))) * 1000'
+                f"histogram_quantile(0.99, sum by (le) "
+                f"(rate(vllm:time_to_first_token_seconds_bucket{{{selector}}}[1m]))) * 1000"
             ),
             "mean_e2e_latency_ms": (
-                f'histogram_quantile(0.5, sum by (le) '
-                f'(rate(vllm:e2e_request_latency_seconds_bucket{{{selector}}}[1m]))) * 1000'
+                f"histogram_quantile(0.5, sum by (le) "
+                f"(rate(vllm:e2e_request_latency_seconds_bucket{{{selector}}}[1m]))) * 1000"
             ),
             "p99_e2e_latency_ms": (
-                f'histogram_quantile(0.99, sum by (le) '
-                f'(rate(vllm:e2e_request_latency_seconds_bucket{{{selector}}}[1m]))) * 1000'
+                f"histogram_quantile(0.99, sum by (le) "
+                f"(rate(vllm:e2e_request_latency_seconds_bucket{{{selector}}}[1m]))) * 1000"
             ),
-            "kv_cache_usage_pct": f'vllm:kv_cache_usage_perc{{{selector}}} * 100',
-            "kv_cache_hit_rate": (
-                f'vllm:kv_cache_hit_rate{{{selector}}} or vllm:cache_config_info{{{selector}}}'
-            ),
-            "running_requests": f'vllm:num_requests_running{{{selector}}}',
-            "waiting_requests": f'vllm:num_requests_waiting{{{selector}}}',
+            "kv_cache_usage_pct": f"vllm:kv_cache_usage_perc{{{selector}}} * 100",
+            "kv_cache_hit_rate": (f"vllm:kv_cache_hit_rate{{{selector}}} or vllm:cache_config_info{{{selector}}}"),
+            "running_requests": f"vllm:num_requests_running{{{selector}}}",
+            "waiting_requests": f"vllm:num_requests_waiting{{{selector}}}",
             "gpu_memory_used_gb": (
-                f'(vllm:gpu_memory_usage_bytes{{{selector}}} / 1024^3) '
-                f'or vllm:gpu_cache_usage_perc{{{selector}}} '
-                f'or (sum(DCGM_FI_DEV_FB_USED{{{dcgm_selector}}}) / 1024)'
+                f"(vllm:gpu_memory_usage_bytes{{{selector}}} / 1024^3) "
+                f"or vllm:gpu_cache_usage_perc{{{selector}}} "
+                f"or (sum(DCGM_FI_DEV_FB_USED{{{dcgm_selector}}}) / 1024)"
             ),
             "gpu_memory_total_gb": (
-                f'(vllm:gpu_memory_total_bytes{{{selector}}} / 1024^3) '
-                f'or (vllm:gpu_cache_usage_perc{{{selector}}} * 0 + 1) '
-                f'or (sum(DCGM_FI_DEV_FB_USED{{{dcgm_selector}}} + DCGM_FI_DEV_FB_FREE{{{dcgm_selector}}} + DCGM_FI_DEV_FB_RESERVED{{{dcgm_selector}}}) / 1024)'
+                f"(vllm:gpu_memory_total_bytes{{{selector}}} / 1024^3) "
+                f"or (vllm:gpu_cache_usage_perc{{{selector}}} * 0 + 1) "
+                f"or (sum(DCGM_FI_DEV_FB_USED{{{dcgm_selector}}} + DCGM_FI_DEV_FB_FREE{{{dcgm_selector}}} + DCGM_FI_DEV_FB_RESERVED{{{dcgm_selector}}}) / 1024)"
             ),
             "gpu_utilization_pct": (
-                f'(vllm:gpu_utilization_perc{{{selector}}} * 100) '
-                f'or (vllm:gpu_utilization{{{selector}}} * 100) '
-                f'or sum(DCGM_FI_DEV_GPU_UTIL{{{dcgm_selector}}})'
+                f"(vllm:gpu_utilization_perc{{{selector}}} * 100) "
+                f"or (vllm:gpu_utilization{{{selector}}} * 100) "
+                f"or sum(DCGM_FI_DEV_GPU_UTIL{{{dcgm_selector}}})"
             ),
         }
 
@@ -416,10 +413,7 @@ class MultiTargetMetricsCollector:
 
         async with httpx.AsyncClient(timeout=5, verify=False, headers=headers) as client:
             responses = await asyncio.gather(
-                *(
-                    self._fetch_prometheus_metric(client, metric_name, query)
-                    for metric_name, query in queries.items()
-                )
+                *(self._fetch_prometheus_metric(client, metric_name, query) for metric_name, query in queries.items())
             )
 
         result: dict[str, float] = {}
@@ -505,7 +499,7 @@ class MultiTargetMetricsCollector:
     def _load_token(self) -> str | None:
         token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
         try:
-            with open(token_path, "r", encoding="utf-8") as file_obj:
+            with open(token_path, encoding="utf-8") as file_obj:
                 return file_obj.read().strip()
         except (FileNotFoundError, OSError):
             return None

@@ -7,6 +7,7 @@ E2E 파드 재기동 검증 테스트
     OPTIMIZER_NAMESPACE=vllm-optimizer-dev \
     python3 -m pytest backend/tests/integration/performance/test_pod_restart.py -v -m integration
 """
+
 import os
 import time
 
@@ -25,9 +26,10 @@ def _get_pod_uids(namespace: str, label: str) -> set[str]:
     import subprocess
 
     result = subprocess.run(
-        ["oc", "get", "pods", "-n", namespace, "-l", label,
-         "-o", "jsonpath={.items[*].metadata.uid}"],
-        capture_output=True, text=True, timeout=30
+        ["oc", "get", "pods", "-n", namespace, "-l", label, "-o", "jsonpath={.items[*].metadata.uid}"],
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     uids_str = result.stdout.strip()
     if not uids_str:
@@ -35,9 +37,7 @@ def _get_pod_uids(namespace: str, label: str) -> set[str]:
     return set(uids_str.split())
 
 
-def _wait_for_pod_restart(
-    namespace: str, label: str, original_uids: set[str], timeout: int = 300
-) -> bool:
+def _wait_for_pod_restart(namespace: str, label: str, original_uids: set[str], timeout: int = 300) -> bool:
     """파드 UID가 변경될 때까지 대기. 모든 original UID가 사라지면 성공."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -77,19 +77,12 @@ def test_pod_restart_on_tuner_apply(
         "objective": "tps",
     }
     vllm_endpoint = os.getenv("VLLM_ENDPOINT", "http://llm-ov-predictor.vllm.svc.cluster.local:8080")
-    resp = http_client.post(
-        "/api/tuner/start",
-        json={**config, "vllm_endpoint": vllm_endpoint},
-        timeout=30
-    )
+    resp = http_client.post("/api/tuner/start", json={**config, "vllm_endpoint": vllm_endpoint}, timeout=30)
     assert resp.status_code == 200, f"Failed to start tuner: {resp.text}"
     assert resp.json().get("success"), f"Tuner start failed: {resp.json()}"
 
     # 3. 파드 UID 변경 대기
-    restarted = _wait_for_pod_restart(
-        VLLM_NAMESPACE, VLLM_POD_LABEL,
-        original_uids, timeout=POD_RESTART_TIMEOUT
-    )
+    restarted = _wait_for_pod_restart(VLLM_NAMESPACE, VLLM_POD_LABEL, original_uids, timeout=POD_RESTART_TIMEOUT)
 
     # 4. 튜너가 완료될 때까지 대기 (최대 120초)
     deadline = time.monotonic() + 120
@@ -127,11 +120,7 @@ def test_vllm_config_patch_via_api(
     original_seqs = original_data.get("max_num_seqs", "256")
 
     new_value = "128" if original_seqs != "128" else "256"
-    patch_resp = http_client.patch(
-        "/api/vllm-config",
-        json={"data": {"max_num_seqs": new_value}},
-        timeout=30
-    )
+    patch_resp = http_client.patch("/api/vllm-config", json={"data": {"max_num_seqs": new_value}}, timeout=30)
     assert patch_resp.status_code == 200, f"PATCH failed: {patch_resp.text}"
     assert patch_resp.json().get("success")
     assert "max_num_seqs" in patch_resp.json().get("updated_keys", [])

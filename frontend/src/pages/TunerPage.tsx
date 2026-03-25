@@ -59,9 +59,10 @@ interface TunerConfig {
 
 interface TunerPageProps {
   isActive: boolean;
+  onTabChange?: (tab: string) => void;
 }
 
-function TunerPage({ isActive }: TunerPageProps) {
+function TunerPage({ isActive, onTabChange }: TunerPageProps) {
   const { isMockEnabled } = useMockData();
   const { endpoint, namespace, inferenceservice } = useClusterConfig();
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +73,9 @@ function TunerPage({ isActive }: TunerPageProps) {
   const [currentPhase, setCurrentPhase] = useState<TunerPhase | null>(null);
   const [applyStatus, setApplyStatus] = useState<string | null>(null);
   const [interruptedWarning, setInterruptedWarning] = useState<string | null>(null);
+  const [autoBenchmark, setAutoBenchmark] = useState(false);
+  const [benchmarkSaved, setBenchmarkSaved] = useState(false);
+  const [benchmarkSavedId, setBenchmarkSavedId] = useState<number | null>(null);
   const [currentConfig, setCurrentConfig] = useState<Record<string, unknown> | null>(null);
   const [currentResources, setCurrentResources] = useState<Record<string, Record<string, string>> | null>(null);
   const [storageUri, setStorageUri] = useState<string | null>(null);
@@ -174,6 +178,12 @@ function TunerPage({ isActive }: TunerPageProps) {
           if (data.type === "tuning_warning") {
             const payload = data.data as SSEWarningPayload | undefined;
             setWarning(payload?.message ?? "튜닝 경고가 발생했습니다.");
+            return;
+          }
+          if (data.type === "benchmark_saved") {
+            const benchmarkId = data?.data?.benchmark_id;
+            setBenchmarkSaved(true);
+            setBenchmarkSavedId(typeof benchmarkId === "number" ? benchmarkId : null);
             return;
           }
           if (data.type === "trial_complete" || data.type === "tuning_complete") {
@@ -327,11 +337,14 @@ function TunerPage({ isActive }: TunerPageProps) {
   const start = async () => {
     setError(null);
     setWarning(null);
+    setBenchmarkSaved(false);
+    setBenchmarkSavedId(null);
     try {
       const res = await authFetch(`${API}/tuner/start`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...config,
+          auto_benchmark: autoBenchmark,
           vllm_endpoint: endpoint || config.vllm_endpoint,
           vllm_namespace: namespace,
           vllm_is_name: inferenceservice,
@@ -394,6 +407,24 @@ function TunerPage({ isActive }: TunerPageProps) {
         <div className="success-msg" role="status">
           현재값을 InferenceService에 적용했습니다.
         </div>
+      )}
+      <label style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <input
+          type="checkbox"
+          checked={autoBenchmark}
+          onChange={(e) => setAutoBenchmark(e.target.checked)}
+        />
+        완료 후 벤치마크 자동 저장
+      </label>
+      {benchmarkSaved && (
+        <div className="success-msg" role="status" style={{ marginBottom: 8 }}>
+          벤치마크 저장됨 ✓{benchmarkSavedId !== null ? ` (ID: ${benchmarkSavedId})` : ""}
+        </div>
+      )}
+      {benchmarkSaved && onTabChange && (
+        <button type="button" onClick={() => onTabChange("benchmark")} style={{ marginBottom: 12 }}>
+          BenchmarkPage로 이동
+        </button>
       )}
       <TunerConfigForm
         config={config}

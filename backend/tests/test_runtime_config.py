@@ -20,11 +20,11 @@ def reset_runtime_config():
 @pytest.fixture
 def client():
     from main import app
+
     return TestClient(app)
 
 
 class TestRuntimeConfigSingleton:
-    
     def test_initial_vllm_namespace_default(self):
         cfg = RuntimeConfig()
         assert cfg.vllm_namespace == "vllm-lab-dev"
@@ -64,7 +64,6 @@ class TestRuntimeConfigSingleton:
 
 
 class TestGetConfigEndpoint:
-    
     def test_get_config_returns_all_fields(self, client: TestClient):
         response = client.get("/api/config")
         assert response.status_code == 200
@@ -87,7 +86,6 @@ class TestGetConfigEndpoint:
 
 
 class TestPatchConfigEndpoint:
-    
     def test_patch_config_updates_endpoint(self, client: TestClient):
         patch_payload = {"vllm_endpoint": "http://patched-endpoint:9000"}
         response = client.patch("/api/config", json=patch_payload)

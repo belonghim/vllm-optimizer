@@ -26,10 +26,7 @@ def compare_metrics(baseline: dict[str, Any], current: dict[str, Any]) -> dict[s
         if key in current and isinstance(baseline[key], (int, float)) and isinstance(current[key], (int, float)):
             base_val = baseline[key]
             curr_val = current[key]
-            if base_val != 0:
-                pct_change = ((curr_val - base_val) / abs(base_val)) * 100
-            else:
-                pct_change = 0.0
+            pct_change = (curr_val - base_val) / abs(base_val) * 100 if base_val != 0 else 0.0
             result[key] = {
                 "baseline": base_val,
                 "current": curr_val,

@@ -1,15 +1,16 @@
-import os
 import json
-import time
+import os
 import subprocess
-from collections.abc import Iterator
+import time
+from collections.abc import AsyncIterator, Iterator
 from typing import cast
-from collections.abc import AsyncIterator
 
-import pytest
 import httpx
+import pytest
 
-BACKEND_URL = os.getenv("PERF_TEST_BACKEND_URL", "http://vllm-optimizer-backend.vllm-optimizer-dev.svc.cluster.local:8000")
+BACKEND_URL = os.getenv(
+    "PERF_TEST_BACKEND_URL", "http://vllm-optimizer-backend.vllm-optimizer-dev.svc.cluster.local:8000"
+)
 VLLM_NAMESPACE = os.getenv("VLLM_NAMESPACE", "vllm")
 VLLM_ENDPOINT = os.getenv("VLLM_ENDPOINT", "http://llm-ov-predictor.vllm.svc.cluster.local:8080")
 VLLM_MODEL = os.getenv("VLLM_MODEL", "llm-ov")
@@ -58,9 +59,18 @@ def warm_up_vllm(http_client: httpx.Client) -> None:
 @pytest.fixture(autouse=True)
 async def backup_restore_is_args() -> AsyncIterator[None]:
     result = subprocess.run(
-        ["oc", "get", "inferenceservice", "llm-ov", "-n", VLLM_NAMESPACE,
-         "-o", "jsonpath={.spec.predictor.model.args}"],
-        capture_output=True, text=True
+        [
+            "oc",
+            "get",
+            "inferenceservice",
+            "llm-ov",
+            "-n",
+            VLLM_NAMESPACE,
+            "-o",
+            "jsonpath={.spec.predictor.model.args}",
+        ],
+        capture_output=True,
+        text=True,
     )
     original_args = result.stdout.strip() if result.returncode == 0 else None
 
@@ -71,9 +81,17 @@ async def backup_restore_is_args() -> AsyncIterator[None]:
             args_list = json.loads(original_args) if original_args else []
             patch_body = json.dumps({"spec": {"predictor": {"model": {"args": args_list}}}})
             subprocess.run(
-                ["oc", "patch", "inferenceservice", "llm-ov", "-n", VLLM_NAMESPACE,
-                 "--type=merge", f"--patch={patch_body}"],
-                capture_output=True
+                [
+                    "oc",
+                    "patch",
+                    "inferenceservice",
+                    "llm-ov",
+                    "-n",
+                    VLLM_NAMESPACE,
+                    "--type=merge",
+                    f"--patch={patch_body}",
+                ],
+                capture_output=True,
             )
         except Exception:
             pass
@@ -103,8 +121,7 @@ def skip_if_overloaded(http_client: httpx.Client) -> None:
 def performance_baseline() -> dict[str, object]:
     """baseline.dev.json 로드. 없으면 빈 dict 반환."""
     baseline_path = os.getenv(
-        "PERF_BASELINE_FILE",
-        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "baseline.dev.json")
+        "PERF_BASELINE_FILE", os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "baseline.dev.json")
     )
     if os.path.exists(baseline_path):
         with open(baseline_path) as f:

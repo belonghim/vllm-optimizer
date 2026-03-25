@@ -1,8 +1,9 @@
+from typing import cast
+from unittest.mock import MagicMock, patch
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from typing import cast
-from unittest.mock import MagicMock, patch
 
 from ..main import app
 
@@ -30,15 +31,19 @@ def _get_vllm_config_globals(client: TestClient, method: str | None = None):
 
 
 _MOCK_IS = {
-    "spec": {"predictor": {"model": {
-        "storageUri": "oci://test-registry/test-model",
-        "args": [
-            "--max-num-seqs=256",
-            "--gpu-memory-utilization=0.90",
-            "--max-model-len=8192",
-            "--max-num-batched-tokens=2048",
-        ],
-    }}}
+    "spec": {
+        "predictor": {
+            "model": {
+                "storageUri": "oci://test-registry/test-model",
+                "args": [
+                    "--max-num-seqs=256",
+                    "--gpu-memory-utilization=0.90",
+                    "--max-model-len=8192",
+                    "--max-num-batched-tokens=2048",
+                ],
+            }
+        }
+    }
 }
 
 
@@ -172,23 +177,27 @@ def test_patch_tuning_args_does_not_include_storage_uri_in_body(client):
 
 def test_get_returns_resources(client_with_vllm_config):
     mock_is_with_resources = {
-        "spec": {"predictor": {"model": {
-            "storageUri": "oci://test-registry/test-model",
-            "args": ["--max-num-seqs=256"],
-            "resources": {
-                "requests": {"cpu": "4", "memory": "8Gi"},
-                "limits": {"cpu": "8", "memory": "16Gi"},
-            },
-        }}}
+        "spec": {
+            "predictor": {
+                "model": {
+                    "storageUri": "oci://test-registry/test-model",
+                    "args": ["--max-num-seqs=256"],
+                    "resources": {
+                        "requests": {"cpu": "4", "memory": "8Gi"},
+                        "limits": {"cpu": "8", "memory": "16Gi"},
+                    },
+                }
+            }
+        }
     }
-    
+
     mock_custom = MagicMock()
     mock_custom.get_namespaced_custom_object.return_value = mock_is_with_resources
-    
+
     handler_globals = _get_vllm_config_globals(client_with_vllm_config)
     if handler_globals is None:
         pytest.skip("Route /api/vllm-config not found")
-    
+
     with patch.dict(handler_globals, {"_get_k8s_custom": lambda: mock_custom}):
         resp = client_with_vllm_config.get("/api/vllm-config")
         assert resp.status_code == 200
@@ -203,11 +212,11 @@ def test_get_returns_resources(client_with_vllm_config):
 def test_get_returns_empty_resources_when_absent(client_with_vllm_config):
     mock_custom = MagicMock()
     mock_custom.get_namespaced_custom_object.return_value = _MOCK_IS
-    
+
     handler_globals = _get_vllm_config_globals(client_with_vllm_config)
     if handler_globals is None:
         pytest.skip("Route /api/vllm-config not found")
-    
+
     with patch.dict(handler_globals, {"_get_k8s_custom": lambda: mock_custom}):
         resp = client_with_vllm_config.get("/api/vllm-config")
         assert resp.status_code == 200
@@ -218,13 +227,17 @@ def test_get_returns_empty_resources_when_absent(client_with_vllm_config):
 
 def test_patch_partial_update_preserves_existing_args(client: TestClient):
     mock_is = {
-        "spec": {"predictor": {"model": {
-            "args": [
-                "--max-num-seqs=256",
-                "--gpu-memory-utilization=0.90",
-                "--max-model-len=8192",
-            ]
-        }}}
+        "spec": {
+            "predictor": {
+                "model": {
+                    "args": [
+                        "--max-num-seqs=256",
+                        "--gpu-memory-utilization=0.90",
+                        "--max-model-len=8192",
+                    ]
+                }
+            }
+        }
     }
     mock_custom = MagicMock()
     mock_custom.get_namespaced_custom_object.return_value = mock_is
@@ -269,13 +282,17 @@ def test_patch_empty_data_preserves_all_args(client: TestClient):
 
 def test_patch_boolean_false_removes_flag(client: TestClient):
     mock_is = {
-        "spec": {"predictor": {"model": {
-            "args": [
-                "--max-num-seqs=256",
-                "--enable-chunked-prefill",
-                "--max-model-len=8192",
-            ]
-        }}}
+        "spec": {
+            "predictor": {
+                "model": {
+                    "args": [
+                        "--max-num-seqs=256",
+                        "--enable-chunked-prefill",
+                        "--max-model-len=8192",
+                    ]
+                }
+            }
+        }
     }
     mock_custom = MagicMock()
     mock_custom.get_namespaced_custom_object.return_value = mock_is
