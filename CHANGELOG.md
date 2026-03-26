@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-26] - LLMIS E2E 검증 + CR Adapter 마무리
+
+**Status**: Completed
+
+클러스터 실값 기반 prometheus_job 수정, /health에 cr_type 노출, deep_merge 리팩터링.
+
+### Fixed
+- **`backend/services/cr_adapter.py`**: `LLMInferenceServiceAdapter.prometheus_job()` — `f"{name}-kserve-workload-svc"` (K8s 서비스명) → `"kserve-llm-isvc-vllm-engine"` (실제 PodMonitor 이름). 클러스터 `llm-d-demo` 네임스페이스 직접 확인으로 수정.
+
+### Added
+- **`backend/main.py`**: `/health` 엔드포인트 응답에 `cr_type` 필드 추가 (`{"status", "cr_type", "dependencies", "timestamp"}`). shallow/deep 공통.
+- **`backend/tests/test_health.py`**: `cr_type` 필드 검증 unit test 4개 추가.
+
+### Refactored
+- **`backend/services/cr_adapter.py`**: `deep_merge()` 함수를 `vllm_config.py`에서 이동 (cross-module public API로 공개).
+- **`backend/routers/vllm_config.py`**: `_deep_merge` 로컬 함수 삭제, `from services.cr_adapter import deep_merge` import로 교체 (3개 호출 지점).
+
+### Verification
+- Cluster discovery: `llm-d-demo/small-llm-d` LLMIS CR 확인, PodMonitor `kserve-llm-isvc-vllm-engine` 확인
+- Tests: 318개 통과, 신규 4개 추가
+- Final Wave: F1 APPROVE | F2 APPROVE | F3 APPROVE | F4 APPROVE
+
+---
+
 ## [2026-03-26] - CR Adapter: InferenceService + LLMInferenceService 호환
 
 **Status**: Completed
