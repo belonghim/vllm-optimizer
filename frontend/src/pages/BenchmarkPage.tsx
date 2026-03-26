@@ -105,7 +105,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
 
     if (isMockEnabled) {
       setBenchmarks(prev => prev.filter(x => x.id !== b.id));
-      setSelected(prev => prev.filter(x => x !== b.id));
+      setSelected(selected.filter(x => x !== b.id));
       setExpanded(prev => prev.filter(x => x !== b.id));
       return;
     }
@@ -113,7 +113,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
     try {
       const res = await authFetch(`${API}/benchmark/${b.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setSelected(prev => prev.filter(x => x !== b.id));
+      setSelected(selected.filter(x => x !== b.id));
       fetchBenchmarks();
     } catch (err) {
       setError(`삭제 실패: ${(err as Error).message}`);
