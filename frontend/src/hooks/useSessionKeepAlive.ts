@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { API } from '../constants';
 
-const HEARTBEAT_INTERVAL = 15 * 60 * 1000;
+const HEARTBEAT_INTERVAL = 4 * 60 * 1000;
 
 export function useSessionKeepAlive() {
   const timerRef = useRef<number | undefined>(undefined);
@@ -17,6 +17,7 @@ export function useSessionKeepAlive() {
       }
     };
 
+    ping();
     timerRef.current = window.setInterval(ping, HEARTBEAT_INTERVAL);
     return () => {
       if (timerRef.current !== undefined) {

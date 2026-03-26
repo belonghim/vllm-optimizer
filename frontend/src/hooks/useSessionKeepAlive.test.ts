@@ -14,12 +14,20 @@ describe('useSessionKeepAlive', () => {
     vi.unstubAllGlobals();
   });
 
-  it('calls heartbeat API at 15-minute interval', async () => {
+  it('calls heartbeat API immediately on mount', async () => {
     renderHook(() => useSessionKeepAlive());
 
-    await vi.advanceTimersByTimeAsync(15 * 60 * 1000);
+    await vi.advanceTimersByTimeAsync(0);
 
     expect(fetch).toHaveBeenCalledWith('/api/metrics/latest');
+  });
+
+  it('calls heartbeat API again at 4-minute interval', async () => {
+    renderHook(() => useSessionKeepAlive());
+
+    await vi.advanceTimersByTimeAsync(4 * 60 * 1000);
+
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
   it('redirects to /oauth/sign_out on 403 heartbeat response', async () => {
@@ -27,7 +35,7 @@ describe('useSessionKeepAlive', () => {
 
     renderHook(() => useSessionKeepAlive());
 
-    await vi.advanceTimersByTimeAsync(15 * 60 * 1000);
+    await vi.advanceTimersByTimeAsync(0);
 
     expect(window.location.href).toBe('/oauth/sign_out');
   });
@@ -35,10 +43,11 @@ describe('useSessionKeepAlive', () => {
   it('clears interval on unmount', async () => {
     const { unmount } = renderHook(() => useSessionKeepAlive());
 
+    await vi.advanceTimersByTimeAsync(0);
+    vi.mocked(fetch).mockClear();
     unmount();
 
-    vi.mocked(fetch).mockClear();
-    await vi.advanceTimersByTimeAsync(15 * 60 * 1000);
+    await vi.advanceTimersByTimeAsync(4 * 60 * 1000);
 
     expect(fetch).not.toHaveBeenCalled();
   });
