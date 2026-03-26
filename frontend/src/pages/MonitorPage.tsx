@@ -174,7 +174,6 @@ interface TargetState {
 
 interface MonitorPageProps {
   isActive: boolean;
-  onTabChange?: (tab: string) => void;
 }
 
 function MonitorPage({ isActive }: MonitorPageProps) {

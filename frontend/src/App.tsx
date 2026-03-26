@@ -89,7 +89,7 @@ export default function App() {
       <main className="app-main">
         <ErrorBoundary>
           <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>Loading...</div>}>
-            {page === 'monitor' && <MonitorPage isActive={page === 'monitor'} onTabChange={handleSetPage} />}
+            {page === 'monitor' && <MonitorPage isActive={page === 'monitor'} />}
             {page === 'tuner' && <TunerPage isActive={page === 'tuner'} onTabChange={handleSetPage} />}
             {page === 'loadtest' && <LoadTestPage isActive={page === 'loadtest'} pendingConfig={pendingLoadTestConfig} onConfigConsumed={handleConfigConsumed} />}
             {page === 'benchmark' && <BenchmarkPage isActive={page === 'benchmark'} onRerun={handleRerun} />}
