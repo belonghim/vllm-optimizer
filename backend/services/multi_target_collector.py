@@ -10,7 +10,7 @@ from typing import Any, cast
 import httpx
 from kubernetes import client, config
 from metrics.prometheus_metrics import update_metrics
-from services.cr_adapter import get_cr_adapter
+from services.cr_adapter import CRAdapter, get_cr_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,6 @@ class MultiTargetMetricsCollector:
         self._start_requests: list[float] = []
         self._collect_interval: float = self.COLLECT_INTERVAL
 
-        self._cr_adapter = get_cr_adapter()
         self._token: str | None = self._load_token()
         self._k8s_available: bool = False
         self._k8s_core: client.CoreV1Api | None = None
@@ -78,6 +77,10 @@ class MultiTargetMetricsCollector:
         self._default_is_name = os.getenv("VLLM_DEPLOYMENT_NAME", "llm-ov")
         self._init_k8s()
         self._register_default_target()
+
+    @property
+    def _cr_adapter(self) -> CRAdapter:
+        return get_cr_adapter()
 
     def _register_default_target(self) -> None:
         key = self._target_key(self._default_namespace, self._default_is_name)

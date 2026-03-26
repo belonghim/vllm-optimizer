@@ -24,7 +24,7 @@ from models.load_test import (  # pyright: ignore[reportImplicitRelativeImport]
     TuningConfig,
     TuningTrial,
 )
-from services.cr_adapter import TUNING_ARG_PREFIXES, args_list_to_config_dict, get_cr_adapter  # pyright: ignore[reportImplicitRelativeImport]
+from services.cr_adapter import CRAdapter, TUNING_ARG_PREFIXES, args_list_to_config_dict, get_cr_adapter  # pyright: ignore[reportImplicitRelativeImport]
 from services.shared import runtime_config, storage  # pyright: ignore[reportImplicitRelativeImport]
 
 from .model_resolver import resolve_model_name
@@ -95,7 +95,6 @@ class AutoTuner:
         self._best_score_history: list[float] = []
         self._persistence_warning_sent: bool = False
         self._current_task: asyncio.Task[Any] | None = None
-        self._cr_adapter = get_cr_adapter()
         self._init_k8s()
 
     def _init_k8s(self) -> None:
@@ -109,6 +108,10 @@ class AutoTuner:
             self._k8s_available = True
         except k8s_config.ConfigException as e:
             logger.warning("K8s client unavailable: %s", e)
+
+    @property
+    def _cr_adapter(self) -> CRAdapter:
+        return get_cr_adapter()
 
     async def _wait_for_ready(self, timeout: int = 300, interval: int = 5) -> bool:
         namespace = _get_k8s_namespace()

@@ -325,7 +325,11 @@ class LLMInferenceServiceAdapter(CRAdapter):
 
 
 def get_cr_adapter(cr_type: str | None = None) -> CRAdapter:
-    resolved = cr_type or os.getenv("VLLM_CR_TYPE", "inferenceservice")
+    if cr_type is None:
+        from services.shared import runtime_config
+
+        cr_type = runtime_config.cr_type
+    resolved = cr_type
     if resolved == "inferenceservice":
         return InferenceServiceAdapter()
     if resolved == "llminferenceservice":

@@ -62,6 +62,33 @@ class TestRuntimeConfigSingleton:
         assert cfg.vllm_endpoint == "http://ep-only:8000"
         assert cfg.vllm_is_name == "is-only"
 
+    def test_initial_cr_type_default(self):
+        cfg = RuntimeConfig()
+        assert cfg.cr_type == "inferenceservice"
+
+    def test_set_cr_type_inferenceservice(self):
+        cfg = RuntimeConfig()
+        cfg.set_cr_type("inferenceservice")
+        assert cfg.cr_type == "inferenceservice"
+
+    def test_set_cr_type_llminferenceservice(self):
+        cfg = RuntimeConfig()
+        cfg.set_cr_type("llminferenceservice")
+        assert cfg.cr_type == "llminferenceservice"
+
+    def test_set_cr_type_invalid_value(self):
+        cfg = RuntimeConfig()
+        with pytest.raises(ValueError) as exc_info:
+            cfg.set_cr_type("invalid")
+        assert "Invalid cr_type" in str(exc_info.value)
+
+    def test_reset_cr_type(self):
+        cfg = RuntimeConfig()
+        cfg.set_cr_type("llminferenceservice")
+        assert cfg.cr_type == "llminferenceservice"
+        cfg.reset_cr_type()
+        assert cfg.cr_type == "inferenceservice"
+
 
 class TestGetConfigEndpoint:
     def test_get_config_returns_all_fields(self, client: TestClient):
@@ -132,4 +159,27 @@ class TestPatchConfigEndpoint:
             "vllm_is_name",
             "vllm_model_name",
             "resolved_model_name",
+            "cr_type",
+            "configmap_updated",
         }
+
+    def test_patch_config_cr_type_change(self, client: TestClient):
+        response = client.patch("/api/config", json={"cr_type": "llminferenceservice"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["cr_type"] == "llminferenceservice"
+        assert "configmap_updated" in data
+
+    def test_patch_config_cr_type_invalid(self, client: TestClient):
+        response = client.patch("/api/config", json={"cr_type": "invalid_value"})
+        assert response.status_code == 422
+
+    def test_patch_config_tuner_running_409(self, client: TestClient):
+        from routers.tuner import auto_tuner
+
+        auto_tuner._running = True
+        try:
+            response = client.patch("/api/config", json={"cr_type": "llminferenceservice"})
+            assert response.status_code == 409
+        finally:
+            auto_tuner._running = False

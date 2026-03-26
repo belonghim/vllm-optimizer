@@ -26,6 +26,7 @@ class RuntimeConfig:
             "VLLM_ENDPOINT", "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080"
         )
         self._default_is_name: str = os.getenv("VLLM_DEPLOYMENT_NAME", "llm-ov")
+        self._cr_type_override: str | None = None
 
     def _get_default_target(self):
         if self._multi_target_collector is None:
@@ -70,4 +71,14 @@ class RuntimeConfig:
 
     @property
     def cr_type(self) -> str:
+        if self._cr_type_override is not None:
+            return self._cr_type_override
         return os.getenv("VLLM_CR_TYPE", "inferenceservice")
+
+    def set_cr_type(self, value: str) -> None:
+        if value not in ("inferenceservice", "llminferenceservice"):
+            raise ValueError(f"Invalid cr_type: {value}. Must be 'inferenceservice' or 'llminferenceservice'")
+        self._cr_type_override = value
+
+    def reset_cr_type(self) -> None:
+        self._cr_type_override = None
