@@ -18,6 +18,7 @@ from kubernetes import client
 from kubernetes import config as k8s_config
 from routers import alerts, benchmark, load_test, metrics, sla, status, tuner, vllm_config
 from routers import config as config_router
+from services.shared import runtime_config
 
 # ── Logging Configuration ──
 logging.basicConfig(
@@ -194,7 +195,7 @@ app.include_router(alerts, prefix="/api/alerts", tags=["alerts"])
 async def health_check(request: Request) -> dict[str, Any] | JSONResponse:
     """Health check with dependency validation.
     Query param: deep=1 enables full connectivity checks (slow)."""
-    health: dict[str, Any] = {"status": "healthy", "dependencies": {}}
+    health: dict[str, Any] = {"status": "healthy", "cr_type": runtime_config.cr_type, "dependencies": {}}
     deep_check = request.query_params.get("deep") == "1"
 
     health["timestamp"] = time.time()
