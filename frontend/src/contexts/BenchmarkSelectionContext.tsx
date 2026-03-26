@@ -1,9 +1,9 @@
 import { createContext, useState, useContext } from "react";
-import type { ReactNode } from "react";
+import type { Dispatch, ReactNode, SetStateAction } from "react";
 
 interface BenchmarkSelectionContextValue {
   selectedIds: (string | number)[];
-  setSelectedIds: (ids: (string | number)[]) => void;
+  setSelectedIds: Dispatch<SetStateAction<(string | number)[]>>;
 }
 
 const BenchmarkSelectionContext = createContext<BenchmarkSelectionContextValue>({
