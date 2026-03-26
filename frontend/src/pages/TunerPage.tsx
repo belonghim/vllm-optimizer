@@ -60,9 +60,10 @@ interface TunerConfig {
 interface TunerPageProps {
   isActive: boolean;
   onTabChange?: (tab: string) => void;
+  onRunningChange?: (running: boolean) => void;
 }
 
-function TunerPage({ isActive, onTabChange }: TunerPageProps) {
+function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
   const { isMockEnabled } = useMockData();
   const { endpoint, namespace, inferenceservice } = useClusterConfig();
   const [error, setError] = useState<string | null>(null);
@@ -268,6 +269,11 @@ function TunerPage({ isActive, onTabChange }: TunerPageProps) {
       setConfig(c => ({ ...c, vllm_endpoint: c.vllm_endpoint || endpoint }));
     }
   }, [endpoint]);
+
+  useEffect(() => {
+    onRunningChange?.(status.running);
+  }, [status.running, onRunningChange]);
+
 
   const handleConfigChange = useCallback((field: string, value: string | number | boolean | number[]) => {
     setConfig(c => ({ ...c, [field]: value }));

@@ -17,6 +17,7 @@ interface LoadTestPageProps {
   isActive: boolean;
   pendingConfig?: RerunConfig | null;
   onConfigConsumed?: () => void;
+  onRunningChange?: (running: boolean) => void;
 }
 
 interface LoadTestConfigState {
@@ -32,7 +33,7 @@ interface LoadTestConfigState {
   [key: string]: string | number | boolean;
 }
 
-function LoadTestPage({ isActive, pendingConfig, onConfigConsumed }: LoadTestPageProps) {
+function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChange }: LoadTestPageProps) {
   const { COLORS } = useThemeColors();
   const { endpoint: globalEndpoint, inferenceservice, isLoading: globalIsLoading } = useClusterConfig();
   const [config, setConfig] = useState<LoadTestConfigState>({
@@ -48,6 +49,11 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed }: LoadTestPag
     result, setResult, progress, setProgress, latencyData, setLatencyData,
     connect, disconnect } = useLoadTestSSE();
   const disconnectRef = useRef<typeof disconnect | undefined>(undefined);
+
+  useEffect(() => {
+    onRunningChange?.(status === 'running');
+  }, [status, onRunningChange]);
+
 
   useEffect(() => {
     disconnectRef.current = disconnect;

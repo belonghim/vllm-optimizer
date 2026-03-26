@@ -27,12 +27,16 @@ const PAGES: PageDef[] = [
 
 export default function App() {
   const [page, setPage] = useState("monitor");
+  const [isLoadTestRunning, setIsLoadTestRunning] = useState(false);
+  const [isTunerRunning, setIsTunerRunning] = useState(false);
   const [pendingLoadTestConfig, setPendingLoadTestConfig] = useState<RerunConfig | null>(null);
   const [loadTestMounted, setLoadTestMounted] = useState(false);
+  const [tunerMounted, setTunerMounted] = useState(false);
   useSessionKeepAlive();
 
   const handleSetPage = (id: string) => {
     if (id === 'loadtest') setLoadTestMounted(true);
+    if (id === 'tuner') setTunerMounted(true);
     setPage(id);
     requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
   };
@@ -66,14 +70,23 @@ export default function App() {
         </div>
 
         <nav className="app-header-nav" role="tablist" aria-label="페이지 네비게이션">
-          {PAGES.map(p => (
-            <button key={p.id} className={`nav-btn ${page === p.id ? "active" : ""}`}
-              role="tab"
-              aria-selected={page === p.id}
-              onClick={() => handleSetPage(p.id)}>
-              {p.label}
-            </button>
-          ))}
+          {(() => {
+            const runningPages = new Set([
+              ...(isLoadTestRunning ? ['loadtest'] : []),
+              ...(isTunerRunning ? ['tuner'] : []),
+            ]);
+
+            return PAGES.map(p => (
+              <button key={p.id}
+                className={`nav-btn ${page === p.id ? "active" : ""} ${runningPages.has(p.id) ? "nav-btn--running" : ""}`}
+                role="tab"
+                aria-selected={page === p.id}
+                onClick={() => handleSetPage(p.id)}>
+                {p.label}
+                {runningPages.has(p.id) && <span className="nav-btn-dot" aria-label="실행 중" />}
+              </button>
+            ));
+          })()}
         </nav>
 
         <div className="app-header-right">
@@ -92,10 +105,14 @@ export default function App() {
         <ErrorBoundary>
           <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>Loading...</div>}>
             {page === 'monitor' && <MonitorPage isActive={page === 'monitor'} />}
-            {page === 'tuner' && <TunerPage isActive={page === 'tuner'} onTabChange={handleSetPage} />}
+            {tunerMounted && (
+              <div style={page !== 'tuner' ? { display: 'none' } : undefined}>
+                <TunerPage isActive={page === 'tuner'} onTabChange={handleSetPage} onRunningChange={setIsTunerRunning} />
+              </div>
+            )}
             {loadTestMounted && (
               <div style={page !== 'loadtest' ? { display: 'none' } : undefined}>
-                <LoadTestPage isActive={page === 'loadtest'} pendingConfig={pendingLoadTestConfig} onConfigConsumed={handleConfigConsumed} />
+                <LoadTestPage isActive={page === 'loadtest'} pendingConfig={pendingLoadTestConfig} onConfigConsumed={handleConfigConsumed} onRunningChange={setIsLoadTestRunning} />
               </div>
             )}
             {page === 'benchmark' && <BenchmarkPage isActive={page === 'benchmark'} onRerun={handleRerun} />}

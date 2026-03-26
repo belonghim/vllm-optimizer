@@ -56,6 +56,22 @@ body {
 }
 .nav-btn.active { color: var(--accent-color); border-bottom-color: var(--accent-color); }
 .nav-btn:hover { color: var(--text-color); }
+
+.nav-btn--running { position: relative; }
+.nav-btn-dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--green-color);
+  margin-left: 6px;
+  vertical-align: middle;
+  animation: nav-dot-pulse 1.2s ease-in-out infinite;
+}
+@keyframes nav-dot-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.7); }
+}
+
 .metric-card {
   background: var(--surface-color);
   border: 1px solid var(--border-color);
