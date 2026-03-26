@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-26] - CR Adapter: InferenceService + LLMInferenceService 호환
+
+**Status**: Completed
+
+KServe `InferenceService`만 지원하던 백엔드를 `LLMInferenceService` CR도 지원하도록 Strategy/Adapter 패턴 기반 CR 추상화를 도입.
+
+### Added
+- **`backend/services/cr_adapter.py`**: CRAdapter ABC + InferenceServiceAdapter + LLMInferenceServiceAdapter + `get_cr_adapter()` 팩토리 (321줄). `VLLM_CR_TYPE` 환경변수로 런타임 CR 타입 선택.
+- **`backend/tests/test_cr_adapter.py`**: 어댑터 단위 테스트 47개.
+- **`backend/tests/test_llmis_integration.py`**: LLMInferenceService 경로 통합 테스트 8개 (HTTP-level 4개 + adapter 계약 검증 4개).
+
+### Changed
+- **`backend/routers/vllm_config.py`**: CRAdapter 기반으로 리팩터링. args/resources/URI 읽기·쓰기가 어댑터 위임으로 처리됨.
+- **`backend/services/auto_tuner.py`**: CRAdapter 기반으로 리팩터링. `_wait_for_ready`, `_preflight_check`, `_apply_params`, `_rollback_to_snapshot` 모두 어댑터 API 사용.
+- **`backend/services/multi_target_collector.py`**: CRAdapter 기반으로 리팩터링. `prometheus_job()`, `dcgm_pod_pattern()`, `pod_label_selector()` 어댑터 위임.
+- **`backend/services/runtime_config.py`**: `cr_type` 프로퍼티 추가 (`VLLM_CR_TYPE` 노출).
+- **`openshift/base/02-config.yaml`**: `VLLM_CR_TYPE: "inferenceservice"` ConfigMap 키 추가.
+- **`openshift/vllm-dependency/base/vllm-rbac.yaml`**: ClusterRole에 `llminferenceservices` 리소스 추가.
+
+### LLMInferenceService CR 매핑
+| 기능 | InferenceService | LLMInferenceService |
+|------|-----------------|---------------------|
+| Args | `spec.predictor.model.args` (배열) | `spec.template.containers[main].env[VLLM_ADDITIONAL_ARGS]` (문자열) |
+| Resources | `spec.predictor.model.resources` | `spec.template.containers[main].resources` |
+| Model URI | `spec.predictor.model.storageUri` | `spec.model.uri` |
+| Deployment | `{name}-predictor` | `{name}-kserve` |
+| Pod label | `app=isvc.{name}-predictor` | `app.kubernetes.io/name={name}` |
+
+### Verification
+- Backend: 모든 기존 테스트 통과 (zero regression), 신규 55개 테스트 추가
+- Final Wave: F1 APPROVE | F2 APPROVE | F3 APPROVE | F4 APPROVE
+
+---
+
 ## [2026-03-24] - 튜너 페이지 현재값 표시/수정 버그 수정
 
 **Status**: Completed
