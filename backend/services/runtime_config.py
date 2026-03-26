@@ -67,3 +67,7 @@ class RuntimeConfig:
         target = self._get_default_target()
         if target:
             target.is_name = value
+
+    @property
+    def cr_type(self) -> str:
+        return os.getenv("VLLM_CR_TYPE", "inferenceservice")
