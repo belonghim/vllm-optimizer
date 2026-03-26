@@ -24,6 +24,7 @@ from models.load_test import (  # pyright: ignore[reportImplicitRelativeImport]
     TuningConfig,
     TuningTrial,
 )
+from services.cr_adapter import TUNING_ARG_PREFIXES, args_list_to_config_dict, get_cr_adapter  # pyright: ignore[reportImplicitRelativeImport]
 from services.shared import runtime_config, storage  # pyright: ignore[reportImplicitRelativeImport]
 
 from .model_resolver import resolve_model_name
@@ -63,18 +64,6 @@ K8S_NAMESPACE = _get_k8s_namespace()
 K8S_DEPLOYMENT = _get_vllm_is_name()
 VLLM_IS_NAME = _get_vllm_is_name()
 
-# Tuning parameter prefixes for arg filtering (static args preserved)
-TUNING_ARG_PREFIXES = (
-    "--max-num-seqs",
-    "--gpu-memory-utilization",
-    "--max-model-len",
-    "--max-num-batched-tokens",
-    "--block-size",
-    "--swap-space",
-    "--enable-chunked-prefill",
-    "--enforce-eager",
-)
-
 
 class AutoTuner:
     def __init__(self, metrics_collector, load_engine) -> None:
@@ -90,7 +79,7 @@ class AutoTuner:
         self._config: TuningConfig | None = None  # Set in start()
         self._k8s_available = False
         self._k8s_core: k8s_client.CoreV1Api | None = None
-        self._is_args_snapshot: list[str] | None = None
+        self._is_args_snapshot: Any = None
         self._last_rollback_trial: int | None = None
         self._pareto_front_size: int | None = None
         # SSE broadcasting primitives
@@ -106,6 +95,7 @@ class AutoTuner:
         self._best_score_history: list[float] = []
         self._persistence_warning_sent: bool = False
         self._current_task: asyncio.Task[Any] | None = None
+        self._cr_adapter = get_cr_adapter()
         self._init_k8s()
 
     def _init_k8s(self) -> None:
@@ -136,20 +126,16 @@ class AutoTuner:
             try:
                 inferenceservice = await asyncio.to_thread(
                     self._k8s_custom.get_namespaced_custom_object,
-                    group="serving.kserve.io",
-                    version="v1beta1",
+                    group=self._cr_adapter.api_group(),
+                    version=self._cr_adapter.api_version(),
                     name=is_name,
                     namespace=namespace,
-                    plural="inferenceservices",
+                    plural=self._cr_adapter.api_plural(),
                 )
                 _isvc: dict[str, Any] = cast(dict[str, Any], inferenceservice) if inferenceservice else {}
-                conditions = _isvc.get("status", {}).get("conditions", [])
-                for c in conditions:
-                    if c.get("type") == "Ready" and c.get("status") == "True":
-                        logger.info(f"[AutoTuner] InferenceService '{is_name}' 준비 완료.")
-                        result = True
-                        break
-                if result:
+                if self._cr_adapter.check_ready(_isvc.get("status", {})):
+                    logger.info(f"[AutoTuner] InferenceService '{is_name}' 준비 완료.")
+                    result = True
                     break
             except ApiException as e:
                 if e.status == 403:
@@ -195,11 +181,11 @@ class AutoTuner:
         try:
             await asyncio.to_thread(
                 self._k8s_custom.get_namespaced_custom_object,
-                group="serving.kserve.io",
-                version="v1beta1",
+                group=self._cr_adapter.api_group(),
+                version=self._cr_adapter.api_version(),
                 name=is_name,
                 namespace=namespace,
-                plural="inferenceservices",
+                plural=self._cr_adapter.api_plural(),
             )
             return {"success": True}
         except ApiException as e:
@@ -868,33 +854,25 @@ class AutoTuner:
                 logger.info(f"[AutoTuner] InferenceService '{is_name}' in namespace '{namespace}'")
                 isvc = await asyncio.to_thread(
                     self._k8s_custom.get_namespaced_custom_object,
-                    group="serving.kserve.io",
-                    version="v1beta1",
+                    group=self._cr_adapter.api_group(),
+                    version=self._cr_adapter.api_version(),
                     name=is_name,
                     namespace=namespace,
-                    plural="inferenceservices",
+                    plural=self._cr_adapter.api_plural(),
                 )
                 _isvc2: dict[str, Any] = cast(dict[str, Any], isvc) if isvc else {}
-                current_args = _isvc2.get("spec", {}).get("predictor", {}).get("model", {}).get("args") or []
-                self._is_args_snapshot = list(current_args)
+                self._is_args_snapshot = self._cr_adapter.snapshot_args(_isvc2.get("spec", {}))
 
                 tuning_args = self._params_to_args(params)
+                params_config_dict = args_list_to_config_dict(tuning_args)
+                patch_body = self._cr_adapter.build_args_patch(_isvc2.get("spec", {}), params_config_dict)
 
-                static_args = [
-                    arg
-                    for arg in self._is_args_snapshot
-                    if not any(arg.startswith(prefix) for prefix in TUNING_ARG_PREFIXES)
-                ]
-
-                new_args = static_args + tuning_args
-
-                patch_body = {"spec": {"predictor": {"model": {"args": new_args}}}}
                 await asyncio.to_thread(
                     self._k8s_custom.patch_namespaced_custom_object,
-                    group="serving.kserve.io",
-                    version="v1beta1",
+                    group=self._cr_adapter.api_group(),
+                    version=self._cr_adapter.api_version(),
                     namespace=namespace,
-                    plural="inferenceservices",
+                    plural=self._cr_adapter.api_plural(),
                     name=is_name,
                     body=patch_body,
                 )
@@ -931,13 +909,13 @@ class AutoTuner:
                 namespace = _get_k8s_namespace()
                 is_name = _get_vllm_is_name()
                 # Restore args from snapshot
-                patch_body = {"spec": {"predictor": {"model": {"args": self._is_args_snapshot}}}}
+                patch_body = self._cr_adapter.build_rollback_patch(self._is_args_snapshot)
                 await asyncio.to_thread(
                     self._k8s_custom.patch_namespaced_custom_object,
-                    group="serving.kserve.io",
-                    version="v1beta1",
+                    group=self._cr_adapter.api_group(),
+                    version=self._cr_adapter.api_version(),
                     namespace=namespace,
-                    plural="inferenceservices",
+                    plural=self._cr_adapter.api_plural(),
                     name=is_name,
                     body=patch_body,
                 )
