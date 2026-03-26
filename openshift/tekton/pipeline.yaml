@@ -91,7 +91,7 @@ spec:
               #!/bin/bash
               set -euo pipefail
               echo "=== Installing basedpyright ==="
-              pip install basedpyright --quiet
+              pip install basedpyright==1.9.0 --quiet
               echo "=== Running basedpyright on backend/ ==="
               basedpyright backend/
               echo "✓ Type check passed"

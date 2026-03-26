@@ -108,7 +108,7 @@ spec:
               #!/bin/bash
               set -uo pipefail
 
-              pip install pytest pytest-asyncio pytest-json-report httpx psutil --quiet
+              pip install pytest==8.3.2 pytest-asyncio pytest-json-report httpx psutil --quiet
 
               REPORT_DIR="/tmp/perf-results"
               mkdir -p "$REPORT_DIR"
