@@ -7,7 +7,7 @@ from kubernetes.client import CustomObjectsApi
 from kubernetes.client.exceptions import ApiException as K8sApiException
 from pydantic import BaseModel
 from services.shared import runtime_config
-from services.cr_adapter import get_cr_adapter
+from services.cr_adapter import deep_merge, get_cr_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -68,16 +68,6 @@ def _get_k8s_custom() -> CustomObjectsApi | None:
     except Exception as e:  # intentional: non-critical
         logger.warning("[VllmConfig] K8s client not available: %s", e)
         return None
-
-
-def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
-    result = dict(base)
-    for k, v in override.items():
-        if k in result and isinstance(result[k], dict) and isinstance(v, dict):
-            result[k] = _deep_merge(result[k], v)
-        else:
-            result[k] = v
-    return result
 
 
 @router.get("")
@@ -165,11 +155,11 @@ async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict[str, Any]:
                 ),
             )
             args_patch = adapter.build_args_patch(is_obj.get("spec", {}), dict(request.data))
-            patch_body = _deep_merge(patch_body, args_patch)
+            patch_body = deep_merge(patch_body, args_patch)
 
         if request.storageUri is not None:
             uri_patch = adapter.build_model_uri_patch(request.storageUri)
-            patch_body = _deep_merge(patch_body, uri_patch)
+            patch_body = deep_merge(patch_body, uri_patch)
 
         if request.resources is not None:
             clean_resources: dict[str, Any] = {}
@@ -179,7 +169,7 @@ async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict[str, Any]:
                     clean_resources[_tier] = cleaned
             if clean_resources:
                 res_patch = adapter.build_resources_patch(clean_resources)
-                patch_body = _deep_merge(patch_body, res_patch)
+                patch_body = deep_merge(patch_body, res_patch)
 
         await asyncio.to_thread(
             _api.patch_namespaced_custom_object,
