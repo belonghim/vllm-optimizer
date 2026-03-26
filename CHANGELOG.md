@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-27] - Improvements Round 2: 모니터링 + 테스트 격리 + 동적 CR_TYPE
+
+**Status**: Completed
+
+SQLite 테스트 격리 수정, VLLM_CR_TYPE 런타임 동적 전환, deploy.sh LLMIS 모니터 레이블 자동화, PATCH /api/config 엔드포인트, Frontend CR type 드롭다운 추가.
+
+### Fixed
+- **`backend/routers/benchmark.py`**: 모듈 레벨 `storage = shared_storage` 정적 바인딩 제거. `get_storage()`가 `shared.storage`를 동적 해석, 모든 라우트 `Depends(get_storage)` 사용. 테스트 격리 완전 보장.
+- **`backend/tests/test_benchmark.py`, `test_benchmark_metadata.py`, `test_chaos.py`**: `app.dependency_overrides[get_storage]` 패턴으로 fixture 전환.
+
+### Added
+- **`backend/services/runtime_config.py`**: `_cr_type_override`, `set_cr_type()`, `reset_cr_type()` 추가. `cr_type` property가 override 우선, env var fallback.
+- **`backend/services/cr_adapter.py`**: `get_cr_adapter()` 기본값을 `runtime_config.cr_type` 사용으로 변경 (`os.getenv` 직접 호출 제거).
+- **`backend/services/auto_tuner.py`, `multi_target_collector.py`**: `_cr_adapter`를 `@property`로 전환 (매 접근 시 동적 해석, 런타임 전환 즉시 반영).
+- **`backend/routers/config.py`**: `PATCH /api/config` 엔드포인트 — cr_type 전환 + ConfigMap 영속 + tuner 409 guard + graceful fallback.
+- **`backend/tests/test_config.py`**: `GET/PATCH /api/config` 유닛 테스트 15개 (422 검증, 409 guard, ConfigMap 실패 graceful 처리 포함).
+- **`frontend/src/contexts/ClusterConfigContext.tsx`**: `crType` state, `updateCrType()` callback, `/api/config`에서 초기값 fetch.
+- **`frontend/src/components/ClusterConfigBar.tsx`**: CR Type `<select>` 드롭다운 (InferenceService / LLMInferenceService), 409 에러 알림, 업데이트 중 disabled.
+
+### Changed
+- **`deploy.sh`**: `patch_monitoring_labels()` 함수 추가 — `VLLM_NAMESPACE`의 PodMonitor/ServiceMonitor에 `openshift.io/cluster-monitoring=true` 레이블 자동 패치 (`--overwrite`, 멱등성 보장, 없으면 graceful skip).
+
+### Verification
+- Tests: 348개 통과 (신규 15개 포함), 0 failures
+- E2E: `./deploy.sh dev` → LLMIS 모니터 레이블 확인, PATCH /api/config 200, Frontend 드롭다운 확인
+- Final Wave: F1 APPROVE | F2 APPROVE | F3 APPROVE | F4 APPROVE
+
+---
+
 ## [2026-03-26] - LLMIS E2E 검증 + CR Adapter 마무리
 
 **Status**: Completed
