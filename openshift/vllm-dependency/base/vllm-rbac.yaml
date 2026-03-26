@@ -14,7 +14,7 @@ rules:
   resources: ["pods"]
   verbs: ["get", "list"]
 - apiGroups: ["serving.kserve.io"]
-  resources: ["inferenceservices"]
+  resources: ["inferenceservices", "llminferenceservices"]
   verbs: ["get", "list", "patch"]
 
 ---
