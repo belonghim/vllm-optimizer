@@ -1,4 +1,4 @@
-import { mockMetrics, mockHistory, mockHistoryWithGaps } from "./mockData";
+import { mockMetrics, mockHistory, mockHistoryWithGaps } from "./mockData.ts";
 
 describe("mockData", () => {
   it("mockMetrics returns object with expected fields", () => {

@@ -1,4 +1,22 @@
-export const mockMetrics = () => ({
+interface MetricsData {
+  tps: number;
+  ttft_mean: number;
+  latency_p99: number;
+  kv_cache: number;
+  running: number;
+  waiting: number;
+  gpu_mem_used: number;
+  gpu_mem_total: number;
+  pods: number;
+  pods_ready: number;
+  rps: number;
+  ttft_p99: number;
+  latency_mean: number;
+  kv_hit_rate: number;
+  gpu_util: number;
+}
+
+export const mockMetrics = (): MetricsData => ({
   tps: 245 + Math.random() * 50,
   ttft_mean: 85 + Math.random() * 30,
   latency_p99: 420 + Math.random() * 80,
@@ -14,7 +32,24 @@ export const mockMetrics = () => ({
   gpu_util: 40 + Math.random() * 40,
 });
 
-export const mockHistory = () => Array.from({ length: 60 }, (_, i) => ({
+interface HistoryPoint {
+  t: string;
+  tps: number;
+  ttft: number;
+  lat_p99: number;
+  kv: number;
+  running: number;
+  waiting: number;
+  rps: number;
+  ttft_p99: number;
+  lat_mean: number;
+  kv_hit: number;
+  gpu_util: number;
+  gpu_mem_used: number;
+  gpu_mem_total: number;
+}
+
+export const mockHistory = (): HistoryPoint[] => Array.from({ length: 60 }, (_, i) => ({
   t: `${String(Math.floor(i / 4)).padStart(2, "0")}:${String((i % 4) * 15).padStart(2, "0")}`,
   tps: 220 + Math.random() * 80, ttft: 80 + Math.random() * 40,
   lat_p99: 380 + Math.random() * 120, kv: 60 + Math.random() * 20,
@@ -28,7 +63,41 @@ export const mockHistory = () => Array.from({ length: 60 }, (_, i) => ({
   gpu_mem_total: 24,
 }));
 
-export const mockBenchmarks = () => [
+interface BenchmarkMetadata {
+  model_identifier?: string;
+  hardware_type?: string;
+  runtime?: string;
+  vllm_version?: string;
+  replica_count?: number;
+  notes?: string;
+  extra?: Record<string, string>;
+}
+
+interface BenchmarkResult {
+  tps: { mean: number };
+  latency: { p99: number };
+  rps_actual: number;
+  ttft: { mean: number };
+  gpu_utilization_avg: number;
+}
+
+interface BenchmarkConfig {
+  model: string;
+  endpoint: string;
+  total_requests: number;
+  concurrency: number;
+}
+
+interface Benchmark {
+  id: number;
+  name: string;
+  timestamp: number;
+  config: BenchmarkConfig;
+  result: BenchmarkResult;
+  metadata: BenchmarkMetadata;
+}
+
+export const mockBenchmarks = (): Benchmark[] => [
   {
     id: 1,
     name: "Baseline (default)",
@@ -85,14 +154,45 @@ export const mockBenchmarks = () => [
   },
 ];
 
-export const mockTrials = () => Array.from({ length: 12 }, (_, i) => ({
+interface TrialParams {
+  max_num_seqs: number;
+  gpu_memory_utilization: number;
+}
+
+interface Trial {
+  id: number;
+  tps: number;
+  p99_latency: number;
+  score: number;
+  params: TrialParams;
+  status: string;
+}
+
+export const mockTrials = (): Trial[] => Array.from({ length: 12 }, (_, i) => ({
   id: i, tps: 150 + Math.random() * 150, p99_latency: 300 + Math.random() * 400,
   score: Math.random() * 100,
   params: { max_num_seqs: [64,128,256,512][i%4], gpu_memory_utilization: 0.8 + Math.random() * 0.15 },
   status: "completed",
 }));
 
-export const mockHistoryWithGaps = () => Array.from({ length: 60 }, (_, i) => {
+interface HistoryWithGapsPoint {
+  t: string;
+  tps: number;
+  ttft: number | null;
+  lat_p99: number | null;
+  kv: number;
+  running: number;
+  waiting: number;
+  rps: number;
+  ttft_p99: number | null;
+  lat_mean: number | null;
+  kv_hit: number;
+  gpu_util: number;
+  gpu_mem_used: number;
+  gpu_mem_total: number;
+}
+
+export const mockHistoryWithGaps = (): HistoryWithGapsPoint[] => Array.from({ length: 60 }, (_, i) => {
   const isGap = (i >= 10 && i < 25) || (i >= 35 && i < 45);
   return {
     t: `${String(Math.floor(i / 4)).padStart(2, "0")}:${String((i % 4) * 15).padStart(2, "0")}`,
@@ -112,7 +212,33 @@ export const mockHistoryWithGaps = () => Array.from({ length: 60 }, (_, i) => {
   };
 });
 
-export const simulateLoadTest = (config, setProgress, setResult, setStatus, setLatencyData) => {
+interface LoadTestResult {
+  total: number;
+  success: number;
+  failed: number;
+  rps_actual: number;
+  latency: { mean: number; p50: number; p95: number; p99: number; min: number; max: number };
+  ttft: { mean: number; p95: number };
+  tps: { mean: number; total: number };
+}
+
+interface LatencyDataPoint {
+  t: number;
+  lat: number;
+  tps: number;
+}
+
+interface LoadTestConfig {
+  total_requests: number;
+}
+
+export const simulateLoadTest = (
+  config: LoadTestConfig,
+  setProgress: (progress: number) => void,
+  setResult: (result: LoadTestResult) => void,
+  setStatus: (status: string) => void,
+  setLatencyData: (fn: (prev: LatencyDataPoint[]) => LatencyDataPoint[]) => void
+): void => {
   let done = 0;
   const id = setInterval(() => {
     done += Math.floor(Math.random() * 8) + 2;
