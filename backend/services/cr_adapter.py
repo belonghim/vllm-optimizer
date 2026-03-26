@@ -74,6 +74,17 @@ def _is_ready_condition(status: dict[str, Any]) -> bool:
     return False
 
 
+def deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """Recursively merge two dicts; override takes precedence."""
+    result = dict(base)
+    for k, v in override.items():
+        if k in result and isinstance(result[k], dict) and isinstance(v, dict):
+            result[k] = deep_merge(result[k], v)
+        else:
+            result[k] = v
+    return result
+
+
 class CRAdapter(abc.ABC):
     @abc.abstractmethod
     def api_group(self) -> str:
@@ -303,7 +314,8 @@ class LLMInferenceServiceAdapter(CRAdapter):
         return f"{name}-kserve"
 
     def prometheus_job(self, name: str) -> str:
-        return f"{name}-kserve-workload-svc"
+        # LLMIS uses static PodMonitor name regardless of CR name
+        return "kserve-llm-isvc-vllm-engine"
 
     def dcgm_pod_pattern(self, name: str) -> str:
         return f"{name}-kserve.*"

@@ -152,5 +152,5 @@ def test_collector_pod_selector_llmis():
 
 def test_collector_prometheus_job_llmis():
     adapter = LLMInferenceServiceAdapter()
-    assert adapter.prometheus_job("small-llm-d") == "small-llm-d-kserve-workload-svc"
+    assert adapter.prometheus_job("small-llm-d") == "kserve-llm-isvc-vllm-engine"
     assert adapter.dcgm_pod_pattern("small-llm-d") == "small-llm-d-kserve.*"

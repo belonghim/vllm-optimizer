@@ -308,7 +308,7 @@ class TestLLMInferenceServiceAdapter:
 
     def test_prometheus_job(self):
         adapter = LLMInferenceServiceAdapter()
-        assert adapter.prometheus_job("small-llm-d") == "small-llm-d-kserve-workload-svc"
+        assert adapter.prometheus_job("small-llm-d") == "kserve-llm-isvc-vllm-engine"
 
     def test_dcgm_pod_pattern(self):
         adapter = LLMInferenceServiceAdapter()
