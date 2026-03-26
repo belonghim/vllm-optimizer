@@ -24,23 +24,6 @@ interface SlaProfile {
   thresholds: SlaThresholds;
 }
 
-interface ViolatedMetric {
-  metric: string;
-  threshold: number;
-  actual: number;
-  severity: string;
-}
-
-interface SlaViolation {
-  profile_id: number;
-  profile_name: string;
-  violated_metrics: ViolatedMetric[];
-}
-
-interface SlaViolationsResponse {
-  violations: SlaViolation[];
-}
-
 interface ChartLine {
   key: string;
   color: string;
@@ -194,7 +177,7 @@ interface MonitorPageProps {
   onTabChange?: (tab: string) => void;
 }
 
-function MonitorPage({ isActive, onTabChange }: MonitorPageProps) {
+function MonitorPage({ isActive }: MonitorPageProps) {
   const { isMockEnabled } = useMockData();
   const { targets } = useClusterConfig();
   const { COLORS } = useThemeColors();
@@ -203,8 +186,6 @@ function MonitorPage({ isActive, onTabChange }: MonitorPageProps) {
   const [chartState, setChartState] = useState<ChartConfig>(() => loadChartConfig());
   const [slaProfiles, setSlaProfiles] = useState<SlaProfile[]>([]);
   const [selectedSlaProfileId, setSelectedSlaProfileId] = useState<number | null>(null);
-  const [violations, setViolations] = useState<SlaViolation[]>([]);
-  const [isStartingTuner, setIsStartingTuner] = useState(false);
 
   const chartOrder = chartState.order;
   const hiddenCharts = chartState.hidden;
@@ -229,35 +210,6 @@ function MonitorPage({ isActive, onTabChange }: MonitorPageProps) {
     fetchSlaProfiles();
   }, []);
 
-  const handleStartTuner = useCallback(async () => {
-    if (isStartingTuner) return;
-    setError(null);
-    setIsStartingTuner(true);
-    try {
-      const res = await authFetch(`${API}/tuner/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          objective: 'balanced',
-          n_trials: 10,
-          eval_requests: 100,
-        }),
-      });
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-      const data = await res.json();
-      if (!data.success) {
-        throw new Error(data.message || '튜닝 시작 실패');
-      }
-      onTabChange?.('tuner');
-    } catch (err) {
-      setError(`자동 튜닝 시작 실패: ${(err as Error).message}`);
-    } finally {
-      setIsStartingTuner(false);
-    }
-  }, [isStartingTuner, onTabChange]);
-
   const fetchAllTargets = useCallback(async (signal?: AbortSignal) => {
     if (isMockEnabled) {
       const newStates: Record<string, TargetState> = {};
@@ -271,7 +223,6 @@ function MonitorPage({ isActive, onTabChange }: MonitorPageProps) {
         };
       });
       setTargetStates(newStates);
-      setViolations([]);
       return;
     }
 
@@ -319,19 +270,6 @@ function MonitorPage({ isActive, onTabChange }: MonitorPageProps) {
       });
 
       setTargetStates(prev => ({ ...prev, ...newStates }));
-
-      try {
-        const alertRes = await authFetch(`${API}/alerts/sla-violations`, { signal });
-        if (!alertRes.ok) {
-          setViolations([]);
-        } else {
-          const alertData = await alertRes.json() as SlaViolationsResponse;
-          setViolations(alertData.violations || []);
-        }
-      } catch {
-        setViolations([]);
-      }
-
       setError(null);
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
@@ -436,18 +374,6 @@ function MonitorPage({ isActive, onTabChange }: MonitorPageProps) {
           </select>
         </div>
       </div>
-      {violations.length > 0 && (
-        <div className="sla-violation-banner">
-          <span>⚠️ SLA 위반 감지: {violations.length}개 프로필</span>
-          <button
-            className="btn btn-danger"
-            onClick={handleStartTuner}
-            disabled={isStartingTuner}
-          >
-            {isStartingTuner ? '시작 중...' : '자동 튜닝 시작'}
-          </button>
-        </div>
-      )}
       <MultiTargetSelector 
         targetStatuses={targetStatuses} 
         targetStates={targetStates} 
