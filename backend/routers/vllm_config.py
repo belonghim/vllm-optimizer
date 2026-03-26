@@ -7,6 +7,7 @@ from kubernetes.client import CustomObjectsApi
 from kubernetes.client.exceptions import ApiException as K8sApiException
 from pydantic import BaseModel
 from services.shared import runtime_config
+from services.cr_adapter import get_cr_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -34,54 +35,6 @@ ALLOWED_CONFIG_KEYS = {
     "enable_chunked_prefill",
     "enable_enforce_eager",
 }
-
-# IS args에서 파싱할 key 매핑 (CLI flag → config key)
-_ARG_TO_KEY = {
-    "--max-num-seqs": "max_num_seqs",
-    "--gpu-memory-utilization": "gpu_memory_utilization",
-    "--max-model-len": "max_model_len",
-    "--max-num-batched-tokens": "max_num_batched_tokens",
-    "--block-size": "block_size",
-    "--swap-space": "swap_space",
-    "--enable-chunked-prefill": "enable_chunked_prefill",
-    "--enforce-eager": "enable_enforce_eager",
-}
-_KEY_TO_ARG = {v: k for k, v in _ARG_TO_KEY.items()}
-
-# 튜닝 arg 접두사 (정적 args 필터링용)
-_TUNING_ARG_PREFIXES = tuple(_ARG_TO_KEY.keys())
-
-
-def _args_to_config_dict(args: list[str]) -> dict[str, Any]:
-    """IS args list → key-value config dict"""
-    result = {}
-    for arg in args:
-        for cli_flag, config_key in _ARG_TO_KEY.items():
-            if arg == cli_flag:  # boolean flag (예: --enable-chunked-prefill)
-                result[config_key] = "true"
-                break
-            elif arg.startswith(cli_flag + "="):  # key=value flag
-                result[config_key] = arg.split("=", 1)[1]
-                break
-    return result
-
-
-def _config_dict_to_tuning_args(config: dict[str, Any]) -> list[str]:
-    """key-value config dict → IS tuning args list"""
-    result = []
-    for key, value in config.items():
-        cli_flag = _KEY_TO_ARG.get(key)
-        if cli_flag is None:
-            continue
-        # boolean flags (enable_chunked_prefill, enforce_eager)
-        if key in ("enable_chunked_prefill", "enable_enforce_eager"):
-            if str(value).lower() in ("true", "1", "yes"):
-                result.append(cli_flag)
-            # false/empty → 생략
-        else:
-            if value is not None and str(value):
-                result.append(f"{cli_flag}={str(value)}")
-    return result
 
 
 ConfigKey = Literal[
@@ -117,6 +70,16 @@ def _get_k8s_custom() -> CustomObjectsApi | None:
         return None
 
 
+def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    result = dict(base)
+    for k, v in override.items():
+        if k in result and isinstance(result[k], dict) and isinstance(v, dict):
+            result[k] = _deep_merge(result[k], v)
+        else:
+            result[k] = v
+    return result
+
+
 @router.get("")
 async def get_vllm_config() -> dict[str, Any]:
     _custom = await asyncio.to_thread(_get_k8s_custom)
@@ -125,23 +88,24 @@ async def get_vllm_config() -> dict[str, Any]:
     _api = _custom
     namespace = _get_k8s_namespace()
     is_name = _get_vllm_is_name()
+    adapter = get_cr_adapter()
     try:
         is_obj = cast(
             dict[str, Any],
             await asyncio.to_thread(
                 _api.get_namespaced_custom_object,
-                group="serving.kserve.io",
-                version="v1beta1",
+                group=adapter.api_group(),
+                version=adapter.api_version(),
                 namespace=namespace,
-                plural="inferenceservices",
+                plural=adapter.api_plural(),
                 name=is_name,
             ),
         )
-        model_spec: dict[str, Any] = is_obj.get("spec", {}).get("predictor", {}).get("model", {})  # type: ignore[index]
-        args = model_spec.get("args") or []
-        storage_uri = model_spec.get("storageUri")
-        resources = model_spec.get("resources", {})
-        return {"success": True, "data": _args_to_config_dict(args), "storageUri": storage_uri, "resources": resources}
+        spec = is_obj.get("spec", {})
+        data = adapter.read_args(spec)
+        storage_uri = adapter.read_model_uri(spec)
+        resources = adapter.read_resources(spec)
+        return {"success": True, "data": data, "storageUri": storage_uri, "resources": resources}
     except K8sApiException as e:
         logger.error("[VllmConfig] Failed to read InferenceService: %s", e)
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -184,39 +148,28 @@ async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict[str, Any]:
     _api = custom
     namespace = _get_k8s_namespace()
     is_name = _get_vllm_is_name()
+    adapter = get_cr_adapter()
     try:
-        model_patch: dict[str, Any] = {}
+        patch_body: dict[str, Any] = {}
 
         if request.data:
             is_obj = cast(
                 dict[str, Any],
                 await asyncio.to_thread(
                     _api.get_namespaced_custom_object,
-                    group="serving.kserve.io",
-                    version="v1beta1",
+                    group=adapter.api_group(),
+                    version=adapter.api_version(),
                     namespace=namespace,
-                    plural="inferenceservices",
+                    plural=adapter.api_plural(),
                     name=is_name,
                 ),
             )
-            current_args: list[str] = (
-                is_obj.get("spec", {})
-                .get("predictor", {})  # type: ignore[index]
-                .get("model", {})
-                .get("args")
-                or []
-            )
-
-            # 정적 args (튜닝 파라미터 아닌 것) 보존
-            static_args = [a for a in current_args if not a.startswith(_TUNING_ARG_PREFIXES)]
-
-            current_config = _args_to_config_dict(current_args)
-            current_config.update(cast(dict[str, Any], request.data))
-            new_tuning_args = _config_dict_to_tuning_args(current_config)
-            model_patch["args"] = static_args + new_tuning_args
+            args_patch = adapter.build_args_patch(is_obj.get("spec", {}), dict(request.data))
+            patch_body = _deep_merge(patch_body, args_patch)
 
         if request.storageUri is not None:
-            model_patch["storageUri"] = request.storageUri
+            uri_patch = adapter.build_model_uri_patch(request.storageUri)
+            patch_body = _deep_merge(patch_body, uri_patch)
 
         if request.resources is not None:
             clean_resources: dict[str, Any] = {}
@@ -225,15 +178,15 @@ async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict[str, Any]:
                 if cleaned:
                     clean_resources[_tier] = cleaned
             if clean_resources:
-                model_patch["resources"] = clean_resources
+                res_patch = adapter.build_resources_patch(clean_resources)
+                patch_body = _deep_merge(patch_body, res_patch)
 
-        patch_body = {"spec": {"predictor": {"model": model_patch}}}
         await asyncio.to_thread(
             _api.patch_namespaced_custom_object,
-            group="serving.kserve.io",
-            version="v1beta1",
+            group=adapter.api_group(),
+            version=adapter.api_version(),
             namespace=namespace,
-            plural="inferenceservices",
+            plural=adapter.api_plural(),
             name=is_name,
             body=patch_body,
         )
