@@ -1,16 +1,14 @@
 import asyncio
-import sys
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
 
-@pytest.fixture(autouse=True)
-def setup_test_storage(monkeypatch):
-    """Setup in-memory storage for each test."""
-    from services import shared
+@pytest.fixture
+def client(isolated_client, monkeypatch):
     from services.storage import Storage
+    from routers.benchmark import get_storage
 
     test_storage = Storage(":memory:")
 
@@ -18,24 +16,15 @@ def setup_test_storage(monkeypatch):
     asyncio.set_event_loop(loop)
     loop.run_until_complete(test_storage.initialize())
 
-    monkeypatch.setattr(shared, "storage", test_storage)
+    isolated_client.app.dependency_overrides[get_storage] = lambda: test_storage
 
-    benchmark_module = sys.modules.get("routers.benchmark")
-    if benchmark_module is not None:
-        monkeypatch.setattr(benchmark_module, "storage", test_storage)
+    yield isolated_client
 
-    yield test_storage
+    if get_storage in isolated_client.app.dependency_overrides:
+        del isolated_client.app.dependency_overrides[get_storage]
 
     loop.run_until_complete(test_storage.close())
     loop.close()
-
-
-@pytest.fixture
-def client():
-    """Create test client."""
-    from main import app
-
-    return TestClient(app)
 
 
 def test_benchmark_list_empty(client):

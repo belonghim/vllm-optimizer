@@ -11,16 +11,16 @@ from fastapi import APIRouter, Depends, HTTPException
 from models.load_test import Benchmark, BenchmarkMetadata, ErrorResponse
 from services.model_resolver import resolve_model_name
 from services.shared import multi_target_collector
-from services.shared import storage as shared_storage
 from services.storage import Storage
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-storage = shared_storage
 
 
 def get_storage() -> Storage:
-    return storage
+    from services import shared
+
+    return shared.storage
 
 
 @router.get(
@@ -30,7 +30,9 @@ def get_storage() -> Storage:
         500: {"model": ErrorResponse},
     },
 )
-async def list_benchmarks() -> list[Benchmark]:
+async def list_benchmarks(
+    storage: Storage = Depends(get_storage),
+) -> list[Benchmark]:
     try:
         return await storage.list_benchmarks()
     except Exception as e:
@@ -97,7 +99,9 @@ async def save_benchmark(
         500: {"model": ErrorResponse},
     },
 )
-async def benchmarks_by_model() -> dict[str, Any]:
+async def benchmarks_by_model(
+    storage: Storage = Depends(get_storage),
+) -> dict[str, Any]:
     try:
         benchmarks = await storage.list_benchmarks()
     except Exception as e:

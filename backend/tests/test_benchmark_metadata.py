@@ -28,24 +28,20 @@ async def storage():
 
 
 @pytest.fixture
-def client(monkeypatch):
-    from services import shared
+def client(isolated_client, monkeypatch):
+    from routers.benchmark import get_storage
 
     test_storage = Storage(":memory:")
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(test_storage.initialize())
 
-    monkeypatch.setattr(shared, "storage", test_storage)
+    isolated_client.app.dependency_overrides[get_storage] = lambda: test_storage
 
-    benchmark_module = sys.modules.get("routers.benchmark")
-    if benchmark_module is not None:
-        monkeypatch.setattr(benchmark_module, "storage", test_storage)
+    yield isolated_client
 
-    from main import app
-
-    with TestClient(app) as test_client:
-        yield test_client
+    if get_storage in isolated_client.app.dependency_overrides:
+        del isolated_client.app.dependency_overrides[get_storage]
 
     loop.run_until_complete(test_storage.close())
     loop.close()
