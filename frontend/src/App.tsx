@@ -28,9 +28,11 @@ const PAGES: PageDef[] = [
 export default function App() {
   const [page, setPage] = useState("monitor");
   const [pendingLoadTestConfig, setPendingLoadTestConfig] = useState<RerunConfig | null>(null);
+  const [loadTestMounted, setLoadTestMounted] = useState(false);
   useSessionKeepAlive();
 
   const handleSetPage = (id: string) => {
+    if (id === 'loadtest') setLoadTestMounted(true);
     setPage(id);
     requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
   };
@@ -91,7 +93,11 @@ export default function App() {
           <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>Loading...</div>}>
             {page === 'monitor' && <MonitorPage isActive={page === 'monitor'} />}
             {page === 'tuner' && <TunerPage isActive={page === 'tuner'} onTabChange={handleSetPage} />}
-            {page === 'loadtest' && <LoadTestPage isActive={page === 'loadtest'} pendingConfig={pendingLoadTestConfig} onConfigConsumed={handleConfigConsumed} />}
+            {loadTestMounted && (
+              <div style={page !== 'loadtest' ? { display: 'none' } : undefined}>
+                <LoadTestPage isActive={page === 'loadtest'} pendingConfig={pendingLoadTestConfig} onConfigConsumed={handleConfigConsumed} />
+              </div>
+            )}
             {page === 'benchmark' && <BenchmarkPage isActive={page === 'benchmark'} onRerun={handleRerun} />}
             {page === 'sla' && <SlaPage isActive={page === 'sla'} />}
           </Suspense>
