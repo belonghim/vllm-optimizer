@@ -48,7 +48,7 @@ export default function MultiTargetSelector({
   targetStatuses = {}, 
   targetStates = {}
 }: MultiTargetSelectorProps) {
-  const { targets, maxTargets, addTarget, removeTarget } = useClusterConfig();
+  const { targets, maxTargets, addTarget, removeTarget, setDefaultTarget } = useClusterConfig();
   const [isAdding, setIsAdding] = useState(false);
   const [newTarget, setNewTarget] = useState({ namespace: "", inferenceService: "" });
   const [isValidating, setIsValidating] = useState(false);
@@ -171,18 +171,28 @@ export default function MultiTargetSelector({
                       </>
                     )}
                     <td className="multi-target-action-cell">
-                      {target.isDefault ? (
-                        <span className="tag tag-completed multi-target-default-tag">기본</span>
-                      ) : (
-                        <button 
-                           className="btn btn-danger multi-target-delete-btn" 
-                           onClick={() => removeTarget(target.namespace, target.inferenceService)}
-                           data-testid="delete-btn"
-                         >
-                           ×
-                         </button>
-                      )}
-                    </td>
+                       {target.isDefault ? (
+                         <span className="tag tag-completed multi-target-default-tag">기본</span>
+                       ) : (
+                         <div className="multi-target-action-btns">
+                           <button
+                             className="btn btn-secondary multi-target-setdefault-btn"
+                             onClick={() => setDefaultTarget(target.namespace, target.inferenceService)}
+                             data-testid="set-default-btn"
+                             title="기본으로 설정"
+                           >
+                             ★
+                           </button>
+                           <button
+                             className="btn btn-danger multi-target-delete-btn"
+                             onClick={() => removeTarget(target.namespace, target.inferenceService)}
+                             data-testid="delete-btn"
+                           >
+                             ×
+                           </button>
+                         </div>
+                       )}
+                     </td>
                   </tr>
                 );
               })

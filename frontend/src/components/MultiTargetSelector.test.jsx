@@ -118,39 +118,57 @@ describe("MultiTargetSelector", () => {
     expect(mockContext.addTarget).not.toHaveBeenCalled();
   });
 
-  it("does not show delete button on default target", () => {
+  it("does not show delete or set-default button on default target", () => {
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
     expect(screen.queryByTestId("delete-btn")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("set-default-btn")).not.toBeInTheDocument();
   });
 
-  it("shows delete button on non-default target", () => {
-     const multiMock = {
-       ...mockContext,
-       targets: [
-         { namespace: "vllm-lab-dev", inferenceService: "llm-ov", isDefault: true },
-         { namespace: "vllm-lab-prod", inferenceService: "llm-cuda", isDefault: false },
-       ],
-     };
-     useClusterConfig.mockReturnValue(multiMock);
-     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
-     expect(screen.getAllByTestId("delete-btn")).toHaveLength(1);
-   });
+  it("shows delete and set-default buttons on non-default target", () => {
+    const multiMock = {
+      ...mockContext,
+      targets: [
+        { namespace: "vllm-lab-dev", inferenceService: "llm-ov", isDefault: true },
+        { namespace: "vllm-lab-prod", inferenceService: "llm-cuda", isDefault: false },
+      ],
+    };
+    useClusterConfig.mockReturnValue(multiMock);
+    render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
+    expect(screen.getAllByTestId("delete-btn")).toHaveLength(1);
+    expect(screen.getAllByTestId("set-default-btn")).toHaveLength(1);
+  });
 
-  it("calls removeTarget with namespace and inferenceService when delete button is clicked", () => {
-     const mockRemoveTarget = vi.fn();
-     const multiMock = {
-       ...mockContext,
-       targets: [
-         { namespace: "vllm-lab-dev", inferenceService: "llm-ov", isDefault: true },
-         { namespace: "vllm-lab-prod", inferenceService: "llm-cuda", isDefault: false },
-       ],
-       removeTarget: mockRemoveTarget,
-     };
-     useClusterConfig.mockReturnValue(multiMock);
-     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
-     fireEvent.click(screen.getByTestId("delete-btn"));
-     expect(mockRemoveTarget).toHaveBeenCalledWith("vllm-lab-prod", "llm-cuda");
-   });
+  it("calls removeTarget when delete button is clicked", () => {
+    const mockRemoveTarget = vi.fn();
+    const multiMock = {
+      ...mockContext,
+      targets: [
+        { namespace: "vllm-lab-dev", inferenceService: "llm-ov", isDefault: true },
+        { namespace: "vllm-lab-prod", inferenceService: "llm-cuda", isDefault: false },
+      ],
+      removeTarget: mockRemoveTarget,
+    };
+    useClusterConfig.mockReturnValue(multiMock);
+    render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
+    fireEvent.click(screen.getByTestId("delete-btn"));
+    expect(mockRemoveTarget).toHaveBeenCalledWith("vllm-lab-prod", "llm-cuda");
+  });
+
+  it("calls setDefaultTarget when set-default button is clicked", () => {
+    const mockSetDefaultTarget = vi.fn();
+    const multiMock = {
+      ...mockContext,
+      targets: [
+        { namespace: "vllm-lab-dev", inferenceService: "llm-ov", isDefault: true },
+        { namespace: "vllm-lab-prod", inferenceService: "llm-cuda", isDefault: false },
+      ],
+      setDefaultTarget: mockSetDefaultTarget,
+    };
+    useClusterConfig.mockReturnValue(multiMock);
+    render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
+    fireEvent.click(screen.getByTestId("set-default-btn"));
+    expect(mockSetDefaultTarget).toHaveBeenCalledWith("vllm-lab-prod", "llm-cuda");
+  });
 
   it("shows warning for namespace without monitoring label", () => {
     const targetKey = "vllm/llm-cuda";

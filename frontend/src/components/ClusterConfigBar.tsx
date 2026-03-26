@@ -26,7 +26,7 @@ interface LocalConfig {
 }
 
 export default function ClusterConfigBar() {
-  const { endpoint, namespace, inferenceservice, isLoading, updateConfig: updateContextConfig } = useClusterConfig();
+  const { endpoint, namespace, inferenceservice, isLoading, updateConfig: updateContextConfig, targets, setDefaultTarget } = useClusterConfig();
 
   const [localConfig, setLocalConfig] = useState<LocalConfig>({ endpoint: "", namespace: "", inferenceservice: "" });
   const [isDirty, setIsDirty] = useState(false);
@@ -66,10 +66,19 @@ export default function ClusterConfigBar() {
           vllm_is_name: localConfig.inferenceservice,
         }),
       });
-      // React 18: multiple setState calls in event handlers are automatically batched (single re-render)
-      updateContextConfig('endpoint', localConfig.endpoint);
-      updateContextConfig('namespace', localConfig.namespace);
-      updateContextConfig('inferenceservice', localConfig.inferenceservice);
+        updateContextConfig('endpoint', localConfig.endpoint);
+
+      const matchingNonDefault = targets.find(
+        t => !t.isDefault &&
+          t.namespace === localConfig.namespace &&
+          t.inferenceService === localConfig.inferenceservice
+      );
+      if (matchingNonDefault) {
+        setDefaultTarget(localConfig.namespace, localConfig.inferenceservice);
+      } else {
+        updateContextConfig('namespace', localConfig.namespace);
+        updateContextConfig('inferenceservice', localConfig.inferenceservice);
+      }
       setIsSaved(true);
       setTimeout(() => setIsSaved(false), 2000);
     } catch (err) {
