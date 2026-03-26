@@ -10,6 +10,7 @@ from typing import Any, cast
 import httpx
 from kubernetes import client, config
 from metrics.prometheus_metrics import update_metrics
+from services.cr_adapter import get_cr_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +70,7 @@ class MultiTargetMetricsCollector:
         self._start_requests: list[float] = []
         self._collect_interval: float = self.COLLECT_INTERVAL
 
+        self._cr_adapter = get_cr_adapter()
         self._token: str | None = self._load_token()
         self._k8s_available: bool = False
         self._k8s_core: client.CoreV1Api | None = None
@@ -313,8 +315,10 @@ class MultiTargetMetricsCollector:
             raise
 
     def _build_target_queries(self, namespace: str, is_name: str) -> dict[str, str]:
-        selector = f'namespace="{namespace}", job="{is_name}-metrics"'
-        dcgm_selector = f'exported_namespace="{namespace}", exported_pod=~"{is_name}-predictor.*"'
+        selector = f'namespace="{namespace}", job="{self._cr_adapter.prometheus_job(is_name)}"'
+        dcgm_selector = (
+            f'exported_namespace="{namespace}", exported_pod=~"{self._cr_adapter.dcgm_pod_pattern(is_name)}"'
+        )
         return {
             "tokens_per_second": (
                 f"sum(rate(vllm:num_generated_tokens{{{selector}}}[1m])) "
@@ -462,7 +466,7 @@ class MultiTargetMetricsCollector:
                 await asyncio.to_thread(
                     self._k8s_core.list_namespaced_pod,
                     namespace=namespace,
-                    label_selector=f"serving.kserve.io/inferenceservice={is_name}",
+                    label_selector=self._cr_adapter.pod_label_selector(is_name),
                 ),
             )
         except client.ApiException:
