@@ -18,6 +18,8 @@ interface ClusterConfigContextValue {
   addTarget: (namespace: string, inferenceService: string) => void;
   removeTarget: (namespace: string, inferenceService: string) => void;
   setDefaultTarget: (namespace: string, inferenceService: string) => void;
+  crType: string;
+  updateCrType: (value: string) => Promise<void>;
 }
 
 const ClusterConfigContext = createContext<ClusterConfigContextValue>({
@@ -31,6 +33,8 @@ const ClusterConfigContext = createContext<ClusterConfigContextValue>({
   addTarget: () => {},
   removeTarget: () => {},
   setDefaultTarget: () => {},
+  crType: "",
+  updateCrType: async () => {},
 });
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -105,6 +109,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
     };
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [crType, setCrType] = useState<string>("");
 
   useEffect(() => {
     const hasStoredValues = (): boolean => {
@@ -157,6 +162,32 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
   }, [config]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${API}/config`, { signal: controller.signal })
+      .then(r => r.json())
+      .then((data: unknown) => {
+        if (!isRecord(data)) return;
+        if (typeof data.cr_type === "string") setCrType(data.cr_type);
+      })
+      .catch((err: Error) => {
+        if (err.name === 'AbortError') return;
+      });
+    return () => controller.abort();
+  }, []);
+
+  const updateCrType = useCallback(async (value: string): Promise<void> => {
+    const res = await fetch(`${API}/config`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cr_type: value }),
+    });
+    if (res.status === 409) throw new Error('Auto-tuner is running. Cannot change CR type.');
+    if (!res.ok) throw new Error(`Failed to update CR type: ${res.status}`);
+    const data: unknown = await res.json();
+    if (isRecord(data) && typeof data.cr_type === "string") setCrType(data.cr_type);
+  }, []);
 
   const updateConfig = useCallback((field: string, value: string): void => {
     setConfig(prev => {
@@ -254,8 +285,10 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
       addTarget,
       removeTarget,
       setDefaultTarget,
+      crType,
+      updateCrType,
     };
-  }, [config, isLoading, updateConfig, addTarget, removeTarget, setDefaultTarget]);
+  }, [config, isLoading, updateConfig, addTarget, removeTarget, setDefaultTarget, crType, updateCrType]);
 
   return (
     <ClusterConfigContext.Provider value={value}>

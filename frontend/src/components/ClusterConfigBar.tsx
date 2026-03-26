@@ -26,12 +26,13 @@ interface LocalConfig {
 }
 
 export default function ClusterConfigBar() {
-  const { endpoint, namespace, inferenceservice, isLoading, updateConfig: updateContextConfig, targets, setDefaultTarget } = useClusterConfig();
+  const { endpoint, namespace, inferenceservice, isLoading, updateConfig: updateContextConfig, targets, setDefaultTarget, crType, updateCrType } = useClusterConfig();
 
   const [localConfig, setLocalConfig] = useState<LocalConfig>({ endpoint: "", namespace: "", inferenceservice: "" });
   const [isDirty, setIsDirty] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isCrTypeUpdating, setIsCrTypeUpdating] = useState(false);
 
   useEffect(() => {
     if (!isLoading) {
@@ -50,6 +51,23 @@ export default function ClusterConfigBar() {
   const handleInputChange = (field: keyof LocalConfig, value: string) => {
     setError(null);
     setLocalConfig(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleCrTypeChange = async (value: string) => {
+    setError(null);
+    setIsCrTypeUpdating(true);
+    try {
+      await updateCrType(value);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('409') || msg.toLowerCase().includes('auto-tuner')) {
+        setError("Auto-tuner 실행 중. CR 타입 변경 불가.");
+      } else {
+        setError("CR 타입 변경에 실패했습니다.");
+      }
+    } finally {
+      setIsCrTypeUpdating(false);
+    }
   };
 
   const handleSave = async () => {
@@ -95,6 +113,7 @@ export default function ClusterConfigBar() {
           <div className="skeleton-input" />
           <div className="skeleton-input" />
           <div className="skeleton-input" />
+          <div className="skeleton-input" />
           <div className="skeleton-button" />
         </div>
       </div>
@@ -116,6 +135,19 @@ export default function ClusterConfigBar() {
         <div>
           <label htmlFor="cfg-inferenceservice">InferenceService</label>
           <input id="cfg-inferenceservice" type="text" className="input" value={localConfig.inferenceservice} onChange={(e) => handleInputChange('inferenceservice', e.target.value)} placeholder="e.g., llm-ov" />
+        </div>
+        <div>
+          <label htmlFor="cfg-cr-type">CR Type</label>
+          <select
+            id="cfg-cr-type"
+            className="input"
+            value={crType}
+            disabled={isCrTypeUpdating}
+            onChange={(e) => handleCrTypeChange(e.target.value)}
+          >
+            <option value="inferenceservice">InferenceService</option>
+            <option value="llminferenceservice">LLMInferenceService</option>
+          </select>
         </div>
         <div className="config-actions">
            <StatusIndicator isDirty={isDirty} isSaved={isSaved} />
