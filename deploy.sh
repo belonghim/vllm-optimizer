@@ -98,49 +98,90 @@ get_deployment_image_id() {
 }
 
 compare_and_rollout() {
-  local deployment_name="$1"
-  local new_image_ref="$2"
-  local _namespace="$3"
-  if [ -z "$deployment_name" ] || [ -z "$new_image_ref" ]; then
-    log "[WARN] compare_and_rollout called with missing arguments"; return 0
-  fi
+   local deployment_name="$1"
+   local new_image_ref="$2"
+   local _namespace="$3"
+   if [ -z "$deployment_name" ] || [ -z "$new_image_ref" ]; then
+     log "[WARN] compare_and_rollout called with missing arguments"; return 0
+   fi
 
-  # Check if deployment exists (e.g., first-time deploy before kustomize apply)
-  if ! oc get deployment "$deployment_name" -n "$_namespace" &>/dev/null; then
-    log "[INFO] Deployment $deployment_name not found in $_namespace; skipping rollout (will be created by kustomize)"
+   # Check if deployment exists (e.g., first-time deploy before kustomize apply)
+   if ! oc get deployment "$deployment_name" -n "$_namespace" &>/dev/null; then
+     log "[INFO] Deployment $deployment_name not found in $_namespace; skipping rollout (will be created by kustomize)"
+     return 0
+   fi
+
+   # get new digest from provided image reference
+   local new_digest
+   new_digest=$(get_image_digest "$new_image_ref" 2>/dev/null || true)
+
+   local current_imageID current_digest
+   current_imageID=$(oc get pod -l app="$deployment_name" -n "$_namespace" -o jsonpath='{.items[0].status.containerStatuses[0].imageID}' 2>/dev/null || true)
+   if [ -n "$current_imageID" ]; then
+     current_digest=$(echo "$current_imageID" | grep -oE '[0-9a-f]{64}' | head -1 || true)
+   else
+     current_digest=""
+   fi
+
+   if [ -z "$new_digest" ]; then
+     log "[WARN] Could not extract new digest for $deployment_name; skipping rollout"
+     return 0
+   fi
+
+   if [ -z "$current_digest" ]; then
+     log "[INFO] Current digest not found for $deployment_name; triggering rollout"
+     oc rollout restart deployment/$deployment_name -n "$_namespace" || true
+     oc rollout status deployment/$deployment_name -n "$_namespace" --timeout=5m
+     return 0
+   fi
+
+   if [ "$new_digest" != "$current_digest" ]; then
+     log "[INFO] Image changed for $deployment_name: ${current_digest} -> ${new_digest}; triggering rollout"
+     oc rollout restart deployment/$deployment_name -n "$_namespace" || true
+     oc rollout status deployment/$deployment_name -n "$_namespace" --timeout=5m
+   else
+     log "[INFO] Image unchanged for $deployment_name, skipping rollout"
+   fi
+}
+
+patch_monitoring_labels() {
+  local target_namespace="$1"
+  if [ -z "$target_namespace" ]; then
+    warn "patch_monitoring_labels called without namespace; skipping"
     return 0
   fi
 
-  # get new digest from provided image reference
-  local new_digest
-  new_digest=$(get_image_digest "$new_image_ref" 2>/dev/null || true)
-
-  local current_imageID current_digest
-  current_imageID=$(oc get pod -l app="$deployment_name" -n "$_namespace" -o jsonpath='{.items[0].status.containerStatuses[0].imageID}' 2>/dev/null || true)
-  if [ -n "$current_imageID" ]; then
-    current_digest=$(echo "$current_imageID" | grep -oE '[0-9a-f]{64}' | head -1 || true)
-  else
-    current_digest=""
-  fi
-
-  if [ -z "$new_digest" ]; then
-    log "[WARN] Could not extract new digest for $deployment_name; skipping rollout"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "[DRY-RUN] Would patch monitoring labels in namespace '$target_namespace'"
     return 0
   fi
 
-  if [ -z "$current_digest" ]; then
-    log "[INFO] Current digest not found for $deployment_name; triggering rollout"
-    oc rollout restart deployment/$deployment_name -n "$_namespace" || true
-    oc rollout status deployment/$deployment_name -n "$_namespace" --timeout=5m
-    return 0
+  local podmonitors
+  podmonitors=$(oc get podmonitor -n "$target_namespace" --no-headers 2>/dev/null | awk '{print $1}' || true)
+  if [ -n "$podmonitors" ]; then
+    while IFS= read -r pm_name; do
+      if [ -n "$pm_name" ]; then
+        log "Patching PodMonitor '$pm_name' in namespace '$target_namespace' with monitoring label..."
+        oc label podmonitor "$pm_name" -n "$target_namespace" openshift.io/cluster-monitoring=true --overwrite 2>/dev/null || true
+        ok "PodMonitor '$pm_name' labeled"
+      fi
+    done <<< "$podmonitors"
   fi
 
-  if [ "$new_digest" != "$current_digest" ]; then
-    log "[INFO] Image changed for $deployment_name: ${current_digest} -> ${new_digest}; triggering rollout"
-    oc rollout restart deployment/$deployment_name -n "$_namespace" || true
-    oc rollout status deployment/$deployment_name -n "$_namespace" --timeout=5m
-  else
-    log "[INFO] Image unchanged for $deployment_name, skipping rollout"
+  local servicemonitors
+  servicemonitors=$(oc get servicemonitor -n "$target_namespace" --no-headers 2>/dev/null | awk '{print $1}' || true)
+  if [ -n "$servicemonitors" ]; then
+    while IFS= read -r sm_name; do
+      if [ -n "$sm_name" ]; then
+        log "Patching ServiceMonitor '$sm_name' in namespace '$target_namespace' with monitoring label..."
+        oc label servicemonitor "$sm_name" -n "$target_namespace" openshift.io/cluster-monitoring=true --overwrite 2>/dev/null || true
+        ok "ServiceMonitor '$sm_name' labeled"
+      fi
+    done <<< "$servicemonitors"
+  fi
+
+  if [ -z "$podmonitors" ] && [ -z "$servicemonitors" ]; then
+    warn "No PodMonitor/ServiceMonitor found in namespace '$target_namespace' — skipping monitoring labels"
   fi
 }
 
@@ -251,5 +292,8 @@ if [[ -d "$VLLM_DEP_PATH" ]]; then
 else
   warn "vllm-dependency path not found: ${VLLM_DEP_PATH}; skipping"
 fi
+
+log "Patching LLMIS monitoring labels in namespace ${VLLM_NAMESPACE}..."
+patch_monitoring_labels "$VLLM_NAMESPACE"
 
 log "Deployment complete (dev/prod overlay applied)."
