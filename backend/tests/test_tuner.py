@@ -361,7 +361,7 @@ async def test_median_pruner_marks_trial_as_pruned(auto_tuner_instance, mock_k8s
     tuner = auto_tuner_instance
     call_count = 0
 
-    async def mock_evaluate(endpoint, config, trial=None):
+    async def mock_evaluate(endpoint, config, trial=None, trial_num=0):
         nonlocal call_count
         call_count += 1
         if trial:
@@ -875,7 +875,7 @@ async def test_best_score_history_monotonically_nondecreasing_for_tps(auto_tuner
     scores = [10.0, 30.0, 20.0, 50.0, 40.0]
     call_idx = [0]
 
-    async def mock_eval(endpoint, config, trial=None):
+    async def mock_eval(endpoint, config, trial=None, trial_num=0):
         idx = call_idx[0]
         call_idx[0] += 1
         score = scores[idx % len(scores)]
@@ -1054,7 +1054,7 @@ async def test_pruned_trials_not_counted_as_best_trial(auto_tuner_instance, mock
     tuner = auto_tuner_instance
     call_count = 0
 
-    async def mock_evaluate(endpoint, config, trial=None):
+    async def mock_evaluate(endpoint, config, trial=None, trial_num=0):
         nonlocal call_count
         call_count += 1
         if trial:
