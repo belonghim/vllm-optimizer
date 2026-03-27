@@ -42,6 +42,10 @@ class RequestResult(BaseModel):
     token_timestamps: list[float] | None = Field(
         default=None, description="Per-token receive timestamps (epoch seconds), streaming only"
     )
+    itl_deltas: list[float] | None = Field(
+        default=None,
+        description="Raw per-token inter-arrival deltas in seconds (streaming only)",
+    )
     itl_mean: float | None = Field(default=None, description="Mean inter-token latency in seconds")
     itl_p95: float | None = Field(default=None, description="P95 inter-token latency in seconds")
     itl_p99: float | None = Field(default=None, description="P99 inter-token latency in seconds")
@@ -95,7 +99,7 @@ class LoadTestResult(BaseModel):
         description="GPU 메트릭 수집 대상이 부하 테스트 대상과 일치하는지 여부 (불일치 시 GPU Eff. 계산값이 무의미)",
     )
     itl: dict | None = Field(
-        default=None, description="Aggregated ITL stats: {mean, p95, p99} in seconds. None for non-streaming."
+        default=None, description="Aggregated ITL stats: {mean, p50, p95, p99} in seconds. None for non-streaming."
     )
 
 
@@ -116,6 +120,7 @@ class SweepConfig(BaseModel):
     saturation_latency_factor: float = Field(
         default=3.0, ge=1.0, description="P99 latency multiple vs step-1 for saturation detection"
     )
+    min_stable_steps: int = Field(default=1, ge=1, description="Consecutive saturated steps required to stop sweep")
 
 
 class SweepStepResult(BaseModel):

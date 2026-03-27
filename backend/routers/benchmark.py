@@ -7,7 +7,7 @@ import logging
 import os
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from models.load_test import Benchmark, BenchmarkMetadata, ErrorResponse
 from services.model_resolver import resolve_model_name
 from services.shared import multi_target_collector
@@ -31,10 +31,17 @@ def get_storage() -> Storage:
     },
 )
 async def list_benchmarks(
+    limit: int = Query(default=20, ge=1),
+    offset: int = Query(default=0, ge=0),
+    response: Response = None,
     storage: Storage = Depends(get_storage),
 ) -> list[Benchmark]:
     try:
-        return await storage.list_benchmarks()
+        total = await storage.count_benchmarks()
+        benchmarks = await storage.list_benchmarks(limit=limit, offset=offset)
+        if response is not None:
+            response.headers["X-Total-Count"] = str(total)
+        return benchmarks
     except ValueError as e:
         logger.error("[Benchmark] Failed to list benchmarks: %s", e)
         raise HTTPException(

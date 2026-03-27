@@ -11,7 +11,7 @@ import time as time_module
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import StreamingResponse
 from models.load_test import (
     ErrorResponse,
@@ -27,6 +27,13 @@ from services.shared import storage
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def get_storage():
+    from services import shared
+
+    return shared.storage
+
 
 # In-memory state for active test (in production, use proper state management)
 _active_test_task: asyncio.Task[Any] | None = None
@@ -301,16 +308,24 @@ async def stream_load_test_results(test_id: str | None = None) -> StreamingRespo
         500: {"model": ErrorResponse},
     },
 )
-async def get_load_test_history(limit: int = 10) -> list[dict[str, Any]]:
+async def get_load_test_history(
+    limit: int = Query(default=10, ge=1),
+    offset: int = Query(default=0, ge=0),
+    response: Response = None,
+) -> list[dict[str, Any]]:
     """
     Get list of recent load test runs and their final results.
 
     - Returns summary of completed tests (test_id, config, final result)
     - Sorted by most recent first
-    - Limit parameter controls number of results returned
+    - Limit/offset parameters control pagination
     """
     try:
-        return await storage.get_load_test_history(limit=limit)
+        total = await storage.count_load_test_history()
+        history = await storage.get_load_test_history(limit=limit, offset=offset)
+        if response is not None:
+            response.headers["X-Total-Count"] = str(total)
+        return history
     except OSError as e:
         logger.warning("[LoadTest] Failed to retrieve history (fail-open): %s", e)
         raise HTTPException(
@@ -320,3 +335,106 @@ async def get_load_test_history(limit: int = 10) -> list[dict[str, Any]]:
                 error_type="storage",
             ).model_dump(),
         ) from e
+
+
+# ==================== Sweep History CRUD ====================
+
+
+@router.post(
+    "/sweep/save",
+    responses={500: {"model": ErrorResponse}},
+)
+async def save_sweep_result(
+    sweep: dict,
+    storage=Depends(get_storage),
+) -> dict:
+    """Save a completed sweep result. Returns {id: str}."""
+    try:
+        sweep_id = await storage.save_sweep_result(sweep)
+        return {"id": sweep_id}
+    except Exception as e:
+        logger.error("[Sweep] Failed to save sweep result: %s", e)
+        raise HTTPException(
+            status_code=500,
+            detail=ErrorResponse(error="Failed to save sweep result", error_type="storage").model_dump(),
+        ) from e
+
+
+@router.get(
+    "/sweep/history",
+    responses={500: {"model": ErrorResponse}},
+)
+async def list_sweep_history(
+    limit: int = 20,
+    offset: int = 0,
+    response: Response = None,
+    storage=Depends(get_storage),
+) -> list[dict]:
+    """List saved sweep results with pagination. Returns X-Total-Count header."""
+    try:
+        items, total = await storage.get_sweep_history(limit=limit, offset=offset)
+        if response is not None:
+            response.headers["X-Total-Count"] = str(total)
+        return items
+    except Exception as e:
+        logger.error("[Sweep] Failed to list sweep history: %s", e)
+        raise HTTPException(
+            status_code=500,
+            detail=ErrorResponse(error="Failed to list sweep history", error_type="storage").model_dump(),
+        ) from e
+
+
+@router.get(
+    "/sweep/history/{sweep_id}",
+    responses={
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
+async def get_sweep_result(
+    sweep_id: str,
+    storage=Depends(get_storage),
+) -> dict:
+    """Get a single saved sweep result by ID."""
+    try:
+        result = await storage.get_sweep_result(sweep_id)
+    except Exception as e:
+        logger.error("[Sweep] Failed to get sweep result %s: %s", sweep_id, e)
+        raise HTTPException(
+            status_code=500,
+            detail=ErrorResponse(error="Failed to retrieve sweep result", error_type="storage").model_dump(),
+        ) from e
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail=ErrorResponse(error=f"Sweep {sweep_id} not found", error_type="not_found").model_dump(),
+        )
+    return result
+
+
+@router.delete(
+    "/sweep/history/{sweep_id}",
+    responses={
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
+async def delete_sweep_result(
+    sweep_id: str,
+    storage=Depends(get_storage),
+) -> dict:
+    """Delete a saved sweep result by ID."""
+    try:
+        deleted = await storage.delete_sweep_result(sweep_id)
+    except Exception as e:
+        logger.error("[Sweep] Failed to delete sweep result %s: %s", sweep_id, e)
+        raise HTTPException(
+            status_code=500,
+            detail=ErrorResponse(error="Failed to delete sweep result", error_type="storage").model_dump(),
+        ) from e
+    if not deleted:
+        raise HTTPException(
+            status_code=404,
+            detail=ErrorResponse(error=f"Sweep {sweep_id} not found", error_type="not_found").model_dump(),
+        )
+    return {"status": "deleted", "sweep_id": sweep_id}

@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query, Response
 from models.load_test import Benchmark
 from models.sla import SlaEvaluateResponse, SlaEvaluationResult, SlaProfile, SlaVerdict
 from pydantic import BaseModel
@@ -91,8 +91,16 @@ def evaluate_benchmarks_against_sla(
 
 
 @router.get("/profiles", response_model=list[SlaProfile])
-async def list_profiles() -> list[SlaProfile]:
-    return await storage.list_sla_profiles()
+async def list_profiles(
+    limit: int = Query(default=50, ge=1),
+    offset: int = Query(default=0, ge=0),
+    response: Response = None,
+) -> list[SlaProfile]:
+    total = await storage.count_sla_profiles()
+    profiles = await storage.list_sla_profiles(limit=limit, offset=offset)
+    if response is not None:
+        response.headers["X-Total-Count"] = str(total)
+    return profiles
 
 
 @router.post("/profiles", response_model=SlaProfile, status_code=201)

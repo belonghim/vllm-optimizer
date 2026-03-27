@@ -387,7 +387,7 @@ class MultiTargetMetricsCollector:
                 exc,
             )
             return False
-        except Exception as exc:
+        except Exception as exc:  # intentional: any k8s error → return False conservatively
             logger.warning(
                 "[MultiTargetMetricsCollector] namespace label check error (%s): %s",
                 namespace,
@@ -473,7 +473,7 @@ class MultiTargetMetricsCollector:
                 if math.isnan(value) or math.isinf(value):
                     return metric_name, None
                 return metric_name, round(value, 3)
-        except Exception:
+        except (httpx.HTTPError, ValueError):
             pass
         return metric_name, None
 
@@ -493,7 +493,7 @@ class MultiTargetMetricsCollector:
             )
         except client.ApiException:
             return {}
-        except Exception as exc:
+        except OSError as exc:
             logger.warning(
                 "[MultiTargetMetricsCollector] pod list failed (%s/%s): %s",
                 namespace,
@@ -534,11 +534,11 @@ class MultiTargetMetricsCollector:
         try:
             try:
                 config.load_incluster_config()
-            except Exception:
+            except config.ConfigException:
                 config.load_kube_config()
             self._k8s_core = client.CoreV1Api()
             self._k8s_available = True
-        except Exception as exc:
+        except Exception as exc:  # intentional: k8s init is optional, service runs without it
             logger.warning(
                 "[MultiTargetMetricsCollector] K8s init failed (monitoring label/pods disabled): %s",
                 exc,

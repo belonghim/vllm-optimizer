@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import shutil
+import sqlite3
 from datetime import UTC, datetime
 from typing import Protocol
 
@@ -85,7 +86,7 @@ class StorageHealthMonitor:
                     await self.check_health()
                 except asyncio.CancelledError:
                     raise
-                except Exception as e:
+                except Exception as e:  # intentional: health check loop must not crash
                     logger.error("[StorageHealthMonitor] Health check failed: %s", e)
 
                 await asyncio.sleep(self._interval_seconds)

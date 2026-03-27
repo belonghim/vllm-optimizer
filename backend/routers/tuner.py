@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query, Response
 from fastapi.responses import StreamingResponse
 from kubernetes.client.exceptions import ApiException
 from models.load_test import ErrorResponse, TuningConfig, TuningSessionDetail, TuningSessionSummary
@@ -249,7 +249,11 @@ async def get_tuner_status() -> TunerStatusFrontendResponse:
 
 
 @router.get("/trials", response_model=list[TrialFrontendInfo])
-async def get_tuning_trials(limit: int = 20) -> list[TrialFrontendInfo]:
+async def get_tuning_trials(
+    limit: int = Query(default=20, ge=1),
+    offset: int = Query(default=0, ge=0),
+    response: Response = None,
+) -> list[TrialFrontendInfo]:
     """Get list of tuning trials."""
     try:
         all_trials = await storage.get_trials()
@@ -257,7 +261,12 @@ async def get_tuning_trials(limit: int = 20) -> list[TrialFrontendInfo]:
             all_trials = auto_tuner.trials
     except (OSError, ValueError, RuntimeError):
         all_trials = auto_tuner.trials
-    trials = all_trials[-limit:]
+    total = len(all_trials)
+    # most-recent first: reverse, slice, then return
+    trials_desc = list(reversed(all_trials))
+    trials = trials_desc[offset : offset + limit]
+    if response is not None:
+        response.headers["X-Total-Count"] = str(total)
     return [
         TrialFrontendInfo(
             id=t.trial_id,
@@ -373,8 +382,15 @@ async def apply_best_parameters() -> ApplyBestResponse:
 
 
 @router.get("/sessions", response_model=list[TuningSessionSummary])
-async def list_tuning_sessions() -> list[TuningSessionSummary]:
-    rows = await storage.list_tuning_sessions()
+async def list_tuning_sessions(
+    limit: int = Query(default=20, ge=1),
+    offset: int = Query(default=0, ge=0),
+    response: Response = None,
+) -> list[TuningSessionSummary]:
+    total = await storage.count_tuning_sessions()
+    rows = await storage.list_tuning_sessions(limit=limit, offset=offset)
+    if response is not None:
+        response.headers["X-Total-Count"] = str(total)
     return [TuningSessionSummary(**row) for row in rows]
 
 

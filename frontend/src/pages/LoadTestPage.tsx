@@ -70,6 +70,7 @@ interface SweepConfigState {
   prompt: string;
   saturation_error_rate: number;
   saturation_latency_factor: number;
+  min_stable_steps: number;
   stream: boolean;
 }
 
@@ -104,6 +105,7 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
     prompt: "Explain quantum computing in simple terms",
     saturation_error_rate: 0.1,
     saturation_latency_factor: 3.0,
+    min_stable_steps: 1,
     stream: true,
   });
   const [sweepStatus, setSweepStatus] = useState<'idle' | 'running' | 'completed' | 'stopped' | 'error'>('idle');
@@ -111,6 +113,8 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
   const [sweepResult, setSweepResult] = useState<SweepResult | null>(null);
   const [sweepError, setSweepError] = useState<string | null>(null);
   const [sweepSSEUrl, setSweepSSEUrl] = useState<string | null>(null);
+  const [sweepHistory, setSweepHistory] = useState<SweepResult[]>([]);
+  const [sweepHistoryLoading, setSweepHistoryLoading] = useState(false);
 
   useEffect(() => {
     const isSweepRunning = sweepStatus === 'running';
@@ -217,18 +221,42 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
   const saveSweepAsBenchmark = async (sweep: SweepResult) => {
     if (isSaving || !sweep) return;
     setIsSaving(true); setSaveStatus(null);
-    const name = `sweep-${sweep.optimal_rps ?? 'custom'}-${Math.floor(Date.now() / 1000)}`;
     try {
-      const resp = await authFetch(`${API}/benchmark/save`, {
+      const resp = await authFetch(`${API}/load_test/sweep/save`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, config: sweep.config, result: sweep }),
+        body: JSON.stringify(sweep),
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       setSaveStatus("ok");
+      await fetchSweepHistory();
     } catch {
       setSaveStatus("error");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const fetchSweepHistory = async () => {
+    setSweepHistoryLoading(true);
+    try {
+      const resp = await authFetch(`${API}/load_test/sweep/history?limit=20`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      setSweepHistory(data);
+    } catch {
+      // fail silently - history is optional
+    } finally {
+      setSweepHistoryLoading(false);
+    }
+  };
+
+  const deleteSweepResult = async (sweepId: string) => {
+    try {
+      const resp = await authFetch(`${API}/load_test/sweep/history/${sweepId}`, { method: "DELETE" });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      await fetchSweepHistory();
+    } catch {
+      // fail silently
     }
   };
 
@@ -258,6 +286,13 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
        .catch(() => {});
      return () => controller.abort();
   }, [isActive, isMockEnabled]);
+
+  useEffect(() => {
+    if (mode === 'sweep' && isActive) {
+      fetchSweepHistory();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, isActive]);
 
   const handleConfigChange = useCallback((key: string, value: string | number | boolean) => setConfig(c => ({ ...c, [key]: value })), []);
   const handleSweepConfigChange = useCallback((key: string, value: string | number | boolean) => setSweepConfig(c => ({ ...c, [key]: value })), []);
@@ -458,6 +493,7 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
             ["RPS Start", "rps_start", "number"], ["RPS End", "rps_end", "number"], ["RPS Step", "rps_step", "number"],
             ["Requests/Step", "requests_per_step", "number"], ["Concurrency", "concurrency", "number"], ["Max Tokens", "max_tokens", "number"],
             ["Saturation Error Rate", "saturation_error_rate", "number"],
+            ["Min Stable Steps", "min_stable_steps", "number"],
           ] as const).map(([label, key, type]) => (
             <div key={key}>
               <label className="label">{label}</label>
@@ -541,6 +577,41 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
           )}
         </div>
       )}
+      {sweepHistory.length > 0 && (
+        <div className="panel">
+          <div className="section-title">Sweep 저장 내역</div>
+          {sweepHistoryLoading && <div className="label">Loading...</div>}
+          <table className="table" aria-label="저장된 Sweep 결과 목록">
+            <thead>
+              <tr><th>Optimal RPS</th><th>Steps</th><th>Duration</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+              {sweepHistory.map((h, idx) => {
+                const hAny = h as Record<string, unknown>;
+                const sweepId = hAny.sweep_id as string | undefined;
+                return (
+                  <tr key={sweepId ?? idx}>
+                    <td>{fmt(h.optimal_rps as number | null | undefined, 1) ?? 'N/A'}</td>
+                    <td>{Array.isArray(h.steps) ? h.steps.length : '—'}</td>
+                    <td>{fmt(h.total_duration, 1)}s</td>
+                    <td>
+                      {sweepId && (
+                        <button
+                          className="btn btn-danger"
+                          style={{ padding: '2px 8px', fontSize: '12px' }}
+                          onClick={() => deleteSweepResult(sweepId)}
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </>
   );
 
@@ -556,4 +627,3 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
 }
 
 export default LoadTestPage;
-

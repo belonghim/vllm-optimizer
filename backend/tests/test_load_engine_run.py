@@ -64,7 +64,7 @@ async def test_run_collects_all_results_when_tasks_complete_during_sleep():
         model="test-model",
     )
     with patch("httpx.AsyncClient", return_value=_make_mock_httpx_client()):
-        final_stats = await engine.run(config)
+        final_stats = await engine.run(config, skip_preflight=True)
 
     assert len(engine._state.results) == 20, f"Expected 20 results, got {len(engine._state.results)}"
     assert engine._state.completed_requests == 20, (
@@ -95,7 +95,7 @@ async def test_run_counter_matches_result_count():
         model="test-model",
     )
     with patch("httpx.AsyncClient", return_value=_make_mock_httpx_client()):
-        await engine.run(config)
+        await engine.run(config, skip_preflight=True)
 
     total_counted = engine._state.completed_requests + engine._state.failed_requests
     assert total_counted == 10, (
@@ -136,7 +136,7 @@ async def test_run_no_valueerror_when_all_tasks_done_instantly():
     instant_mock.get = AsyncMock(return_value=_instant_preflight_resp)
 
     with patch("httpx.AsyncClient", return_value=instant_mock):
-        final_stats = await engine.run(config)
+        final_stats = await engine.run(config, skip_preflight=True)
 
     assert isinstance(final_stats, dict), "run() must return a dict"
     assert len(final_stats) > 0, "final_stats must not be empty"
@@ -183,7 +183,7 @@ async def test_run_failed_requests_counted_correctly():
     mock_client.get = AsyncMock(return_value=_alt_preflight_resp)
 
     with patch("httpx.AsyncClient", return_value=mock_client):
-        await engine.run(config)
+        await engine.run(config, skip_preflight=True)
 
     assert engine._state.failed_requests == 5, f"Expected 5 failed requests, got {engine._state.failed_requests}"
     assert len(engine._state.results) == 10, f"Expected 10 total results, got {len(engine._state.results)}"
@@ -210,7 +210,7 @@ async def test_run_no_duplicate_results():
         model="test-model",
     )
     with patch("httpx.AsyncClient", return_value=_make_mock_httpx_client()):
-        await engine.run(config)
+        await engine.run(config, skip_preflight=True)
 
     req_ids = [r.req_id for r in engine._state.results]
     assert len(req_ids) == len(set(req_ids)), (

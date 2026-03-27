@@ -232,25 +232,20 @@ async def test_save_auto_benchmark_uses_env_fallback_when_model_resolution_unava
 
 @pytest.mark.asyncio
 async def test_evaluate_uses_mocked_httpx_async_client_for_model_lookup(auto_tuner_instance):
+    from ..services import auto_tuner as auto_tuner_module
+
     tuner = auto_tuner_instance
     tuner._load_engine.run = AsyncMock(return_value={"tps": {"total": 30.0}, "latency": {"p99": 0.2}})
 
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = {"data": [{"id": "resolved-model"}]}
-
-    mock_client = MagicMock()
-    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_client.__aexit__ = AsyncMock(return_value=False)
-    mock_client.get = AsyncMock(return_value=mock_response)
-
-    with patch.object(model_resolver_module.httpx, "AsyncClient", return_value=mock_client):
+    with patch.object(
+        auto_tuner_module, "resolve_model_name", new=AsyncMock(return_value="resolved-model")
+    ) as resolve_mock:
         score, tps, p99 = await tuner._evaluate(
             "http://mock-vllm:8080",
             TuningConfig(eval_requests=2, warmup_requests=0, eval_concurrency=1, eval_rps=0),
         )
 
-    mock_client.get.assert_awaited_once_with("http://mock-vllm:8080/v1/models")
+    resolve_mock.assert_awaited_once_with("http://mock-vllm:8080")
     assert tuner._load_engine.run.await_count == 2
     first_load_cfg = tuner._load_engine.run.await_args_list[0].args[0]
     assert first_load_cfg.model == "resolved-model"

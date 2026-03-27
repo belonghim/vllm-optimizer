@@ -643,6 +643,7 @@ def test_itl_fields_default_none():
     from models.load_test import RequestResult
 
     r = RequestResult(req_id=1, success=True, latency=1.0)
+    assert r.itl_deltas is None
     assert r.itl_mean is None
     assert r.itl_p95 is None
     assert r.itl_p99 is None
@@ -658,10 +659,12 @@ def test_itl_fields_populated():
         success=True,
         latency=1.0,
         token_timestamps=[0.1, 0.2, 0.3],
+        itl_deltas=[0.1, 0.1],
         itl_mean=0.1,
         itl_p95=0.1,
         itl_p99=0.1,
     )
+    assert r.itl_deltas == [0.1, 0.1]
     assert r.itl_mean == 0.1
     assert r.token_timestamps == [0.1, 0.2, 0.3]
 
@@ -708,6 +711,33 @@ def test_compute_stats_itl_aggregated():
     itl = stats.get("itl")
     assert itl is not None
     assert itl["mean"] == pytest.approx(0.075, abs=0.001)
+
+
+def test_compute_stats_itl_percentiles_from_all_token_deltas():
+    import time
+
+    from models.load_test import RequestResult
+    from services.load_engine import LoadTestEngine, LoadTestState, LoadTestStatus
+
+    engine = LoadTestEngine()
+    engine._state = LoadTestState(
+        status=LoadTestStatus.RUNNING,
+        start_time=time.time(),
+        total_requests=3,
+    )
+    engine._state.results = [
+        RequestResult(req_id=0, success=True, latency=0.1, itl_mean=0.15, itl_deltas=[0.1, 0.2]),
+        RequestResult(req_id=1, success=True, latency=0.2, itl_mean=0.35, itl_deltas=[0.3, 0.4]),
+        RequestResult(req_id=2, success=True, latency=0.3, itl_mean=0.55, itl_deltas=[0.5, 0.6]),
+    ]
+
+    stats = engine._compute_stats()
+    itl = stats.get("itl")
+    assert itl is not None
+    assert itl["mean"] == pytest.approx(0.35, abs=0.0001)
+    assert itl["p50"] == pytest.approx(0.35, abs=0.0001)
+    assert itl["p95"] == pytest.approx(0.575, abs=0.0001)
+    assert itl["p99"] == pytest.approx(0.595, abs=0.0001)
 
 
 @pytest.mark.asyncio
@@ -833,6 +863,43 @@ async def test_sweep_detects_saturation_by_latency():
     assert len(result.steps) == 2
     assert result.steps[1].saturated is True
     assert result.optimal_rps == result.steps[0].rps
+
+
+@pytest.mark.asyncio
+async def test_sweep_min_stable_steps_ignores_isolated_spike():
+    from unittest.mock import AsyncMock, patch
+
+    from models.load_test import SweepConfig
+    from services.load_engine import LoadTestEngine
+
+    engine = LoadTestEngine()
+
+    step_results = [
+        {"total": 10, "failed": 0, "success": 10, "latency": {"p99": 0.1, "mean": 0.08}, "elapsed": 1.0},
+        {"total": 10, "failed": 2, "success": 8, "latency": {"p99": 0.1, "mean": 0.08}, "elapsed": 1.0},
+        {"total": 10, "failed": 0, "success": 10, "latency": {"p99": 0.1, "mean": 0.08}, "elapsed": 1.0},
+        {"total": 10, "failed": 2, "success": 8, "latency": {"p99": 0.1, "mean": 0.08}, "elapsed": 1.0},
+        {"total": 10, "failed": 2, "success": 8, "latency": {"p99": 0.1, "mean": 0.08}, "elapsed": 1.0},
+        {"total": 10, "failed": 2, "success": 8, "latency": {"p99": 0.1, "mean": 0.08}, "elapsed": 1.0},
+    ]
+
+    with patch.object(engine, "run", new=AsyncMock(side_effect=step_results)):
+        config = SweepConfig(
+            endpoint="http://vllm",
+            model="m",
+            rps_start=1,
+            rps_end=6,
+            rps_step=1,
+            requests_per_step=10,
+            saturation_error_rate=0.1,
+            min_stable_steps=3,
+        )
+        result = await engine.run_sweep(config)
+
+    assert len(result.steps) == 6
+    assert [step.saturated for step in result.steps] == [False, True, False, True, True, True]
+    assert result.saturation_point == result.steps[5].rps
+    assert result.optimal_rps == result.steps[2].rps
 
 
 @pytest.mark.asyncio
@@ -989,3 +1056,108 @@ async def test_sweep_executes_multiple_steps():
     expected_steps = len(range(sweep_config.rps_start, sweep_config.rps_end + 1, sweep_config.rps_step))
     assert run_call_count == expected_steps, f"Expected {expected_steps} run() calls, got {run_call_count}"
     assert len(result.steps) == expected_steps
+
+
+# ==================== Sweep History CRUD round-trip ====================
+
+
+@pytest.fixture
+def sweep_storage_client(isolated_client: TestClient):
+    """Isolated client with initialized in-memory storage injected for sweep endpoints."""
+    import asyncio
+    from services.storage import Storage
+    from routers.load_test import get_storage
+
+    test_storage = Storage(":memory:")
+    loop = asyncio.new_event_loop()
+    loop.run_until_complete(test_storage.initialize())
+    isolated_client.app.dependency_overrides[get_storage] = lambda: test_storage
+
+    yield isolated_client
+
+    isolated_client.app.dependency_overrides.pop(get_storage, None)
+    loop.run_until_complete(test_storage.close())
+    loop.close()
+
+
+_SAMPLE_SWEEP = {
+    "config": {"rps_start": 1, "rps_end": 10, "rps_step": 5},
+    "steps": [{"step": 1, "rps": 1.0, "stats": {"latency": {"p99": 0.5, "mean": 0.3}, "tps": {"mean": 5.0}, "success": 5, "failed": 0, "total": 5, "rps_actual": 1.0}, "saturated": False, "saturation_reason": None}],
+    "saturation_point": None,
+    "optimal_rps": 1.0,
+    "total_duration": 2.5,
+}
+
+
+def test_sweep_save_returns_id(sweep_storage_client: TestClient):
+    resp = sweep_storage_client.post("/api/load_test/sweep/save", json=_SAMPLE_SWEEP)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "id" in data
+    assert isinstance(data["id"], str)
+    assert len(data["id"]) > 0
+
+
+def test_sweep_history_list_after_save(sweep_storage_client: TestClient):
+    # Save one result
+    save_resp = sweep_storage_client.post("/api/load_test/sweep/save", json=_SAMPLE_SWEEP)
+    assert save_resp.status_code == 200
+
+    # List should return it
+    list_resp = sweep_storage_client.get("/api/load_test/sweep/history")
+    assert list_resp.status_code == 200
+    items = list_resp.json()
+    assert isinstance(items, list)
+    assert len(items) == 1
+    assert "X-Total-Count" in list_resp.headers
+    assert list_resp.headers["X-Total-Count"] == "1"
+
+
+def test_sweep_history_get_single(sweep_storage_client: TestClient):
+    save_resp = sweep_storage_client.post("/api/load_test/sweep/save", json=_SAMPLE_SWEEP)
+    sweep_id = save_resp.json()["id"]
+
+    get_resp = sweep_storage_client.get(f"/api/load_test/sweep/history/{sweep_id}")
+    assert get_resp.status_code == 200
+    data = get_resp.json()
+    assert data.get("optimal_rps") == 1.0
+
+
+def test_sweep_history_get_not_found(sweep_storage_client: TestClient):
+    resp = sweep_storage_client.get("/api/load_test/sweep/history/nonexistent-id")
+    assert resp.status_code == 404
+
+
+def test_sweep_history_delete(sweep_storage_client: TestClient):
+    save_resp = sweep_storage_client.post("/api/load_test/sweep/save", json=_SAMPLE_SWEEP)
+    sweep_id = save_resp.json()["id"]
+
+    del_resp = sweep_storage_client.delete(f"/api/load_test/sweep/history/{sweep_id}")
+    assert del_resp.status_code == 200
+    assert del_resp.json()["status"] == "deleted"
+
+    # Verify gone
+    get_resp = sweep_storage_client.get(f"/api/load_test/sweep/history/{sweep_id}")
+    assert get_resp.status_code == 404
+
+
+def test_sweep_history_delete_not_found(sweep_storage_client: TestClient):
+    resp = sweep_storage_client.delete("/api/load_test/sweep/history/nonexistent-id")
+    assert resp.status_code == 404
+
+
+def test_sweep_history_pagination(sweep_storage_client: TestClient):
+    # Save 3 results
+    for i in range(3):
+        sweep_storage_client.post("/api/load_test/sweep/save", json={**_SAMPLE_SWEEP, "optimal_rps": float(i + 1)})
+
+    # Page 1: limit=2
+    resp1 = sweep_storage_client.get("/api/load_test/sweep/history?limit=2&offset=0")
+    assert resp1.status_code == 200
+    assert len(resp1.json()) == 2
+    assert resp1.headers["X-Total-Count"] == "3"
+
+    # Page 2: limit=2, offset=2
+    resp2 = sweep_storage_client.get("/api/load_test/sweep/history?limit=2&offset=2")
+    assert resp2.status_code == 200
+    assert len(resp2.json()) == 1

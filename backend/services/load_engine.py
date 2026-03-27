@@ -8,6 +8,7 @@ import importlib
 import json
 import logging
 import os
+import sqlite3
 import statistics
 import time
 from dataclasses import dataclass, field
@@ -16,6 +17,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 import httpx
+import numpy as np
 import psutil
 from models.load_test import LoadTestConfig, RequestResult, SweepConfig, SweepStepResult, SweepResult
 
@@ -107,7 +109,7 @@ class LoadTestEngine:
                     resp = await external_client.get("http://localhost:8000/api/metrics/latest", timeout=5)
                     if resp.status_code == 200:
                         gpu = resp.json().get("gpu_util", 0.0)
-            except Exception as e:  # intentional: non-critical
+            except httpx.HTTPError as e:
                 logger.debug("[LoadEngine] GPU metrics unavailable: %s", e)
             samples.append({"cpu": cpu, "gpu": gpu})
             for _ in range(30):
@@ -212,6 +214,7 @@ class LoadTestEngine:
             ttft = None
             output_tokens = 0
             token_timestamps: list[float] | None = None
+            itl_deltas: list[float] | None = None
             itl_mean: float | None = None
             itl_p95: float | None = None
             itl_p99: float | None = None
@@ -254,10 +257,12 @@ class LoadTestEngine:
                         deltas = [
                             token_timestamps[i + 1] - token_timestamps[i] for i in range(len(token_timestamps) - 1)
                         ]
+                        itl_deltas = deltas
                         itl_mean = sum(deltas) / len(deltas)
                         itl_p95 = sorted(deltas)[int(len(deltas) * 0.95)]
                         itl_p99 = sorted(deltas)[int(len(deltas) * 0.99)]
                     else:
+                        itl_deltas = None
                         itl_mean = itl_p95 = itl_p99 = None
                 else:
                     resp = await external_client.post(
@@ -276,11 +281,12 @@ class LoadTestEngine:
                     output_tokens=output_tokens,
                     tps=output_tokens / latency if latency > 0 else 0,
                     token_timestamps=token_timestamps,
+                    itl_deltas=itl_deltas,
                     itl_mean=itl_mean,
                     itl_p95=itl_p95,
                     itl_p99=itl_p99,
                 )
-            except Exception as e:  # intentional: non-critical
+            except (httpx.HTTPError, json.JSONDecodeError, asyncio.TimeoutError, KeyError) as e:
                 return RequestResult(
                     req_id=request_id,
                     success=False,
@@ -398,7 +404,7 @@ class LoadTestEngine:
                     "timestamp": time.time(),
                 }
             )
-        except Exception as _e:
+        except Exception as _e:  # intentional: storage errors must not abort result broadcast
             logger.warning("Failed to persist load test result: %s", _e)
         return final_stats
 
@@ -423,7 +429,7 @@ class LoadTestEngine:
                 _storage = shared_module.storage
 
                 _running_row_id = await _storage.set_running("loadtest")
-            except Exception as e:
+            except (sqlite3.Error, OSError) as e:
                 logger.warning("[LoadEngine] Failed to record running state: %s", e)
 
             semaphore, metric_samples, sample_stop, sampling_task, interval = self._init_run_state(config)
@@ -479,7 +485,7 @@ class LoadTestEngine:
                 for fut in asyncio.as_completed(remaining_tasks):
                     try:
                         result = await fut
-                    except Exception as e:  # intentional: non-critical
+                    except (httpx.HTTPError, json.JSONDecodeError, asyncio.TimeoutError, KeyError) as e:
                         result = RequestResult(
                             req_id=-1,
                             success=False,
@@ -507,7 +513,7 @@ class LoadTestEngine:
                     _storage = shared_module.storage
 
                     await _storage.clear_running(_running_row_id)
-                except Exception as e:
+                except Exception as e:  # intentional: storage cleanup in finally must not raise
                     logger.warning("[LoadEngine] Failed to clear running state: %s", e)
 
     async def stop(self) -> None:
@@ -528,6 +534,8 @@ class LoadTestEngine:
         steps: list[SweepStepResult] = []
         step1_p99: float | None = None
         consecutive_100pct_failures = 0
+        consecutive_saturated = 0
+        saturation_point: float | None = None
 
         rps_range = range(config.rps_start, config.rps_end + 1, config.rps_step)
         for step_num, rps in enumerate(rps_range, start=1):
@@ -593,13 +601,16 @@ class LoadTestEngine:
             await self._broadcast({"type": "sweep_step", "data": step_obj.model_dump()})
 
             if saturated:
+                consecutive_saturated += 1
+            else:
+                consecutive_saturated = 0
+
+            if consecutive_saturated >= config.min_stable_steps:
+                saturation_point = step_obj.rps
                 break
 
-        saturation_point: float | None = None
         optimal_rps: float | None = None
-        saturated_steps = [s for s in steps if s.saturated]
-        if saturated_steps:
-            saturation_point = saturated_steps[0].rps
+        if saturation_point is not None:
             non_saturated = [s for s in steps if not s.saturated]
             if non_saturated:
                 optimal_rps = non_saturated[-1].rps
@@ -622,6 +633,24 @@ class LoadTestEngine:
         ttfts = [r.ttft for r in successful if r.ttft is not None]
         tps_values = [r.tps for r in successful if r.tps > 0]
         itl_means = [r.itl_mean for r in successful if r.itl_mean is not None]
+        all_deltas = [d for r in successful if r.itl_deltas for d in r.itl_deltas]
+
+        if all_deltas:
+            itl_stats: dict[str, float] | None = {
+                "mean": round(float(np.mean(all_deltas)), 4),
+                "p50": round(float(np.percentile(all_deltas, 50)), 4),
+                "p95": round(float(np.percentile(all_deltas, 95)), 4),
+                "p99": round(float(np.percentile(all_deltas, 99)), 4),
+            }
+        elif itl_means:
+            itl_stats = {
+                "mean": round(statistics.mean(itl_means), 4),
+                "p50": round(_percentile(itl_means, 50), 4),
+                "p95": round(_percentile(itl_means, 95), 4),
+                "p99": round(_percentile(itl_means, 99), 4),
+            }
+        else:
+            itl_stats = None
 
         elapsed = time.time() - self._state.start_time
 
@@ -648,13 +677,7 @@ class LoadTestEngine:
                 "mean": round(statistics.mean(tps_values), 1) if tps_values else 0,
                 "total": round(sum(tps_values), 1) if tps_values else 0,
             },
-            "itl": {
-                "mean": round(statistics.mean(itl_means), 4) if itl_means else None,
-                "p95": round(_percentile(itl_means, 95), 4) if itl_means else None,
-                "p99": round(_percentile(itl_means, 99), 4) if itl_means else None,
-            }
-            if itl_means
-            else None,
+            "itl": itl_stats,
         }
 
 

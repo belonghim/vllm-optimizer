@@ -9,13 +9,16 @@ Provides persistent storage for:
 
 import asyncio
 import contextlib
+import json
 import logging
 import os
+import sqlite3
 import shutil
 from datetime import UTC, datetime
 from typing import Any
 
 import aiosqlite
+from errors import StorageError
 from models.load_test import (
     Benchmark,
     BenchmarkMetadata,
@@ -63,6 +66,7 @@ class Storage:
                         cursor = await self._conn.execute("PRAGMA integrity_check")
                         row = await cursor.fetchone()
                         integrity_result = row[0] if row and row[0] else "unknown"
+                    # intentional: treat any integrity-check failure as corruption signal
                     except Exception as integrity_error:
                         integrity_result = f"error: {integrity_error}"
 
@@ -83,6 +87,7 @@ class Storage:
                                 "[Storage] Backed up corrupted database to %s",
                                 backup_path,
                             )
+                        # intentional: backup/recovery must log unexpected file I/O failures
                         except Exception as backup_error:
                             logger.error(
                                 "[Storage] Failed to backup corrupted database %s: %s",
@@ -101,7 +106,7 @@ class Storage:
                 await self._create_tables()
                 logger.info("[Storage] Initialized SQLite database at %s", self._db_path)
                 return
-            except Exception as e:
+            except (sqlite3.Error, OSError, StorageError) as e:
                 last_error = e
                 logger.error(
                     "[Storage] Failed to initialize database (attempt %s/%s): %s",
@@ -111,7 +116,7 @@ class Storage:
                 )
 
                 if self._conn is not None:
-                    with contextlib.suppress(Exception):
+                    with contextlib.suppress(Exception):  # intentional: best-effort cleanup should not mask init error
                         await self._conn.close()
                     self._conn = None
 
@@ -139,7 +144,7 @@ class Storage:
         try:
             await self._conn.execute("ALTER TABLE benchmarks ADD COLUMN metadata_json TEXT DEFAULT NULL")
             await self._conn.commit()
-        except Exception:
+        except sqlite3.OperationalError:
             pass
 
         # Load test history table
@@ -212,7 +217,7 @@ class Storage:
                 await self._conn.execute("ALTER TABLE sla_profiles_v2 RENAME TO sla_profiles")
                 await self._conn.commit()
                 logger.info("[Storage] Migrated sla_profiles: removed legacy 'model' column")
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.warning("[Storage] sla_profiles model column migration failed: %s", e)
 
         try:
@@ -236,7 +241,7 @@ class Storage:
                 await self._conn.execute("ALTER TABLE sla_profiles_v2 RENAME TO sla_profiles")
                 await self._conn.commit()
                 logger.info("[Storage] Migrated sla_profiles: removed benchmark_ids_json column")
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.warning("[Storage] sla_profiles benchmark_ids_json migration failed: %s", e)
 
         # Tuning sessions table
@@ -255,6 +260,16 @@ class Storage:
             )
         """)
 
+        # Sweep history table
+        await self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS sweep_history (
+                sweep_id TEXT PRIMARY KEY,
+                timestamp REAL NOT NULL,
+                config_json TEXT NOT NULL,
+                result_json TEXT NOT NULL
+            )
+        """)
+
         await self._conn.commit()
         logger.debug("[Storage] Tables created successfully")
 
@@ -265,7 +280,7 @@ class Storage:
                 await self._conn.close()
                 self._conn = None
                 logger.info("[Storage] Database connection closed")
-            except Exception as e:
+            except sqlite3.Error as e:
                 logger.error("[Storage] Error closing database: %s", e)
 
     # ==================== Benchmark CRUD ====================
@@ -314,20 +329,38 @@ class Storage:
             await self._conn.commit()
             logger.debug("[Storage] Saved benchmark id=%s name=%s", b.id, b.name)
             return b
-        except Exception as e:
+        except (sqlite3.Error, TypeError, ValueError) as e:
             logger.error("[Storage] Failed to save benchmark: %s", e)
             return b
 
-    async def list_benchmarks(self) -> list[Benchmark]:
+    async def count_benchmarks(self) -> int:
+        """Return total number of benchmark records."""
+        if self._conn is None:
+            return 0
+        try:
+            cursor = await self._conn.execute("SELECT COUNT(*) FROM benchmarks")
+            row = await cursor.fetchone()
+            return int(row[0]) if row else 0
+        except sqlite3.Error as e:
+            logger.error("[Storage] Failed to count benchmarks: %s", e)
+            return 0
+
+    async def list_benchmarks(self, limit: int | None = None, offset: int = 0) -> list[Benchmark]:
         """Get all saved benchmarks, ordered by timestamp descending."""
         if self._conn is None:
             logger.error("[Storage] Cannot list benchmarks: database not initialized")
             return []
 
         try:
-            cursor = await self._conn.execute(
-                "SELECT id, name, timestamp, config_json, result_json, metadata_json FROM benchmarks ORDER BY timestamp DESC"
-            )
+            if limit is None:
+                cursor = await self._conn.execute(
+                    "SELECT id, name, timestamp, config_json, result_json, metadata_json FROM benchmarks ORDER BY timestamp DESC"
+                )
+            else:
+                cursor = await self._conn.execute(
+                    "SELECT id, name, timestamp, config_json, result_json, metadata_json FROM benchmarks ORDER BY timestamp DESC LIMIT ? OFFSET ?",
+                    (limit, offset),
+                )
             rows = await cursor.fetchall()
             benchmarks: list[Benchmark] = []
             for row in rows:
@@ -338,7 +371,7 @@ class Storage:
                     if row["metadata_json"]:
                         try:
                             metadata = BenchmarkMetadata.model_validate_json(row["metadata_json"])
-                        except Exception:
+                        except ValueError:
                             metadata = None
                     benchmarks.append(
                         Benchmark(
@@ -350,10 +383,10 @@ class Storage:
                             metadata=metadata,
                         )
                     )
-                except Exception as e:
+                except (ValueError, KeyError, TypeError) as e:
                     logger.warning("[Storage] Failed to parse benchmark row %s: %s", row["id"], e)
             return benchmarks
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error("[Storage] Failed to list benchmarks: %s", e)
             return []
 
@@ -378,7 +411,7 @@ class Storage:
             if row["metadata_json"]:
                 try:
                     metadata = BenchmarkMetadata.model_validate_json(row["metadata_json"])
-                except Exception:
+                except ValueError:
                     metadata = None
             return Benchmark(
                 id=row["id"],
@@ -388,7 +421,7 @@ class Storage:
                 result=result,
                 metadata=metadata,
             )
-        except Exception as e:
+        except (sqlite3.Error, ValueError, KeyError, TypeError) as e:
             logger.error("[Storage] Failed to get benchmark id=%s: %s", id, e)
             return None
 
@@ -416,7 +449,7 @@ class Storage:
                     if row["metadata_json"]:
                         try:
                             metadata = BenchmarkMetadata.model_validate_json(row["metadata_json"])
-                        except Exception:
+                        except ValueError:
                             metadata = None
                     benchmarks.append(
                         Benchmark(
@@ -428,12 +461,12 @@ class Storage:
                             metadata=metadata,
                         )
                     )
-                except Exception as e:
+                except (ValueError, KeyError, TypeError) as e:
                     logger.warning("[Storage] Failed to parse benchmark row %s: %s", row["id"], e)
             id_order = {bid: i for i, bid in enumerate(ids)}
             benchmarks.sort(key=lambda b: id_order.get(b.id if b.id is not None else -1, 999))
             return benchmarks
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error("[Storage] Failed to get benchmarks by ids: %s", e)
             return []
 
@@ -453,7 +486,7 @@ class Storage:
             if deleted:
                 logger.debug("[Storage] Deleted benchmark id=%s", id)
             return deleted
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error("[Storage] Failed to delete benchmark id=%s: %s", id, e)
             return False
 
@@ -474,7 +507,7 @@ class Storage:
             )
             await self._conn.commit()
             return await self.get_benchmark(benchmark_id)
-        except Exception as e:
+        except (sqlite3.Error, ValueError) as e:
             logger.error("[Storage] Failed to update benchmark metadata id=%s: %s", benchmark_id, e)
             return None
 
@@ -497,8 +530,6 @@ class Storage:
             return
 
         try:
-            import json
-
             test_id = entry.get("test_id", "")
             config_json = json.dumps(entry.get("config", {}))
             result_json = json.dumps(entry.get("result", {}))
@@ -513,26 +544,36 @@ class Storage:
             )
             await self._conn.commit()
             logger.debug("[Storage] Saved load test history test_id=%s", test_id)
-        except Exception as e:
+        except (sqlite3.Error, TypeError, ValueError) as e:
             logger.error("[Storage] Failed to save load test history: %s", e)
 
-    async def get_load_test_history(self, limit: int = 100) -> list[dict[str, Any]]:
+    async def count_load_test_history(self) -> int:
+        """Return total number of load test history records."""
+        if self._conn is None:
+            return 0
+        try:
+            cursor = await self._conn.execute("SELECT COUNT(*) FROM load_test_history")
+            row = await cursor.fetchone()
+            return int(row[0]) if row else 0
+        except sqlite3.Error as e:
+            logger.error("[Storage] Failed to count load test history: %s", e)
+            return 0
+
+    async def get_load_test_history(self, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
         """Get recent load test history entries, ordered by timestamp descending."""
         if self._conn is None:
             logger.error("[Storage] Cannot get load test history: database not initialized")
             return []
 
         try:
-            import json
-
             cursor = await self._conn.execute(
                 """
                 SELECT test_id, config_json, result_json, timestamp
                 FROM load_test_history
                 ORDER BY timestamp DESC
-                LIMIT ?
+                LIMIT ? OFFSET ?
                 """,
-                (limit,),
+                (limit, offset),
             )
             rows = await cursor.fetchall()
             history: list[dict[str, Any]] = []
@@ -546,10 +587,10 @@ class Storage:
                             "timestamp": row[3],
                         }
                     )
-                except Exception as e:
+                except (json.JSONDecodeError, TypeError) as e:
                     logger.warning("[Storage] Failed to parse load test row: %s", e)
             return history
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error("[Storage] Failed to get load test history: %s", e)
             return []
 
@@ -562,8 +603,6 @@ class Storage:
             return
 
         try:
-            import json
-
             params_json = json.dumps(t.params)
 
             await self._conn.execute(
@@ -586,7 +625,7 @@ class Storage:
             )
             await self._conn.commit()
             logger.debug("[Storage] Saved trial id=%s status=%s", t.trial_id, t.status)
-        except Exception as e:
+        except (sqlite3.Error, TypeError, ValueError) as e:
             logger.error("[Storage] Failed to save trial: %s", e)
 
     async def get_trials(self) -> list[TuningTrial]:
@@ -596,8 +635,6 @@ class Storage:
             return []
 
         try:
-            import json
-
             cursor = await self._conn.execute(
                 """
                 SELECT trial_id, params_json, tps, p99_latency, score, status, is_pareto_optimal, pruned
@@ -621,12 +658,24 @@ class Storage:
                             pruned=bool(row[7]),
                         )
                     )
-                except Exception as e:
+                except (json.JSONDecodeError, TypeError, ValueError) as e:
                     logger.warning("[Storage] Failed to parse trial row %s: %s", row[0], e)
             return trials
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error("[Storage] Failed to get trials: %s", e)
             return []
+
+    async def count_trials(self) -> int:
+        """Return total number of tuner trial records."""
+        if self._conn is None:
+            return 0
+        try:
+            cursor = await self._conn.execute("SELECT COUNT(*) FROM tuner_trials")
+            row = await cursor.fetchone()
+            return int(row[0]) if row else 0
+        except sqlite3.Error as e:
+            logger.error("[Storage] Failed to count trials: %s", e)
+            return 0
 
     async def clear_trials(self) -> None:
         """Clear all tuner trials from the database."""
@@ -638,7 +687,7 @@ class Storage:
             await self._conn.execute("DELETE FROM tuner_trials")
             await self._conn.commit()
             logger.info("[Storage] Cleared all tuner trials")
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error("[Storage] Failed to clear trials: %s", e)
 
     # ==================== Tuning Sessions CRUD ====================
@@ -649,8 +698,6 @@ class Storage:
             return -1
 
         try:
-            import json
-
             trials = json.loads(session_data.get("trials_json", "[]"))
             best_params_json = ""
             if trials:
@@ -681,18 +728,31 @@ class Storage:
             session_id = int(cursor.lastrowid) if cursor.lastrowid is not None else -1
             logger.debug("[Storage] Saved tuning session id=%s", session_id)
             return session_id
-        except Exception as e:
+        except (sqlite3.Error, json.JSONDecodeError, TypeError, ValueError) as e:
             logger.error("[Storage] Failed to save tuning session: %s", e)
             return -1
 
-    async def list_tuning_sessions(self) -> list[dict[str, Any]]:
+    async def count_tuning_sessions(self) -> int:
+        """Return total number of tuning session records."""
+        if self._conn is None:
+            return 0
+        try:
+            cursor = await self._conn.execute("SELECT COUNT(*) FROM tuning_sessions")
+            row = await cursor.fetchone()
+            return int(row[0]) if row else 0
+        except sqlite3.Error as e:
+            logger.error("[Storage] Failed to count tuning sessions: %s", e)
+            return 0
+
+    async def list_tuning_sessions(self, limit: int = 20, offset: int = 0) -> list[dict[str, Any]]:
         if self._conn is None:
             logger.error("[Storage] Cannot list tuning sessions: database not initialized")
             return []
 
         try:
             cursor = await self._conn.execute(
-                "SELECT id, timestamp, objective, n_trials, best_tps, best_p99, best_score FROM tuning_sessions ORDER BY timestamp DESC"
+                "SELECT id, timestamp, objective, n_trials, best_tps, best_p99, best_score FROM tuning_sessions ORDER BY timestamp DESC LIMIT ? OFFSET ?",
+                (limit, offset),
             )
             rows = await cursor.fetchall()
             return [
@@ -707,7 +767,7 @@ class Storage:
                 }
                 for row in rows
             ]
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error("[Storage] Failed to list tuning sessions: %s", e)
             return []
 
@@ -717,8 +777,6 @@ class Storage:
             return None
 
         try:
-            import json
-
             cursor = await self._conn.execute(
                 "SELECT id, timestamp, objective, n_trials, best_tps, best_p99, best_score, trials_json, importance_json, best_params_json FROM tuning_sessions WHERE id = ?",
                 (id,),
@@ -739,7 +797,7 @@ class Storage:
                 "importance": json.loads(row[8]),
                 "best_params": best_params,
             }
-        except Exception as e:
+        except (sqlite3.Error, json.JSONDecodeError, TypeError) as e:
             logger.error("[Storage] Failed to get tuning session id=%s: %s", id, e)
             return None
 
@@ -758,7 +816,7 @@ class Storage:
             if deleted:
                 logger.debug("[Storage] Deleted tuning session id=%s", id)
             return deleted
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error("[Storage] Failed to delete tuning session id=%s: %s", id, e)
             return False
 
@@ -815,7 +873,7 @@ class Storage:
             await self._conn.commit()
             logger.info("[Storage] Pruned %s load test history records (keep_count=%s)", delete_count, keep_count)
             return delete_count
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error("[Storage] Failed to prune load test history: %s", e)
             return 0
 
@@ -870,7 +928,7 @@ class Storage:
             await self._conn.commit()
             logger.info("[Storage] Pruned %s benchmark records (keep_count=%s)", delete_count, keep_count)
             return delete_count
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error("[Storage] Failed to prune benchmarks: %s", e)
             return 0
 
@@ -900,7 +958,7 @@ class Storage:
                     pages_moved,
                 )
             return True
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error("[Storage] Failed to checkpoint WAL: %s", e)
             return False
 
@@ -933,7 +991,7 @@ class Storage:
             row_id = int(cursor.lastrowid) if cursor.lastrowid is not None else -1
             logger.debug("[Storage] Set running: task_type=%s row_id=%s", task_type, row_id)
             return row_id
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error("[Storage] Failed to set running: %s", e)
             return -1
 
@@ -960,7 +1018,7 @@ class Storage:
             )
             await self._conn.commit()
             logger.debug("[Storage] Cleared running: row_id=%s", row_id)
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error("[Storage] Failed to clear running: %s", e)
 
     async def get_interrupted_runs(self) -> list[dict[str, Any]]:
@@ -995,7 +1053,7 @@ class Storage:
                 )
             logger.debug("[Storage] Retrieved %s interrupted runs", len(result))
             return result
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error("[Storage] Failed to get interrupted runs: %s", e)
             return []
 
@@ -1030,7 +1088,7 @@ class Storage:
                 )
             logger.debug("[Storage] Retrieved %s uncleared running rows", len(result))
             return result
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.warning("[Storage] get_all_running failed: %s", e)
             return []
 
@@ -1060,11 +1118,23 @@ class Storage:
                 thresholds=profile.thresholds,
                 created_at=created_at,
             )
-        except Exception as e:
+        except (sqlite3.Error, ValueError, TypeError) as e:
             logger.error("[Storage] Failed to save SLA profile: %s", e)
-            raise
+            raise StorageError("Failed to save SLA profile", detail={"error": str(e)}) from e
 
-    async def list_sla_profiles(self) -> list[SlaProfile]:
+    async def count_sla_profiles(self) -> int:
+        """Return total number of SLA profile records."""
+        if self._conn is None:
+            return 0
+        try:
+            cursor = await self._conn.execute("SELECT COUNT(*) FROM sla_profiles")
+            row = await cursor.fetchone()
+            return int(row[0]) if row else 0
+        except sqlite3.Error as e:
+            logger.error("[Storage] Failed to count SLA profiles: %s", e)
+            return 0
+
+    async def list_sla_profiles(self, limit: int = 50, offset: int = 0) -> list[SlaProfile]:
         """Get all saved SLA profiles, ordered by created_at descending."""
         if self._conn is None:
             logger.error("[Storage] Cannot list SLA profiles: database not initialized")
@@ -1072,7 +1142,8 @@ class Storage:
 
         try:
             cursor = await self._conn.execute(
-                "SELECT id, name, thresholds_json, created_at FROM sla_profiles ORDER BY created_at DESC"
+                "SELECT id, name, thresholds_json, created_at FROM sla_profiles ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                (limit, offset),
             )
             rows = await cursor.fetchall()
             profiles: list[SlaProfile] = []
@@ -1087,10 +1158,10 @@ class Storage:
                             created_at=row[3],
                         )
                     )
-                except Exception as e:
+                except (ValueError, TypeError) as e:
                     logger.warning("[Storage] Failed to parse SLA profile row %s: %s", row[0], e)
             return profiles
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error("[Storage] Failed to list SLA profiles: %s", e)
             return []
 
@@ -1116,7 +1187,7 @@ class Storage:
                 thresholds=thresholds,
                 created_at=row[3],
             )
-        except Exception as e:
+        except (sqlite3.Error, ValueError, TypeError) as e:
             logger.error("[Storage] Failed to get SLA profile id=%s: %s", profile_id, e)
             return None
 
@@ -1144,7 +1215,7 @@ class Storage:
                 thresholds=profile.thresholds,
                 created_at=existing.created_at,
             )
-        except Exception as e:
+        except (sqlite3.Error, ValueError, TypeError) as e:
             logger.error("[Storage] Failed to update SLA profile id=%s: %s", profile_id, e)
             return None
 
@@ -1168,8 +1239,111 @@ class Storage:
             if deleted:
                 logger.debug("[Storage] Deleted SLA profile id=%s", profile_id)
             return deleted
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error("[Storage] Failed to delete SLA profile id=%s: %s", profile_id, e)
+            return False
+
+    # ==================== Sweep History CRUD ====================
+
+    async def save_sweep_result(self, result: dict[str, Any]) -> str:
+        """Save a sweep result. Returns the sweep_id (UUID string)."""
+        import time
+        import uuid as uuid_mod
+
+        if self._conn is None:
+            logger.error("[Storage] Cannot save sweep result: database not initialized")
+            raise StorageError("Database not initialized")
+
+        sweep_id = result.get("sweep_id") or str(uuid_mod.uuid4())
+        timestamp = result.get("timestamp") or time.time()
+        config_json = json.dumps(result.get("config", {}))
+        result_json = json.dumps(result)
+
+        try:
+            await self._conn.execute(
+                """
+                INSERT OR REPLACE INTO sweep_history (sweep_id, timestamp, config_json, result_json)
+                VALUES (?, ?, ?, ?)
+                """,
+                (sweep_id, timestamp, config_json, result_json),
+            )
+            await self._conn.commit()
+            logger.debug("[Storage] Saved sweep result sweep_id=%s", sweep_id)
+            return sweep_id
+        except (sqlite3.Error, TypeError, ValueError) as e:
+            logger.error("[Storage] Failed to save sweep result: %s", e)
+            raise StorageError(f"Failed to save sweep result: {e}") from e
+
+    async def get_sweep_history(self, limit: int = 20, offset: int = 0) -> tuple[list[dict[str, Any]], int]:
+        """Get paginated sweep history. Returns (items, total_count)."""
+        if self._conn is None:
+            logger.error("[Storage] Cannot get sweep history: database not initialized")
+            return [], 0
+
+        try:
+            count_cursor = await self._conn.execute("SELECT COUNT(*) FROM sweep_history")
+            count_row = await count_cursor.fetchone()
+            total = count_row[0] if count_row else 0
+
+            cursor = await self._conn.execute(
+                """
+                SELECT sweep_id, timestamp, config_json, result_json
+                FROM sweep_history
+                ORDER BY timestamp DESC
+                LIMIT ? OFFSET ?
+                """,
+                (limit, offset),
+            )
+            rows = await cursor.fetchall()
+            items: list[dict[str, Any]] = []
+            for row in rows:
+                try:
+                    result_data = json.loads(row[3])
+                    items.append(result_data)
+                except (json.JSONDecodeError, TypeError) as e:
+                    logger.warning("[Storage] Failed to parse sweep row %s: %s", row[0], e)
+            return items, total
+        except sqlite3.Error as e:
+            logger.error("[Storage] Failed to get sweep history: %s", e)
+            return [], 0
+
+    async def get_sweep_result(self, sweep_id: str) -> dict[str, Any] | None:
+        """Get a single sweep result by sweep_id."""
+        if self._conn is None:
+            logger.error("[Storage] Cannot get sweep result: database not initialized")
+            return None
+
+        try:
+            cursor = await self._conn.execute(
+                "SELECT result_json FROM sweep_history WHERE sweep_id = ?",
+                (sweep_id,),
+            )
+            row = await cursor.fetchone()
+            if row is None:
+                return None
+            return json.loads(row[0])
+        except (sqlite3.Error, json.JSONDecodeError, TypeError) as e:
+            logger.error("[Storage] Failed to get sweep result sweep_id=%s: %s", sweep_id, e)
+            return None
+
+    async def delete_sweep_result(self, sweep_id: str) -> bool:
+        """Delete a sweep result by sweep_id. Returns True if deleted."""
+        if self._conn is None:
+            logger.error("[Storage] Cannot delete sweep result: database not initialized")
+            return False
+
+        try:
+            cursor = await self._conn.execute(
+                "DELETE FROM sweep_history WHERE sweep_id = ?",
+                (sweep_id,),
+            )
+            await self._conn.commit()
+            deleted = cursor.rowcount > 0
+            if deleted:
+                logger.debug("[Storage] Deleted sweep result sweep_id=%s", sweep_id)
+            return deleted
+        except sqlite3.Error as e:
+            logger.error("[Storage] Failed to delete sweep result sweep_id=%s: %s", sweep_id, e)
             return False
 
 

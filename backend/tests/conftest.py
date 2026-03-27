@@ -246,6 +246,8 @@ def _install_stub_metrics_collector_modules() -> list[str]:
         stub_any.Storage = Storage
         stub_any.storage = Storage(":memory:")
         stub_any.runtime_config = RuntimeConfig(stub_multi_target_instance)
+        stub_any.internal_client = None
+        stub_any.external_client = None
         sys.modules[module_name] = stub_module
         injected_names.append(module_name)
 
@@ -336,14 +338,18 @@ def _mock_resolve_model_name() -> Any:
     async def _fast_resolve(endpoint: str = "", fallback: str = "auto") -> str:
         return fallback
 
-    targets = []
-    for mod_name in ("routers.config", "backend.routers.config"):
+    targets = [
+        "services.model_resolver.resolve_model_name",
+        "backend.services.model_resolver.resolve_model_name",
+    ]
+    for mod_name in (
+        "routers.config",
+        "backend.routers.config",
+        "routers.benchmark",
+        "backend.routers.benchmark",
+    ):
         if mod_name in sys.modules:
             targets.append(f"{mod_name}.resolve_model_name")
-
-    if not targets:
-        yield
-        return
 
     patches = [mock_patch(t, new=_fast_resolve) for t in targets]
     for p in patches:
