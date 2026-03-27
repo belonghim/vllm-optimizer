@@ -387,7 +387,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
                   onChange={e => updateMetadataField('model_identifier', e.target.value)}
                   placeholder="예: llama-3.1-8b-instruct"
                 />
-                <small className="help-text">실제 모델 이름을 입력하세요 (기본값은 서빙 이름 llm-ov)</small>
+                 <small className="help-text">실제 모델 이름을 입력하세요 (기본값은 서빙 이름 small-llm-d)</small>
               </div>
               <div className="form-row">
                 <div className="form-group">

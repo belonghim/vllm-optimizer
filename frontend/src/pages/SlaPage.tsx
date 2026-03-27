@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, FormEvent } from "react";
 import { authFetch } from '../utils/authFetch';
 import { API, COLORS, TOOLTIP_STYLE, TARGET_COLORS } from "../constants";
+import { ERROR_MESSAGES } from "../constants/errorMessages";
 import ErrorAlert from "../components/ErrorAlert";
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer, Legend } from 'recharts';
 import { useBenchmarkSelection } from '../contexts/BenchmarkSelectionContext';
@@ -58,20 +59,20 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
 
   const [chartMetric, setChartMetric] = useState<'p95_latency' | 'availability' | 'error_rate' | 'min_tps'>('p95_latency');
 
-  const loadProfiles = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await authFetch(`${API}/sla/profiles`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: SlaProfile[] = await res.json();
-      setProfiles(data);
-      setError(null);
-    } catch (err) {
-      setError(`SLA 프로필 로드 실패: ${(err as Error).message}`);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+   const loadProfiles = useCallback(async () => {
+     setLoading(true);
+     try {
+       const res = await authFetch(`${API}/sla/profiles`);
+       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+       const data: SlaProfile[] = await res.json();
+       setProfiles(data);
+       setError(null);
+     } catch (err) {
+       setError(`${ERROR_MESSAGES.SLA.PROFILE_LOAD_FAILED}: ${(err as Error).message}`);
+     } finally {
+       setLoading(false);
+     }
+   }, []);
 
   const handleProfileSelect = useCallback(async (profileId: number) => {
     setSelectedProfileId(profileId);
@@ -109,11 +110,11 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
     e.preventDefault();
     setError(null);
     
-    const hasAnyThreshold = formAvailMin || formP95Ms || formErrRate || formMinTps;
-    if (!hasAnyThreshold) {
-      setError("최소 1개의 임계값을 입력해야 합니다.");
-      return;
-    }
+     const hasAnyThreshold = formAvailMin || formP95Ms || formErrRate || formMinTps;
+     if (!hasAnyThreshold) {
+       setError(ERROR_MESSAGES.SLA.NO_THRESHOLD_ERROR);
+       return;
+     }
     
     const body = {
       name: formName,
@@ -147,11 +148,11 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
         throw new Error(detail);
       }
       
-      resetForm();
-      await loadProfiles();
-    } catch (err) {
-      setError(`SLA 프로필 저장 실패: ${(err as Error).message}`);
-    }
+       resetForm();
+       await loadProfiles();
+     } catch (err) {
+       setError(`${ERROR_MESSAGES.SLA.PROFILE_SAVE_FAILED}: ${(err as Error).message}`);
+     }
   };
 
   const handleEdit = (p: SlaProfile) => {
@@ -164,20 +165,20 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm("이 SLA 프로필을 삭제하시겠습니까?")) return;
-    try {
-      const res = await authFetch(`${API}/sla/profiles/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      await loadProfiles();
-      if (selectedProfileId === id) {
-        setSelectedProfileId(null);
-        setCurrentEval(null);
-      }
-    } catch (err) {
-      setError(`SLA 프로필 삭제 실패: ${(err as Error).message}`);
-    }
-  };
+   const handleDelete = async (id: number) => {
+     if (!window.confirm(ERROR_MESSAGES.SLA.PROFILE_DELETE_CONFIRM)) return;
+     try {
+       const res = await authFetch(`${API}/sla/profiles/${id}`, { method: 'DELETE' });
+       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+       await loadProfiles();
+       if (selectedProfileId === id) {
+         setSelectedProfileId(null);
+         setCurrentEval(null);
+       }
+     } catch (err) {
+       setError(`${ERROR_MESSAGES.SLA.PROFILE_DELETE_FAILED}: ${(err as Error).message}`);
+     }
+   };
 
   const resetForm = () => {
     setEditingId(null);
@@ -188,14 +189,14 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
     setFormMinTps('');
   };
 
-  const renderThresholds = (t: SlaThresholds) => {
-    const parts = [];
-    if (t.availability_min != null) parts.push(`가용성≥${t.availability_min}%`);
-    if (t.p95_latency_max_ms != null) parts.push(`P95≤${t.p95_latency_max_ms}ms`);
-    if (t.error_rate_max_pct != null) parts.push(`에러율≤${t.error_rate_max_pct}%`);
-    if (t.min_tps != null) parts.push(`TPS≥${t.min_tps}`);
-    return parts.join(' · ') || 'No thresholds set';
-  };
+   const renderThresholds = (t: SlaThresholds) => {
+     const parts = [];
+     if (t.availability_min != null) parts.push(`가용성≥${t.availability_min}%`);
+     if (t.p95_latency_max_ms != null) parts.push(`P95≤${t.p95_latency_max_ms}ms`);
+     if (t.error_rate_max_pct != null) parts.push(`에러율≤${t.error_rate_max_pct}%`);
+     if (t.min_tps != null) parts.push(`TPS≥${t.min_tps}`);
+     return parts.join(' · ') || ERROR_MESSAGES.SLA.NO_THRESHOLDS_SET;
+   };
 
   const chartData = (currentEval?.results ?? []).map(r => {
     const verdict = r.verdicts.find(v => v.metric === chartMetric);
@@ -219,8 +220,8 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
     <div className="flex-col-16">
       <ErrorAlert message={error} className="error-alert--mb8" />
 
-      <div className="panel">
-        <div className="section-title">{editingId ? 'SLA 프로필 편집' : '새 SLA 프로필 생성'}</div>
+       <div className="panel">
+         <div className="section-title">{editingId ? ERROR_MESSAGES.SLA.EDIT_TITLE : ERROR_MESSAGES.SLA.CREATE_TITLE}</div>
         <form onSubmit={handleSubmit} className="form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
           <div className="form-group">
             <label>프로필 이름 *</label>
@@ -278,15 +279,15 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
                 </td>
               </tr>
             ))}
-            {profiles.length === 0 && (
-              <tr><td colSpan={4} className="td-muted" style={{ textAlign: 'center', padding: '20px' }}>등록된 프로필이 없습니다.</td></tr>
-            )}
+             {profiles.length === 0 && (
+               <tr><td colSpan={4} className="td-muted" style={{ textAlign: 'center', padding: '20px' }}>{ERROR_MESSAGES.SLA.NO_PROFILES}</td></tr>
+             )}
           </tbody>
         </table>
       </div>
 
-      {selectedProfileId && (
-        <div className="panel">
+       {selectedProfileId && (
+         <div className="panel" aria-live="polite">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div className="section-title" style={{ margin: 0 }}>{currentEval?.profile.name ?? profiles.find(p => p.id === selectedProfileId)?.name} - 지표 추이</div>
             <div className="tab-group" style={{ display: 'flex', gap: '4px' }}>
@@ -312,11 +313,11 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
             </div>
           </div>
           
-          {selectedIds.length === 0 ? (
-            <div className="td-muted" style={{ textAlign: 'center', padding: '60px' }}>
-              벤치마크 비교 페이지에서 벤치마크를 선택하세요
-            </div>
-          ) : (currentEval?.results ?? []).length > 0 ? (
+           {selectedIds.length === 0 ? (
+             <div className="td-muted" style={{ textAlign: 'center', padding: '60px' }}>
+               {ERROR_MESSAGES.SLA.SELECT_BENCHMARK}
+             </div>
+           ) : (currentEval?.results ?? []).length > 0 ? (
             <div style={{ height: '300px', width: '100%' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -356,11 +357,11 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          ) : (
-            <div className="td-muted" style={{ textAlign: 'center', padding: '60px' }}>
-              평가 결과 없음
-            </div>
-          )}
+           ) : (
+             <div className="td-muted" style={{ textAlign: 'center', padding: '60px' }}>
+               {ERROR_MESSAGES.SLA.NO_EVALUATION_RESULTS}
+             </div>
+           )}
         </div>
       )}
     </div>

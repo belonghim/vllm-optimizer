@@ -15,7 +15,7 @@ interface ClusterConfigContextValue {
   updateConfig: (field: string, value: string) => void;
   targets: ClusterTarget[];
   maxTargets: number;
-  addTarget: (namespace: string, inferenceService: string) => void;
+  addTarget: (namespace: string, inferenceService: string, crType?: string) => void;
   removeTarget: (namespace: string, inferenceService: string) => void;
   setDefaultTarget: (namespace: string, inferenceService: string) => void;
   crType: string;
@@ -48,7 +48,8 @@ function isClusterTargetArray(value: unknown): value is ClusterTarget[] {
       isRecord(item) &&
       typeof item.namespace === "string" &&
       typeof item.inferenceService === "string" &&
-      typeof item.isDefault === "boolean"
+      typeof item.isDefault === "boolean" &&
+      (item.crType === undefined || typeof item.crType === "string")
   );
 }
 
@@ -179,7 +180,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
     return () => controller.abort();
   }, []);
 
-  const updateCrType = useCallback(async (value: string): Promise<void> => {
+  const updateCrType = useCallback(async (value: string): Promise<{ configmap_updated: boolean }> => {
     // No auth required — /config endpoint reads env variables with no auth middleware
     const res = await fetch(`${API}/config`, {
       method: 'PATCH',
@@ -190,6 +191,8 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
     if (!res.ok) throw new Error(`Failed to update CR type: ${res.status}`);
     const data: unknown = await res.json();
     if (isRecord(data) && typeof data.cr_type === "string") setCrType(data.cr_type);
+    const configmapUpdated = isRecord(data) && data.configmap_updated === true;
+    return { configmap_updated: configmapUpdated };
   }, []);
 
   const updateConfig = useCallback((field: string, value: string): void => {
@@ -223,7 +226,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
     });
   }, []);
 
-  const addTarget = useCallback((namespace: string, inferenceService: string): void => {
+  const addTarget = useCallback((namespace: string, inferenceService: string, crType?: string): void => {
     setConfig(prev => {
       const currentTargets = prev.targets;
       if (currentTargets.length >= MAX_TARGETS) return prev;
@@ -232,6 +235,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
         namespace: namespace || "",
         inferenceService: inferenceService || "",
         isDefault: currentTargets.length === 0,
+        ...(crType && { crType }),
       };
 
       return {

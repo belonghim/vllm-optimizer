@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
 import { authFetch } from "../utils/authFetch";
 import { API } from "../constants";
+import { ERROR_MESSAGES } from "../constants/errorMessages";
 import ErrorAlert from "./ErrorAlert";
 
 interface StatusIndicatorProps {
@@ -33,6 +34,7 @@ export default function ClusterConfigBar() {
   const [isSaved, setIsSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isCrTypeUpdating, setIsCrTypeUpdating] = useState(false);
+  const [configmapWarning, setConfigmapWarning] = useState(false);
 
   useEffect(() => {
     if (!isLoading) {
@@ -55,17 +57,22 @@ export default function ClusterConfigBar() {
 
   const handleCrTypeChange = async (value: string) => {
     setError(null);
+    setConfigmapWarning(false);
     setIsCrTypeUpdating(true);
     try {
-      await updateCrType(value);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('409') || msg.toLowerCase().includes('auto-tuner')) {
-        setError("Auto-tuner 실행 중. CR 타입 변경 불가.");
-      } else {
-        setError("CR 타입 변경에 실패했습니다.");
+      const result = await updateCrType(value);
+      if (result.configmap_updated === false) {
+        setConfigmapWarning(true);
+        setTimeout(() => setConfigmapWarning(false), 3000);
       }
-    } finally {
+    } catch (err) {
+       const msg = err instanceof Error ? err.message : String(err);
+       if (msg.includes('409') || msg.toLowerCase().includes('auto-tuner')) {
+         setError(ERROR_MESSAGES.CLUSTER_CONFIG.AUTO_TUNER_RUNNING);
+       } else {
+         setError(ERROR_MESSAGES.CLUSTER_CONFIG.CR_TYPE_UPDATE_FAILED);
+       }
+     } finally {
       setIsCrTypeUpdating(false);
     }
   };
@@ -99,11 +106,11 @@ export default function ClusterConfigBar() {
       }
       setIsSaved(true);
       setTimeout(() => setIsSaved(false), 2000);
-    } catch (err) {
-      console.warn('[ClusterConfig] backend sync failed:', err);
-      setError("설정 저장에 실패했습니다.");
-      setIsSaved(false);
-    }
+     } catch (err) {
+       console.warn('[ClusterConfig] backend sync failed:', err);
+       setError(ERROR_MESSAGES.CLUSTER_CONFIG.SAVE_FAILED);
+       setIsSaved(false);
+     }
   };
 
   if (isLoading) {
@@ -123,6 +130,11 @@ export default function ClusterConfigBar() {
   return (
     <div className="cluster-config-bar panel">
        <ErrorAlert message={error} className="mb-3" />
+      {configmapWarning && (
+        <div className="alert alert-warning mb-3">
+          {ERROR_MESSAGES.CLUSTER_CONFIG.CONFIGMAP_WARNING}
+        </div>
+      )}
       <div className="grid-form grid-form-compact">
         <div>
           <label htmlFor="cfg-endpoint">vLLM Endpoint</label>
@@ -134,11 +146,11 @@ export default function ClusterConfigBar() {
         </div>
         <div>
           <label htmlFor="cfg-inferenceservice">InferenceService</label>
-          <input id="cfg-inferenceservice" type="text" className="input" value={localConfig.inferenceservice} onChange={(e) => handleInputChange('inferenceservice', e.target.value)} placeholder="e.g., llm-ov" />
+           <input id="cfg-inferenceservice" type="text" className="input" value={localConfig.inferenceservice} onChange={(e) => handleInputChange('inferenceservice', e.target.value)} placeholder="e.g., small-llm-d" />
         </div>
-        <div>
-          <label htmlFor="cfg-cr-type">CR Type</label>
-          <select
+         <div>
+           <label htmlFor="cfg-cr-type">기본 CR Type</label>
+           <select
             id="cfg-cr-type"
             className="input"
             value={crType}

@@ -3,6 +3,7 @@ import { authFetch } from '../utils/authFetch';
 import { useMockData } from "../contexts/MockDataContext";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
 import { API } from "../constants";
+import { ERROR_MESSAGES } from "../constants/errorMessages";
 import { useThemeColors } from "../contexts/ThemeContext";
 import { fmt } from "../utils/format";
 import MetricCard from "../components/MetricCard";
@@ -66,18 +67,18 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
       simulateLoadTest(config, setProgress, setResult, setStatus, setLatencyData);
       return;
     }
-    try {
-      const resp = await authFetch(`${API}/load_test/start`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(config),
-      });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const startData = await resp.json();
-      if (startData.config?.model) setConfig(c => ({ ...c, model: startData.config.model }));
-      connect(config.total_requests);
-    } catch (err) {
-      setError(`부하 테스트 시작 실패: ${(err as Error).message}`); setStatus("error");
-    }
+     try {
+       const resp = await authFetch(`${API}/load_test/start`, {
+         method: "POST", headers: { "Content-Type": "application/json" },
+         body: JSON.stringify(config),
+       });
+       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+       const startData = await resp.json();
+       if (startData.config?.model) setConfig(c => ({ ...c, model: startData.config.model }));
+       connect(config.total_requests);
+     } catch (err) {
+       setError(`${ERROR_MESSAGES.LOAD_TEST.START_FAILED_PREFIX}${(err as Error).message}`); setStatus("error");
+     }
   };
 
   const stop = async () => {
@@ -117,16 +118,16 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
     if (!isActive) return;
     if (isMockEnabled) return;
 
-    const controller = new AbortController();
-    authFetch(`${API}/status/interrupted`, { signal: controller.signal })
-      .then(r => r.json())
-      .then(data => {
-        if (data.interrupted_runs && data.interrupted_runs.some((r: any) => r.task_type === "loadtest")) {
-          setInterruptedWarning("이전 부하 테스트가 비정상 종료되었습니다.");
-        }
-      })
-      .catch(() => {});
-    return () => controller.abort();
+     const controller = new AbortController();
+     authFetch(`${API}/status/interrupted`, { signal: controller.signal })
+       .then(r => r.json())
+       .then(data => {
+         if (data.interrupted_runs && data.interrupted_runs.some((r: any) => r.task_type === "loadtest")) {
+           setInterruptedWarning(ERROR_MESSAGES.LOAD_TEST.INTERRUPTED_WARNING);
+         }
+       })
+       .catch(() => {});
+     return () => controller.abort();
   }, [isActive, isMockEnabled]);
 
   const handleConfigChange = useCallback((key: string, value: string | number | boolean) => setConfig(c => ({ ...c, [key]: value })), []);
@@ -167,9 +168,9 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
         </div>
       )}
 
-      {result && gpuEff && (
-        <>
-           <div className="grid-5 gap-1">
+       {result && gpuEff && (
+         <div aria-live="polite">
+            <div className="grid-5 gap-1">
              <MetricCard label="Mean TPS" value={fmt((result.tps as Record<string, number> | undefined)?.mean, 1)} unit="tok/s" color="amber" />
              <MetricCard label="TTFT Mean" value={fmt(((result.ttft as Record<string, number> | null)?.mean || 0) * 1000, 0)} unit="ms" color="cyan" />
              <MetricCard label="P99 Latency" value={fmt(((result.latency as Record<string, number> | null)?.p99 || 0) * 1000, 0)} unit="ms" color="red" />
@@ -208,12 +209,12 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
              </table>
            </div>
 
-           {latencyData.length > 0 && (
-             <Chart data={latencyData} title="실시간 레이턴시 (ms)" height={160} lines={[
-               { key: "lat", color: COLORS.red, label: "Latency ms" },
-               { key: "tps", color: COLORS.accent, label: "TPS" },
-             ]} />
-           )}
+            {latencyData.length > 0 && (
+              <Chart data={latencyData} title={ERROR_MESSAGES.LOAD_TEST.REALTIME_LATENCY} height={160} lines={[
+                { key: "lat", color: COLORS.red, label: "Latency ms" },
+                { key: "tps", color: COLORS.accent, label: "TPS" },
+              ]} />
+            )}
 
            {status === "completed" && result && !isMockEnabled && (
              <div className="loadtest-save-row">
@@ -226,10 +227,10 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
                    ✗ Save failed
                  </span>
                )}
-             </div>
-           )}
-        </>
-      )}
+              </div>
+            )}
+         </div>
+       )}
     </div>
   );
 }
