@@ -636,3 +636,277 @@ async def test_preflight_rejects_invalid_config():
     result_neg = await engine._preflight_check(config_neg)
     assert result_neg.get("success") is False
     assert result_neg.get("error_type") == "validation"
+
+
+def test_itl_fields_default_none():
+    """RequestResult ITL fields default to None."""
+    from models.load_test import RequestResult
+
+    r = RequestResult(req_id=1, success=True, latency=1.0)
+    assert r.itl_mean is None
+    assert r.itl_p95 is None
+    assert r.itl_p99 is None
+    assert r.token_timestamps is None
+
+
+def test_itl_fields_populated():
+    """RequestResult accepts ITL values when provided."""
+    from models.load_test import RequestResult
+
+    r = RequestResult(
+        req_id=1,
+        success=True,
+        latency=1.0,
+        token_timestamps=[0.1, 0.2, 0.3],
+        itl_mean=0.1,
+        itl_p95=0.1,
+        itl_p99=0.1,
+    )
+    assert r.itl_mean == 0.1
+    assert r.token_timestamps == [0.1, 0.2, 0.3]
+
+
+def test_compute_stats_itl_none_when_no_streaming():
+    """_compute_stats returns itl=None when no ITL data."""
+    import time
+
+    from models.load_test import RequestResult
+    from services.load_engine import LoadTestEngine, LoadTestState, LoadTestStatus
+
+    engine = LoadTestEngine()
+    engine._state = LoadTestState(
+        status=LoadTestStatus.RUNNING,
+        start_time=time.time(),
+        total_requests=2,
+    )
+    engine._state.results = [
+        RequestResult(req_id=0, success=True, latency=0.1),
+        RequestResult(req_id=1, success=True, latency=0.2),
+    ]
+    stats = engine._compute_stats()
+    assert stats.get("itl") is None
+
+
+def test_compute_stats_itl_aggregated():
+    """_compute_stats aggregates ITL from successful results."""
+    import time
+
+    from models.load_test import RequestResult
+    from services.load_engine import LoadTestEngine, LoadTestState, LoadTestStatus
+
+    engine = LoadTestEngine()
+    engine._state = LoadTestState(
+        status=LoadTestStatus.RUNNING,
+        start_time=time.time(),
+        total_requests=2,
+    )
+    engine._state.results = [
+        RequestResult(req_id=0, success=True, latency=0.1, itl_mean=0.05),
+        RequestResult(req_id=1, success=True, latency=0.2, itl_mean=0.10),
+    ]
+    stats = engine._compute_stats()
+    itl = stats.get("itl")
+    assert itl is not None
+    assert itl["mean"] == pytest.approx(0.075, abs=0.001)
+
+
+@pytest.mark.asyncio
+async def test_sweep_single_step():
+    """run_sweep with rps_start==rps_end executes exactly one step."""
+    from unittest.mock import AsyncMock, patch
+
+    from models.load_test import SweepConfig
+    from services.load_engine import LoadTestEngine
+
+    engine = LoadTestEngine()
+    mock_result = {
+        "total": 5,
+        "failed": 0,
+        "success": 5,
+        "latency": {"p99": 0.1, "mean": 0.08},
+        "elapsed": 1.0,
+    }
+
+    with patch.object(engine, "run", new=AsyncMock(return_value=mock_result)):
+        config = SweepConfig(
+            endpoint="http://vllm",
+            model="m",
+            rps_start=5,
+            rps_end=5,
+            rps_step=1,
+            requests_per_step=5,
+        )
+        result = await engine.run_sweep(config)
+
+    assert len(result.steps) == 1
+    assert result.steps[0].rps == 5.0
+    assert result.steps[0].saturated is False
+    assert result.saturation_point is None
+
+
+@pytest.mark.asyncio
+async def test_sweep_detects_saturation_by_error_rate():
+    """run_sweep stops when error rate exceeds saturation_error_rate."""
+    from unittest.mock import AsyncMock, patch
+
+    from models.load_test import SweepConfig
+    from services.load_engine import LoadTestEngine
+
+    engine = LoadTestEngine()
+
+    # Step 1: OK, Step 2: 20% error → saturated (threshold=0.1)
+    step_results = [
+        {
+            "total": 10,
+            "failed": 0,
+            "success": 10,
+            "latency": {"p99": 0.1, "mean": 0.08},
+            "elapsed": 1.0,
+        },
+        {
+            "total": 10,
+            "failed": 2,
+            "success": 8,
+            "latency": {"p99": 0.15, "mean": 0.1},
+            "elapsed": 1.0,
+        },
+    ]
+
+    with patch.object(engine, "run", new=AsyncMock(side_effect=step_results)):
+        config = SweepConfig(
+            endpoint="http://vllm",
+            model="m",
+            rps_start=1,
+            rps_end=10,
+            rps_step=9,
+            requests_per_step=10,
+            saturation_error_rate=0.1,
+        )
+        result = await engine.run_sweep(config)
+
+    assert len(result.steps) == 2
+    assert result.steps[1].saturated is True
+    assert "Error rate" in (result.steps[1].saturation_reason or "")
+    assert result.saturation_point == result.steps[1].rps
+
+
+@pytest.mark.asyncio
+async def test_sweep_detects_saturation_by_latency():
+    """run_sweep stops when P99 latency exceeds factor × step1 baseline."""
+    from unittest.mock import AsyncMock, patch
+
+    from models.load_test import SweepConfig
+    from services.load_engine import LoadTestEngine
+
+    engine = LoadTestEngine()
+
+    # Step 1: p99=0.1s, Step 2: p99=0.5s → 5× baseline (factor=3.0)
+    step_results = [
+        {
+            "total": 10,
+            "failed": 0,
+            "success": 10,
+            "latency": {"p99": 0.1, "mean": 0.08},
+            "elapsed": 1.0,
+        },
+        {
+            "total": 10,
+            "failed": 0,
+            "success": 10,
+            "latency": {"p99": 0.5, "mean": 0.4},
+            "elapsed": 1.0,
+        },
+    ]
+
+    with patch.object(engine, "run", new=AsyncMock(side_effect=step_results)):
+        config = SweepConfig(
+            endpoint="http://vllm",
+            model="m",
+            rps_start=1,
+            rps_end=10,
+            rps_step=9,
+            requests_per_step=10,
+            saturation_latency_factor=3.0,
+        )
+        result = await engine.run_sweep(config)
+
+    assert len(result.steps) == 2
+    assert result.steps[1].saturated is True
+    assert result.optimal_rps == result.steps[0].rps
+
+
+@pytest.mark.asyncio
+async def test_sweep_consecutive_failures_early_abort():
+    """run_sweep aborts after 3 consecutive 100% error steps."""
+    from unittest.mock import AsyncMock, patch
+
+    from models.load_test import SweepConfig
+    from services.load_engine import LoadTestEngine
+
+    engine = LoadTestEngine()
+
+    # All steps fail 100%
+    fail_result = {
+        "total": 5,
+        "failed": 5,
+        "success": 0,
+        "latency": {"p99": 0.0, "mean": 0.0},
+        "elapsed": 1.0,
+    }
+
+    with patch.object(engine, "run", new=AsyncMock(return_value=fail_result)):
+        config = SweepConfig(
+            endpoint="http://vllm",
+            model="m",
+            rps_start=1,
+            rps_end=50,
+            rps_step=1,
+            requests_per_step=5,
+        )
+        result = await engine.run_sweep(config)
+
+    # Should abort after 3 steps (consecutive failures)
+    assert len(result.steps) <= 3
+
+
+@pytest.mark.asyncio
+async def test_sweep_stop_midway():
+    """run_sweep respects stopped status between steps."""
+    from unittest.mock import AsyncMock, patch
+
+    from models.load_test import SweepConfig
+    from services.load_engine import LoadTestEngine, LoadTestStatus
+
+    engine = LoadTestEngine()
+
+    ok_result = {
+        "total": 5,
+        "failed": 0,
+        "success": 5,
+        "latency": {"p99": 0.1, "mean": 0.08},
+        "elapsed": 1.0,
+    }
+
+    call_count = 0
+
+    async def run_then_stop(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        # Set status to STOPPED after first step
+        async with engine._state_lock:
+            engine._state.status = LoadTestStatus.STOPPED
+        return ok_result
+
+    with patch.object(engine, "run", new=AsyncMock(side_effect=run_then_stop)):
+        config = SweepConfig(
+            endpoint="http://vllm",
+            model="m",
+            rps_start=1,
+            rps_end=20,
+            rps_step=1,
+            requests_per_step=5,
+        )
+        result = await engine.run_sweep(config)
+
+    # Should have run only 1 step before stopping
+    assert call_count == 1
