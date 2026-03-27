@@ -90,7 +90,6 @@ def test_startup_metrics_endpoint_triggers_collector(isolated_client: TestClient
     assert payload.get("status") in {"started", "already_running"}
     assert isinstance(payload.get("running"), bool)
     assert isinstance(payload.get("collector_version"), str)
-    time.sleep(0.2)
     assert _StubMultiTargetMetricsCollector.instances, "No collector stub was instantiated"
     assert any(instance.start_requests for instance in _StubMultiTargetMetricsCollector.instances), (
         "collector.start_collection was not triggered by the shim"

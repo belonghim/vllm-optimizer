@@ -221,7 +221,7 @@ async def start_sweep(config: SweepConfig) -> dict[str, Any]:
     global _sweep_task, _sweep_result, _is_sweeping
 
     async with _test_lock:
-        if (_active_test_task is not None and not _active_test_task.done()) or _is_sweeping:
+        if (_active_test_task is not None and not _active_test_task.done()) or _is_sweeping or load_engine.is_sweep_running():
             raise HTTPException(
                 status_code=409,
                 detail=ErrorResponse(

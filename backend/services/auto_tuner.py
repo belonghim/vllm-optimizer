@@ -9,7 +9,7 @@ import math
 import os
 import time
 from contextlib import suppress
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import httpx
 import optuna
@@ -22,6 +22,7 @@ from models.load_test import (  # pyright: ignore[reportImplicitRelativeImport]
     LatencyStats,
     LoadTestConfig,
     LoadTestResult,
+    SweepConfig,
     TpsStats,
     TuningConfig,
     TuningTrial,
@@ -73,6 +74,8 @@ class AutoTuner:
         self._study: optuna.Study | None = None
         self._direction: str = "maximize"
         self._vllm_endpoint: str = ""
+        self.evaluation_mode: Literal["single", "sweep"] = "single"
+        self._sweep_config: SweepConfig | None = None
         self._config: TuningConfig | None = None  # Set in start()
         self._k8s_available = False
         self._k8s_core: k8s_client.CoreV1Api | None = None
@@ -263,6 +266,8 @@ class AutoTuner:
         vllm_endpoint: str,
         auto_benchmark: bool = False,
         skip_preflight: bool = False,
+        evaluation_mode: Literal["single", "sweep"] = "single",
+        sweep_config: SweepConfig | None = None,
     ) -> dict[str, Any]:
         state_initialized = False
         _running_row_id: int | None = None
@@ -277,6 +282,8 @@ class AutoTuner:
                 self._cancel_event.clear()
                 self._running = True
                 state_initialized = True
+                self.evaluation_mode = evaluation_mode
+                self._sweep_config = sweep_config.model_copy(deep=True) if sweep_config is not None else None
                 try:
                     _running_row_id = await storage.set_running("tuner")
                 except (OSError, RuntimeError, ValueError) as e:
@@ -343,7 +350,7 @@ class AutoTuner:
                     continue
 
                 try:
-                    score, tps, p99_lat = await self._run_trial_evaluation(trial)
+                    score, tps, p99_lat = await self._run_trial_evaluation(trial, trial_num)
                 except Exception as e:  # intentional: per-trial evaluation failure must not abort entire tuning session
                     logger.warning("[AutoTuner] Trial %d evaluation failed: %s", trial_num, e)
                     await self._broadcast(
@@ -537,10 +544,38 @@ class AutoTuner:
         """InferenceService args rollback (_rollback_to_snapshot의 named alias)."""
         return await self._rollback_to_snapshot(trial_num)
 
-    async def _run_trial_evaluation(self, trial) -> tuple[Any, ...]:
+    async def _run_trial_evaluation(self, trial, trial_num: int) -> tuple[Any, ...]:
         """트라이얼 성능 평가 실행. (score, tps, p99_lat) 반환."""
         assert self._config is not None
-        return await self._evaluate(self._vllm_endpoint, self._config, trial=trial)
+        return await self._objective(self._vllm_endpoint, self._config, trial=trial, trial_num=trial_num)
+
+    async def _objective(
+        self,
+        endpoint: str,
+        config: TuningConfig,
+        trial=None,
+        trial_num: int = 0,
+    ) -> tuple[float, float, float]:
+        if self.evaluation_mode == "sweep":
+            if self._sweep_config is None:
+                raise TunerError(
+                    "Sweep evaluation requires sweep_config",
+                    detail={"evaluation_mode": self.evaluation_mode},
+                )
+            _trial_id = trial.number if trial is not None and hasattr(trial, "number") else trial_num
+            await self._broadcast(
+                {
+                    "type": "phase",
+                    "data": {"trial_id": _trial_id, "phase": "evaluating"},
+                }
+            )
+            sweep_result = await self._load_engine.run_sweep(self._sweep_config)
+            score = float(sweep_result.optimal_rps or 0.0)
+            if trial is not None and config.objective != "pareto":
+                trial.report(score, step=0)
+            return score, score, 0.0
+
+        return await self._evaluate(endpoint, config, trial=trial, trial_num=trial_num)
 
     async def _emit_trial_metrics(self, trial_start: float, status: str) -> None:
         try:

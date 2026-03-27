@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator, Callable
 from typing import cast
 
@@ -334,8 +335,6 @@ async def test_sla_profile_delete(storage: Storage) -> None:
 
 @pytest.mark.asyncio
 async def test_sla_profile_list(storage: Storage) -> None:
-    import time
-
     profiles = []
     for i in range(3):
         p = SlaProfile(
@@ -344,7 +343,7 @@ async def test_sla_profile_list(storage: Storage) -> None:
         )
         saved = await storage.save_sla_profile(p)
         profiles.append(saved)
-        time.sleep(0.01)
+        await asyncio.sleep(0.01)
 
     listed = await storage.list_sla_profiles()
     assert len(listed) >= 3

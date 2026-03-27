@@ -65,6 +65,7 @@ class LoadTestEngine:
     def __init__(self) -> None:
         self._state: LoadTestState = LoadTestState()
         self._stop_event: asyncio.Event = asyncio.Event()
+        self._sweep_running: bool = False
         self._subscribers: list[asyncio.Queue[Any]] = []
         self._state_lock: asyncio.Lock = asyncio.Lock()
         self._subscribers_lock: asyncio.Lock = asyncio.Lock()
@@ -79,6 +80,9 @@ class LoadTestEngine:
         if self._state.status == LoadTestStatus.RUNNING:
             return time.time() - self._state.start_time
         return 0.0
+
+    def is_sweep_running(self) -> bool:
+        return self._sweep_running
 
     async def subscribe(self) -> asyncio.Queue[Any]:
         q: asyncio.Queue[Any] = asyncio.Queue[Any]()
@@ -523,105 +527,111 @@ class LoadTestEngine:
 
     async def run_sweep(self, config: SweepConfig) -> SweepResult:
         async with self._state_lock:
-            if self._state.status == LoadTestStatus.RUNNING:
+            if self._state.status == LoadTestStatus.RUNNING or self._sweep_running:
                 return SweepResult(
                     config=config,
                     steps=[],
                     total_duration=0.0,
                 )
 
-        sweep_start = time.time()
-        steps: list[SweepStepResult] = []
-        step1_p99: float | None = None
-        consecutive_100pct_failures = 0
-        consecutive_saturated = 0
-        saturation_point: float | None = None
+        self._sweep_running = True
+        try:
+            sweep_start = time.time()
+            steps: list[SweepStepResult] = []
+            step1_p99: float | None = None
+            consecutive_100pct_failures = 0
+            consecutive_saturated = 0
+            saturation_point: float | None = None
 
-        rps_range = range(config.rps_start, config.rps_end + 1, config.rps_step)
-        for step_num, rps in enumerate(rps_range, start=1):
-            if self._state.status == LoadTestStatus.STOPPED:
-                break
+            rps_range = range(config.rps_start, config.rps_end + 1, config.rps_step)
+            for step_num, rps in enumerate(rps_range, start=1):
+                if self._state.status == LoadTestStatus.STOPPED:
+                    break
 
-            self._stop_event.clear()
+                self._stop_event.clear()
 
-            step_config = LoadTestConfig(
-                endpoint=config.endpoint,
-                model=config.model,
-                prompt_template=config.prompt,
-                total_requests=config.requests_per_step,
-                concurrency=config.concurrency,
-                rps=rps,
-                max_tokens=config.max_tokens,
-                temperature=0.7,
-                stream=config.stream,
-            )
-
-            step_result_raw = await self.run(step_config, skip_preflight=True)
-
-            if self._state.status == LoadTestStatus.STOPPED:
-                break
-
-            total_in_step = step_result_raw.get("total", 0)
-            failed_in_step = step_result_raw.get("failed", 0)
-
-            if total_in_step > 0 and failed_in_step == total_in_step:
-                consecutive_100pct_failures += 1
-            else:
-                consecutive_100pct_failures = 0
-            if consecutive_100pct_failures >= 3:
-                break
-
-            error_rate = failed_in_step / max(total_in_step, 1)
-            p99_latency = step_result_raw.get("latency", {}).get("p99", 0.0) or 0.0
-
-            if step_num == 1:
-                step1_p99 = p99_latency
-
-            saturated = False
-            saturation_reason: str | None = None
-
-            if error_rate > config.saturation_error_rate:
-                saturated = True
-                saturation_reason = f"Error rate {error_rate:.1%} exceeded threshold {config.saturation_error_rate:.1%}"
-            elif step1_p99 and step1_p99 > 0 and p99_latency > step1_p99 * config.saturation_latency_factor:
-                saturated = True
-                saturation_reason = (
-                    f"P99 latency {p99_latency:.3f}s > step1 {step1_p99:.3f}s × {config.saturation_latency_factor}"
+                step_config = LoadTestConfig(
+                    endpoint=config.endpoint,
+                    model=config.model,
+                    prompt_template=config.prompt,
+                    total_requests=config.requests_per_step,
+                    concurrency=config.concurrency,
+                    rps=rps,
+                    max_tokens=config.max_tokens,
+                    temperature=0.7,
+                    stream=config.stream,
                 )
 
-            step_obj = SweepStepResult(
-                step=step_num,
-                rps=float(rps),
-                stats=step_result_raw,
-                saturated=saturated,
-                saturation_reason=saturation_reason,
+                step_result_raw = await self.run(step_config, skip_preflight=True)
+
+                if self._state.status == LoadTestStatus.STOPPED:
+                    break
+
+                total_in_step = step_result_raw.get("total", 0)
+                failed_in_step = step_result_raw.get("failed", 0)
+
+                if total_in_step > 0 and failed_in_step == total_in_step:
+                    consecutive_100pct_failures += 1
+                else:
+                    consecutive_100pct_failures = 0
+                if consecutive_100pct_failures >= 3:
+                    break
+
+                error_rate = failed_in_step / max(total_in_step, 1)
+                p99_latency = step_result_raw.get("latency", {}).get("p99", 0.0) or 0.0
+
+                if step_num == 1:
+                    step1_p99 = p99_latency
+
+                saturated = False
+                saturation_reason: str | None = None
+
+                if error_rate > config.saturation_error_rate:
+                    saturated = True
+                    saturation_reason = (
+                        f"Error rate {error_rate:.1%} exceeded threshold {config.saturation_error_rate:.1%}"
+                    )
+                elif step1_p99 and step1_p99 > 0 and p99_latency > step1_p99 * config.saturation_latency_factor:
+                    saturated = True
+                    saturation_reason = (
+                        f"P99 latency {p99_latency:.3f}s > step1 {step1_p99:.3f}s × {config.saturation_latency_factor}"
+                    )
+
+                step_obj = SweepStepResult(
+                    step=step_num,
+                    rps=float(rps),
+                    stats=step_result_raw,
+                    saturated=saturated,
+                    saturation_reason=saturation_reason,
+                )
+                steps.append(step_obj)
+
+                await self._broadcast({"type": "sweep_step", "data": step_obj.model_dump()})
+
+                if saturated:
+                    consecutive_saturated += 1
+                else:
+                    consecutive_saturated = 0
+
+                if consecutive_saturated >= config.min_stable_steps:
+                    saturation_point = step_obj.rps
+                    break
+
+            optimal_rps: float | None = None
+            if saturation_point is not None:
+                non_saturated = [s for s in steps if not s.saturated]
+                if non_saturated:
+                    optimal_rps = non_saturated[-1].rps
+
+            return SweepResult(
+                config=config,
+                steps=steps,
+                saturation_point=saturation_point,
+                optimal_rps=optimal_rps,
+                total_duration=round(time.time() - sweep_start, 2),
             )
-            steps.append(step_obj)
-
-            await self._broadcast({"type": "sweep_step", "data": step_obj.model_dump()})
-
-            if saturated:
-                consecutive_saturated += 1
-            else:
-                consecutive_saturated = 0
-
-            if consecutive_saturated >= config.min_stable_steps:
-                saturation_point = step_obj.rps
-                break
-
-        optimal_rps: float | None = None
-        if saturation_point is not None:
-            non_saturated = [s for s in steps if not s.saturated]
-            if non_saturated:
-                optimal_rps = non_saturated[-1].rps
-
-        return SweepResult(
-            config=config,
-            steps=steps,
-            saturation_point=saturation_point,
-            optimal_rps=optimal_rps,
-            total_duration=round(time.time() - sweep_start, 2),
-        )
+        finally:
+            self._sweep_running = False
 
     def _compute_stats(self) -> dict[str, Any]:
         results = self._state.results

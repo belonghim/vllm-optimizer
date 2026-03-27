@@ -1,6 +1,5 @@
 import asyncio
 import json
-import time
 from typing import cast
 from unittest.mock import AsyncMock, patch
 
@@ -126,7 +125,6 @@ def test_chaos_vllm_timeout_load_engine_fails_gracefully(isolated_client: TestCl
         )
         assert start_resp.status_code == 200
 
-        time.sleep(0.1)
         status_resp = isolated_client.get("/api/load_test/status")
         history_resp = isolated_client.get("/api/load_test/history?limit=1")
 

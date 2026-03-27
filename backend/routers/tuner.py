@@ -9,13 +9,13 @@ import logging
 import time
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query, Response
 from fastapi.responses import StreamingResponse
 from kubernetes.client.exceptions import ApiException
-from models.load_test import ErrorResponse, TuningConfig, TuningSessionDetail, TuningSessionSummary
-from pydantic import BaseModel
+from models.load_test import ErrorResponse, SweepConfig, TuningConfig, TuningSessionDetail, TuningSessionSummary
+from pydantic import BaseModel, model_validator
 from services.auto_tuner import AutoTuner
 from services.shared import load_engine, multi_target_collector, storage
 
@@ -79,6 +79,14 @@ class TuningStartRequest(BaseModel):
     eval_concurrency: int = 16
     eval_rps: int = 20
     auto_benchmark: bool = False
+    evaluation_mode: Literal["single", "sweep"] = "single"
+    sweep_config: SweepConfig | None = None
+
+    @model_validator(mode="after")
+    def validate_sweep_mode(self) -> "TuningStartRequest":
+        if self.evaluation_mode == "sweep" and self.sweep_config is None:
+            raise ValueError("sweep_config is required when evaluation_mode='sweep'")
+        return self
 
 
 class TuningStartResponse(BaseModel):
@@ -148,6 +156,14 @@ async def start_tuning(request: TuningStartRequest) -> dict[str, Any]:
                 error_type="already_running",
             ).model_dump(),
         )
+    if request.evaluation_mode == "sweep" and load_engine.is_sweep_running():
+        raise HTTPException(
+            status_code=409,
+            detail=ErrorResponse(
+                error="Sweep evaluation is already running. Stop current sweep first.",
+                error_type="already_running",
+            ).model_dump(),
+        )
     try:
         existing_trials = await storage.get_trials()
         if existing_trials:
@@ -186,6 +202,9 @@ async def start_tuning(request: TuningStartRequest) -> dict[str, Any]:
     import os
 
     vllm_endpoint = request.vllm_endpoint or os.getenv("VLLM_ENDPOINT", "http://localhost:8000")
+    sweep_config = request.sweep_config
+    if request.evaluation_mode == "sweep" and sweep_config is not None and not sweep_config.endpoint:
+        sweep_config = sweep_config.model_copy(update={"endpoint": vllm_endpoint})
 
     try:
         preflight = await auto_tuner._preflight_check()
@@ -213,6 +232,8 @@ async def start_tuning(request: TuningStartRequest) -> dict[str, Any]:
             vllm_endpoint,
             auto_benchmark=request.auto_benchmark,
             skip_preflight=True,
+            evaluation_mode=request.evaluation_mode,
+            sweep_config=sweep_config,
         )
     )
     auto_tuner._current_task.add_done_callback(
