@@ -204,10 +204,15 @@ class LoadTestEngine:
             t0 = time.time()
             ttft = None
             output_tokens = 0
+            token_timestamps: list[float] | None = None
+            itl_mean: float | None = None
+            itl_p95: float | None = None
+            itl_p99: float | None = None
             try:
                 async with httpx.AsyncClient(timeout=120) as client:
                     if config.stream:
                         usage_tokens = 0
+                        token_timestamps = []
                         async with client.stream(
                             "POST",
                             f"{config.endpoint}/v1/completions",
@@ -219,6 +224,7 @@ class LoadTestEngine:
                         ) as resp:
                             async for chunk in resp.aiter_lines():
                                 if chunk.startswith("data: ") and chunk != "data: [DONE]":
+                                    token_timestamps.append(time.time())
                                     if ttft is None:
                                         ttft = time.time() - t0
                                     output_tokens += 1
@@ -230,6 +236,13 @@ class LoadTestEngine:
                                         pass
                         if usage_tokens:
                             output_tokens = usage_tokens
+                        if len(token_timestamps) >= 2:
+                            deltas = [token_timestamps[i + 1] - token_timestamps[i] for i in range(len(token_timestamps) - 1)]
+                            itl_mean = sum(deltas) / len(deltas)
+                            itl_p95 = sorted(deltas)[int(len(deltas) * 0.95)]
+                            itl_p99 = sorted(deltas)[int(len(deltas) * 0.99)]
+                        else:
+                            itl_mean = itl_p95 = itl_p99 = None
                     else:
                         resp = await client.post(
                             f"{config.endpoint}/v1/completions",
@@ -245,6 +258,10 @@ class LoadTestEngine:
                     ttft=ttft,
                     output_tokens=output_tokens,
                     tps=output_tokens / latency if latency > 0 else 0,
+                    token_timestamps=token_timestamps,
+                    itl_mean=itl_mean,
+                    itl_p95=itl_p95,
+                    itl_p99=itl_p99,
                 )
             except Exception as e:  # intentional: non-critical
                 return RequestResult(
@@ -488,6 +505,7 @@ class LoadTestEngine:
         latencies = [r.latency for r in successful]
         ttfts = [r.ttft for r in successful if r.ttft is not None]
         tps_values = [r.tps for r in successful if r.tps > 0]
+        itl_means = [r.itl_mean for r in successful if r.itl_mean is not None]
 
         elapsed = time.time() - self._state.start_time
 
@@ -514,6 +532,11 @@ class LoadTestEngine:
                 "mean": round(statistics.mean(tps_values), 1) if tps_values else 0,
                 "total": round(sum(tps_values), 1) if tps_values else 0,
             },
+            "itl": {
+                "mean": round(statistics.mean(itl_means), 4) if itl_means else None,
+                "p95": round(_percentile(itl_means, 95), 4) if itl_means else None,
+                "p99": round(_percentile(itl_means, 99), 4) if itl_means else None,
+            } if itl_means else None,
         }
 
 
