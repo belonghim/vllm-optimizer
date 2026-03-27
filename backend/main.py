@@ -14,10 +14,9 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from kubernetes import client
-from kubernetes import config as k8s_config
 from routers import alerts, benchmark, load_test, metrics, sla, status, tuner, vllm_config
 from routers import config as config_router
+from routers.status import check_prometheus_health
 from services.shared import runtime_config
 
 # ── Logging Configuration ──
@@ -127,34 +126,6 @@ app = FastAPI(
 )
 
 
-# Helper function for Prometheus connectivity check
-async def check_prometheus_health() -> bool:
-    """Check Prometheus/Thanos connectivity with a lightweight query."""
-    try:
-        import httpx
-
-        thanos_url = os.getenv("PROMETHEUS_URL", "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091")
-
-        token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-        token = None
-        if os.path.exists(token_path):
-            with open(token_path) as f:
-                token = f.read().strip()
-
-        headers = {"Authorization": f"Bearer {token}"} if token else {}
-
-        query = "1"
-        async with httpx.AsyncClient(timeout=3, verify=False) as client:
-            resp = await client.get(
-                f"{thanos_url}/api/v1/query",
-                headers=headers,
-                params={"query": query},
-            )
-            return resp.status_code == 200
-    except Exception:  # intentional: non-critical
-        return False
-
-
 try:
     register_shim(app)
 except Exception as e:  # intentional: fail-open
@@ -204,15 +175,18 @@ async def health_check(request: Request) -> dict[str, Any] | JSONResponse:
         try:
             prom_ok = await check_prometheus_health()
             health["dependencies"]["prometheus"] = "healthy" if prom_ok else "unhealthy"
-        except Exception:  # intentional: non-critical
+        except Exception:
             health["dependencies"]["prometheus"] = "unhealthy"
 
         try:
+            from kubernetes import client as k8s_client
+            from kubernetes import config as k8s_config
+
             k8s_config.load_incluster_config()
-            v1 = client.CoreV1Api()
+            v1 = k8s_client.CoreV1Api()
             v1.list_namespaced_pod(namespace=os.getenv("POD_NAMESPACE", "default"), limit=1)
             health["dependencies"]["kubernetes"] = "healthy"
-        except Exception:  # intentional: non-critical
+        except Exception:
             health["dependencies"]["kubernetes"] = "unhealthy"
 
     all_healthy = all(v == "healthy" for v in health["dependencies"].values())
