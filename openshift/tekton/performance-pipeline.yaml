@@ -30,20 +30,27 @@ spec:
     - name: check-prerequisites
       taskSpec:
         steps:
-          - name: check-vllm-ready
-            image: registry.access.redhat.com/ubi9/ubi-minimal:latest
-            securityContext:
-              runAsNonRoot: true
-              allowPrivilegeEscalation: false
-              capabilities:
-                drop: ["ALL"]
-              seccompProfile:
-                type: RuntimeDefault
-            script: |
-              #!/bin/bash
-              echo "Checking vLLM pods in namespace $(params.VLLM_NAMESPACE)..."
-              # Basic connectivity check — actual k8s check done via oc
-              echo "Prerequisites check completed."
+           - name: check-vllm-ready
+             image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+             resources:
+               requests:
+                 cpu: 100m
+                 memory: 128Mi
+               limits:
+                 cpu: 500m
+                 memory: 512Mi
+             securityContext:
+               runAsNonRoot: true
+               allowPrivilegeEscalation: false
+               capabilities:
+                 drop: ["ALL"]
+               seccompProfile:
+                 type: RuntimeDefault
+             script: |
+               #!/bin/bash
+               echo "Checking vLLM pods in namespace $(params.VLLM_NAMESPACE)..."
+               # Basic connectivity check — actual k8s check done via oc
+               echo "Prerequisites check completed."
         params:
           - name: VLLM_NAMESPACE
             type: string
@@ -58,19 +65,26 @@ spec:
           - name: config-backup
             description: ConfigMap backup status
         steps:
-          - name: backup
-            image: registry.access.redhat.com/ubi9/ubi-minimal:latest
-            securityContext:
-              runAsNonRoot: true
-              allowPrivilegeEscalation: false
-              capabilities:
-                drop: ["ALL"]
-              seccompProfile:
-                type: RuntimeDefault
-            script: |
-              #!/bin/bash
-              echo "ConfigMap backup initiated for namespace $(params.VLLM_NAMESPACE)"
-              echo -n "backed-up" > $(results.config-backup.path)
+           - name: backup
+             image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+             resources:
+               requests:
+                 cpu: 100m
+                 memory: 128Mi
+               limits:
+                 cpu: 500m
+                 memory: 512Mi
+             securityContext:
+               runAsNonRoot: true
+               allowPrivilegeEscalation: false
+               capabilities:
+                 drop: ["ALL"]
+               seccompProfile:
+                 type: RuntimeDefault
+             script: |
+               #!/bin/bash
+               echo "ConfigMap backup initiated for namespace $(params.VLLM_NAMESPACE)"
+               echo -n "backed-up" > $(results.config-backup.path)
         params:
           - name: VLLM_NAMESPACE
             type: string
@@ -90,51 +104,58 @@ spec:
           - name: ENVIRONMENT
             type: string
         steps:
-          - name: run-tests
-            image: registry.access.redhat.com/ubi9/python-311:latest
-            securityContext:
-              runAsNonRoot: true
-              allowPrivilegeEscalation: false
-              capabilities:
-                drop: ["ALL"]
-              seccompProfile:
-                type: RuntimeDefault
-            env:
-              - name: PERF_TEST_BACKEND_URL
-                value: $(params.BACKEND_URL)
-              - name: PERF_BASELINE_FILE
-                value: baseline.$(params.ENVIRONMENT).json
-            script: |
-              #!/bin/bash
-              set -uo pipefail
+           - name: run-tests
+             image: registry.access.redhat.com/ubi9/python-311:latest
+             resources:
+               requests:
+                 cpu: 250m
+                 memory: 512Mi
+               limits:
+                 cpu: "1"
+                 memory: 2Gi
+             securityContext:
+               runAsNonRoot: true
+               allowPrivilegeEscalation: false
+               capabilities:
+                 drop: ["ALL"]
+               seccompProfile:
+                 type: RuntimeDefault
+             env:
+               - name: PERF_TEST_BACKEND_URL
+                 value: $(params.BACKEND_URL)
+               - name: PERF_BASELINE_FILE
+                 value: baseline.$(params.ENVIRONMENT).json
+             script: |
+               #!/bin/bash
+               set -uo pipefail
 
-              pip install pytest==8.3.2 pytest-asyncio pytest-json-report httpx psutil --quiet
+               pip install pytest==8.3.2 pytest-asyncio pytest-json-report httpx psutil --quiet
 
-              REPORT_DIR="/tmp/perf-results"
-              mkdir -p "$REPORT_DIR"
+               REPORT_DIR="/tmp/perf-results"
+               mkdir -p "$REPORT_DIR"
 
-              # Soft-fail: performance tests do not block deployment
-              python3 -m pytest backend/tests/integration/performance/ \
-                -v --tb=short \
-                -m "integration and performance" \
-                --json-report --json-report-file="$REPORT_DIR/results.json" \
-                --junitxml="$REPORT_DIR/results.xml" \
-                2>&1 || true
+               # Soft-fail: performance tests do not block deployment
+               python3 -m pytest backend/tests/integration/performance/ \
+                 -v --tb=short \
+                 -m "integration and performance" \
+                 --json-report --json-report-file="$REPORT_DIR/results.json" \
+                 --junitxml="$REPORT_DIR/results.xml" \
+                 2>&1 || true
 
-              # Parse result and set Tekton result
-              if [ -f "$REPORT_DIR/results.json" ]; then
-                FAILED=$(python3 -c "import json; d=json.load(open('$REPORT_DIR/results.json')); print(d.get('summary', {}).get('failed', 0))" 2>/dev/null || echo "0")
-                if [ "$FAILED" -gt 0 ]; then
-                  STATUS="FAIL"
-                else
-                  STATUS="PASS"
-                fi
-              else
-                STATUS="FAIL"
-              fi
+               # Parse result and set Tekton result
+               if [ -f "$REPORT_DIR/results.json" ]; then
+                 FAILED=$(python3 -c "import json; d=json.load(open('$REPORT_DIR/results.json')); print(d.get('summary', {}).get('failed', 0))" 2>/dev/null || echo "0")
+                 if [ "$FAILED" -gt 0 ]; then
+                   STATUS="FAIL"
+                 else
+                   STATUS="PASS"
+                 fi
+               else
+                 STATUS="FAIL"
+               fi
 
-              echo "Performance test result: $STATUS"
-              echo -n "$STATUS" > $(results.performance-test-status.path)
+               echo "Performance test result: $STATUS"
+               echo -n "$STATUS" > $(results.performance-test-status.path)
       params:
         - name: BACKEND_URL
           value: $(params.BACKEND_URL)
@@ -145,18 +166,25 @@ spec:
       runAfter: [run-performance-tests]
       taskSpec:
         steps:
-          - name: restore
-            image: registry.access.redhat.com/ubi9/ubi-minimal:latest
-            securityContext:
-              runAsNonRoot: true
-              allowPrivilegeEscalation: false
-              capabilities:
-                drop: ["ALL"]
-              seccompProfile:
-                type: RuntimeDefault
-            script: |
-              #!/bin/bash
-              echo "ConfigMap restore completed for namespace $(params.VLLM_NAMESPACE)"
+           - name: restore
+             image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+             resources:
+               requests:
+                 cpu: 100m
+                 memory: 128Mi
+               limits:
+                 cpu: 500m
+                 memory: 512Mi
+             securityContext:
+               runAsNonRoot: true
+               allowPrivilegeEscalation: false
+               capabilities:
+                 drop: ["ALL"]
+               seccompProfile:
+                 type: RuntimeDefault
+             script: |
+               #!/bin/bash
+               echo "ConfigMap restore completed for namespace $(params.VLLM_NAMESPACE)"
         params:
           - name: VLLM_NAMESPACE
             type: string

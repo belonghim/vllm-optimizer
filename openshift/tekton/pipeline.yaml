@@ -95,6 +95,13 @@ spec:
               echo "=== Running basedpyright on backend/ ==="
               basedpyright backend/
               echo "✓ Type check passed"
+            resources:
+              requests:
+                cpu: 250m
+                memory: 512Mi
+              limits:
+                cpu: "1"
+                memory: 2Gi
             securityContext:
               allowPrivilegeEscalation: false
               runAsNonRoot: true
@@ -207,30 +214,37 @@ spec:
       type: string
   workspaces:
     - name: source
-  steps:
-    - name: kustomize-apply
-      image: registry.redhat.io/openshift4/ose-cli:latest
-      script: |
-        #!/bin/bash
-        set -euo pipefail
-        cd $(workspaces.source.path)
+   steps:
+     - name: kustomize-apply
+       image: registry.redhat.io/openshift4/ose-cli:latest
+       script: |
+         #!/bin/bash
+         set -euo pipefail
+         cd $(workspaces.source.path)
 
-        echo "=== Kustomize 빌드: $(params.OVERLAY_PATH) ==="
-        oc kustomize $(params.OVERLAY_PATH) | \
-          oc apply -n $(params.NAMESPACE) -f -
+         echo "=== Kustomize 빌드: $(params.OVERLAY_PATH) ==="
+         oc kustomize $(params.OVERLAY_PATH) | \
+           oc apply -n $(params.NAMESPACE) -f -
 
-        echo "=== 배포 상태 확인 ==="
-        oc rollout status deployment/vllm-optimizer-backend \
-          -n $(params.NAMESPACE) --timeout=5m
-        oc rollout status deployment/vllm-optimizer-frontend \
-          -n $(params.NAMESPACE) --timeout=5m
+         echo "=== 배포 상태 확인 ==="
+         oc rollout status deployment/vllm-optimizer-backend \
+           -n $(params.NAMESPACE) --timeout=5m
+         oc rollout status deployment/vllm-optimizer-frontend \
+           -n $(params.NAMESPACE) --timeout=5m
 
-        echo "✓ 배포 완료"
-      securityContext:
-        allowPrivilegeEscalation: false
-        runAsNonRoot: true
-        capabilities:
-          drop: ["ALL"]
+         echo "✓ 배포 완료"
+       resources:
+         requests:
+           cpu: 100m
+           memory: 128Mi
+         limits:
+           cpu: 500m
+           memory: 512Mi
+       securityContext:
+         allowPrivilegeEscalation: false
+         runAsNonRoot: true
+         capabilities:
+           drop: ["ALL"]
 
 ---
 # ── Task: 배포 검증 ────────────────────────────────────────────────────────────
@@ -248,37 +262,44 @@ spec:
     - name: TIMEOUT
       type: string
       default: "5m"
-  steps:
-    - name: verify
-      image: registry.redhat.io/openshift4/ose-cli:latest
-      script: |
-        #!/bin/bash
-        set -euo pipefail
-        IFS=',' read -ra DEPS <<< "$(params.DEPLOYMENTS)"
-        for dep in "${DEPS[@]}"; do
-          echo "=== 검증: $dep ==="
-          oc rollout status deployment/$dep \
-            -n $(params.NAMESPACE) --timeout=$(params.TIMEOUT)
-          READY=$(oc get deployment/$dep -n $(params.NAMESPACE) \
-            -o jsonpath='{.status.readyReplicas}')
-          DESIRED=$(oc get deployment/$dep -n $(params.NAMESPACE) \
-            -o jsonpath='{.spec.replicas}')
-          echo "Ready: $READY / $DESIRED"
-          [ "$READY" = "$DESIRED" ] && echo "✓ $dep OK" || (echo "✗ $dep 비정상" && exit 1)
-        done
+   steps:
+     - name: verify
+       image: registry.redhat.io/openshift4/ose-cli:latest
+       script: |
+         #!/bin/bash
+         set -euo pipefail
+         IFS=',' read -ra DEPS <<< "$(params.DEPLOYMENTS)"
+         for dep in "${DEPS[@]}"; do
+           echo "=== 검증: $dep ==="
+           oc rollout status deployment/$dep \
+             -n $(params.NAMESPACE) --timeout=$(params.TIMEOUT)
+           READY=$(oc get deployment/$dep -n $(params.NAMESPACE) \
+             -o jsonpath='{.status.readyReplicas}')
+           DESIRED=$(oc get deployment/$dep -n $(params.NAMESPACE) \
+             -o jsonpath='{.spec.replicas}')
+           echo "Ready: $READY / $DESIRED"
+           [ "$READY" = "$DESIRED" ] && echo "✓ $dep OK" || (echo "✗ $dep 비정상" && exit 1)
+         done
 
-        # Route 접근 검증
-        ROUTE=$(oc get route vllm-optimizer -n $(params.NAMESPACE) \
-          -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
-        if [ -n "$ROUTE" ]; then
-          echo "=== Route 헬스체크: https://$ROUTE/health ==="
-          curl -sf --max-time 10 "https://$ROUTE/health" && echo "✓ Route OK"
-        fi
-      securityContext:
-        allowPrivilegeEscalation: false
-        runAsNonRoot: true
-        capabilities:
-          drop: ["ALL"]
+         # Route 접근 검증
+         ROUTE=$(oc get route vllm-optimizer -n $(params.NAMESPACE) \
+           -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
+         if [ -n "$ROUTE" ]; then
+           echo "=== Route 헬스체크: https://$ROUTE/health ==="
+           curl -sf --max-time 10 "https://$ROUTE/health" && echo "✓ Route OK"
+         fi
+       resources:
+         requests:
+           cpu: 100m
+           memory: 128Mi
+         limits:
+           cpu: 500m
+           memory: 512Mi
+       securityContext:
+         allowPrivilegeEscalation: false
+         runAsNonRoot: true
+         capabilities:
+           drop: ["ALL"]
 
 ---
 # ── PipelineRun 템플릿 (트리거용) ─────────────────────────────────────────────
