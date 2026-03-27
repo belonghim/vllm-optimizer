@@ -330,10 +330,14 @@ def isolated_client(monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.fixture(autouse=True)
-def _mock_resolve_model_name() -> Any:
+def _mock_resolve_model_name(request: pytest.FixtureRequest) -> Any:
     """Prevent real HTTP calls to vLLM /v1/models in unit tests."""
     import sys
     from unittest.mock import patch as mock_patch
+
+    if request.node.fspath.basename == "test_model_resolver.py":
+        yield
+        return
 
     async def _fast_resolve(endpoint: str = "", fallback: str = "auto") -> str:
         return fallback

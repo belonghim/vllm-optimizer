@@ -1473,7 +1473,9 @@ async def test_storage_fallback_broadcasts_warning(auto_tuner_instance, mock_k8s
     from ..services import auto_tuner as _at_mod
 
     with patch.object(_at_mod, "storage") as mock_storage:
-        mock_storage.save_trial = AsyncMock(side_effect=Exception("disk full"))
+        mock_storage.set_running = AsyncMock(return_value=1)
+        mock_storage.clear_running = AsyncMock(return_value=None)
+        mock_storage.save_trial = AsyncMock(side_effect=OSError("disk full"))
         await tuner.start(config, "http://mock:8080")
 
     events = []

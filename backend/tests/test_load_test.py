@@ -271,10 +271,8 @@ async def test_preflight_fails_on_unreachable_endpoint():
 
     engine = LoadTestEngine()
 
-    with patch("services.load_engine.httpx.AsyncClient") as mock_cls:
-        mock_ctx = MagicMock()
-        mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-        mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+    mock_ctx = MagicMock()
+    with patch("services.shared.internal_client", mock_ctx):
         mock_ctx.get = AsyncMock(side_effect=httpx.ConnectError("Connection refused"))
 
         config = LoadTestConfig(endpoint="http://nonexistent-host:9999", total_requests=10)
@@ -293,10 +291,8 @@ async def test_preflight_fails_on_nonexistent_model():
 
     engine = LoadTestEngine()
 
-    with patch("services.load_engine.httpx.AsyncClient") as mock_cls:
-        mock_ctx = MagicMock()
-        mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-        mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+    mock_ctx = MagicMock()
+    with patch("services.shared.internal_client", mock_ctx):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = {"data": [{"id": "qwen2-5-7b-instruct"}]}
@@ -319,10 +315,8 @@ async def test_preflight_skips_model_check_for_auto():
 
     engine = LoadTestEngine()
 
-    with patch("services.load_engine.httpx.AsyncClient") as mock_cls:
-        mock_ctx = MagicMock()
-        mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-        mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+    mock_ctx = MagicMock()
+    with patch("services.shared.internal_client", mock_ctx):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = {"data": [{"id": "qwen2-5-7b-instruct"}]}
@@ -345,10 +339,8 @@ async def test_consecutive_failures_abort_test_early():
     async def always_fail(config, semaphore, request_id):
         return RequestResult(req_id=request_id, success=False, latency=0.1, error="Connection refused")
 
-    with patch("services.load_engine.httpx.AsyncClient") as mock_cls:
-        mock_ctx = MagicMock()
-        mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-        mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+    mock_ctx = MagicMock()
+    with patch("services.shared.internal_client", mock_ctx):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = {"data": [{"id": "qwen2-5-7b-instruct"}]}
@@ -373,10 +365,8 @@ async def test_sse_broadcasts_error_on_preflight_fail():
     engine = LoadTestEngine()
     q = await engine.subscribe()
 
-    with patch("services.load_engine.httpx.AsyncClient") as mock_cls:
-        mock_ctx = MagicMock()
-        mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-        mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+    mock_ctx = MagicMock()
+    with patch("services.shared.internal_client", mock_ctx):
         mock_ctx.get = AsyncMock(side_effect=httpx.ConnectError("Connection refused"))
 
         config = LoadTestConfig(endpoint="http://nonexistent:9999", total_requests=10)
@@ -401,10 +391,8 @@ async def test_happy_path_unaffected_by_preflight():
     async def mock_dispatch(config, semaphore, request_id):
         return RequestResult(req_id=request_id, success=True, latency=0.1, output_tokens=10, tps=100.0)
 
-    with patch("services.load_engine.httpx.AsyncClient") as mock_cls:
-        mock_ctx = MagicMock()
-        mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-        mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+    mock_ctx = MagicMock()
+    with patch("services.shared.internal_client", mock_ctx):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = {"data": [{"id": "qwen2-5-7b-instruct"}]}
@@ -437,10 +425,8 @@ async def test_mixed_failure_reasons_no_abort():
             error=errors[request_id % len(errors)],
         )
 
-    with patch("services.load_engine.httpx.AsyncClient") as mock_cls:
-        mock_ctx = MagicMock()
-        mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-        mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+    mock_ctx = MagicMock()
+    with patch("services.shared.internal_client", mock_ctx):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = {"data": [{"id": "qwen2-5-7b-instruct"}]}
@@ -468,10 +454,8 @@ async def test_same_failure_reason_aborts():
     async def fail_with_same_error(config, semaphore, request_id):
         return RequestResult(req_id=request_id, success=False, latency=0.1, error="Connection refused")
 
-    with patch("services.load_engine.httpx.AsyncClient") as mock_cls:
-        mock_ctx = MagicMock()
-        mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-        mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+    mock_ctx = MagicMock()
+    with patch("services.shared.internal_client", mock_ctx):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = {"data": [{"id": "qwen2-5-7b-instruct"}]}
@@ -498,10 +482,8 @@ async def test_dispatch_request_connect_error():
     config = LoadTestConfig(endpoint="http://localhost:8080", model="test", stream=False)
     semaphore = asyncio.Semaphore(1)
 
-    with patch("services.load_engine.httpx.AsyncClient") as mock_cls:
-        mock_ctx = MagicMock()
-        mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-        mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+    mock_ctx = MagicMock()
+    with patch("services.shared.external_client", mock_ctx):
         mock_ctx.post = AsyncMock(side_effect=httpx.ConnectError("Connection refused"))
 
         result = await engine._dispatch_request(config, semaphore, 0)
@@ -523,10 +505,8 @@ async def test_dispatch_request_timeout_error():
     config = LoadTestConfig(endpoint="http://localhost:8080", model="test", stream=False)
     semaphore = asyncio.Semaphore(1)
 
-    with patch("services.load_engine.httpx.AsyncClient") as mock_cls:
-        mock_ctx = MagicMock()
-        mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-        mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+    mock_ctx = MagicMock()
+    with patch("services.shared.external_client", mock_ctx):
         mock_ctx.post = AsyncMock(side_effect=httpx.TimeoutException("Request timed out"))
 
         result = await engine._dispatch_request(config, semaphore, 0)
@@ -551,10 +531,8 @@ async def test_concurrent_run_rejected():
         await slow_event.wait()
         return RequestResult(req_id=request_id, success=True, latency=0.1, output_tokens=10, tps=100.0)
 
-    with patch("services.load_engine.httpx.AsyncClient") as mock_cls:
-        mock_ctx = MagicMock()
-        mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-        mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+    mock_ctx = MagicMock()
+    with patch("services.shared.internal_client", mock_ctx):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = {"data": [{"id": "qwen2-5-7b-instruct"}]}
@@ -595,10 +573,8 @@ async def test_sse_subscriber_disconnect_graceful():
             disconnect_queue = None
         return RequestResult(req_id=request_id, success=True, latency=0.1, output_tokens=10, tps=100.0)
 
-    with patch("services.load_engine.httpx.AsyncClient") as mock_cls:
-        mock_ctx = MagicMock()
-        mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-        mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+    mock_ctx = MagicMock()
+    with patch("services.shared.internal_client", mock_ctx):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = {"data": [{"id": "qwen2-5-7b-instruct"}]}
@@ -1082,7 +1058,22 @@ def sweep_storage_client(isolated_client: TestClient):
 
 _SAMPLE_SWEEP = {
     "config": {"rps_start": 1, "rps_end": 10, "rps_step": 5},
-    "steps": [{"step": 1, "rps": 1.0, "stats": {"latency": {"p99": 0.5, "mean": 0.3}, "tps": {"mean": 5.0}, "success": 5, "failed": 0, "total": 5, "rps_actual": 1.0}, "saturated": False, "saturation_reason": None}],
+    "steps": [
+        {
+            "step": 1,
+            "rps": 1.0,
+            "stats": {
+                "latency": {"p99": 0.5, "mean": 0.3},
+                "tps": {"mean": 5.0},
+                "success": 5,
+                "failed": 0,
+                "total": 5,
+                "rps_actual": 1.0,
+            },
+            "saturated": False,
+            "saturation_reason": None,
+        }
+    ],
     "saturation_point": None,
     "optimal_rps": 1.0,
     "total_duration": 2.5,

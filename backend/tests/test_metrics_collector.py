@@ -50,33 +50,36 @@ class TestMultiTargetMetricsCollector:
             "status": "success",
             "data": {"result": [{"value": [os.times().elapsed, "NaN"]}]},
         }
-        _name, value_nan = await collector._fetch_prometheus_metric(
-            client_instance,
-            "mean_ttft_ms",
-            "query",
-        )
+        with patch("services.shared.internal_client", client_instance):
+            _name, value_nan = await collector._fetch_prometheus_metric(
+                {},
+                "mean_ttft_ms",
+                "query",
+            )
         assert value_nan is None
 
         response.json.return_value = {
             "status": "success",
             "data": {"result": [{"value": [os.times().elapsed, "+Inf"]}]},
         }
-        _name, value_inf = await collector._fetch_prometheus_metric(
-            client_instance,
-            "mean_ttft_ms",
-            "query",
-        )
+        with patch("services.shared.internal_client", client_instance):
+            _name, value_inf = await collector._fetch_prometheus_metric(
+                {},
+                "mean_ttft_ms",
+                "query",
+            )
         assert value_inf is None
 
         response.json.return_value = {
             "status": "success",
             "data": {"result": [{"value": [os.times().elapsed, "123.456"]}]},
         }
-        _name, value_ok = await collector._fetch_prometheus_metric(
-            client_instance,
-            "mean_ttft_ms",
-            "query",
-        )
+        with patch("services.shared.internal_client", client_instance):
+            _name, value_ok = await collector._fetch_prometheus_metric(
+                {},
+                "mean_ttft_ms",
+                "query",
+            )
         assert value_ok == 123.456
 
     @pytest.mark.asyncio
@@ -88,10 +91,7 @@ class TestMultiTargetMetricsCollector:
 
         mock_client = AsyncMock()
         mock_client.get.side_effect = raise_connect_error
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-
-        with patch("services.multi_target_collector.httpx.AsyncClient", return_value=mock_client):
+        with patch("services.shared.internal_client", mock_client):
             result = await collector._query_prometheus("test-ns", "test-is")
 
         assert result == {}
@@ -110,10 +110,7 @@ class TestMultiTargetMetricsCollector:
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-
-        with patch("services.multi_target_collector.httpx.AsyncClient", return_value=mock_client):
+        with patch("services.shared.internal_client", mock_client):
             result = await collector._query_prometheus("test-ns", "test-is")
 
         assert result == {}
@@ -128,10 +125,7 @@ class TestMultiTargetMetricsCollector:
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-
-        with patch("services.multi_target_collector.httpx.AsyncClient", return_value=mock_client):
+        with patch("services.shared.internal_client", mock_client):
             result = await collector._query_prometheus("test-ns", "test-is")
 
         assert result == {}

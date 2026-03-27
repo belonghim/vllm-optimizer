@@ -13,6 +13,7 @@ Bugs being tested:
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 from models.load_test import LoadTestConfig
 from services.load_engine import LoadTestEngine
 
@@ -63,7 +64,7 @@ async def test_run_collects_all_results_when_tasks_complete_during_sleep():
         endpoint="http://test",
         model="test-model",
     )
-    with patch("httpx.AsyncClient", return_value=_make_mock_httpx_client()):
+    with patch("services.shared.external_client", _make_mock_httpx_client()):
         final_stats = await engine.run(config, skip_preflight=True)
 
     assert len(engine._state.results) == 20, f"Expected 20 results, got {len(engine._state.results)}"
@@ -94,7 +95,7 @@ async def test_run_counter_matches_result_count():
         endpoint="http://test",
         model="test-model",
     )
-    with patch("httpx.AsyncClient", return_value=_make_mock_httpx_client()):
+    with patch("services.shared.external_client", _make_mock_httpx_client()):
         await engine.run(config, skip_preflight=True)
 
     total_counted = engine._state.completed_requests + engine._state.failed_requests
@@ -135,7 +136,7 @@ async def test_run_no_valueerror_when_all_tasks_done_instantly():
     _instant_preflight_resp.status_code = 400
     instant_mock.get = AsyncMock(return_value=_instant_preflight_resp)
 
-    with patch("httpx.AsyncClient", return_value=instant_mock):
+    with patch("services.shared.external_client", instant_mock):
         final_stats = await engine.run(config, skip_preflight=True)
 
     assert isinstance(final_stats, dict), "run() must return a dict"
@@ -169,7 +170,7 @@ async def test_run_failed_requests_counted_correctly():
         idx = call_n["n"]
         call_n["n"] += 1
         if idx % 2 == 0:
-            raise Exception("mock error")
+            raise httpx.ConnectError("mock error")
         resp = MagicMock()
         resp.json.return_value = {"usage": {"completion_tokens": 10}}
         return resp
@@ -182,7 +183,7 @@ async def test_run_failed_requests_counted_correctly():
     _alt_preflight_resp.status_code = 400
     mock_client.get = AsyncMock(return_value=_alt_preflight_resp)
 
-    with patch("httpx.AsyncClient", return_value=mock_client):
+    with patch("services.shared.external_client", mock_client):
         await engine.run(config, skip_preflight=True)
 
     assert engine._state.failed_requests == 5, f"Expected 5 failed requests, got {engine._state.failed_requests}"
@@ -209,7 +210,7 @@ async def test_run_no_duplicate_results():
         endpoint="http://test",
         model="test-model",
     )
-    with patch("httpx.AsyncClient", return_value=_make_mock_httpx_client()):
+    with patch("services.shared.external_client", _make_mock_httpx_client()):
         await engine.run(config, skip_preflight=True)
 
     req_ids = [r.req_id for r in engine._state.results]
