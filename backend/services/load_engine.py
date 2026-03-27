@@ -220,6 +220,7 @@ class LoadTestEngine:
             token_timestamps: list[float] | None = None
             itl_deltas: list[float] | None = None
             itl_mean: float | None = None
+            itl_p50: float | None = None
             itl_p95: float | None = None
             itl_p99: float | None = None
             try:
@@ -263,11 +264,12 @@ class LoadTestEngine:
                         ]
                         itl_deltas = deltas
                         itl_mean = sum(deltas) / len(deltas)
+                        itl_p50 = sorted(deltas)[int(len(deltas) * 0.50)]
                         itl_p95 = sorted(deltas)[int(len(deltas) * 0.95)]
                         itl_p99 = sorted(deltas)[int(len(deltas) * 0.99)]
                     else:
                         itl_deltas = None
-                        itl_mean = itl_p95 = itl_p99 = None
+                        itl_mean = itl_p50 = itl_p95 = itl_p99 = None
                 else:
                     resp = await external_client.post(
                         f"{config.endpoint}/v1/completions",
@@ -287,6 +289,7 @@ class LoadTestEngine:
                     token_timestamps=token_timestamps,
                     itl_deltas=itl_deltas,
                     itl_mean=itl_mean,
+                    itl_p50=itl_p50,
                     itl_p95=itl_p95,
                     itl_p99=itl_p99,
                 )

@@ -24,9 +24,16 @@ interface SweepChartProps {
   saturationRps?: number | null;
 }
 
+interface TooltipEntry {
+  name: string;
+  value: number;
+  color: string;
+  dataKey: string;
+}
+
 interface CustomTooltipProps {
   active?: boolean;
-  payload?: any[];
+  payload?: TooltipEntry[];
   label?: string;
 }
 

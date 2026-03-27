@@ -47,6 +47,7 @@ class RequestResult(BaseModel):
         description="Raw per-token inter-arrival deltas in seconds (streaming only)",
     )
     itl_mean: float | None = Field(default=None, description="Mean inter-token latency in seconds")
+    itl_p50: float | None = Field(default=None, description="P50 inter-token latency in seconds")
     itl_p95: float | None = Field(default=None, description="P95 inter-token latency in seconds")
     itl_p99: float | None = Field(default=None, description="P99 inter-token latency in seconds")
 
