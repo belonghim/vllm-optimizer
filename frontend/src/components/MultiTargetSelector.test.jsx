@@ -16,7 +16,7 @@ import { authFetch } from "../utils/authFetch";
 describe("MultiTargetSelector", () => {
   const mockContext = {
     targets: [
-      { namespace: "vllm-lab-dev", inferenceService: "llm-ov", isDefault: true },
+      { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true },
     ],
     maxTargets: 5,
     addTarget: vi.fn(),
@@ -32,8 +32,8 @@ describe("MultiTargetSelector", () => {
   it("renders targets and add button", () => {
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
     expect(screen.getByText("모니터링 대상 (1/5)")).toBeInTheDocument();
-    expect(screen.getByText("vllm-lab-dev")).toBeInTheDocument();
-    expect(screen.getByText("llm-ov")).toBeInTheDocument();
+    expect(screen.getByText("llm-d-demo")).toBeInTheDocument();
+    expect(screen.getByText("small-llm-d")).toBeInTheDocument();
     expect(screen.getByTestId("add-target-btn")).toBeInTheDocument();
   });
 
@@ -46,7 +46,7 @@ describe("MultiTargetSelector", () => {
   });
 
   it("shows collecting state with dots", () => {
-    const key = "vllm-lab-dev/llm-ov";
+    const key = "llm-d-demo/small-llm-d";
     render(<MultiTargetSelector 
       targetStatuses={{ [key]: { status: 'collecting' } }} 
       targetStates={{ [key]: { status: 'collecting' } }} 
@@ -56,7 +56,7 @@ describe("MultiTargetSelector", () => {
   });
 
   it("shows metric values when data is available", () => {
-    const key = "vllm-lab-dev/llm-ov";
+    const key = "llm-d-demo/small-llm-d";
     const mockData = {
       tps: 245, rps: 12.5, ttft_mean: 85, ttft_p99: 120,
       latency_mean: 300, latency_p99: 450, kv_cache: 45.2,
@@ -100,7 +100,7 @@ describe("MultiTargetSelector", () => {
     fireEvent.change(screen.getByPlaceholderText("InferenceService"), { target: { value: "llm-cuda" } });
     fireEvent.click(screen.getByTestId("confirm-add-btn"));
     await waitFor(() => {
-      expect(mockContext.addTarget).toHaveBeenCalledWith("vllm-lab-prod", "llm-cuda");
+      expect(mockContext.addTarget).toHaveBeenCalledWith("vllm-lab-prod", "llm-cuda", "inferenceservice");
     });
   });
 
@@ -128,8 +128,8 @@ describe("MultiTargetSelector", () => {
     const multiMock = {
       ...mockContext,
       targets: [
-        { namespace: "vllm-lab-dev", inferenceService: "llm-ov", isDefault: true },
-        { namespace: "vllm-lab-prod", inferenceService: "llm-cuda", isDefault: false },
+        { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true },
+        { namespace: "llm-d-prod", inferenceService: "large-llm-d", isDefault: false },
       ],
     };
     useClusterConfig.mockReturnValue(multiMock);
@@ -143,15 +143,15 @@ describe("MultiTargetSelector", () => {
     const multiMock = {
       ...mockContext,
       targets: [
-        { namespace: "vllm-lab-dev", inferenceService: "llm-ov", isDefault: true },
-        { namespace: "vllm-lab-prod", inferenceService: "llm-cuda", isDefault: false },
+        { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true },
+        { namespace: "llm-d-prod", inferenceService: "large-llm-d", isDefault: false },
       ],
       removeTarget: mockRemoveTarget,
     };
     useClusterConfig.mockReturnValue(multiMock);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
     fireEvent.click(screen.getByTestId("delete-btn"));
-    expect(mockRemoveTarget).toHaveBeenCalledWith("vllm-lab-prod", "llm-cuda");
+    expect(mockRemoveTarget).toHaveBeenCalledWith("llm-d-prod", "large-llm-d");
   });
 
   it("calls setDefaultTarget when set-default button is clicked", () => {
@@ -159,15 +159,15 @@ describe("MultiTargetSelector", () => {
     const multiMock = {
       ...mockContext,
       targets: [
-        { namespace: "vllm-lab-dev", inferenceService: "llm-ov", isDefault: true },
-        { namespace: "vllm-lab-prod", inferenceService: "llm-cuda", isDefault: false },
+        { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true },
+        { namespace: "llm-d-prod", inferenceService: "large-llm-d", isDefault: false },
       ],
       setDefaultTarget: mockSetDefaultTarget,
     };
     useClusterConfig.mockReturnValue(multiMock);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
     fireEvent.click(screen.getByTestId("set-default-btn"));
-    expect(mockSetDefaultTarget).toHaveBeenCalledWith("vllm-lab-prod", "llm-cuda");
+    expect(mockSetDefaultTarget).toHaveBeenCalledWith("llm-d-prod", "large-llm-d");
   });
 
   it("shows warning for namespace without monitoring label", () => {
@@ -178,12 +178,45 @@ describe("MultiTargetSelector", () => {
     const multiMock = {
       ...mockContext,
       targets: [
-        { namespace: "vllm-lab-dev", inferenceService: "llm-ov", isDefault: true },
+        { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true },
         { namespace: "vllm", inferenceService: "llm-cuda", isDefault: false },
       ],
     };
     useClusterConfig.mockReturnValue(multiMock);
     render(<MultiTargetSelector targetStatuses={statuses} targetStates={{}} />);
     expect(screen.getByTestId("no-monitoring-warning")).toBeInTheDocument();
+  });
+
+  it("renders CR type dropdown in add-target form", () => {
+    render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
+    fireEvent.click(screen.getByTestId("add-target-btn"));
+    expect(screen.getByTestId("cr-type-select")).toBeInTheDocument();
+    expect(screen.getByText("isvc (KServe)")).toBeInTheDocument();
+    expect(screen.getByText("llmisvc (LLMIS)")).toBeInTheDocument();
+  });
+
+  it("shows LLMIS badge for target with crType llminferenceservice", () => {
+    const llmisMock = {
+      ...mockContext,
+      targets: [
+        { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true, crType: "llminferenceservice" },
+      ],
+    };
+    useClusterConfig.mockReturnValue(llmisMock);
+    render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
+    expect(screen.getByTestId("llmis-badge")).toBeInTheDocument();
+    expect(screen.getByTestId("llmis-badge")).toHaveTextContent("LLMIS");
+  });
+
+  it("calls addTarget with crType when form is submitted", async () => {
+    render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
+    fireEvent.click(screen.getByTestId("add-target-btn"));
+    fireEvent.change(screen.getByPlaceholderText("Namespace"), { target: { value: "llm-d-demo" } });
+    fireEvent.change(screen.getByPlaceholderText("InferenceService"), { target: { value: "llm-svc" } });
+    fireEvent.change(screen.getByTestId("cr-type-select"), { target: { value: "llminferenceservice" } });
+    fireEvent.click(screen.getByTestId("confirm-add-btn"));
+    await waitFor(() => {
+      expect(mockContext.addTarget).toHaveBeenCalledWith("llm-d-demo", "llm-svc", "llminferenceservice");
+    });
   });
 });

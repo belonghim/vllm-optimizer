@@ -15,7 +15,7 @@ async function mockApi(page: Page) {
       return json({
         vllm_endpoint: 'http://mock-endpoint:8080',
         vllm_namespace: 'test-ns',
-        vllm_is_name: 'llm-ov',
+        vllm_is_name: 'small-llm-d',
       });
     }
     if (pathname === '/api/sla/profiles' && method === 'GET') {

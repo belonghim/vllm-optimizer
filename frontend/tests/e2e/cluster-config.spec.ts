@@ -39,9 +39,9 @@ test('클러스터 설정 바에서 설정 저장', async ({ page }) => {
   const currentNamespace = await namespaceInput.inputValue();
   const currentIsvc = await isvcInput.inputValue();
 
-  await endpointInput.fill(currentEndpoint || 'http://llm-ov-predictor.test.svc.cluster.local:8080');
-  await namespaceInput.fill(`${currentNamespace || 'vllm-lab'}-e2e`);
-  await isvcInput.fill(currentIsvc || 'llm-ov');
+  await endpointInput.fill(currentEndpoint || 'http://openshift-ai-inference-openshift-default.openshift-ingress.svc/llm-d-demo/small-llm-d');
+  await namespaceInput.fill(`${currentNamespace || 'llm-d'}-demo`);
+  await isvcInput.fill(currentIsvc || 'small-llm-d');
 
   const saveButton = page.getByRole('button', { name: '💾 Save' });
   await expect(saveButton).toBeEnabled();

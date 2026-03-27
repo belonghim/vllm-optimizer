@@ -50,7 +50,7 @@ export default function MultiTargetSelector({
 }: MultiTargetSelectorProps) {
   const { targets, maxTargets, addTarget, removeTarget, setDefaultTarget } = useClusterConfig();
   const [isAdding, setIsAdding] = useState(false);
-  const [newTarget, setNewTarget] = useState({ namespace: "", inferenceService: "" });
+  const [newTarget, setNewTarget] = useState({ namespace: "", inferenceService: "", crType: "inferenceservice" });
   const [isValidating, setIsValidating] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
@@ -59,13 +59,13 @@ export default function MultiTargetSelector({
       setIsValidating(true);
       setAddError(null);
       try {
-        const response = await authFetch(`/api/metrics/latest?namespace=${newTarget.namespace}&is_name=${newTarget.inferenceService}`);
+        const response = await authFetch(`/api/metrics/latest?namespace=${newTarget.namespace}&is_name=${newTarget.inferenceService}&cr_type=${newTarget.crType}`);
         if (!response.ok) {
           setAddError("해당 대상을 찾을 수 없습니다");
           return;
         }
-        addTarget(newTarget.namespace, newTarget.inferenceService);
-        setNewTarget({ namespace: "", inferenceService: "" });
+        addTarget(newTarget.namespace, newTarget.inferenceService, newTarget.crType);
+        setNewTarget({ namespace: "", inferenceService: "", crType: "inferenceservice" });
         setIsAdding(false);
       } catch (err) {
         setAddError("검증 중 오류가 발생했습니다");
@@ -133,6 +133,16 @@ export default function MultiTargetSelector({
                     <td className="target-name multi-target-color-cell" style={{ borderLeftColor: targetColor }}>
                       <div style={{ color: targetColor }}>
                         {target.inferenceService}
+                        {target.crType === "llminferenceservice" && (
+                          <span 
+                            className="tag tag-info"
+                            title="LLMInferenceService"
+                            data-testid="llmis-badge"
+                            style={{ marginLeft: "8px" }}
+                          >
+                            LLMIS
+                          </span>
+                        )}
                         {!hasMonitoringLabel && (
                           <span 
                             className="multi-target-warning-icon"
@@ -215,6 +225,15 @@ export default function MultiTargetSelector({
                       value={newTarget.inferenceService}
                       onChange={(e) => setNewTarget(prev => ({ ...prev, inferenceService: e.target.value }))}
                     />
+                    <select 
+                      className="input multi-target-input" 
+                      data-testid="cr-type-select" 
+                      value={newTarget.crType}
+                      onChange={(e) => setNewTarget(prev => ({ ...prev, crType: e.target.value }))}
+                    >
+                      <option value="inferenceservice">isvc (KServe)</option>
+                      <option value="llminferenceservice">llmisvc (LLMIS)</option>
+                    </select>
                     {addError && <div className="multi-target-error-msg" data-testid="add-target-error">{addError}</div>}
                   </div>
                 </td>

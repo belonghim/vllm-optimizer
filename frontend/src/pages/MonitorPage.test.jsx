@@ -9,7 +9,7 @@ vi.mock("../contexts/MockDataContext", () => ({
 }));
 
 vi.mock("../contexts/ClusterConfigContext", () => {
-  const targets = [{ namespace: "vllm-lab-dev", inferenceService: "llm-ov", isDefault: true }];
+  const targets = [{ namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true }];
   return {
     useClusterConfig: () => ({
       targets,
