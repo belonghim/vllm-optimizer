@@ -8,6 +8,7 @@ import { useThemeColors } from "../contexts/ThemeContext";
 import { fmt } from "../utils/format";
 import MetricCard from "../components/MetricCard";
 import Chart from "../components/Chart";
+import SweepChart from "../components/SweepChart";
 import { simulateLoadTest } from "../mockData";
 import LoadTestConfig, { type RerunConfig } from "../components/LoadTestConfig";
 import ErrorAlert from "../components/ErrorAlert";
@@ -564,6 +565,9 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
             <MetricCard label="Total Steps" value={sweepResult.steps.length} color="cyan" />
             <MetricCard label="Duration" value={`${fmt(sweepResult.total_duration, 1)}s`} color="amber" />
           </div>
+          {sweepResult.steps && sweepResult.steps.length > 0 && (
+            <SweepChart steps={sweepResult.steps} saturationRps={sweepResult.saturation_point} />
+          )}
           {sweepStatus === 'completed' && (
             <div className="loadtest-save-row">
               <button
