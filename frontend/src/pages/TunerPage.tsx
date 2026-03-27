@@ -40,6 +40,7 @@ interface TunerTrial {
 
 interface TunerConfig {
   objective: string;
+  evaluation_mode: "single" | "sweep";
   n_trials: number;
   vllm_endpoint: string;
   max_num_seqs_min: number;
@@ -85,6 +86,7 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
   const [extraArgs, setExtraArgs] = useState<string[]>([]);
   const [config, setConfig] = useState<TunerConfig>({
     objective: "balanced",
+    evaluation_mode: "single",
     n_trials: 10,
     vllm_endpoint: "",
     max_num_seqs_min: 64, max_num_seqs_max: 512,
@@ -312,15 +314,32 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
     setBenchmarkSaved(false);
     setBenchmarkSavedId(null);
     try {
+      const resolvedEndpoint = endpoint || config.vllm_endpoint;
+      const payload: Record<string, unknown> = {
+        ...config,
+        auto_benchmark: autoBenchmark,
+        vllm_endpoint: resolvedEndpoint,
+        vllm_namespace: namespace,
+        vllm_is_name: inferenceservice,
+      };
+
+      if (config.evaluation_mode === "sweep") {
+        const baseRps = Math.max(1, config.eval_rps);
+        const sweepStep = Math.max(1, Math.floor(baseRps / 2));
+        payload.sweep_config = {
+          endpoint: resolvedEndpoint,
+          model: "auto",
+          rps_start: Math.max(1, baseRps - sweepStep),
+          rps_end: baseRps + sweepStep,
+          rps_step: sweepStep,
+          requests_per_step: Math.max(1, config.eval_requests),
+          concurrency: Math.max(1, config.eval_concurrency),
+        };
+      }
+
       const res = await authFetch(`${API}/tuner/start`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...config,
-          auto_benchmark: autoBenchmark,
-          vllm_endpoint: endpoint || config.vllm_endpoint,
-          vllm_namespace: namespace,
-          vllm_is_name: inferenceservice,
-        }),
+        body: JSON.stringify(payload),
       });
        if (!res.ok) throw new Error(`HTTP ${res.status}`);
        const data = await res.json();

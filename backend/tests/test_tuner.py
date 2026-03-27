@@ -8,7 +8,7 @@ from kubernetes.client import AppsV1Api, CoreV1Api, CustomObjectsApi
 from pydantic import ValidationError
 
 from ..main import app
-from ..models.load_test import LoadTestConfig, TuningConfig, TuningTrial
+from ..models.load_test import LoadTestConfig, SweepConfig, SweepResult, TuningConfig, TuningTrial
 from ..services.auto_tuner import AutoTuner, _get_k8s_namespace, _get_vllm_is_name
 from ..services.load_engine import LoadTestEngine
 from ..services.multi_target_collector import MultiTargetMetricsCollector
@@ -159,6 +159,56 @@ def test_tuner_start_endpoint(client):
     assert "success" in data
     assert "message" in data
     assert data["success"] is True
+
+
+def test_tuner_start_endpoint_rejects_when_sweep_running(client):
+    request_data = {
+        "objective": "balanced",
+        "evaluation_mode": "sweep",
+        "n_trials": 1,
+        "eval_requests": 10,
+        "vllm_endpoint": "http://localhost:8000",
+        "sweep_config": {
+            "endpoint": "http://localhost:8000",
+            "model": "auto",
+            "rps_start": 10,
+            "rps_end": 20,
+            "rps_step": 5,
+            "requests_per_step": 10,
+            "concurrency": 4,
+            "max_tokens": 64,
+            "stream": True,
+            "prompt": "hello",
+            "saturation_error_rate": 0.1,
+            "saturation_latency_factor": 3.0,
+            "min_stable_steps": 1,
+        },
+        "max_num_seqs_min": 64,
+        "max_num_seqs_max": 512,
+        "gpu_memory_min": 0.80,
+        "gpu_memory_max": 0.95,
+    }
+
+    handler_globals = None
+    for route in client.app.routes:
+        if getattr(route, "path", None) == "/api/tuner/start":
+            handler_globals = route.endpoint.__globals__
+            break
+    assert handler_globals is not None
+
+    mock_tuner = MagicMock()
+    mock_tuner.is_running = False
+
+    mock_load_engine = MagicMock()
+    mock_load_engine.is_sweep_running.return_value = True
+
+    with patch.dict(handler_globals, {"auto_tuner": mock_tuner, "load_engine": mock_load_engine}):
+        resp = client.post("/api/tuner/start", json=request_data)
+
+    assert resp.status_code == 409
+    data = resp.json()
+    assert "detail" in data
+    assert data["detail"]["error_type"] == "already_running"
 
 
 @pytest.mark.asyncio
@@ -647,6 +697,37 @@ async def test_eval_uses_config_concurrency_and_rps(auto_tuner_instance, mock_k8
     assert captured_configs[1].concurrency == 16
     assert captured_configs[1].rps == 5
     assert captured_configs[1].total_requests == 5
+
+
+@pytest.mark.asyncio
+async def test_objective_uses_run_sweep_when_evaluation_mode_sweep(auto_tuner_instance, mock_k8s_clients):
+    tuner = auto_tuner_instance
+
+    sweep_config = SweepConfig(
+        endpoint="http://mock:8080",
+        model="auto",
+        rps_start=10,
+        rps_end=20,
+        rps_step=5,
+        requests_per_step=10,
+        concurrency=4,
+        max_tokens=64,
+    )
+    sweep_result = SweepResult(config=sweep_config, steps=[], optimal_rps=42.0, total_duration=1.2)
+
+    tuner.evaluation_mode = "sweep"
+    tuner._sweep_config = sweep_config
+    tuner._load_engine.run_sweep = AsyncMock(return_value=sweep_result)
+    tuner._evaluate = AsyncMock(return_value=(1.0, 1.0, 0.1))
+
+    config = TuningConfig(eval_requests=10, warmup_requests=0)
+    score, tps, p99 = await tuner._objective("http://mock:8080", config, trial=None, trial_num=0)
+
+    tuner._load_engine.run_sweep.assert_awaited_once_with(sweep_config)
+    tuner._evaluate.assert_not_awaited()
+    assert score == 42.0
+    assert tps == 42.0
+    assert p99 == 0.0
 
 
 @pytest.mark.asyncio

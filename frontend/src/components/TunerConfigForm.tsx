@@ -8,6 +8,7 @@ interface TunerPhase {
 
 interface TunerConfig {
   objective: string;
+  evaluation_mode: "single" | "sweep";
   n_trials: number;
   vllm_endpoint: string;
   max_num_seqs_min: number;
@@ -154,6 +155,18 @@ export default function TunerConfigForm({
           <label className="label">Trial 수</label>
            <input className="input" type="number" aria-label="Trial 수" min={1} max={100} value={config.n_trials}
              onChange={e => onChange("n_trials", +e.target.value)} />
+        </div>
+        <div>
+          <label className="label">평가 모드</label>
+          <select
+            className="input"
+            aria-label="평가 모드"
+            value={config.evaluation_mode}
+            onChange={e => onChange("evaluation_mode", e.target.value as "single" | "sweep")}
+          >
+            <option value="single">Single (기본 부하 테스트)</option>
+            <option value="sweep">Sweep (optimal RPS 기준)</option>
+          </select>
         </div>
       </div>
 
