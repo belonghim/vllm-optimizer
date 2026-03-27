@@ -275,8 +275,9 @@ log "Waiting for vllm-optimizer-frontend deployment to be ready..."
 oc rollout status deployment/vllm-optimizer-frontend -n "${NAMESPACE}" --timeout=5m
 
 VLLM_DEP_PATH="${SCRIPT_DIR}/openshift/vllm-dependency/${ENV}"
+VLLM_DEP_NAMESPACE="vllm-lab-${ENV}"
 if [[ -d "$VLLM_DEP_PATH" ]]; then
-  log "Applying vllm-dependency overlays (environment: ${ENV}) to namespace ${VLLM_NAMESPACE}..."
+  log "Applying vllm-dependency overlays (environment: ${ENV}) to namespace ${VLLM_DEP_NAMESPACE}..."
   if [[ "$DRY_RUN" == "true" ]]; then
     if command -v kustomize >/dev/null 2>&1; then
       kustomize build "${VLLM_DEP_PATH}" | oc apply --dry-run=client -f -
@@ -290,27 +291,39 @@ if [[ -d "$VLLM_DEP_PATH" ]]; then
       oc kustomize "${VLLM_DEP_PATH}" | oc apply -f -
     fi
   fi
-  ok "vllm-dependency applied: ${ENV} -> namespace ${VLLM_NAMESPACE}"
+  ok "vllm-dependency applied: ${ENV} -> namespace ${VLLM_DEP_NAMESPACE}"
 else
   warn "vllm-dependency path not found: ${VLLM_DEP_PATH}; skipping"
 fi
 
+# subst_env: portable envsubst replacement using sed (envsubst may not be installed)
+subst_env() {
+  sed \
+    -e "s|\${VLLM_NAMESPACE}|${VLLM_NAMESPACE}|g" \
+    -e "s|\${VLLM_DEPLOYMENT_NAME}|${VLLM_DEPLOYMENT_NAME}|g" \
+    -e "s|\${NAMESPACE}|${NAMESPACE}|g"
+}
+
 if [[ "${ENV}" == "dev" ]]; then
   LLMIS_RBAC_PATH="${SCRIPT_DIR}/openshift/vllm-dependency/llmis-rbac"
   if [[ -d "$LLMIS_RBAC_PATH" ]]; then
-    log "Applying LLMIS monitoring RBAC to namespace ${VLLM_NAMESPACE}..."
-    if [[ "$DRY_RUN" == "true" ]]; then
-      for f in "${LLMIS_RBAC_PATH}"/*.yaml; do
-        VLLM_NAMESPACE="$VLLM_NAMESPACE" VLLM_DEPLOYMENT_NAME="$VLLM_DEPLOYMENT_NAME" NAMESPACE="$NAMESPACE" \
-          envsubst < "$f" | oc apply --dry-run=client -f -
-      done
+    # Use nullglob so the loop is skipped when no *.yaml files exist
+    shopt -s nullglob
+    yaml_files=("${LLMIS_RBAC_PATH}"/*.yaml)
+    shopt -u nullglob
+    if [[ ${#yaml_files[@]} -eq 0 ]]; then
+      warn "No YAML files found in ${LLMIS_RBAC_PATH}; skipping LLMIS RBAC apply"
     else
-      for f in "${LLMIS_RBAC_PATH}"/*.yaml; do
-        VLLM_NAMESPACE="$VLLM_NAMESPACE" VLLM_DEPLOYMENT_NAME="$VLLM_DEPLOYMENT_NAME" NAMESPACE="$NAMESPACE" \
-          envsubst < "$f" | oc apply -f - || { warn "Failed to apply $(basename "$f") to ${VLLM_NAMESPACE}"; exit 1; }
+      log "Applying LLMIS monitoring RBAC to namespace ${VLLM_NAMESPACE}..."
+      for f in "${yaml_files[@]}"; do
+        if [[ "$DRY_RUN" == "true" ]]; then
+          subst_env < "$f" | oc apply --dry-run=client -f -
+        else
+          subst_env < "$f" | oc apply -f - || { warn "Failed to apply $(basename "$f") to ${VLLM_NAMESPACE}"; exit 1; }
+        fi
       done
+      ok "LLMIS monitoring RBAC applied: ${VLLM_NAMESPACE}"
     fi
-    ok "LLMIS monitoring RBAC applied: ${VLLM_NAMESPACE}"
   fi
 fi
 
