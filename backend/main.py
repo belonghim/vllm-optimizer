@@ -14,6 +14,7 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from errors import OptimizerError
 from routers import alerts, benchmark, load_test, metrics, sla, status, tuner, vllm_config
 from routers import config as config_router
 from routers.status import check_prometheus_health
@@ -148,6 +149,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(OptimizerError)
+async def optimizer_error_handler(request: Request, exc: OptimizerError) -> JSONResponse:
+    """Handle OptimizerError and subclasses globally."""
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": type(exc).__name__,
+            "message": exc.message,
+            "detail": exc.detail,
+        },
+    )
+
 
 # Mount routers under /api prefix with route-specific paths
 # Note: routers are imported directly as APIRouter instances, not modules
