@@ -217,7 +217,7 @@ class Storage:
                 await self._conn.execute("ALTER TABLE sla_profiles_v2 RENAME TO sla_profiles")
                 await self._conn.commit()
                 logger.info("[Storage] Migrated sla_profiles: removed legacy 'model' column")
-        except sqlite3.Error as e:
+        except sqlite3.OperationalError as e:
             logger.warning("[Storage] sla_profiles model column migration failed: %s", e)
 
         try:
@@ -241,7 +241,7 @@ class Storage:
                 await self._conn.execute("ALTER TABLE sla_profiles_v2 RENAME TO sla_profiles")
                 await self._conn.commit()
                 logger.info("[Storage] Migrated sla_profiles: removed benchmark_ids_json column")
-        except sqlite3.Error as e:
+        except sqlite3.OperationalError as e:
             logger.warning("[Storage] sla_profiles benchmark_ids_json migration failed: %s", e)
 
         # Tuning sessions table
@@ -386,7 +386,7 @@ class Storage:
                 except (ValueError, KeyError, TypeError) as e:
                     logger.warning("[Storage] Failed to parse benchmark row %s: %s", row["id"], e)
             return benchmarks
-        except sqlite3.Error as e:
+        except sqlite3.OperationalError as e:
             logger.error("[Storage] Failed to list benchmarks: %s", e)
             return []
 
@@ -466,7 +466,7 @@ class Storage:
             id_order = {bid: i for i, bid in enumerate(ids)}
             benchmarks.sort(key=lambda b: id_order.get(b.id if b.id is not None else -1, 999))
             return benchmarks
-        except sqlite3.Error as e:
+        except sqlite3.OperationalError as e:
             logger.error("[Storage] Failed to get benchmarks by ids: %s", e)
             return []
 
@@ -590,7 +590,7 @@ class Storage:
                 except (json.JSONDecodeError, TypeError) as e:
                     logger.warning("[Storage] Failed to parse load test row: %s", e)
             return history
-        except sqlite3.Error as e:
+        except sqlite3.OperationalError as e:
             logger.error("[Storage] Failed to get load test history: %s", e)
             return []
 
@@ -661,7 +661,7 @@ class Storage:
                 except (json.JSONDecodeError, TypeError, ValueError) as e:
                     logger.warning("[Storage] Failed to parse trial row %s: %s", row[0], e)
             return trials
-        except sqlite3.Error as e:
+        except sqlite3.OperationalError as e:
             logger.error("[Storage] Failed to get trials: %s", e)
             return []
 
@@ -767,7 +767,7 @@ class Storage:
                 }
                 for row in rows
             ]
-        except sqlite3.Error as e:
+        except sqlite3.OperationalError as e:
             logger.error("[Storage] Failed to list tuning sessions: %s", e)
             return []
 
@@ -1161,7 +1161,7 @@ class Storage:
                 except (ValueError, TypeError) as e:
                     logger.warning("[Storage] Failed to parse SLA profile row %s: %s", row[0], e)
             return profiles
-        except sqlite3.Error as e:
+        except sqlite3.OperationalError as e:
             logger.error("[Storage] Failed to list SLA profiles: %s", e)
             return []
 
@@ -1303,7 +1303,7 @@ class Storage:
                 except (json.JSONDecodeError, TypeError) as e:
                     logger.warning("[Storage] Failed to parse sweep row %s: %s", row[0], e)
             return items, total
-        except sqlite3.Error as e:
+        except sqlite3.OperationalError as e:
             logger.error("[Storage] Failed to get sweep history: %s", e)
             return [], 0
 
