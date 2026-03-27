@@ -9,7 +9,6 @@ import logging
 import os
 from typing import Any
 
-import httpx
 from fastapi import APIRouter
 from services.shared import runtime_config
 
@@ -53,6 +52,8 @@ async def get_interrupted_runs() -> dict[str, Any]:
 
 async def check_prometheus_health() -> bool:
     """Check Prometheus/Thanos connectivity with a lightweight query."""
+    from services.shared import internal_client
+
     try:
         thanos_url = os.getenv("PROMETHEUS_URL", "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091")
 
@@ -65,12 +66,14 @@ async def check_prometheus_health() -> bool:
         headers = {"Authorization": f"Bearer {token}"} if token else {}
 
         query = "1"
-        async with httpx.AsyncClient(timeout=3, verify=False) as client:
-            resp = await client.get(
-                f"{thanos_url}/api/v1/query",
-                headers=headers,
-                params={"query": query},
-            )
-            return resp.status_code == 200
-    except (httpx.HTTPError, OSError):
+        if not internal_client:
+            return False
+        resp = await internal_client.get(
+            f"{thanos_url}/api/v1/query",
+            headers=headers,
+            params={"query": query},
+            timeout=3,
+        )
+        return resp.status_code == 200
+    except Exception:
         return False

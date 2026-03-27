@@ -11,6 +11,7 @@ import time
 from contextlib import asynccontextmanager, suppress
 from typing import Any
 
+import httpx
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -52,6 +53,16 @@ except Exception as e:  # intentional: fail-open
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import services.shared as shared_module
+
+    # ── Initialize httpx clients ──
+    try:
+        shared_module.internal_client = httpx.AsyncClient(verify=False)
+        shared_module.external_client = httpx.AsyncClient(verify=True)
+        logger.info("[Lifespan] HTTP clients initialized")
+    except Exception as e:
+        logger.warning("[Lifespan] HTTP client initialization failed (continuing): %s", e)
+
     # ── Storage initialization (fail-open) ──
     try:
         from services.shared import storage
@@ -114,6 +125,18 @@ async def lifespan(app: FastAPI):
         logger.info("[Lifespan] Storage closed")
     except Exception as e:
         logger.debug("[Lifespan] Storage close failed (non-critical): %s", e)
+
+    # ── Close httpx clients ──
+    try:
+        import services.shared as shared_module
+
+        if shared_module.internal_client:
+            await shared_module.internal_client.aclose()
+        if shared_module.external_client:
+            await shared_module.external_client.aclose()
+        logger.info("[Lifespan] HTTP clients closed")
+    except Exception as e:
+        logger.debug("[Lifespan] HTTP client close failed (non-critical): %s", e)
 
 
 app = FastAPI(

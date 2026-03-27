@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-27] - Feature: Sweep 프로파일 + ITL 메트릭 + 프론트엔드 UX
+
+**Status**: Completed
+
+부하 테스트 엔진에 Sweep 프로파일(자동 포화점 탐지)과 ITL(Inter-Token Latency) 메트릭을 추가하고, 프론트엔드에 Time Range Selector, 부하 테스트 프리셋, SLA 위반 알림을 구현.
+
+### Added
+- **`backend/models/load_test.py`**: `RequestResult`에 ITL 필드 추가 (`token_timestamps`, `itl_mean`, `itl_p95`, `itl_p99`). `SweepConfig`, `SweepStepResult`, `SweepResult` 모델 추가.
+- **`backend/services/load_engine.py`**: `_dispatch_request()` 스트리밍 루프에 ITL 계산 인라인 추가. `LoadTestEngine.run_sweep()` — RPS 범위 순회, 포화점 탐지(에러율/지연 배수), SSE `sweep_step` 브로드캐스트.
+- **`backend/routers/load_test.py`**: `POST /api/load_test/sweep` 엔드포인트. `/status`에 `sweep_result`, `is_sweeping` 필드 추가.
+- **`frontend/src/constants.ts`**: `LOAD_TEST_PRESETS` (Quick Smoke/Standard/Stress), `SWEEP_PRESETS` (Quick Sweep/Full Sweep).
+- **`frontend/src/components/Toast.tsx`**: `react-hot-toast` 기반 `showSlaViolation()`.
+- **`frontend/src/pages/MonitorPage.tsx`**: Time Range Selector (1h/6h/24h/7d). SLA 위반 토스트 (30초 디바운스).
+- **`frontend/src/pages/LoadTestPage.tsx`**: 부하 테스트 프리셋 버튼. "일반 테스트"/"Sweep 테스트" 탭. Sweep 폼 + 실시간 step 테이블 + optimal_rps 카드.
+
+### Tests
+- ITL + Sweep 단위 테스트 334개 전체 통과.
+
 ## [2026-03-27] - Bugfix: LLMIS cr_type 기본값 불일치 수정
 
 **Status**: Completed

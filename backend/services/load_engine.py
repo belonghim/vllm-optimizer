@@ -96,13 +96,15 @@ class LoadTestEngine:
 
     async def _sample_metrics(self, samples: list[dict[str, float]], stop_event: asyncio.Event):
         """Background task: sample CPU and GPU metrics every 30 seconds."""
+        from services.shared import external_client
+
         proc = psutil.Process(os.getpid())
         while not stop_event.is_set():
             cpu = await asyncio.to_thread(proc.cpu_percent)
             gpu = 0.0
             try:
-                async with httpx.AsyncClient(timeout=5) as client:
-                    resp = await client.get("http://localhost:8000/api/metrics/latest")
+                if external_client:
+                    resp = await external_client.get("http://localhost:8000/api/metrics/latest", timeout=5)
                     if resp.status_code == 200:
                         gpu = resp.json().get("gpu_util", 0.0)
             except Exception as e:  # intentional: non-critical
@@ -124,6 +126,8 @@ class LoadTestEngine:
         return semaphore, metric_samples, sample_stop, sampling_task, interval
 
     async def _preflight_check(self, config: "LoadTestConfig") -> dict[str, Any]:
+        from services.shared import internal_client
+
         if config.total_requests < 1:
             return {
                 "success": False,
@@ -141,8 +145,9 @@ class LoadTestEngine:
         models_url = f"{endpoint}/v1/models"
 
         try:
-            async with httpx.AsyncClient(timeout=5.0, verify=False) as client:
-                response = await client.get(models_url)
+            if not internal_client:
+                return {"success": False, "error": "HTTP client not initialized", "error_type": "internal"}
+            response = await internal_client.get(models_url, timeout=5.0)
         except httpx.ConnectError as e:
             return {
                 "success": False,
@@ -194,6 +199,8 @@ class LoadTestEngine:
         self, config: LoadTestConfig, semaphore: asyncio.Semaphore, request_id: int
     ) -> RequestResult:
         """Send a single async HTTP request."""
+        from services.shared import external_client
+
         async with semaphore:
             payload = {
                 "model": config.model,
@@ -209,49 +216,57 @@ class LoadTestEngine:
             itl_p95: float | None = None
             itl_p99: float | None = None
             try:
-                async with httpx.AsyncClient(timeout=120) as client:
-                    if config.stream:
-                        usage_tokens = 0
-                        token_timestamps = []
-                        async with client.stream(
-                            "POST",
-                            f"{config.endpoint}/v1/completions",
-                            json={
-                                **payload,
-                                "stream": True,
-                                "stream_options": {"include_usage": True},
-                            },
-                        ) as resp:
-                            async for chunk in resp.aiter_lines():
-                                if chunk.startswith("data: ") and chunk != "data: [DONE]":
-                                    token_timestamps.append(time.time())
-                                    if ttft is None:
-                                        ttft = time.time() - t0
-                                    output_tokens += 1
-                                    try:
-                                        data = json.loads(chunk[6:])
-                                        if data.get("usage") and data["usage"].get("completion_tokens"):
-                                            usage_tokens = data["usage"]["completion_tokens"]
-                                    except (json.JSONDecodeError, KeyError):
-                                        pass
-                        if usage_tokens:
-                            output_tokens = usage_tokens
-                        if len(token_timestamps) >= 2:
-                            deltas = [
-                                token_timestamps[i + 1] - token_timestamps[i] for i in range(len(token_timestamps) - 1)
-                            ]
-                            itl_mean = sum(deltas) / len(deltas)
-                            itl_p95 = sorted(deltas)[int(len(deltas) * 0.95)]
-                            itl_p99 = sorted(deltas)[int(len(deltas) * 0.99)]
-                        else:
-                            itl_mean = itl_p95 = itl_p99 = None
+                if not external_client:
+                    return RequestResult(
+                        req_id=request_id,
+                        success=False,
+                        latency=time.time() - t0,
+                        error="HTTP client not initialized",
+                    )
+                if config.stream:
+                    usage_tokens = 0
+                    token_timestamps = []
+                    async with external_client.stream(
+                        "POST",
+                        f"{config.endpoint}/v1/completions",
+                        json={
+                            **payload,
+                            "stream": True,
+                            "stream_options": {"include_usage": True},
+                        },
+                        timeout=120,
+                    ) as resp:
+                        async for chunk in resp.aiter_lines():
+                            if chunk.startswith("data: ") and chunk != "data: [DONE]":
+                                token_timestamps.append(time.time())
+                                if ttft is None:
+                                    ttft = time.time() - t0
+                                output_tokens += 1
+                                try:
+                                    data = json.loads(chunk[6:])
+                                    if data.get("usage") and data["usage"].get("completion_tokens"):
+                                        usage_tokens = data["usage"]["completion_tokens"]
+                                except (json.JSONDecodeError, KeyError):
+                                    pass
+                    if usage_tokens:
+                        output_tokens = usage_tokens
+                    if len(token_timestamps) >= 2:
+                        deltas = [
+                            token_timestamps[i + 1] - token_timestamps[i] for i in range(len(token_timestamps) - 1)
+                        ]
+                        itl_mean = sum(deltas) / len(deltas)
+                        itl_p95 = sorted(deltas)[int(len(deltas) * 0.95)]
+                        itl_p99 = sorted(deltas)[int(len(deltas) * 0.99)]
                     else:
-                        resp = await client.post(
-                            f"{config.endpoint}/v1/completions",
-                            json=payload,
-                        )
-                        data = resp.json()
-                        output_tokens = data["usage"]["completion_tokens"]
+                        itl_mean = itl_p95 = itl_p99 = None
+                else:
+                    resp = await external_client.post(
+                        f"{config.endpoint}/v1/completions",
+                        json=payload,
+                        timeout=120,
+                    )
+                    data = resp.json()
+                    output_tokens = data["usage"]["completion_tokens"]
                 latency = time.time() - t0
                 return RequestResult(
                     req_id=request_id,

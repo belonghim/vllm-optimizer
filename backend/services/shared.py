@@ -1,5 +1,7 @@
 import os
 
+import httpx
+
 from services.load_engine import load_engine  # re-export existing singleton
 from services.multi_target_collector import MultiTargetMetricsCollector
 from services.runtime_config_instance import runtime_config
@@ -14,10 +16,15 @@ storage = Storage(os.getenv("STORAGE_PATH", "/data/app.db"))
 
 storage_health_monitor = StorageHealthMonitor(storage)
 
+internal_client: httpx.AsyncClient | None = None
+external_client: httpx.AsyncClient | None = None
+
 __all__ = [
     "runtime_config",
     "multi_target_collector",
     "load_engine",
     "storage",
     "storage_health_monitor",
+    "internal_client",
+    "external_client",
 ]

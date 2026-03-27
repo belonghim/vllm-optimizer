@@ -420,6 +420,8 @@ class MultiTargetMetricsCollector:
         target.history.append(metrics)
 
     async def _query_prometheus(self, namespace: str, is_name: str, cr_type: str | None = None) -> dict[str, float]:
+        from services.shared import internal_client
+
         if cr_type is None:
             cr_type = runtime_config.cr_type
         queries = self._build_target_queries(namespace, is_name, cr_type)
@@ -427,10 +429,12 @@ class MultiTargetMetricsCollector:
         if self._token:
             headers["Authorization"] = f"Bearer {self._token}"
 
-        async with httpx.AsyncClient(timeout=5, verify=False, headers=headers) as client:
-            responses = await asyncio.gather(
-                *(self._fetch_prometheus_metric(client, metric_name, query) for metric_name, query in queries.items())
-            )
+        if not internal_client:
+            return {}
+
+        responses = await asyncio.gather(
+            *(self._fetch_prometheus_metric(headers, metric_name, query) for metric_name, query in queries.items())
+        )
 
         result: dict[str, float] = {}
         missing_metrics: list[str] = []
@@ -447,14 +451,18 @@ class MultiTargetMetricsCollector:
 
     async def _fetch_prometheus_metric(
         self,
-        client_instance: httpx.AsyncClient,
+        headers: dict[str, str],
         metric_name: str,
         query: str,
     ) -> tuple[str, float | None]:
+        from services.shared import internal_client
+
         try:
-            response = await client_instance.get(
+            response = await internal_client.get(
                 f"{PROMETHEUS_URL}/api/v1/query",
                 params={"query": query},
+                headers=headers,
+                timeout=5,
             )
             _ = response.raise_for_status()
             data = cast(dict[str, Any], response.json())

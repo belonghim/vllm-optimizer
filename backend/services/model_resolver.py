@@ -19,15 +19,18 @@ async def resolve_model_name(endpoint: str, fallback: str = "auto") -> str:
     Returns:
         해석된 모델명 또는 fallback
     """
+    from services.shared import internal_client
+
     try:
-        async with httpx.AsyncClient(timeout=10, verify=False) as client:
-            resp = await client.get(f"{endpoint}/v1/models")
-            if resp.status_code == 200:
-                models_data = resp.json().get("data", [])
-                if models_data:
-                    model_name = models_data[0]["id"]
-                    logger.info("[ModelResolver] Resolved model name: %s", model_name)
-                    return model_name
+        if not internal_client:
+            return fallback
+        resp = await internal_client.get(f"{endpoint}/v1/models", timeout=10)
+        if resp.status_code == 200:
+            models_data = resp.json().get("data", [])
+            if models_data:
+                model_name = models_data[0]["id"]
+                logger.info("[ModelResolver] Resolved model name: %s", model_name)
+                return model_name
     except Exception as e:  # intentional: non-critical
         logger.warning("[ModelResolver] Failed to resolve model name, using '%s': %s", fallback, e)
     return fallback
