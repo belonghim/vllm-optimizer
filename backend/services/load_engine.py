@@ -17,7 +17,7 @@ from urllib.parse import urlparse
 
 import httpx
 import psutil
-from models.load_test import LoadTestConfig, RequestResult
+from models.load_test import LoadTestConfig, RequestResult, SweepConfig, SweepStepResult, SweepResult
 
 logger = logging.getLogger(__name__)
 
@@ -237,7 +237,9 @@ class LoadTestEngine:
                         if usage_tokens:
                             output_tokens = usage_tokens
                         if len(token_timestamps) >= 2:
-                            deltas = [token_timestamps[i + 1] - token_timestamps[i] for i in range(len(token_timestamps) - 1)]
+                            deltas = [
+                                token_timestamps[i + 1] - token_timestamps[i] for i in range(len(token_timestamps) - 1)
+                            ]
                             itl_mean = sum(deltas) / len(deltas)
                             itl_p95 = sorted(deltas)[int(len(deltas) * 0.95)]
                             itl_p99 = sorted(deltas)[int(len(deltas) * 0.99)]
@@ -374,14 +376,18 @@ class LoadTestEngine:
         try:
             storage = shared_module.storage
             import time as _time
-            await storage.save_load_test({
-                "test_id": f"run-{int(_time.time())}",
-                "config": config.model_dump(),
-                "result": final_stats,
-                "timestamp": _time.time(),
-            })
+
+            await storage.save_load_test(
+                {
+                    "test_id": f"run-{int(_time.time())}",
+                    "config": config.model_dump(),
+                    "result": final_stats,
+                    "timestamp": _time.time(),
+                }
+            )
         except Exception as _e:
             import logging as _logging
+
             _logging.getLogger(__name__).warning("Failed to persist load test result: %s", _e)
         return final_stats
 
@@ -402,7 +408,8 @@ class LoadTestEngine:
         _running_row_id: int | None = None
         try:
             try:
-                from services.shared import storage as _storage
+                shared_module = importlib.import_module("services.shared")
+                _storage = shared_module.storage
 
                 _running_row_id = await _storage.set_running("loadtest")
             except Exception as e:
@@ -485,7 +492,8 @@ class LoadTestEngine:
         finally:
             if _running_row_id is not None:
                 try:
-                    from services.shared import storage as _storage
+                    shared_module = importlib.import_module("services.shared")
+                    _storage = shared_module.storage
 
                     await _storage.clear_running(_running_row_id)
                 except Exception as e:
@@ -495,6 +503,103 @@ class LoadTestEngine:
         self._stop_event.set()
         async with self._state_lock:
             self._state.status = LoadTestStatus.STOPPED
+
+    async def run_sweep(self, config: SweepConfig) -> SweepResult:
+        async with self._state_lock:
+            if self._state.status == LoadTestStatus.RUNNING:
+                return SweepResult(
+                    config=config,
+                    steps=[],
+                    total_duration=0.0,
+                )
+
+        sweep_start = time.time()
+        steps: list[SweepStepResult] = []
+        step1_p99: float | None = None
+        consecutive_100pct_failures = 0
+
+        rps_range = range(config.rps_start, config.rps_end + 1, config.rps_step)
+        for step_num, rps in enumerate(rps_range, start=1):
+            if self._state.status == LoadTestStatus.STOPPED:
+                break
+
+            self._stop_event.clear()
+
+            step_config = LoadTestConfig(
+                endpoint=config.endpoint,
+                model=config.model,
+                prompt_template=config.prompt,
+                total_requests=config.requests_per_step,
+                concurrency=config.concurrency,
+                rps=rps,
+                max_tokens=config.max_tokens,
+                temperature=0.7,
+                stream=config.stream,
+            )
+
+            step_result_raw = await self.run(step_config, skip_preflight=True)
+
+            if self._state.status == LoadTestStatus.STOPPED:
+                break
+
+            total_in_step = step_result_raw.get("total", 0)
+            failed_in_step = step_result_raw.get("failed", 0)
+
+            if total_in_step > 0 and failed_in_step == total_in_step:
+                consecutive_100pct_failures += 1
+            else:
+                consecutive_100pct_failures = 0
+            if consecutive_100pct_failures >= 3:
+                break
+
+            error_rate = failed_in_step / max(total_in_step, 1)
+            p99_latency = step_result_raw.get("latency", {}).get("p99", 0.0) or 0.0
+
+            if step_num == 1:
+                step1_p99 = p99_latency
+
+            saturated = False
+            saturation_reason: str | None = None
+
+            if error_rate > config.saturation_error_rate:
+                saturated = True
+                saturation_reason = f"Error rate {error_rate:.1%} exceeded threshold {config.saturation_error_rate:.1%}"
+            elif step1_p99 and step1_p99 > 0 and p99_latency > step1_p99 * config.saturation_latency_factor:
+                saturated = True
+                saturation_reason = (
+                    f"P99 latency {p99_latency:.3f}s > step1 {step1_p99:.3f}s × {config.saturation_latency_factor}"
+                )
+
+            step_obj = SweepStepResult(
+                step=step_num,
+                rps=float(rps),
+                stats=step_result_raw,
+                saturated=saturated,
+                saturation_reason=saturation_reason,
+            )
+            steps.append(step_obj)
+
+            await self._broadcast({"type": "sweep_step", "data": step_obj.model_dump()})
+
+            if saturated:
+                break
+
+        saturation_point: float | None = None
+        optimal_rps: float | None = None
+        saturated_steps = [s for s in steps if s.saturated]
+        if saturated_steps:
+            saturation_point = saturated_steps[0].rps
+            non_saturated = [s for s in steps if not s.saturated]
+            if non_saturated:
+                optimal_rps = non_saturated[-1].rps
+
+        return SweepResult(
+            config=config,
+            steps=steps,
+            saturation_point=saturation_point,
+            optimal_rps=optimal_rps,
+            total_duration=round(time.time() - sweep_start, 2),
+        )
 
     def _compute_stats(self) -> dict[str, Any]:
         results = self._state.results
@@ -536,7 +641,9 @@ class LoadTestEngine:
                 "mean": round(statistics.mean(itl_means), 4) if itl_means else None,
                 "p95": round(_percentile(itl_means, 95), 4) if itl_means else None,
                 "p99": round(_percentile(itl_means, 99), 4) if itl_means else None,
-            } if itl_means else None,
+            }
+            if itl_means
+            else None,
         }
 
 
