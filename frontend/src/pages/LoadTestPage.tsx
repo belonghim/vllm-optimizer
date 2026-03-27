@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { authFetch } from '../utils/authFetch';
 import { useMockData } from "../contexts/MockDataContext";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
-import { API } from "../constants";
+import { API, LOAD_TEST_PRESETS } from "../constants";
 import { ERROR_MESSAGES } from "../constants/errorMessages";
 import { useThemeColors } from "../contexts/ThemeContext";
 import { fmt } from "../utils/format";
@@ -148,11 +148,37 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
 
   const handleConfigChange = useCallback((key: string, value: string | number | boolean) => setConfig(c => ({ ...c, [key]: value })), []);
 
+  const applyPreset = useCallback((preset: typeof LOAD_TEST_PRESETS[number]) => {
+    setConfig(c => ({
+      ...c,
+      total_requests: preset.total_requests,
+      concurrency: preset.concurrency,
+      rps: preset.rps,
+      max_tokens: preset.max_tokens,
+      stream: preset.stream,
+    }));
+  }, []);
+
   const progressFillStyle = { width: `${progress}%` };
   const gpuEff = result ? calcGpuEfficiency(result) : null;
 
   return (
     <div className="flex-col-16">
+      <div className="panel" style={{ padding: '8px 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <span className="label label-no-mb" style={{ marginRight: '4px' }}>PRESETS:</span>
+          {LOAD_TEST_PRESETS.map(preset => (
+            <button
+              key={preset.name}
+              className="btn btn-outline"
+              title={preset.description}
+              onClick={() => applyPreset(preset)}
+            >
+              {preset.name}
+            </button>
+          ))}
+        </div>
+      </div>
       <LoadTestConfig config={config} onChange={handleConfigChange} onSubmit={start}
         onStop={stop} isRunning={status === "running"} status={status}
         initialConfig={pendingConfig} onInitialConfigApplied={onConfigConsumed} />
