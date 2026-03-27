@@ -150,6 +150,10 @@ class CRAdapter(abc.ABC):
     def check_ready(self, status: dict[str, Any]) -> bool:
         raise NotImplementedError
 
+    @abc.abstractmethod
+    def read_extra_args(self, spec: dict[str, Any]) -> list[str]:
+        raise NotImplementedError
+
 
 class InferenceServiceAdapter(CRAdapter):
     def api_group(self) -> str:
@@ -207,6 +211,10 @@ class InferenceServiceAdapter(CRAdapter):
 
     def check_ready(self, status: dict[str, Any]) -> bool:
         return _is_ready_condition(status)
+
+    def read_extra_args(self, spec: dict[str, Any]) -> list[str]:
+        args = spec.get("predictor", {}).get("model", {}).get("args") or []
+        return [arg for arg in args if not arg.startswith(TUNING_ARG_PREFIXES)]
 
 
 class LLMInferenceServiceAdapter(CRAdapter):
@@ -322,6 +330,11 @@ class LLMInferenceServiceAdapter(CRAdapter):
 
     def check_ready(self, status: dict[str, Any]) -> bool:
         return _is_ready_condition(status)
+
+    def read_extra_args(self, spec: dict[str, Any]) -> list[str]:
+        value = self._get_additional_args_value(spec)
+        args = _split_space_args(value)
+        return [arg for arg in args if not arg.startswith(TUNING_ARG_PREFIXES)]
 
 
 def get_cr_adapter(cr_type: str | None = None) -> CRAdapter:

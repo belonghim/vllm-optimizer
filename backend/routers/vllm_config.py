@@ -95,7 +95,14 @@ async def get_vllm_config() -> dict[str, Any]:
         data = adapter.read_args(spec)
         storage_uri = adapter.read_model_uri(spec)
         resources = adapter.read_resources(spec)
-        return {"success": True, "data": data, "storageUri": storage_uri, "resources": resources}
+        extra_args = adapter.read_extra_args(spec)
+        return {
+            "success": True,
+            "data": data,
+            "storageUri": storage_uri,
+            "resources": resources,
+            "extraArgs": extra_args,
+        }
     except K8sApiException as e:
         logger.error("[VllmConfig] Failed to read InferenceService: %s", e)
         raise HTTPException(status_code=500, detail=str(e)) from e
