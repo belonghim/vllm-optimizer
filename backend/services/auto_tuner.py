@@ -11,7 +11,9 @@ import time
 from contextlib import suppress
 from typing import Any, cast
 
+import httpx
 import optuna
+from errors import TunerError  # pyright: ignore[reportImplicitRelativeImport]
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
 from kubernetes.client.exceptions import ApiException
@@ -277,7 +279,7 @@ class AutoTuner:
                 state_initialized = True
                 try:
                     _running_row_id = await storage.set_running("tuner")
-                except Exception as e:
+                except (OSError, RuntimeError, ValueError) as e:
                     logger.warning("[AutoTuner] Failed to record running state: %s", e)
                 await self._init_tuning_state(config)
 
@@ -342,7 +344,7 @@ class AutoTuner:
 
                 try:
                     score, tps, p99_lat = await self._run_trial_evaluation(trial)
-                except Exception as e:
+                except Exception as e:  # intentional: per-trial evaluation failure must not abort entire tuning session
                     logger.warning("[AutoTuner] Trial %d evaluation failed: %s", trial_num, e)
                     await self._broadcast(
                         {
@@ -400,7 +402,7 @@ class AutoTuner:
                 if _running_row_id is not None:
                     try:
                         await storage.clear_running(_running_row_id)
-                    except Exception as e:
+                    except (OSError, RuntimeError, ValueError) as e:
                         logger.warning("[AutoTuner] Failed to clear running state: %s", e)
 
     async def _setup_study(self, config: TuningConfig, storage_url: str | None) -> tuple[str, optuna.Study]:
@@ -449,9 +451,21 @@ class AutoTuner:
                         },
                     }
                 )
-                study = optuna.create_study(sampler=sampler, pruner=pruner, **direction_kwarg)  # type: ignore[arg-type]
+                try:
+                    study = optuna.create_study(sampler=sampler, pruner=pruner, **direction_kwarg)  # type: ignore[arg-type]
+                except optuna.exceptions.OptunaError as e:
+                    raise TunerError(
+                        "Optuna study initialization failed after storage fallback",
+                        detail={"storage_url": storage_url, "objective": config.objective},
+                    ) from e
         else:
-            study = optuna.create_study(sampler=sampler, pruner=pruner, **direction_kwarg)  # type: ignore[arg-type]
+            try:
+                study = optuna.create_study(sampler=sampler, pruner=pruner, **direction_kwarg)  # type: ignore[arg-type]
+            except optuna.exceptions.OptunaError as e:
+                raise TunerError(
+                    "Optuna study initialization failed",
+                    detail={"storage_url": storage_url, "objective": config.objective},
+                ) from e
 
         return direction, study
 
@@ -560,7 +574,7 @@ class AutoTuner:
                 for recorded in self._trials:
                     recorded.is_pareto_optimal = recorded.trial_id in pareto_trial_numbers
             self._pareto_front_size = len(pareto_trial_numbers)
-        except Exception as e:  # intentional: non-critical
+        except (optuna.exceptions.OptunaError, RuntimeError, ValueError, TypeError) as e:
             logger.warning("[AutoTuner] Pareto front update failed: %s", e)
 
     async def _handle_trial_result(self, trial, trial_num: int, score, tps, p99_lat, trial_start, params) -> bool:
@@ -584,7 +598,7 @@ class AutoTuner:
                 self._best_score_history.append(self._best_trial.score if self._best_trial else 0)
             try:
                 await storage.save_trial(t)
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError) as e:
                 logger.warning("[AutoTuner] Failed to persist trial %d to storage: %s", trial_num, e)
                 await self._broadcast_persistence_warning_once()
             await self._emit_trial_metrics(trial_start, "pruned")
@@ -621,7 +635,7 @@ class AutoTuner:
             self._best_score_history.append(self._best_trial.score if self._best_trial else score)
         try:
             await storage.save_trial(t)
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError) as e:
             logger.warning("[AutoTuner] Failed to persist trial %d to storage: %s", trial_num, e)
             await self._broadcast_persistence_warning_once()
         await self._emit_trial_metrics(trial_start, "completed")
@@ -641,7 +655,7 @@ class AutoTuner:
 
         try:
             model_name = await asyncio.wait_for(resolve_model_name(self._vllm_endpoint), timeout=3.0)
-        except Exception:
+        except (TimeoutError, httpx.HTTPError, ValueError):
             model_name = os.getenv("VLLM_MODEL", "qwen2-5-7b-instruct")
 
         benchmark = Benchmark(
@@ -697,7 +711,7 @@ class AutoTuner:
                                 },
                             }
                         )
-                except Exception as e:
+                except (OSError, RuntimeError, ValueError, TunerError) as e:
                     logger.warning("[AutoTuner] Auto benchmark save failed: %s", e)
                     await self._broadcast(
                         {
@@ -732,7 +746,7 @@ class AutoTuner:
                 await asyncio.wait_for(asyncio.shield(pending_task), timeout=10.0)
             except (TimeoutError, asyncio.CancelledError):
                 pending_task.cancel()
-            except Exception as exc:
+            except (RuntimeError, ValueError, OSError) as exc:
                 logger.warning("[AutoTuner] Pending tuning task failed during stop: %s", exc)
 
         async with self._lock:
@@ -1052,6 +1066,6 @@ class AutoTuner:
         try:
             importance = await asyncio.to_thread(optuna.importance.get_param_importances, self._study)
             return dict(importance)
-        except Exception as e:
+        except (optuna.exceptions.OptunaError, RuntimeError, ValueError, TypeError) as e:
             logger.warning("[AutoTuner] get_importance failed: %s", e)
             return {}
