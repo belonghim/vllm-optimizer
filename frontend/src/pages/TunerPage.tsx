@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useSSE } from "../hooks/useSSE";
 import { authFetch } from '../utils/authFetch';
 import { API } from "../constants";
 import { ERROR_MESSAGES } from "../constants/errorMessages";
@@ -158,72 +159,31 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
     return () => { controller.abort(); clearInterval(id); };
   }, [isActive, fetchStatus]);
 
-  useEffect(() => {
-    if (!isActive || !status.running) return;
-    if (isMockEnabled) return;
+  const tunerSSEUrl = isActive && status.running && !isMockEnabled && !error
+    ? `${API}/tuner/stream`
+    : null;
 
-    let retryCount = 0;
-    let retryTimer: ReturnType<typeof setTimeout> | null = null;
-    let currentEs: EventSource | null = null;
-
-    const openConnection = () => {
-      const es = new EventSource(`${API}/tuner/stream`);
-      currentEs = es;
-
-      es.onmessage = (event) => {
-        retryCount = 0;
-        try {
-          const data = JSON.parse(event.data as string);
-          if (data.type === "phase") {
-            setCurrentPhase(data.data);
-          }
-           if (data.type === "tuning_error") {
-             const payload = data.data as SSEErrorPayload | undefined;
-             setError(payload?.error ?? ERROR_MESSAGES.TUNER.ERROR_DEFAULT);
-             es.close();
-             return;
-           }
-           if (data.type === "tuning_warning") {
-             const payload = data.data as SSEWarningPayload | undefined;
-             setWarning(payload?.message ?? ERROR_MESSAGES.TUNER.WARNING_DEFAULT);
-             return;
-           }
-          if (data.type === "benchmark_saved") {
-            const benchmarkId = data?.data?.benchmark_id;
-            setBenchmarkSaved(true);
-            setBenchmarkSavedId(typeof benchmarkId === "number" ? benchmarkId : null);
-            return;
-          }
-          if (data.type === "trial_complete" || data.type === "tuning_complete") {
-            setCurrentPhase(null);
-            fetchStatus();
-          }
-        } catch (e) {
-          if (import.meta.env.DEV) console.error("[TunerSSE] parse error:", e);
-        }
-      };
-
-       es.onerror = () => {
-         es.close();
-         currentEs = null;
-         const count = retryCount + 1;
-         retryCount = count;
-         if (count <= 3) {
-           const delay = Math.min(1000 * Math.pow(2, count - 1), 8000);
-           retryTimer = setTimeout(() => { openConnection(); }, delay);
-         } else {
-           setError(ERROR_MESSAGES.TUNER.SSE_MAX_RETRIES_EXCEEDED);
-         }
-       };
-    };
-
-    openConnection();
-
-    return () => {
-      if (retryTimer !== null) clearTimeout(retryTimer);
-      if (currentEs) { currentEs.close(); currentEs = null; }
-    };
-  }, [isActive, status.running, isMockEnabled, fetchStatus]);
+  useSSE(tunerSSEUrl, {
+    phase: (data) => setCurrentPhase(data as TunerPhase | null),
+    tuning_error: (data) => {
+      const payload = data as SSEErrorPayload | undefined;
+      setError(payload?.error ?? ERROR_MESSAGES.TUNER.ERROR_DEFAULT);
+    },
+    tuning_warning: (data) => {
+      const payload = data as SSEWarningPayload | undefined;
+      setWarning(payload?.message ?? ERROR_MESSAGES.TUNER.WARNING_DEFAULT);
+    },
+    benchmark_saved: (data) => {
+      const d = data as { benchmark_id?: unknown } | null;
+      setBenchmarkSaved(true);
+      setBenchmarkSavedId(typeof d?.benchmark_id === "number" ? d.benchmark_id : null);
+    },
+    trial_complete: () => { setCurrentPhase(null); fetchStatus(); },
+    tuning_complete: () => { setCurrentPhase(null); fetchStatus(); },
+  }, {
+    reconnect: true,
+    onError: () => setError(ERROR_MESSAGES.TUNER.SSE_MAX_RETRIES_EXCEEDED),
+  });
 
   useEffect(() => {
     if (!isActive) return;

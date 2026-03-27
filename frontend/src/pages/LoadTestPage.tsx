@@ -190,10 +190,7 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
       await authFetch(`${API}/load_test/stop`, { method: "POST" });
       setStatus("stopped");
     } else {
-      if (sweepEventSource.current) {
-        sweepEventSource.current.close();
-        sweepEventSource.current = null;
-      }
+      setSweepSSEUrl(null);
       await authFetch(`${API}/load_test/stop`, { method: "POST" });
       setSweepStatus("stopped");
     }
@@ -237,9 +234,6 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
 
   useEffect(() => { return () => {
     disconnectRef.current?.();
-    if (sweepEventSource.current) {
-      sweepEventSource.current.close();
-    }
   }}, [isMockEnabled]);
 
   useEffect(() => {
@@ -291,41 +285,6 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
   }, []);
 
   // Sweep Logic
-  const connectSweepSSE = () => {
-    if (sweepEventSource.current) {
-      sweepEventSource.current.close();
-    }
-    const es = new EventSource(`${API}/load_test/stream`);
-    sweepEventSource.current = es;
-
-    es.onmessage = (e) => {
-      const msg = JSON.parse(e.data);
-      if (msg.type === 'sweep_step') {
-        setSweepSteps(prev => [...prev, msg.data]);
-      } else if (msg.type === 'sweep_completed') {
-        setSweepResult(msg.data);
-        setSweepStatus('completed');
-        es.close();
-        sweepEventSource.current = null;
-      } else if (msg.type === 'stopped') {
-        setSweepStatus('stopped');
-        es.close();
-        sweepEventSource.current = null;
-      } else if (msg.type === 'error') {
-        setSweepError(msg.data?.error || "An unknown error occurred during the sweep test.");
-        setSweepStatus('error');
-        es.close();
-        sweepEventSource.current = null;
-      }
-    };
-
-    es.onerror = () => {
-      setSweepError("SSE connection failed.");
-      setSweepStatus('error');
-      es.close();
-      sweepEventSource.current = null;
-    };
-  };
 
   const startSweep = async () => {
     setSweepStatus('running');
@@ -349,7 +308,7 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
         const errorData = await resp.json().catch(() => ({ detail: `HTTP ${resp.status}` }));
         throw new Error(errorData.detail || `HTTP ${resp.status}`);
       }
-      connectSweepSSE();
+      setSweepSSEUrl(`${API}/load_test/stream`);
     } catch (err) {
       setSweepError((err as Error).message);
       setSweepStatus('error');
