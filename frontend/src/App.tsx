@@ -1,6 +1,7 @@
 import { useState, useCallback, lazy, Suspense } from "react";
 import type { RerunConfig } from "./components/LoadTestConfig";
 import { useSessionKeepAlive } from './hooks/useSessionKeepAlive';
+import { Toaster } from "./components/Toast";
 const MonitorPage = lazy(() => import("./pages/MonitorPage"));
 const LoadTestPage = lazy(() => import("./pages/LoadTestPage"));
 const BenchmarkPage = lazy(() => import("./pages/BenchmarkPage"));
@@ -58,6 +59,7 @@ export default function App() {
   return (
     <BenchmarkSelectionProvider>
       <div className="scanline" />
+      <Toaster position="top-right" toastOptions={{ style: { maxWidth: 400 } }} />
 
       <header className="app-header">
         <div className="app-header-logo">
