@@ -285,9 +285,9 @@ if [[ -d "$VLLM_DEP_PATH" ]]; then
     fi
   else
     if command -v kustomize >/dev/null 2>&1; then
-      kustomize build "${VLLM_DEP_PATH}" | oc apply -n "${VLLM_NAMESPACE}" -f -
+      kustomize build "${VLLM_DEP_PATH}" | oc apply -f -
     else
-      oc kustomize "${VLLM_DEP_PATH}" | oc apply -n "${VLLM_NAMESPACE}" -f -
+      oc kustomize "${VLLM_DEP_PATH}" | oc apply -f -
     fi
   fi
   ok "vllm-dependency applied: ${ENV} -> namespace ${VLLM_NAMESPACE}"
