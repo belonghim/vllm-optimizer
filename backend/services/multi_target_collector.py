@@ -11,6 +11,7 @@ import httpx
 from kubernetes import client, config
 from metrics.prometheus_metrics import update_metrics
 from services.cr_adapter import CRAdapter, get_cr_adapter
+from services.runtime_config_instance import runtime_config
 
 logger = logging.getLogger(__name__)
 
@@ -218,8 +219,6 @@ class MultiTargetMetricsCollector:
 
     async def register_target(self, namespace: str, is_name: str, cr_type: str | None = None) -> bool:
         if cr_type is None:
-            from services.shared import runtime_config
-
             cr_type = runtime_config.cr_type
         key = self._target_key(namespace, is_name)
         async with self._lock:
@@ -326,8 +325,6 @@ class MultiTargetMetricsCollector:
 
     def _build_target_queries(self, namespace: str, is_name: str, cr_type: str | None = None) -> dict[str, str]:
         if cr_type is None:
-            from services.shared import runtime_config
-
             cr_type = runtime_config.cr_type
         adapter = get_cr_adapter(cr_type)
         selector = f'namespace="{namespace}", job="{adapter.prometheus_job(is_name)}"'
@@ -424,8 +421,6 @@ class MultiTargetMetricsCollector:
 
     async def _query_prometheus(self, namespace: str, is_name: str, cr_type: str | None = None) -> dict[str, float]:
         if cr_type is None:
-            from services.shared import runtime_config
-
             cr_type = runtime_config.cr_type
         queries = self._build_target_queries(namespace, is_name, cr_type)
         headers: dict[str, str] = {}
@@ -476,8 +471,6 @@ class MultiTargetMetricsCollector:
 
     async def _query_kubernetes_pods(self, namespace: str, is_name: str, cr_type: str | None = None) -> dict[str, int]:
         if cr_type is None:
-            from services.shared import runtime_config
-
             cr_type = runtime_config.cr_type
         if not self._k8s_available or self._k8s_core is None:
             return {}
