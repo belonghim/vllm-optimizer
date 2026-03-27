@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, FormEvent } from "react";
 import { authFetch } from '../utils/authFetch';
 import { API, COLORS, TOOLTIP_STYLE, TARGET_COLORS } from "../constants";
 import ErrorAlert from "../components/ErrorAlert";
@@ -58,12 +58,7 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
 
   const [chartMetric, setChartMetric] = useState<'p95_latency' | 'availability' | 'error_rate' | 'min_tps'>('p95_latency');
 
-  useEffect(() => {
-    if (!isActive) return;
-    loadProfiles();
-  }, [isActive]);
-
-  async function loadProfiles() {
+  const loadProfiles = useCallback(async () => {
     setLoading(true);
     try {
       const res = await authFetch(`${API}/sla/profiles`);
@@ -76,9 +71,9 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  const handleProfileSelect = async (profileId: number) => {
+  const handleProfileSelect = useCallback(async (profileId: number) => {
     setSelectedProfileId(profileId);
     if (selectedIds.length === 0) {
       setCurrentEval(null);
@@ -98,15 +93,19 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
     } catch {
       setCurrentEval(null);
     }
-  };
+  }, [selectedIds, loadProfiles]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    loadProfiles();
+  }, [isActive, loadProfiles]);
 
   useEffect(() => {
     if (!isActive || !selectedProfileId) return;
     handleProfileSelect(selectedProfileId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedIds, isActive]);
+  }, [isActive, selectedIds, selectedProfileId, handleProfileSelect]);
 
-  const handleSubmit = async (e: any) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
     
@@ -137,11 +136,11 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
       if (!res.ok) {
         let detail = `HTTP ${res.status}`;
         try {
-          const errBody = await res.json();
-          if (errBody.detail) {
-            detail = typeof errBody.detail === 'string'
-              ? errBody.detail
-              : errBody.detail.map((d: any) => d.msg).join(', ');
+           const errBody = await res.json();
+           if (errBody.detail) {
+             detail = typeof errBody.detail === 'string'
+               ? errBody.detail
+               : errBody.detail.map((d: { msg: string }) => d.msg).join(', ');
           }
        } catch {
        }
@@ -324,12 +323,12 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
                   <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
                   <XAxis dataKey="name" tick={{ fontSize: 11, fill: COLORS.muted }} interval={0} />
                   <YAxis tick={{ fontSize: 11, fill: COLORS.muted }} />
-                  <Tooltip
-                    contentStyle={TOOLTIP_STYLE}
-                    itemStyle={{ fontSize: '12px' }}
-                    labelStyle={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}
-                    formatter={(value: any) => [value, chartMetric]}
-                  />
+                   <Tooltip
+                     contentStyle={TOOLTIP_STYLE}
+                     itemStyle={{ fontSize: '12px' }}
+                     labelStyle={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}
+                     formatter={(value: number | string) => [value, chartMetric]}
+                   />
                   <Legend payload={legendPayload} />
                   <Bar dataKey="value" isAnimationActive={false}>
                     {chartData.map((_, index) => (

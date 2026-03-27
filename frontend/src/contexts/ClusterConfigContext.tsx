@@ -130,6 +130,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
     }
 
     const controller = new AbortController();
+    // No auth required — /config endpoint reads env variables with no auth middleware
     fetch(`${API}/config`, { signal: controller.signal })
       .then(r => r.json())
       .then((data: unknown) => {
@@ -165,6 +166,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
 
   useEffect(() => {
     const controller = new AbortController();
+    // No auth required — /config endpoint reads env variables with no auth middleware
     fetch(`${API}/config`, { signal: controller.signal })
       .then(r => r.json())
       .then((data: unknown) => {
@@ -178,6 +180,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
   }, []);
 
   const updateCrType = useCallback(async (value: string): Promise<void> => {
+    // No auth required — /config endpoint reads env variables with no auth middleware
     const res = await fetch(`${API}/config`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
