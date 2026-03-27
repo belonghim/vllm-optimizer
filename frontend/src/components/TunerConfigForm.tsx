@@ -42,6 +42,7 @@ interface TunerConfigFormProps {
   onSaveStorageUri: (uri: string) => void;
   onApplyCurrentValues?: (values: Record<string, unknown>) => void;
   currentResources?: Record<string, Record<string, string>> | null;
+  extraArgs?: string[];
 }
 
 const PHASE_LABELS: Record<string, string> = {
@@ -67,6 +68,7 @@ export default function TunerConfigForm({
   onSaveStorageUri,
   onApplyCurrentValues,
   currentResources,
+  extraArgs,
 }: TunerConfigFormProps) {
   const [localStorageUri, setLocalStorageUri] = useState(storageUri ?? "");
   const [editedValues, setEditedValues] = useState<Record<string, unknown>>({});
@@ -328,31 +330,42 @@ export default function TunerConfigForm({
               <td>—</td>
               <td className="td-desc">GPU 수량</td>
             </tr>
+            {extraArgs && extraArgs.length > 0 && (
+              <tr>
+                <td title="extra_args">기타 인자</td>
+                <td colSpan={2}>
+                  <code style={{ fontSize: '11px', wordBreak: 'break-all' }}>
+                    {extraArgs.join(' ')}
+                  </code>
+                </td>
+                <td className="td-desc">튜닝 대상 외 vLLM 인자</td>
+              </tr>
+            )}
             <tr>
-              <td title="storageUri">모델 스토리지</td>
-              <td colSpan={2}>
-                <div className="flex-row-8">
-                  <input
-                    className="input"
-                    type="text"
-                    value={localStorageUri}
-                    onChange={e => setLocalStorageUri(e.target.value)}
-                    disabled={isRunning}
-                    placeholder="oci://registry/model"
-                    aria-label="storageUri"
-                  />
-                  <button
-                    className="btn btn-primary btn-small"
-                    onClick={() => onSaveStorageUri(localStorageUri)}
-                    disabled={isRunning || localStorageUri === storageUri}
-                    style={{ whiteSpace: 'nowrap' }}
-                  >
-                    저장
-                  </button>
-                </div>
-              </td>
-              <td className="td-desc">모델 스토리지 URI</td>
-            </tr>
+               <td title="storageUri">모델 스토리지</td>
+               <td colSpan={2}>
+                 <div className="flex-row-8">
+                   <input
+                     className="input"
+                     type="text"
+                     value={localStorageUri}
+                     onChange={e => setLocalStorageUri(e.target.value)}
+                     disabled={isRunning}
+                     placeholder="oci://registry/model"
+                     aria-label="storageUri"
+                   />
+                   <button
+                     className="btn btn-primary btn-small"
+                     onClick={() => onSaveStorageUri(localStorageUri)}
+                     disabled={isRunning || localStorageUri === storageUri}
+                     style={{ whiteSpace: 'nowrap' }}
+                   >
+                     저장
+                   </button>
+                 </div>
+               </td>
+               <td className="td-desc">모델 스토리지 URI</td>
+             </tr>
           </tbody>
         </table>
       </div>

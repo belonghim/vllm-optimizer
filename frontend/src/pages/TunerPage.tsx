@@ -81,6 +81,7 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
   const [currentConfig, setCurrentConfig] = useState<Record<string, unknown> | null>(null);
   const [currentResources, setCurrentResources] = useState<Record<string, Record<string, string>> | null>(null);
   const [storageUri, setStorageUri] = useState<string | null>(null);
+  const [extraArgs, setExtraArgs] = useState<string[]>([]);
   const [config, setConfig] = useState<TunerConfig>({
     objective: "balanced",
     n_trials: 10,
@@ -238,15 +239,16 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
         }
         return r.json();
       })
-       .then(data => {
-         if (data.success) {
-           setCurrentConfig(data.data);
-           setStorageUri(data.storageUri ?? null);
-           setCurrentResources(data.resources ?? null);
-         } else {
-           setError(data.message || ERROR_MESSAGES.TUNER.CONFIG_FETCH_FAILED);
-         }
-       })
+        .then(data => {
+          if (data.success) {
+            setCurrentConfig(data.data);
+            setStorageUri(data.storageUri ?? null);
+            setCurrentResources(data.resources ?? null);
+            setExtraArgs(data.extraArgs ?? []);
+          } else {
+            setError(data.message || ERROR_MESSAGES.TUNER.CONFIG_FETCH_FAILED);
+          }
+        })
        .catch((err: Error) => {
          if (err.name === 'AbortError') return;
          setError(`${ERROR_MESSAGES.TUNER.CONFIG_FETCH_ERROR_PREFIX}${err.message}`);
@@ -436,22 +438,23 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
            {ERROR_MESSAGES.TUNER.GOTO_BENCHMARK_BUTTON}
          </button>
        )}
-      <TunerConfigForm
-        config={config}
-        onChange={handleConfigChange}
-        onSubmit={start}
-        onStop={stop}
-        onApplyBest={applyBest}
-        isRunning={status.running}
-        hasBest={!!status.best}
-        currentConfig={currentConfig}
-        currentResources={currentResources}
-        storageUri={storageUri}
-        onSaveStorageUri={handleSaveStorageUri}
-        onApplyCurrentValues={handleApplyCurrentValues}
-        currentPhase={currentPhase}
-        trialsCompleted={status.trials_completed}
-      />
+       <TunerConfigForm
+         config={config}
+         onChange={handleConfigChange}
+         onSubmit={start}
+         onStop={stop}
+         onApplyBest={applyBest}
+         isRunning={status.running}
+         hasBest={!!status.best}
+         currentConfig={currentConfig}
+         currentResources={currentResources}
+         storageUri={storageUri}
+         onSaveStorageUri={handleSaveStorageUri}
+         onApplyCurrentValues={handleApplyCurrentValues}
+         currentPhase={currentPhase}
+         trialsCompleted={status.trials_completed}
+         extraArgs={extraArgs}
+       />
       <TunerResults
         trials={trials}
         bestParams={status.best}
