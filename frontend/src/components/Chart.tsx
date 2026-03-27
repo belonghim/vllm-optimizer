@@ -1,3 +1,4 @@
+import React from 'react';
 import { useThemeColors } from '../contexts/ThemeContext';
 import {
   LineChart, Line,
@@ -24,7 +25,7 @@ interface CustomTooltipProps {
   label?: string;
 }
 
-const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
+const CustomTooltip = React.memo(function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
   const { TOOLTIP_STYLE } = useThemeColors();
   if (!active || !payload?.length) return null;
   const visible = payload.filter(e => !String(e.dataKey).endsWith('_fill'));
@@ -40,7 +41,7 @@ const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
       })}
     </div>
   );
-};
+});
 
 interface ChartProps {
   data: object[];
@@ -99,4 +100,4 @@ function Chart({ data, lines, title, height = 180, onHide, threshold }: ChartPro
   );
 }
 
-export default Chart;
+export default React.memo(Chart);

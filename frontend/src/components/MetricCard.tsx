@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import React, { type ReactNode } from "react";
 
 interface MetricCardProps {
   label: string;
@@ -26,4 +26,4 @@ function MetricCard({ label, value, unit, color = "amber", delta, alert }: Metri
   );
 }
 
-export default MetricCard;
+export default React.memo(MetricCard);
