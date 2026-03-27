@@ -375,20 +375,16 @@ class LoadTestEngine:
         await self._broadcast({"type": "completed", "data": final_stats})
         try:
             storage = shared_module.storage
-            import time as _time
-
             await storage.save_load_test(
                 {
-                    "test_id": f"run-{int(_time.time())}",
+                    "test_id": f"run-{int(time.time())}",
                     "config": config.model_dump(),
                     "result": final_stats,
-                    "timestamp": _time.time(),
+                    "timestamp": time.time(),
                 }
             )
         except Exception as _e:
-            import logging as _logging
-
-            _logging.getLogger(__name__).warning("Failed to persist load test result: %s", _e)
+            logger.warning("Failed to persist load test result: %s", _e)
         return final_stats
 
     async def run(self, config: LoadTestConfig, skip_preflight: bool = False) -> dict[str, Any]:

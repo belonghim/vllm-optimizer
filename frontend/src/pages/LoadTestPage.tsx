@@ -31,7 +31,7 @@ export interface SweepStepResult {
 }
 
 export interface SweepResult {
-  config: any;
+  config: SweepConfigState;
   steps: SweepStepResult[];
   saturation_point: number | null;
   optimal_rps: number | null;
