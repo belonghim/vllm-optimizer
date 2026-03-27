@@ -633,7 +633,7 @@ class LoadTestEngine:
         ttfts = [r.ttft for r in successful if r.ttft is not None]
         tps_values = [r.tps for r in successful if r.tps > 0]
         itl_means = [r.itl_mean for r in successful if r.itl_mean is not None]
-        all_deltas = [d for r in successful if r.itl_deltas for d in r.itl_deltas]
+        all_deltas = [d for r in results if r.itl_deltas for d in r.itl_deltas]
 
         if all_deltas:
             itl_stats: dict[str, float] | None = {
