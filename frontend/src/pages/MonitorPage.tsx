@@ -178,7 +178,7 @@ interface MonitorPageProps {
 
 function MonitorPage({ isActive }: MonitorPageProps) {
   const { isMockEnabled } = useMockData();
-  const { targets } = useClusterConfig();
+  const { targets, crType } = useClusterConfig();
   const { COLORS } = useThemeColors();
   const [targetStates, setTargetStates] = useState<Record<string, TargetState>>({});
   const [error, setError] = useState<string | null>(null);
@@ -228,7 +228,8 @@ function MonitorPage({ isActive }: MonitorPageProps) {
     try {
       const batchTargets = targets.map(t => ({
         namespace: t.namespace,
-        inferenceService: t.inferenceService
+        inferenceService: t.inferenceService,
+        cr_type: t.crType || crType
       }));
 
       const res = await authFetch(`${API}/metrics/batch`, {

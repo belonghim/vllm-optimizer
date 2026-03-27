@@ -48,9 +48,9 @@ export default function MultiTargetSelector({
   targetStatuses = {}, 
   targetStates = {}
 }: MultiTargetSelectorProps) {
-  const { targets, maxTargets, addTarget, removeTarget, setDefaultTarget } = useClusterConfig();
+  const { targets, maxTargets, addTarget, removeTarget, setDefaultTarget, crType: contextCrType } = useClusterConfig();
   const [isAdding, setIsAdding] = useState(false);
-  const [newTarget, setNewTarget] = useState({ namespace: "", inferenceService: "", crType: "inferenceservice" });
+  const [newTarget, setNewTarget] = useState({ namespace: "", inferenceService: "", crType: contextCrType || "inferenceservice" });
   const [isValidating, setIsValidating] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
@@ -65,7 +65,7 @@ export default function MultiTargetSelector({
           return;
         }
         addTarget(newTarget.namespace, newTarget.inferenceService, newTarget.crType);
-        setNewTarget({ namespace: "", inferenceService: "", crType: "inferenceservice" });
+        setNewTarget({ namespace: "", inferenceService: "", crType: contextCrType || "inferenceservice" });
         setIsAdding(false);
       } catch (err) {
         setAddError("검증 중 오류가 발생했습니다");
