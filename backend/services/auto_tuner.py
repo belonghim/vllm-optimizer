@@ -57,7 +57,7 @@ def _get_k8s_namespace() -> str:
 
 
 def _get_vllm_is_name() -> str:
-    return runtime_config.vllm_is_name or "llm-ov"
+    return runtime_config.vllm_is_name or "small-llm-d"
 
 
 class AutoTuner:
@@ -642,7 +642,7 @@ class AutoTuner:
         try:
             model_name = await asyncio.wait_for(resolve_model_name(self._vllm_endpoint), timeout=3.0)
         except Exception:
-            model_name = os.getenv("VLLM_MODEL", "llm-ov")
+            model_name = os.getenv("VLLM_MODEL", "qwen2-5-7b-instruct")
 
         benchmark = Benchmark(
             name=f"auto-tune-{time.strftime('%Y%m%d-%H%M%S')}",

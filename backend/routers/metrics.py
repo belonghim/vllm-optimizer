@@ -76,6 +76,7 @@ def _convert_to_snapshot(vllm_metrics) -> MetricsSnapshot:
 async def get_latest_metrics(
     namespace: str | None = None,
     is_name: str | None = None,
+    cr_type: str | None = None,
 ) -> MetricsSnapshot | TargetedMetricsResponse:
     """
     Get the latest real-time metrics snapshot.
@@ -93,7 +94,9 @@ async def get_latest_metrics(
     - Pod status (running/waiting requests, pod count)
     """
     if namespace is not None and is_name is not None:
-        registered = await multi_target_collector.register_target(namespace, is_name)
+        registered = await multi_target_collector.register_target(
+            namespace, is_name, cr_type=cr_type or "inferenceservice"
+        )
         if not registered:
             raise HTTPException(
                 status_code=409,
