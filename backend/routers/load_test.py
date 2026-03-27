@@ -245,7 +245,7 @@ async def start_sweep(config: SweepConfig) -> dict[str, Any]:
             await load_engine._broadcast({"type": "sweep_completed", "data": result.model_dump()})
         except asyncio.CancelledError:
             pass
-        except Exception as e:
+        except (RuntimeError, asyncio.TimeoutError, ValueError) as e:
             logger.error("[Sweep] Error: %s", e)
             await load_engine._broadcast({"type": "sweep_completed", "data": None})
         finally:
