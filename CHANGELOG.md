@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-27] - Bugfix: LLMIS cr_type 기본값 불일치 수정
+
+**Status**: Completed
+
+`cr_type` 기본값이 `runtime_config.cr_type`(`"llminferenceservice"`) 대신 `"inferenceservice"`로 하드코딩된 5곳을 수정. LLMIS 환경에서 실시간 모니터링, Auto Tuner 설정 조회가 정상 동작.
+
+### Fixed
+- **`backend/services/multi_target_collector.py`**: `TargetCache.cr_type` 기본값 `"inferenceservice"` → `""`. `register_target()`, `_build_target_queries()`, `_query_prometheus()` 파라미터 기본값을 `None`으로 변경, 함수 내부에서 `runtime_config.cr_type` lazy fallback.
+- **`backend/routers/metrics.py`**: 단일 타겟 `cr_type or "inferenceservice"` → `cr_type or runtime_config.cr_type`. 배치 엔드포인트에서 `MetricsTarget.cr_type`을 `register_target()`에 전달.
+- **`backend/models/load_test.py`**: `MetricsTarget`에 `cr_type: str | None` 필드 추가.
+- **`frontend/src/components/MultiTargetSelector.tsx`**: 새 타겟 `crType` 초기값을 `useClusterConfig().crType`으로 변경 (`"inferenceservice"` 하드코딩 제거).
+- **`frontend/src/pages/MonitorPage.tsx`**: 배치 메트릭 요청에 `cr_type` 포함.
+- **`backend/tests/conftest.py`**: `_StubMultiTargetMetricsCollector.register_target()`에 `cr_type: str | None = None` 파라미터 추가.
+- **`backend/tests/test_metrics_collector.py`**: job assertion `"is-a-metrics"` → `"kserve-llm-isvc-vllm-engine"`.
+
+### Verification
+- Tests: 55 pass (test_metrics_collector, test_multi_target_collector, test_config, test_metrics)
+- E2E: LLMIS metrics 반환 (`pods=2`, `gpu_util=92.0`), vllm-config LLMIS args 반환, 백엔드 로그 에러 없음
+
 ## [2026-03-27] - Improvements Round 2: 모니터링 + 테스트 격리 + 동적 CR_TYPE
 
 **Status**: Completed
