@@ -473,7 +473,7 @@ class MultiTargetMetricsCollector:
                 if math.isnan(value) or math.isinf(value):
                     return metric_name, None
                 return metric_name, round(value, 3)
-        except (httpx.HTTPError, ValueError):
+        except (httpx.HTTPError, ValueError, AttributeError, TypeError):
             pass
         return metric_name, None
 

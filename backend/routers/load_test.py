@@ -7,6 +7,7 @@ import asyncio
 import json
 import logging
 import os
+import sqlite3
 import time as time_module
 import uuid
 from typing import Any
@@ -352,7 +353,7 @@ async def save_sweep_result(
     try:
         sweep_id = await storage.save_sweep_result(sweep)
         return {"id": sweep_id}
-    except Exception as e:
+    except (OSError, sqlite3.OperationalError) as e:
         logger.error("[Sweep] Failed to save sweep result: %s", e)
         raise HTTPException(
             status_code=500,
@@ -376,7 +377,7 @@ async def list_sweep_history(
         if response is not None:
             response.headers["X-Total-Count"] = str(total)
         return items
-    except Exception as e:
+    except (OSError, sqlite3.OperationalError) as e:
         logger.error("[Sweep] Failed to list sweep history: %s", e)
         raise HTTPException(
             status_code=500,
@@ -398,7 +399,7 @@ async def get_sweep_result(
     """Get a single saved sweep result by ID."""
     try:
         result = await storage.get_sweep_result(sweep_id)
-    except Exception as e:
+    except (OSError, sqlite3.OperationalError) as e:
         logger.error("[Sweep] Failed to get sweep result %s: %s", sweep_id, e)
         raise HTTPException(
             status_code=500,
@@ -426,7 +427,7 @@ async def delete_sweep_result(
     """Delete a saved sweep result by ID."""
     try:
         deleted = await storage.delete_sweep_result(sweep_id)
-    except Exception as e:
+    except (OSError, sqlite3.OperationalError) as e:
         logger.error("[Sweep] Failed to delete sweep result %s: %s", sweep_id, e)
         raise HTTPException(
             status_code=500,

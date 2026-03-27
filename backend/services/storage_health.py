@@ -106,13 +106,13 @@ class StorageHealthMonitor:
         try:
             if await asyncio.to_thread(os.path.exists, db_path):
                 db_size = await asyncio.to_thread(os.path.getsize, db_path)
-        except Exception as e:
+        except OSError as e:
             logger.error("[StorageHealthMonitor] Failed to read DB size: %s", e)
 
         try:
             if await asyncio.to_thread(os.path.exists, wal_path):
                 wal_size = await asyncio.to_thread(os.path.getsize, wal_path)
-        except Exception as e:
+        except OSError as e:
             logger.error("[StorageHealthMonitor] Failed to read WAL size: %s", e)
 
         return db_size, wal_size
@@ -130,14 +130,14 @@ class StorageHealthMonitor:
             cursor = await conn.execute("SELECT COUNT(*) FROM load_test_history")
             row = await cursor.fetchone()
             load_test_count = int(row[0]) if row and row[0] is not None else 0
-        except Exception as e:
+        except (sqlite3.OperationalError, OSError) as e:
             logger.error("[StorageHealthMonitor] Failed to count load_test_history: %s", e)
 
         try:
             cursor = await conn.execute("SELECT COUNT(*) FROM benchmarks")
             row = await cursor.fetchone()
             benchmark_count = int(row[0]) if row and row[0] is not None else 0
-        except Exception as e:
+        except (sqlite3.OperationalError, OSError) as e:
             logger.error("[StorageHealthMonitor] Failed to count benchmarks: %s", e)
 
         return load_test_count, benchmark_count
@@ -180,7 +180,7 @@ class StorageHealthMonitor:
                 target_path = os.path.dirname(db_path) or "."
             usage = await asyncio.to_thread(shutil.disk_usage, target_path)
             return int(usage.total)
-        except Exception as e:
+        except OSError as e:
             logger.error("[StorageHealthMonitor] Failed to resolve storage capacity: %s", e)
             return 0
 
@@ -190,32 +190,32 @@ class StorageHealthMonitor:
         try:
             pruned_benchmarks = await self._storage.prune_benchmarks(keep_count=self._benchmark_keep_count)
             pruned_total += int(pruned_benchmarks)
-        except Exception as e:
+        except (OSError, sqlite3.OperationalError) as e:
             logger.error("[StorageHealthMonitor] Failed to prune benchmarks: %s", e)
 
         try:
             pruned_history = await self._storage.prune_load_test_history(keep_count=self._load_test_keep_count)
             pruned_total += int(pruned_history)
-        except Exception as e:
+        except (OSError, sqlite3.OperationalError) as e:
             logger.error("[StorageHealthMonitor] Failed to prune load test history: %s", e)
 
         if pruned_total > 0:
             try:
                 storage_prune_total.inc(pruned_total)
-            except Exception as e:
+            except Exception as e:  # intentional: metric update errors must not interrupt prune
                 logger.error("[StorageHealthMonitor] Failed to update storage_prune_total metric: %s", e)
 
     async def _run_checkpoint(self) -> None:
         checkpoint_ok = False
         try:
             checkpoint_ok = await self._storage.checkpoint_wal()
-        except Exception as e:
+        except (OSError, sqlite3.OperationalError) as e:
             logger.error("[StorageHealthMonitor] WAL checkpoint execution failed: %s", e)
 
         if checkpoint_ok:
             try:
                 storage_last_checkpoint_timestamp.set(datetime.now(UTC).timestamp())
-            except Exception as e:
+            except Exception as e:  # intentional: metric update errors must not interrupt checkpoint
                 logger.error(
                     "[StorageHealthMonitor] Failed to update storage_last_checkpoint_timestamp metric: %s",
                     e,
@@ -224,5 +224,5 @@ class StorageHealthMonitor:
     def _set_metric(self, metric: SettableMetric, value: float, metric_name: str) -> None:
         try:
             metric.set(value)
-        except Exception as e:
+        except Exception as e:  # intentional: prometheus client errors must not crash monitor
             logger.error("[StorageHealthMonitor] Failed to set %s: %s", metric_name, e)
