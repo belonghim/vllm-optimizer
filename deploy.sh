@@ -61,6 +61,8 @@ else
   VLLM_NAMESPACE="${VLLM_NAMESPACE:-llm-d-demo}"
 fi
 
+VLLM_DEPLOYMENT_NAME="${VLLM_DEPLOYMENT_NAME:-small-llm-d}"
+
 log() { echo "[$(date +%H:%M:%S)] $*"; }
 ok()  { echo "[OK] $*"; }
 warn() { echo "[WARN] $*"; }
@@ -293,17 +295,22 @@ else
   warn "vllm-dependency path not found: ${VLLM_DEP_PATH}; skipping"
 fi
 
-# Apply LLMIS monitoring RBAC to llm-d-demo (dev only)
 if [[ "${ENV}" == "dev" ]]; then
   LLMIS_RBAC_PATH="${SCRIPT_DIR}/openshift/vllm-dependency/llmis-rbac"
   if [[ -d "$LLMIS_RBAC_PATH" ]]; then
-    log "Applying LLMIS monitoring RBAC to namespace llm-d-demo..."
+    log "Applying LLMIS monitoring RBAC to namespace ${VLLM_NAMESPACE}..."
     if [[ "$DRY_RUN" == "true" ]]; then
-      oc apply --dry-run=client -f "${LLMIS_RBAC_PATH}/"
+      for f in "${LLMIS_RBAC_PATH}"/*.yaml; do
+        VLLM_NAMESPACE="$VLLM_NAMESPACE" VLLM_DEPLOYMENT_NAME="$VLLM_DEPLOYMENT_NAME" NAMESPACE="$NAMESPACE" \
+          envsubst < "$f" | oc apply --dry-run=client -f -
+      done
     else
-      oc apply -f "${LLMIS_RBAC_PATH}/"
+      for f in "${LLMIS_RBAC_PATH}"/*.yaml; do
+        VLLM_NAMESPACE="$VLLM_NAMESPACE" VLLM_DEPLOYMENT_NAME="$VLLM_DEPLOYMENT_NAME" NAMESPACE="$NAMESPACE" \
+          envsubst < "$f" | oc apply -f - || { warn "Failed to apply $(basename "$f") to ${VLLM_NAMESPACE}"; exit 1; }
+      done
     fi
-    ok "LLMIS monitoring RBAC applied: llm-d-demo"
+    ok "LLMIS monitoring RBAC applied: ${VLLM_NAMESPACE}"
   fi
 fi
 
