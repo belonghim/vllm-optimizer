@@ -13,6 +13,8 @@ from ..services.auto_tuner import AutoTuner, _get_k8s_namespace, _get_vllm_is_na
 from ..services.load_engine import LoadTestEngine
 from ..services.multi_target_collector import MultiTargetMetricsCollector
 
+pytestmark = pytest.mark.slow
+
 
 def test_stream_endpoint_exists(client):
     routes = [route.path for route in client.app.routes]

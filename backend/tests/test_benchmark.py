@@ -4,6 +4,8 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+pytestmark = pytest.mark.slow
+
 
 @pytest.fixture
 def client(isolated_client, monkeypatch):
