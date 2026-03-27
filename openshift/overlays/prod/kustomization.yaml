@@ -54,6 +54,7 @@ patches:
       - op: add
         path: /data/ALLOWED_ORIGINS
         value: "https://vllm-optimizer.apps.example.com"
-      - op: add
-        path: /data/VLLM_ENDPOINT
-        value: "https://llm-ov-predictor.vllm-lab-prod.svc.cluster.local:8080"
+       # TODO: set to prod LLMIS gateway endpoint
+       - op: add
+         path: /data/VLLM_ENDPOINT
+         value: "https://llm-ov-predictor.vllm-lab-prod.svc.cluster.local:8080"

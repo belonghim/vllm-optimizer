@@ -53,4 +53,4 @@ patches:
         value: "https://vllm-optimizer-dev.apps.compact.jooan.local"
       - op: add
         path: /data/VLLM_ENDPOINT
-        value: "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080"
+        value: "http://openshift-ai-inference-openshift-default.openshift-ingress.svc/llm-d-demo/small-llm-d"
