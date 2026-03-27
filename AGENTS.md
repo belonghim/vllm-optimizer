@@ -375,6 +375,17 @@ securityContext:
 
 `K8S_DEPLOYMENT_NAME` 환경변수는 반드시 LLMIS가 생성한 Deployment 이름(`{name}-kserve`)으로 설정해야 합니다.
 
+### 네임스페이스 분리 원칙 (중요)
+
+| CR 타입 | 네임스페이스 | 비고 |
+|---------|------------|------|
+| `LLMInferenceService` (llmisvc) | `llm-d-demo` | llm-d 플랫폼이 관리. **직접 생성 금지** |
+| `InferenceService` (isvc) | `vllm-lab-dev` / `vllm-lab-prod` | KServe. vllm-dependency Kustomize가 관리 |
+
+- `llm-d-demo`에는 RBAC + NetworkPolicy만 배포 (`openshift/vllm-dependency/llmis-rbac/`)
+- `vllm-dependency/dev` Kustomize 오버레이는 반드시 `namespace: vllm-lab-dev`로 유지
+- `deploy.sh dev`는 두 단계: ① `vllm-dependency/dev` → `vllm-lab-dev`, ② `llmis-rbac/` → `llm-d-demo`
+
 ### 레거시/대안: KServe InferenceService
 
 이전 환경에서 사용되던 KServe InferenceService의 구조는 다음과 같습니다 (참고용):

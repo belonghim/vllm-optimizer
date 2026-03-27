@@ -293,6 +293,20 @@ else
   warn "vllm-dependency path not found: ${VLLM_DEP_PATH}; skipping"
 fi
 
+# Apply LLMIS monitoring RBAC to llm-d-demo (dev only)
+if [[ "${ENV}" == "dev" ]]; then
+  LLMIS_RBAC_PATH="${SCRIPT_DIR}/openshift/vllm-dependency/llmis-rbac"
+  if [[ -d "$LLMIS_RBAC_PATH" ]]; then
+    log "Applying LLMIS monitoring RBAC to namespace llm-d-demo..."
+    if [[ "$DRY_RUN" == "true" ]]; then
+      oc apply --dry-run=client -f "${LLMIS_RBAC_PATH}/"
+    else
+      oc apply -f "${LLMIS_RBAC_PATH}/"
+    fi
+    ok "LLMIS monitoring RBAC applied: llm-d-demo"
+  fi
+fi
+
 log "Patching LLMIS monitoring labels in namespace ${VLLM_NAMESPACE}..."
 patch_monitoring_labels "$VLLM_NAMESPACE"
 
