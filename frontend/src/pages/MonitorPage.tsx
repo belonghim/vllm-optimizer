@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { authFetch } from '../utils/authFetch';
 import { mockMetrics, mockHistory } from "../mockData";
 import { useMockData } from "../contexts/MockDataContext";
@@ -10,6 +10,7 @@ import ErrorAlert from "../components/ErrorAlert";
 import MultiTargetSelector from "../components/MultiTargetSelector";
 import { buildGapFill } from "../utils/gapFill";
 import type { ClusterTarget } from "../types";
+import { showSlaViolation } from "../components/Toast";
 
 interface SlaThresholds {
   availability_min: number | null;
@@ -152,7 +153,7 @@ interface HistoryPoint {
 }
 
 interface TargetResultData {
-  [key: string]: unknown;
+  [key: string]: any;
 }
 
 interface TargetResult {
@@ -176,6 +177,13 @@ interface MonitorPageProps {
   isActive: boolean;
 }
 
+const TIME_RANGES = [
+  { label: '1h',  points: 1200 },
+  { label: '6h',  points: 7200 },
+  { label: '24h', points: 28800 },
+  { label: '7d',  points: 201600 },
+];
+
 function MonitorPage({ isActive }: MonitorPageProps) {
   const { isMockEnabled } = useMockData();
   const { targets, crType } = useClusterConfig();
@@ -185,6 +193,8 @@ function MonitorPage({ isActive }: MonitorPageProps) {
   const [chartState, setChartState] = useState<ChartConfig>(() => loadChartConfig());
   const [slaProfiles, setSlaProfiles] = useState<SlaProfile[]>([]);
   const [selectedSlaProfileId, setSelectedSlaProfileId] = useState<number | null>(null);
+  const [timeRangePoints, setTimeRangePoints] = useState(1200); // default 1h
+  const lastViolationTime = useRef<Record<string, number>>({});
 
   const chartOrder = chartState.order;
   const hiddenCharts = chartState.hidden;
@@ -244,10 +254,31 @@ function MonitorPage({ isActive }: MonitorPageProps) {
       const batchData = await res.json();
 
       const newStates: Record<string, TargetState> = {};
+      const now = Date.now();
+      const DEBOUNCE_MS = 30_000;
+
+      const checkViolation = (metric: string, value: number | null | undefined, threshold: number | null | undefined, violationFn: (v: number, t: number) => boolean) => {
+        if (value === null || value === undefined || threshold === null || threshold === undefined) return;
+        if (!violationFn(value, threshold)) return;
+        
+        const last = lastViolationTime.current[metric] || 0;
+        if (now - last < DEBOUNCE_MS) return;
+        
+        lastViolationTime.current[metric] = now;
+        showSlaViolation(metric, value, threshold);
+      };
+
       Object.entries(batchData.results as Record<string, TargetResult>).forEach(([key, result]) => {
         if (result.status === 'error') {
           newStates[key] = { status: 'error', error: result.error, data: null, history: [] };
           return;
+        }
+
+        if (selectedSlaProfile && result.data) {
+          const { thresholds } = selectedSlaProfile;
+          const { data } = result;
+          checkViolation(`${key} TPS`, data.tps, thresholds.min_tps, (v, t) => v < t);
+          checkViolation(`${key} Latency`, data.latency_p99, thresholds.p95_latency_max_ms, (v, t) => v > t);
         }
 
         const mapped = (result.history || []).map((m) => ({
@@ -275,7 +306,7 @@ function MonitorPage({ isActive }: MonitorPageProps) {
       if (err instanceof Error && err.name === 'AbortError') return;
       setError(`조회 실패: ${(err as Error).message}`);
     }
-  }, [targets, isMockEnabled]);
+  }, [targets, isMockEnabled, crType, selectedSlaProfile]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -311,8 +342,8 @@ function MonitorPage({ isActive }: MonitorPageProps) {
         });
       });
     });
-    return Object.values(timeMap).sort((a, b) => (a.t as string).localeCompare(b.t as string)).slice(-900);
-  }, [targetStates]);
+    return Object.values(timeMap).sort((a, b) => (a.t as string).localeCompare(b.t as string)).slice(-timeRangePoints);
+  }, [targetStates, timeRangePoints]);
 
   // hasMonitoringLabel: null/undefined = 아직 체크 전 (경고 안 뜸), false = 레이블 없음 (경고 표시), true = 레이블 있음 (경고 안 뜸)
   // !== false 로 판정하여 null/undefined는 경고를 표시하지 않음
@@ -358,7 +389,7 @@ function MonitorPage({ isActive }: MonitorPageProps) {
 
   return (
     <div className="flex-col-1">
-      <div className="panel flex-row-12" style={{ padding: '12px 20px', borderBottom: 'none', marginBottom: '-1px' }}>
+      <div className="panel flex-row-12" style={{ padding: '12px 20px', borderBottom: 'none', marginBottom: '-1px', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span className="label label-no-mb">SLA PROFILE:</span>
           <select 
@@ -372,6 +403,18 @@ function MonitorPage({ isActive }: MonitorPageProps) {
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {TIME_RANGES.map(r => (
+            <button
+              key={r.label}
+              data-testid="time-range-btn"
+              className={`btn btn-sm${timeRangePoints === r.points ? ' active' : ''}`}
+              onClick={() => setTimeRangePoints(r.points)}
+            >
+              {r.label}
+            </button>
+          ))}
         </div>
       </div>
       <MultiTargetSelector 
@@ -423,3 +466,4 @@ function MonitorPage({ isActive }: MonitorPageProps) {
   );
 }
 export default MonitorPage;
+
