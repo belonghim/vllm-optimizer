@@ -38,6 +38,7 @@ playwright-test/
 test_output.txt
 test-sa-pod.yaml
 *.tmp
+*.png
 
 # github workflows (project uses Tekton CI)
 .github/workflows/
