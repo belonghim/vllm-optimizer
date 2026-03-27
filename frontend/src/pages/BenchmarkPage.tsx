@@ -56,9 +56,11 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
   const [expanded, setExpanded] = useState<(string | number)[]>([]);
   const [editing, setEditing] = useState<BenchmarkItem | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const { isMockEnabled } = useMockData();
 
   const fetchBenchmarks = useCallback(() => {
+    setLoading(true);
     if (isMockEnabled) {
       setBenchmarks(
         mockBenchmarks().map((benchmark) => ({
@@ -67,6 +69,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
         }))
       );
       setError(null);
+      setLoading(false);
       return () => {};
     }
     const controller = new AbortController();
@@ -82,6 +85,9 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
       .catch(err => {
         if (err instanceof Error && err.name === 'AbortError') return;
         setError(`벤치마크 조회 실패: ${(err as Error).message}`);
+      })
+      .finally(() => {
+        setLoading(false);
       });
     return () => controller.abort();
   }, [isMockEnabled]);
@@ -153,7 +159,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
     }
   };
 
-  const updateMetadataField = (field: keyof BenchmarkMetadata, value: any) => {
+  const updateMetadataField = (field: keyof BenchmarkMetadata, value: string | number | boolean | null) => {
     if (!editing) return;
     setEditing({
       ...editing,
@@ -244,30 +250,34 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
       <ErrorAlert message={error} className="error-alert--mb8" />
        <div className="panel">
          <div className="section-title">저장된 벤치마크</div>
-         <div style={{ marginBottom: '16px', display: 'flex', gap: '8px' }}>
-           <button
-             className="btn-primary"
-             disabled={benchmarks.length === 0}
-             onClick={handleExportJSON}
-           >
-             JSON 내보내기
-           </button>
-           <button
-             className="btn-primary"
-             disabled={benchmarks.length === 0}
-             onClick={handleExportCSV}
-           >
-              CSV 내보내기
-            </button>
-            <button
-              className="btn-danger"
-              disabled={selected.length === 0}
-              onClick={handleBulkDelete}
-            >
-              선택 삭제 ({selected.length})
-            </button>
-          </div>
-          <table className="table" aria-label="저장된 벤치마크 목록">
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: COLORS.muted }}>로딩 중...</div>
+          ) : (
+            <>
+              <div style={{ marginBottom: '16px', display: 'flex', gap: '8px' }}>
+                <button
+                  className="btn-primary"
+                  disabled={benchmarks.length === 0}
+                  onClick={handleExportJSON}
+                >
+                  JSON 내보내기
+                </button>
+                <button
+                  className="btn-primary"
+                  disabled={benchmarks.length === 0}
+                  onClick={handleExportCSV}
+                >
+                   CSV 내보내기
+                 </button>
+                 <button
+                   className="btn-danger"
+                   disabled={selected.length === 0}
+                   onClick={handleBulkDelete}
+                 >
+                   선택 삭제 ({selected.length})
+                 </button>
+               </div>
+               <table className="table" aria-label="저장된 벤치마크 목록">
           <thead>
             <tr>
               <th></th>
@@ -372,9 +382,11 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
                 부하 테스트 결과를 저장하면 여기 나타납니다.
               </td></tr>
             )}
-          </tbody>
-        </table>
-      </div>
+           </tbody>
+         </table>
+            </>
+          )}
+       </div>
 
       {editing && (
         <div className="modal-overlay">

@@ -264,7 +264,7 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
      authFetch(`${API}/status/interrupted`, { signal: controller.signal })
        .then(r => r.json())
        .then(data => {
-         if (data.interrupted_runs && data.interrupted_runs.some((r: any) => r.task_type === "tuner")) {
+         if (data.interrupted_runs && data.interrupted_runs.some((r: { task_type: string }) => r.task_type === "tuner")) {
            setInterruptedWarning(ERROR_MESSAGES.TUNER.INTERRUPTED_WARNING);
          }
        })

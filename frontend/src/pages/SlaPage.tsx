@@ -250,40 +250,44 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
         </form>
 
         <div className="section-title" style={{ marginTop: '32px' }}>SLA 프로필 목록</div>
-        <table className="table">
-          <thead>
-            <tr>
-              <th style={{ width: '40px' }}></th>
-              <th>이름</th>
-              <th>임계값 요약</th>
-              <th style={{ textAlign: 'right' }}>작업</th>
-            </tr>
-          </thead>
-          <tbody>
-            {profiles.map(p => (
-              <tr key={p.id}>
-                <td>
-                  <input
-                    type="radio"
-                    name="sla-profile"
-                    checked={selectedProfileId === p.id}
-                    onChange={() => handleProfileSelect(p.id)}
-                    style={{ cursor: 'pointer', accentColor: COLORS.cyan }}
-                  />
-                </td>
-                <td className="td-text">{p.name}</td>
-                <td className="td-muted" style={{ fontSize: '0.85rem' }}>{renderThresholds(p.thresholds)}</td>
-                <td style={{ textAlign: 'right' }}>
-                  <button className="btn-small" onClick={() => handleEdit(p)} style={{ marginRight: '8px' }}>편집</button>
-                  <button className="btn-outline-small" onClick={() => handleDelete(p.id)} style={{ color: COLORS.red, borderColor: COLORS.red }}>삭제</button>
-                </td>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: COLORS.muted }}>로딩 중...</div>
+        ) : (
+          <table className="table">
+            <thead>
+              <tr>
+                <th style={{ width: '40px' }}></th>
+                <th>이름</th>
+                <th>임계값 요약</th>
+                <th style={{ textAlign: 'right' }}>작업</th>
               </tr>
-            ))}
-             {profiles.length === 0 && (
-               <tr><td colSpan={4} className="td-muted" style={{ textAlign: 'center', padding: '20px' }}>{ERROR_MESSAGES.SLA.NO_PROFILES}</td></tr>
-             )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {profiles.map(p => (
+                <tr key={p.id}>
+                  <td>
+                    <input
+                      type="radio"
+                      name="sla-profile"
+                      checked={selectedProfileId === p.id}
+                      onChange={() => handleProfileSelect(p.id)}
+                      style={{ cursor: 'pointer', accentColor: COLORS.cyan }}
+                    />
+                  </td>
+                  <td className="td-text">{p.name}</td>
+                  <td className="td-muted" style={{ fontSize: '0.85rem' }}>{renderThresholds(p.thresholds)}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button className="btn-small" onClick={() => handleEdit(p)} style={{ marginRight: '8px' }}>편집</button>
+                    <button className="btn-outline-small" onClick={() => handleDelete(p.id)} style={{ color: COLORS.red, borderColor: COLORS.red }}>삭제</button>
+                  </td>
+                </tr>
+              ))}
+               {profiles.length === 0 && (
+                 <tr><td colSpan={4} className="td-muted" style={{ textAlign: 'center', padding: '20px' }}>{ERROR_MESSAGES.SLA.NO_PROFILES}</td></tr>
+               )}
+            </tbody>
+          </table>
+        )}
       </div>
 
        {selectedProfileId && (

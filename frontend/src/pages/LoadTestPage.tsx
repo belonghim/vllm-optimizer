@@ -12,6 +12,7 @@ import { simulateLoadTest } from "../mockData";
 import LoadTestConfig, { type RerunConfig } from "../components/LoadTestConfig";
 import ErrorAlert from "../components/ErrorAlert";
 import { useLoadTestSSE } from "../hooks/useLoadTestSSE";
+import { useSSE } from "../hooks/useSSE";
 import { calcGpuEfficiency } from "../utils/metrics";
 
 // Sweep types
@@ -109,7 +110,7 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
   const [sweepSteps, setSweepSteps] = useState<SweepStepResult[]>([]);
   const [sweepResult, setSweepResult] = useState<SweepResult | null>(null);
   const [sweepError, setSweepError] = useState<string | null>(null);
-  const sweepEventSource = useRef<EventSource | null>(null);
+  const [sweepSSEUrl, setSweepSSEUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const isSweepRunning = sweepStatus === 'running';
@@ -232,7 +233,7 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
      authFetch(`${API}/status/interrupted`, { signal: controller.signal })
        .then(r => r.json())
        .then(data => {
-         if (data.interrupted_runs && data.interrupted_runs.some((r: any) => r.task_type === "loadtest")) {
+         if (data.interrupted_runs && data.interrupted_runs.some((r: { task_type: string }) => r.task_type === "loadtest")) {
            setInterruptedWarning(ERROR_MESSAGES.LOAD_TEST.INTERRUPTED_WARNING);
          }
        })

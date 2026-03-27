@@ -36,7 +36,7 @@ type ChartLinesMap = Record<string, ChartLine[]>;
 
 const fmtTime = (ts: number) => new Date(ts * 1000).toLocaleTimeString("ko-KR", { hour12: false });
 
-export function buildChartLinesMap(targets: ClusterTarget[], defaultKey: string | null, COLORS: any = DARK_COLORS): ChartLinesMap {
+export function buildChartLinesMap(targets: ClusterTarget[], defaultKey: string | null, COLORS: typeof DARK_COLORS = DARK_COLORS): ChartLinesMap {
   const makeMultiLines = (metricKey: string) =>
     targets.map((t, i) => ({
       key: `${t.namespace}/${t.inferenceService}_${metricKey}`,
@@ -153,7 +153,21 @@ interface HistoryPoint {
 }
 
 interface TargetResultData {
-  [key: string]: any;
+  tps?: number | null;
+  latency_p99?: number | null;
+  latency_mean?: number | null;
+  ttft_mean?: number | null;
+  ttft_p99?: number | null;
+  kv_cache?: number | null;
+  kv_hit_rate?: number | null;
+  running?: number | null;
+  waiting?: number | null;
+  rps?: number | null;
+  gpu_util?: number | null;
+  gpu_mem_used?: number | null;
+  gpu_mem_total?: number | null;
+  error_rate?: number | null;
+  availability?: number | null;
 }
 
 interface TargetResult {
