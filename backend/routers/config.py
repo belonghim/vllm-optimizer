@@ -97,7 +97,7 @@ async def patch_config(patch: ConfigPatch) -> ConfigResponse:
                 )
 
             await asyncio.to_thread(_patch_cm)
-        except (ApiException, k8s_config.ConfigException, OSError, AttributeError) as e:
+        except (ApiException, OSError, AttributeError) as e:
             logger.warning("ConfigMap patch failed (in-memory applied): %s", e)
             configmap_updated = False
 
