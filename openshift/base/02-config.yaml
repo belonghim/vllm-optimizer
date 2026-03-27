@@ -3,10 +3,10 @@ kind: ConfigMap
 metadata:
   name: vllm-optimizer-config
 data:
-  K8S_NAMESPACE: "vllm-lab-dev"
-  K8S_DEPLOYMENT_NAME: "llm-ov-predictor"
-  VLLM_ENDPOINT: "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080"
-  VLLM_DEPLOYMENT_NAME: "llm-ov"
+  K8S_NAMESPACE: "llm-d-demo"
+  K8S_DEPLOYMENT_NAME: "small-llm-d-kserve"
+  VLLM_ENDPOINT: "http://openshift-ai-inference-openshift-default.openshift-ingress.svc/llm-d-demo/small-llm-d"
+  VLLM_DEPLOYMENT_NAME: "small-llm-d"
   # OpenShift Monitoring Stack — Thanos Querier
   PROMETHEUS_URL: "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091"
   PROMETHEUS_USE_TLS: "true"
@@ -20,7 +20,7 @@ data:
   # Optuna RDBStorage URL for persistent study across restarts
   OPTUNA_STORAGE_URL: "sqlite:////data/optuna.db"
   # vLLM CR type (inferenceservice or pod)
-  VLLM_CR_TYPE: "inferenceservice"
+  VLLM_CR_TYPE: "llminferenceservice"
 ---
 apiVersion: v1
 kind: Secret

@@ -21,11 +21,12 @@ class RuntimeConfig:
 
     def __init__(self, multi_target_collector=None) -> None:
         self._multi_target_collector = multi_target_collector
-        self._default_namespace: str = os.getenv("K8S_NAMESPACE", "vllm-lab-dev")
+        self._default_namespace: str = os.getenv("K8S_NAMESPACE", "llm-d-demo")
         self._default_endpoint: str = os.getenv(
-            "VLLM_ENDPOINT", "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080"
+            "VLLM_ENDPOINT",
+            "http://openshift-ai-inference-openshift-default.openshift-ingress.svc/llm-d-demo/small-llm-d",
         )
-        self._default_is_name: str = os.getenv("VLLM_DEPLOYMENT_NAME", "llm-ov")
+        self._default_is_name: str = os.getenv("VLLM_DEPLOYMENT_NAME", "small-llm-d")
         self._cr_type_override: str | None = None
 
     def _get_default_target(self):
@@ -73,7 +74,7 @@ class RuntimeConfig:
     def cr_type(self) -> str:
         if self._cr_type_override is not None:
             return self._cr_type_override
-        return os.getenv("VLLM_CR_TYPE", "inferenceservice")
+        return os.getenv("VLLM_CR_TYPE", "llminferenceservice")
 
     def set_cr_type(self, value: str) -> None:
         if value not in ("inferenceservice", "llminferenceservice"):

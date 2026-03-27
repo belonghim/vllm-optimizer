@@ -52,6 +52,7 @@ class TargetCache:
     has_monitoring_label: bool | None = None
     is_default: bool = False
     last_label_check: float = field(default_factory=time.time)
+    cr_type: str = "inferenceservice"
 
 
 class MultiTargetMetricsCollector:
@@ -73,16 +74,16 @@ class MultiTargetMetricsCollector:
         self._token: str | None = self._load_token()
         self._k8s_available: bool = False
         self._k8s_core: client.CoreV1Api | None = None
-        self._default_namespace = os.getenv("K8S_NAMESPACE") or os.getenv("VLLM_NAMESPACE", "vllm-lab-dev")
-        self._default_is_name = os.getenv("VLLM_DEPLOYMENT_NAME", "llm-ov")
+        self._default_namespace = os.getenv("K8S_NAMESPACE") or os.getenv("VLLM_NAMESPACE", "llm-d-demo")
+        self._default_is_name = os.getenv("VLLM_DEPLOYMENT_NAME", "small-llm-d")
         self._init_k8s()
         self._register_default_target()
 
-    @property
-    def _cr_adapter(self) -> CRAdapter:
-        return get_cr_adapter()
+    def _adapter_for(self, target: TargetCache) -> CRAdapter:
+        return get_cr_adapter(target.cr_type)
 
     def _register_default_target(self) -> None:
+        cr_type = os.getenv("VLLM_CR_TYPE", "llminferenceservice")
         key = self._target_key(self._default_namespace, self._default_is_name)
         self._targets[key] = TargetCache(
             key=key,
@@ -90,6 +91,7 @@ class MultiTargetMetricsCollector:
             is_name=self._default_is_name,
             is_default=True,
             has_monitoring_label=None,
+            cr_type=cr_type,
         )
 
     def _get_default_target(self) -> TargetCache | None:
@@ -214,7 +216,7 @@ class MultiTargetMetricsCollector:
         await self._ensure_collect_loop()
         return latest
 
-    async def register_target(self, namespace: str, is_name: str) -> bool:
+    async def register_target(self, namespace: str, is_name: str, cr_type: str = "inferenceservice") -> bool:
         key = self._target_key(namespace, is_name)
         async with self._lock:
             existing = self._targets.get(key)
@@ -237,6 +239,7 @@ class MultiTargetMetricsCollector:
                     is_name=is_name,
                     has_monitoring_label=has_monitoring_label,
                     is_default=is_first,
+                    cr_type=cr_type,
                 )
 
         await self._ensure_collect_loop()
@@ -317,11 +320,10 @@ class MultiTargetMetricsCollector:
             logger.debug("[MultiTargetMetricsCollector] cleanup loop cancelled")
             raise
 
-    def _build_target_queries(self, namespace: str, is_name: str) -> dict[str, str]:
-        selector = f'namespace="{namespace}", job="{self._cr_adapter.prometheus_job(is_name)}"'
-        dcgm_selector = (
-            f'exported_namespace="{namespace}", exported_pod=~"{self._cr_adapter.dcgm_pod_pattern(is_name)}"'
-        )
+    def _build_target_queries(self, namespace: str, is_name: str, cr_type: str = "inferenceservice") -> dict[str, str]:
+        adapter = get_cr_adapter(cr_type)
+        selector = f'namespace="{namespace}", job="{adapter.prometheus_job(is_name)}"'
+        dcgm_selector = f'exported_namespace="{namespace}", exported_pod=~"{adapter.dcgm_pod_pattern(is_name)}"'
         return {
             "tokens_per_second": (
                 f"sum(rate(vllm:num_generated_tokens{{{selector}}}[1m])) "
@@ -397,12 +399,12 @@ class MultiTargetMetricsCollector:
     async def _collect_target(self, target: TargetCache) -> None:
         metrics = VLLMMetrics(timestamp=time.time())
 
-        prom_data = await self._query_prometheus(target.namespace, target.is_name)
+        prom_data = await self._query_prometheus(target.namespace, target.is_name, target.cr_type)
         for key, value in prom_data.items():
             if hasattr(metrics, key):
                 setattr(metrics, key, value)
 
-        k8s_data = await self._query_kubernetes_pods(target.namespace, target.is_name)
+        k8s_data = await self._query_kubernetes_pods(target.namespace, target.is_name, target.cr_type)
         metrics.pod_count = k8s_data.get("pod_count", 0)
         metrics.pod_ready = k8s_data.get("pod_ready", 0)
 
@@ -412,8 +414,10 @@ class MultiTargetMetricsCollector:
         target.latest = metrics
         target.history.append(metrics)
 
-    async def _query_prometheus(self, namespace: str, is_name: str) -> dict[str, float]:
-        queries = self._build_target_queries(namespace, is_name)
+    async def _query_prometheus(
+        self, namespace: str, is_name: str, cr_type: str = "inferenceservice"
+    ) -> dict[str, float]:
+        queries = self._build_target_queries(namespace, is_name, cr_type)
         headers: dict[str, str] = {}
         if self._token:
             headers["Authorization"] = f"Bearer {self._token}"
@@ -460,7 +464,9 @@ class MultiTargetMetricsCollector:
             pass
         return metric_name, None
 
-    async def _query_kubernetes_pods(self, namespace: str, is_name: str) -> dict[str, int]:
+    async def _query_kubernetes_pods(
+        self, namespace: str, is_name: str, cr_type: str = "inferenceservice"
+    ) -> dict[str, int]:
         if not self._k8s_available or self._k8s_core is None:
             return {}
         try:
@@ -469,7 +475,7 @@ class MultiTargetMetricsCollector:
                 await asyncio.to_thread(
                     self._k8s_core.list_namespaced_pod,
                     namespace=namespace,
-                    label_selector=self._cr_adapter.pod_label_selector(is_name),
+                    label_selector=get_cr_adapter(cr_type).pod_label_selector(is_name),
                 ),
             )
         except client.ApiException:

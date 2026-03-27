@@ -26,7 +26,7 @@ for arg in "$@"; do
       echo "  REGISTRY=${REGISTRY:-quay.io/joopark}"
       echo "  IMAGE_TAG (dev) => dev  |  (prod) => 1.0.0"
       echo "  NAMESPACE (dev) => vllm-optimizer-dev | (prod) => vllm-optimizer-prod"
-      echo "  VLLM_NAMESPACE (default) => vllm-lab-dev (dev) | vllm-lab-prod (prod)"
+      echo "  VLLM_NAMESPACE (default) => llm-d-demo (dev) | vllm-lab-prod (prod)"
       echo ""
       echo "Examples:"
       echo "  $0 dev --dry-run         # Preview dev deployment"
@@ -54,11 +54,11 @@ fi
 
 # Set VLLM_NAMESPACE based on environment
 if [[ "$ENV" == "dev" ]]; then
-  VLLM_NAMESPACE="${VLLM_NAMESPACE:-vllm-lab-dev}"
+  VLLM_NAMESPACE="${VLLM_NAMESPACE:-llm-d-demo}"
 elif [[ "$ENV" == "prod" ]]; then
   VLLM_NAMESPACE="${VLLM_NAMESPACE:-vllm-lab-prod}"
 else
-  VLLM_NAMESPACE="${VLLM_NAMESPACE:-vllm-lab-dev}"
+  VLLM_NAMESPACE="${VLLM_NAMESPACE:-llm-d-demo}"
 fi
 
 log() { echo "[$(date +%H:%M:%S)] $*"; }

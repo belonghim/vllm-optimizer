@@ -16,7 +16,7 @@ import pytest
 
 from .conftest import BACKEND_URL, VLLM_NAMESPACE
 
-VLLM_POD_LABEL = os.getenv("VLLM_POD_LABEL", "app=isvc.llm-ov-predictor")
+VLLM_POD_LABEL = os.getenv("VLLM_POD_LABEL", "app.kubernetes.io/name=small-llm-d")
 POD_RESTART_TIMEOUT = int(os.getenv("POD_RESTART_TIMEOUT", "300"))
 POD_POLL_INTERVAL = 10
 
@@ -76,7 +76,9 @@ def test_pod_restart_on_tuner_apply(
         "warmup_requests": 0,
         "objective": "tps",
     }
-    vllm_endpoint = os.getenv("VLLM_ENDPOINT", "http://llm-ov-predictor.vllm.svc.cluster.local:8080")
+    vllm_endpoint = os.getenv(
+        "VLLM_ENDPOINT", "http://openshift-ai-inference-openshift-default.openshift-ingress.svc/llm-d-demo/small-llm-d"
+    )
     resp = http_client.post("/api/tuner/start", json={**config, "vllm_endpoint": vllm_endpoint}, timeout=30)
     assert resp.status_code == 200, f"Failed to start tuner: {resp.text}"
     assert resp.json().get("success"), f"Tuner start failed: {resp.json()}"
