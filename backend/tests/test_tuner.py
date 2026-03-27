@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 from ..main import app
 from ..models.load_test import LoadTestConfig, TuningConfig, TuningTrial
-from ..services.auto_tuner import K8S_NAMESPACE, VLLM_IS_NAME, AutoTuner
+from ..services.auto_tuner import AutoTuner, _get_k8s_namespace, _get_vllm_is_name
 from ..services.load_engine import LoadTestEngine
 from ..services.multi_target_collector import MultiTargetMetricsCollector
 
@@ -1089,8 +1089,8 @@ async def test_rollback_uses_inferenceservice_annotation(auto_tuner_instance, mo
 
     mock_custom_api.patch_namespaced_custom_object.assert_called_once()
     call_args = mock_custom_api.patch_namespaced_custom_object.call_args
-    assert call_args.kwargs["name"] == VLLM_IS_NAME
-    assert call_args.kwargs["namespace"] == K8S_NAMESPACE
+    assert call_args.kwargs["name"] == _get_vllm_is_name()
+    assert call_args.kwargs["namespace"] == _get_k8s_namespace()
     patch_body = call_args.kwargs["body"]
     assert patch_body["spec"]["predictor"]["model"]["args"] == tuner._is_args_snapshot
 

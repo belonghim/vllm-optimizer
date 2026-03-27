@@ -60,11 +60,6 @@ def _get_vllm_is_name() -> str:
     return runtime_config.vllm_is_name or "llm-ov"
 
 
-K8S_NAMESPACE = _get_k8s_namespace()
-K8S_DEPLOYMENT = _get_vllm_is_name()
-VLLM_IS_NAME = _get_vllm_is_name()
-
-
 class AutoTuner:
     def __init__(self, metrics_collector, load_engine) -> None:
         self._metrics = metrics_collector
