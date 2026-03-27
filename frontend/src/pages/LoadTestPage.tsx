@@ -123,6 +123,30 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
     disconnectRef.current = disconnect;
   }, [disconnect]);
 
+  useSSE(sweepSSEUrl, {
+    sweep_step: (data) => setSweepSteps(prev => [...prev, data as SweepStepResult]),
+    sweep_completed: (data) => {
+      setSweepResult(data as SweepResult);
+      setSweepStatus('completed');
+      setSweepSSEUrl(null);
+    },
+    stopped: () => {
+      setSweepStatus('stopped');
+      setSweepSSEUrl(null);
+    },
+    error: (data) => {
+      setSweepError((data as { error?: string } | null)?.error || "An unknown error occurred during the sweep test.");
+      setSweepStatus('error');
+      setSweepSSEUrl(null);
+    },
+  }, {
+    onError: () => {
+      setSweepError("SSE connection failed.");
+      setSweepStatus('error');
+      setSweepSSEUrl(null);
+    },
+  });
+
   const start = async () => {
     setStatus("running"); setResult(null); setLatencyData([]); setProgress(0);
     setError(null); setSaveStatus(null);
