@@ -46,3 +46,34 @@ export const TOOLTIP_STYLE: TooltipStyle = { background: COLORS.surface, border:
 export const TARGET_COLORS: string[] = [COLORS.accent, COLORS.cyan, COLORS.green, COLORS.red, COLORS.purple];
 
 export const METRIC_KEYS: string[] = ['tps', 'ttft', 'ttft_fill', 'lat_p99', 'lat_p99_fill', 'kv', 'running', 'waiting', 'rps', 'ttft_p99', 'lat_mean', 'kv_hit', 'gpu_util', 'gpu_mem_used', 'gpu_mem_total'];
+
+export interface LoadTestPreset {
+  name: string;
+  description: string;
+  total_requests: number;
+  concurrency: number;
+  rps: number;
+  max_tokens: number;
+  stream: boolean;
+}
+
+export const LOAD_TEST_PRESETS: LoadTestPreset[] = [
+  { name: "Quick Smoke", description: "빠른 검증 (10 요청)", total_requests: 10, concurrency: 2, rps: 5, max_tokens: 64, stream: true },
+  { name: "Standard", description: "표준 부하 (100 요청)", total_requests: 100, concurrency: 10, rps: 20, max_tokens: 128, stream: true },
+  { name: "Stress", description: "스트레스 테스트 (500 요청)", total_requests: 500, concurrency: 50, rps: 50, max_tokens: 128, stream: true },
+];
+
+export interface SweepPreset {
+  name: string;
+  description: string;
+  rps_start: number;
+  rps_end: number;
+  rps_step: number;
+  requests_per_step: number;
+  concurrency: number;
+}
+
+export const SWEEP_PRESETS: SweepPreset[] = [
+  { name: "Quick Sweep", description: "빠른 포화점 탐지", rps_start: 1, rps_end: 20, rps_step: 5, requests_per_step: 10, concurrency: 5 },
+  { name: "Full Sweep", description: "정밀 포화점 탐지", rps_start: 1, rps_end: 50, rps_step: 2, requests_per_step: 30, concurrency: 10 },
+];
