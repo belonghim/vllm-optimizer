@@ -2,6 +2,7 @@ export interface ClusterTarget {
   namespace: string;
   inferenceService: string;
   isDefault: boolean;
+  crType?: string;
 }
 
 export interface ClusterConfig {
