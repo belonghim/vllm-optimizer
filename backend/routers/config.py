@@ -3,6 +3,8 @@ import os
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException
+from kubernetes import config as k8s_config
+from kubernetes.client.exceptions import ApiException
 from pydantic import BaseModel
 from services.model_resolver import resolve_model_name
 from services.shared import runtime_config
@@ -35,7 +37,7 @@ async def get_config() -> ConfigResponse:
     model_name = os.getenv("VLLM_MODEL", "auto")
     try:
         resolved = await resolve_model_name(endpoint)
-    except Exception:
+    except (RuntimeError, ValueError, OSError):
         resolved = model_name
     return ConfigResponse(
         vllm_endpoint=endpoint,
@@ -61,7 +63,7 @@ async def patch_config(patch: ConfigPatch) -> ConfigResponse:
                 )
         except HTTPException:
             raise
-        except Exception:
+        except (ImportError, AttributeError, RuntimeError):
             pass
 
     if patch.vllm_endpoint is not None:
@@ -84,7 +86,7 @@ async def patch_config(patch: ConfigPatch) -> ConfigResponse:
             def _patch_cm():
                 try:
                     k8s_config.load_incluster_config()
-                except Exception:
+                except k8s_config.ConfigException:
                     k8s_config.load_kube_config()
                 v1 = k8s_client.CoreV1Api()
                 namespace = os.getenv("POD_NAMESPACE", "vllm-optimizer-dev")
@@ -95,7 +97,7 @@ async def patch_config(patch: ConfigPatch) -> ConfigResponse:
                 )
 
             await asyncio.to_thread(_patch_cm)
-        except Exception as e:
+        except (ApiException, k8s_config.ConfigException, OSError, AttributeError) as e:
             logger.warning("ConfigMap patch failed (in-memory applied): %s", e)
             configmap_updated = False
 

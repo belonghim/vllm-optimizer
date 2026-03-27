@@ -146,7 +146,7 @@ def test_chaos_storage_error_benchmark_fails_open(isolated_client: TestClient):
     from routers.benchmark import get_storage
 
     mock_storage = MagicMock()
-    mock_storage.save_benchmark = AsyncMock(side_effect=Exception("sqlite unavailable"))
+    mock_storage.save_benchmark = AsyncMock(side_effect=ValueError("sqlite unavailable"))
     isolated_client.app.dependency_overrides[get_storage] = lambda: mock_storage
     try:
         save_resp = isolated_client.post("/api/benchmark/save", json=_benchmark_payload())

@@ -6,8 +6,10 @@ The /health endpoint (includes cr_type) is registered in main.py.
 
 import asyncio
 import logging
+import os
 from typing import Any
 
+import httpx
 from fastapi import APIRouter
 from services.shared import runtime_config
 
@@ -43,7 +45,7 @@ async def get_interrupted_runs() -> dict[str, Any]:
             for run in runs:
                 if run.get("id") is not None:
                     await storage.clear_running(run["id"])
-        except Exception as e:
+        except OSError as e:
             logger.warning("[Status] Failed to clear interrupted run rows from DB: %s", e)
 
     return {"interrupted_runs": runs}
@@ -52,8 +54,6 @@ async def get_interrupted_runs() -> dict[str, Any]:
 async def check_prometheus_health() -> bool:
     """Check Prometheus/Thanos connectivity with a lightweight query."""
     try:
-        import httpx
-
         thanos_url = os.getenv("PROMETHEUS_URL", "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091")
 
         token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
@@ -72,5 +72,5 @@ async def check_prometheus_health() -> bool:
                 params={"query": query},
             )
             return resp.status_code == 200
-    except Exception:
+    except (httpx.HTTPError, OSError):
         return False

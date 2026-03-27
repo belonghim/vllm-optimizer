@@ -13,6 +13,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
+from kubernetes.client.exceptions import ApiException
 from models.load_test import ErrorResponse, TuningConfig, TuningSessionDetail, TuningSessionSummary
 from pydantic import BaseModel
 from services.auto_tuner import AutoTuner
@@ -162,11 +163,11 @@ async def start_tuning(request: TuningStartRequest) -> dict[str, Any]:
                 "importance_json": json.dumps(await auto_tuner.get_importance()),
             }
             await storage.save_tuning_session(session_data)
-    except Exception as e:
+    except (OSError, ValueError, RuntimeError) as e:
         logger.warning("[Tuner] Failed to auto-save tuning session before new run: %s", e)
     try:
         await storage.clear_trials()
-    except Exception as e:
+    except (OSError, ValueError, RuntimeError) as e:
         logger.warning("[Tuner] Failed to clear trials from storage before new session: %s", e)
     config = TuningConfig(
         max_num_seqs_range=(request.max_num_seqs_min, request.max_num_seqs_max),
@@ -188,7 +189,7 @@ async def start_tuning(request: TuningStartRequest) -> dict[str, Any]:
 
     try:
         preflight = await auto_tuner._preflight_check()
-    except Exception as exc:
+    except (RuntimeError, ValueError, ApiException) as exc:
         raise HTTPException(
             status_code=400,
             detail=ErrorResponse(
@@ -254,7 +255,7 @@ async def get_tuning_trials(limit: int = 20) -> list[TrialFrontendInfo]:
         all_trials = await storage.get_trials()
         if not all_trials:
             all_trials = auto_tuner.trials
-    except Exception:
+    except (OSError, ValueError, RuntimeError):
         all_trials = auto_tuner.trials
     trials = all_trials[-limit:]
     return [

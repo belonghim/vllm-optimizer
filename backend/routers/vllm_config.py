@@ -62,10 +62,10 @@ def _get_k8s_custom() -> CustomObjectsApi | None:
 
         try:
             k8s_config.load_incluster_config()
-        except Exception:  # intentional: non-critical
+        except OSError:  # intentional: non-critical
             k8s_config.load_kube_config()
         return client.CustomObjectsApi()
-    except Exception as e:  # intentional: non-critical
+    except (ImportError, OSError, RuntimeError) as e:  # intentional: non-critical
         logger.warning("[VllmConfig] K8s client not available: %s", e)
         return None
 
@@ -129,7 +129,7 @@ async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict[str, Any]:
             raise HTTPException(status_code=409, detail="Tuner is running, cannot modify config")
     except HTTPException:
         raise
-    except Exception:  # intentional: non-critical
+    except (ImportError, AttributeError):  # intentional: non-critical
         pass  # auto_tuner 접근 불가 시 진행
 
     custom = await asyncio.to_thread(_get_k8s_custom)

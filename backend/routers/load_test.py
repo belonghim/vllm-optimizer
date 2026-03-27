@@ -119,9 +119,14 @@ async def start_load_test(config: LoadTestConfig) -> dict[str, Any]:
             }
             try:
                 await storage.save_load_test(entry)
-            except Exception as e:
+            except OSError as e:
                 logger.warning("[LoadTest] Failed to persist history (fail-open): %s", e)
-        except Exception as e:  # intentional: non-critical
+        except (
+            asyncio.CancelledError,
+            OSError,
+            RuntimeError,
+            Exception,
+        ) as e:  # intentional: catch all errors during test
             logger.error("[LoadTest] Error: %s", e)
         finally:
             _active_test_task = None
@@ -242,7 +247,7 @@ async def get_load_test_history(limit: int = 10) -> list[dict[str, Any]]:
     """
     try:
         return await storage.get_load_test_history(limit=limit)
-    except Exception as e:
+    except OSError as e:
         logger.warning("[LoadTest] Failed to retrieve history (fail-open): %s", e)
         raise HTTPException(
             status_code=500,

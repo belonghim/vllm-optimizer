@@ -35,7 +35,7 @@ async def list_benchmarks(
 ) -> list[Benchmark]:
     try:
         return await storage.list_benchmarks()
-    except Exception as e:
+    except ValueError as e:
         logger.error("[Benchmark] Failed to list benchmarks: %s", e)
         raise HTTPException(
             status_code=500,
@@ -63,14 +63,14 @@ async def save_benchmark(
                 model_name = await resolve_model_name(endpoint, fallback="")
                 if model_name:
                     auto_meta["model_identifier"] = model_name
-        except Exception:
+        except (OSError, ValueError):
             pass
 
         try:
             snapshot = multi_target_collector.latest
             if snapshot and snapshot.pod_ready is not None:
                 auto_meta["replica_count"] = snapshot.pod_ready
-        except Exception:
+        except AttributeError:
             pass
 
         if auto_meta:
@@ -84,7 +84,7 @@ async def save_benchmark(
             benchmark = benchmark.model_copy(update={"metadata": merged})
 
         return await storage.save_benchmark(benchmark)
-    except Exception as e:
+    except ValueError as e:
         logger.error("[Benchmark] Failed to save benchmark: %s", e)
         raise HTTPException(
             status_code=500,
@@ -104,7 +104,7 @@ async def benchmarks_by_model(
 ) -> dict[str, Any]:
     try:
         benchmarks = await storage.list_benchmarks()
-    except Exception as e:
+    except ValueError as e:
         logger.error("[Benchmark] Failed to list benchmarks for by-model: %s", e)
         raise HTTPException(
             status_code=500,
@@ -138,7 +138,7 @@ async def get_benchmark(
 ) -> Benchmark:
     try:
         benchmark = await storage.get_benchmark(benchmark_id)
-    except Exception as e:
+    except ValueError as e:
         logger.error("[Benchmark] Failed to get benchmark %d: %s", benchmark_id, e)
         raise HTTPException(
             status_code=500,
@@ -165,7 +165,7 @@ async def delete_benchmark(
 ) -> dict[str, Any]:
     try:
         deleted = await storage.delete_benchmark(benchmark_id)
-    except Exception as e:
+    except ValueError as e:
         logger.error("[Benchmark] Failed to delete benchmark %d: %s", benchmark_id, e)
         raise HTTPException(
             status_code=500,
@@ -208,7 +208,7 @@ async def patch_benchmark_metadata(
             }
         )
         updated = await storage.update_benchmark_metadata(benchmark_id, merged_metadata)
-    except Exception as e:
+    except (HTTPException, ValueError) as e:
         if isinstance(e, HTTPException):
             raise e
         logger.error("[Benchmark] Failed to patch benchmark metadata %d: %s", benchmark_id, e)
