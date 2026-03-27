@@ -17,6 +17,8 @@ from models.load_test import (
     ErrorResponse,
     LoadTestConfig,
     LoadTestResult,
+    SweepConfig,
+    SweepResult,
 )
 from pydantic import BaseModel
 from services.load_engine import LoadTestStatus, load_engine
@@ -30,6 +32,10 @@ logger = logging.getLogger(__name__)
 _active_test_task: asyncio.Task[Any] | None = None
 _current_config: LoadTestConfig | None = None
 _test_lock = asyncio.Lock()
+
+_sweep_task: asyncio.Task[Any] | None = None
+_sweep_result: SweepResult | None = None
+_is_sweeping: bool = False
 
 
 # Simple response models for start/stop
@@ -58,6 +64,8 @@ class StatusResponse(BaseModel):
     config: LoadTestConfig | None = None
     current_result: LoadTestResult | None = None
     elapsed: float = 0.0
+    sweep_result: dict[str, Any] | None = None
+    is_sweeping: bool = False
 
 
 @router.post(
@@ -152,7 +160,7 @@ async def stop_load_test(test_id: str | None = None) -> dict[str, Any]:
     - Gracefully stops all worker tasks
     - Final results will be available via /status
     """
-    global _active_test_task
+    global _active_test_task, _sweep_task, _is_sweeping
 
     # Stop the engine
     await load_engine.stop()
@@ -161,6 +169,11 @@ async def stop_load_test(test_id: str | None = None) -> dict[str, Any]:
     if _active_test_task and not _active_test_task.done():
         _active_test_task.cancel()
         _active_test_task = None
+
+    if _sweep_task and not _sweep_task.done():
+        _sweep_task.cancel()
+        _sweep_task = None
+        _is_sweeping = False
 
     return {
         "status": "stopped",
@@ -190,7 +203,51 @@ async def get_load_test_status(test_id: str | None = None) -> dict[str, Any]:
         "config": _current_config,
         "current_result": None,
         "elapsed": load_engine.elapsed,
+        "sweep_result": _sweep_result.model_dump() if _sweep_result else None,
+        "is_sweeping": _is_sweeping,
     }
+
+
+@router.post("/sweep", responses={409: {"model": ErrorResponse}})
+async def start_sweep(config: SweepConfig) -> dict[str, Any]:
+    global _sweep_task, _sweep_result, _is_sweeping
+
+    async with _test_lock:
+        if (_active_test_task is not None and not _active_test_task.done()) or _is_sweeping:
+            raise HTTPException(
+                status_code=409,
+                detail=ErrorResponse(
+                    error="A load test or sweep is already running.",
+                    error_type="already_running",
+                ).model_dump(),
+            )
+        _is_sweeping = True
+        _sweep_result = None
+
+    if config.model == "auto":
+        try:
+            config.model = await asyncio.wait_for(resolve_model_name(config.endpoint), timeout=3.0)
+        except TimeoutError:
+            config.model = os.getenv("VLLM_MODEL", "auto")
+
+    async def run_sweep_task():
+        global _sweep_task, _sweep_result, _is_sweeping
+        try:
+            result = await load_engine.run_sweep(config)
+            _sweep_result = result
+            await load_engine._broadcast({"type": "sweep_completed", "data": result.model_dump()})
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.error("[Sweep] Error: %s", e)
+            await load_engine._broadcast({"type": "sweep_completed", "data": None})
+        finally:
+            _is_sweeping = False
+            _sweep_task = None
+
+    _sweep_task = asyncio.create_task(run_sweep_task())
+
+    return {"status": "running", "config": config.model_dump()}
 
 
 @router.get("/stream")
@@ -212,8 +269,15 @@ async def stream_load_test_results(test_id: str | None = None) -> StreamingRespo
                 try:
                     data = await asyncio.wait_for(queue.get(), timeout=15)
                     yield f"data: {json.dumps(data)}\n\n"
-                    if data.get("type") in ("completed", "stopped"):
-                        break
+                    event_type = data.get("type")
+                    # During sweep: only break on sweep_completed or stopped
+                    # During regular test: break on completed or stopped
+                    if _is_sweeping:
+                        if event_type in ("sweep_completed", "stopped"):
+                            break
+                    else:
+                        if event_type in ("completed", "stopped"):
+                            break
                 except TimeoutError:
                     yield ": keepalive\n\n"
         except asyncio.CancelledError:
