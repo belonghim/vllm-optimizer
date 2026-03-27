@@ -33,7 +33,7 @@ def _make_benchmark(
         timestamp=timestamp,
         config=LoadTestConfig(
             endpoint="http://localhost:8000",
-            model="llm-ov",
+            model="qwen2-5-7b-instruct",
             total_requests=max(total, 1),
             concurrency=1,
         ),

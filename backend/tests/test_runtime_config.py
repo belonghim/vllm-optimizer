@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 from services.runtime_config import RuntimeConfig
 from services.shared import runtime_config
@@ -7,14 +8,18 @@ from services.shared import runtime_config
 @pytest.fixture(autouse=True)
 def reset_runtime_config():
     """Reset runtime_config to defaults before each test."""
-    runtime_config.set_vllm_namespace("vllm-lab-dev")
-    runtime_config.set_vllm_endpoint("http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080")
-    runtime_config.set_vllm_is_name("llm-ov")
+    runtime_config.set_vllm_namespace("llm-d-demo")
+    runtime_config.set_vllm_endpoint(
+        "http://openshift-ai-inference-openshift-default.openshift-ingress.svc/llm-d-demo/small-llm-d"
+    )
+    runtime_config.set_vllm_is_name("small-llm-d")
     yield
     # Reset after test as well
-    runtime_config.set_vllm_namespace("vllm-lab-dev")
-    runtime_config.set_vllm_endpoint("http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080")
-    runtime_config.set_vllm_is_name("llm-ov")
+    runtime_config.set_vllm_namespace("llm-d-demo")
+    runtime_config.set_vllm_endpoint(
+        "http://openshift-ai-inference-openshift-default.openshift-ingress.svc/llm-d-demo/small-llm-d"
+    )
+    runtime_config.set_vllm_is_name("small-llm-d")
 
 
 @pytest.fixture
@@ -27,16 +32,16 @@ def client():
 class TestRuntimeConfigSingleton:
     def test_initial_vllm_namespace_default(self):
         cfg = RuntimeConfig()
-        assert cfg.vllm_namespace == "vllm-lab-dev"
+        assert cfg.vllm_namespace == "llm-d-demo"
 
     def test_initial_vllm_endpoint_default(self):
         cfg = RuntimeConfig()
-        expected = "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080"
+        expected = "http://openshift-ai-inference-openshift-default.openshift-ingress.svc/llm-d-demo/small-llm-d"
         assert cfg.vllm_endpoint == expected
 
     def test_initial_vllm_is_name_default(self):
         cfg = RuntimeConfig()
-        assert cfg.vllm_is_name == "llm-ov"
+        assert cfg.vllm_is_name == "small-llm-d"
 
     def test_set_vllm_namespace(self):
         cfg = RuntimeConfig()
@@ -64,7 +69,7 @@ class TestRuntimeConfigSingleton:
 
     def test_initial_cr_type_default(self):
         cfg = RuntimeConfig()
-        assert cfg.cr_type == "inferenceservice"
+        assert cfg.cr_type == "llminferenceservice"
 
     def test_set_cr_type_inferenceservice(self):
         cfg = RuntimeConfig()
@@ -84,10 +89,10 @@ class TestRuntimeConfigSingleton:
 
     def test_reset_cr_type(self):
         cfg = RuntimeConfig()
-        cfg.set_cr_type("llminferenceservice")
-        assert cfg.cr_type == "llminferenceservice"
-        cfg.reset_cr_type()
+        cfg.set_cr_type("inferenceservice")
         assert cfg.cr_type == "inferenceservice"
+        cfg.reset_cr_type()
+        assert cfg.cr_type == "llminferenceservice"
 
 
 class TestGetConfigEndpoint:
@@ -163,7 +168,12 @@ class TestPatchConfigEndpoint:
             "configmap_updated",
         }
 
-    def test_patch_config_cr_type_change(self, client: TestClient):
+    @patch("kubernetes.config.load_incluster_config")
+    @patch("kubernetes.client.CoreV1Api")
+    def test_patch_config_cr_type_change(self, mock_core_v1_api_class, mock_load_incluster, client: TestClient):
+        mock_v1_instance = MagicMock()
+        mock_core_v1_api_class.return_value = mock_v1_instance
+
         response = client.patch("/api/config", json={"cr_type": "llminferenceservice"})
         assert response.status_code == 200
         data = response.json()

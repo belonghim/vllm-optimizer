@@ -73,13 +73,13 @@ def test_metrics_history_endpoint_handles_nan_gracefully(client):
 def test_metrics_batch_endpoint(isolated_client):
     response = isolated_client.post(
         "/api/metrics/batch",
-        json={"targets": [{"namespace": "vllm-lab-dev", "inferenceService": "llm-ov"}]},
+        json={"targets": [{"namespace": "llm-d-demo", "inferenceService": "small-llm-d"}]},
     )
     assert response.status_code == 200
     data = response.json()
     assert "results" in data
-    assert "vllm-lab-dev/llm-ov" in data["results"]
-    target_result = data["results"]["vllm-lab-dev/llm-ov"]
+    assert "llm-d-demo/small-llm-d" in data["results"]
+    target_result = data["results"]["llm-d-demo/small-llm-d"]
     assert "status" in target_result
     assert target_result["status"] in ("collecting", "ready")
 

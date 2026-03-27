@@ -13,7 +13,7 @@ def _benchmark_payload() -> dict[str, object]:
         "name": "chaos-benchmark",
         "config": {
             "endpoint": "http://localhost:8000",
-            "model": "llm-ov",
+            "model": "qwen2-5-7b-instruct",
             "prompt_template": "Hello",
             "total_requests": 1,
             "concurrency": 1,
@@ -118,7 +118,7 @@ def test_chaos_vllm_timeout_load_engine_fails_gracefully(isolated_client: TestCl
             "/api/load_test/start",
             json={
                 "endpoint": "http://mock-vllm:8080",
-                "model": "llm-ov",
+                "model": "qwen2-5-7b-instruct",
                 "total_requests": 3,
                 "concurrency": 1,
                 "rps": 0,

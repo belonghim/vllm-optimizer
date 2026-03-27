@@ -299,7 +299,7 @@ async def test_preflight_fails_on_nonexistent_model():
         mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = {"data": [{"id": "real-model"}]}
+        mock_resp.json.return_value = {"data": [{"id": "qwen2-5-7b-instruct"}]}
         mock_ctx.get = AsyncMock(return_value=mock_resp)
 
         config = LoadTestConfig(endpoint="http://localhost:8080", model="wrong-model", total_requests=10)
@@ -308,7 +308,7 @@ async def test_preflight_fails_on_nonexistent_model():
     assert result.get("success") is False
     assert result.get("error_type") == "model_not_found"
     assert "wrong-model" in result.get("error", "")
-    assert "real-model" in result.get("error", "")
+    assert "qwen2-5-7b-instruct" in result.get("error", "")
 
 
 async def test_preflight_skips_model_check_for_auto():
@@ -325,7 +325,7 @@ async def test_preflight_skips_model_check_for_auto():
         mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = {"data": [{"id": "some-other-model"}]}
+        mock_resp.json.return_value = {"data": [{"id": "qwen2-5-7b-instruct"}]}
         mock_ctx.get = AsyncMock(return_value=mock_resp)
 
         config = LoadTestConfig(endpoint="http://localhost:8080", model="auto", total_requests=3)
@@ -351,11 +351,11 @@ async def test_consecutive_failures_abort_test_early():
         mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = {"data": [{"id": "llm-ov"}]}
+        mock_resp.json.return_value = {"data": [{"id": "qwen2-5-7b-instruct"}]}
         mock_ctx.get = AsyncMock(return_value=mock_resp)
 
         with patch.object(engine, "_dispatch_request", side_effect=always_fail):
-            config = LoadTestConfig(endpoint="http://localhost:8080", model="llm-ov", total_requests=100)
+            config = LoadTestConfig(endpoint="http://localhost:8080", model="qwen2-5-7b-instruct", total_requests=100)
             result = await engine.run(config)
 
     assert result.get("success") is False
@@ -407,11 +407,11 @@ async def test_happy_path_unaffected_by_preflight():
         mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = {"data": [{"id": "llm-ov"}]}
+        mock_resp.json.return_value = {"data": [{"id": "qwen2-5-7b-instruct"}]}
         mock_ctx.get = AsyncMock(return_value=mock_resp)
 
         with patch.object(engine, "_dispatch_request", side_effect=mock_dispatch):
-            config = LoadTestConfig(endpoint="http://localhost:8080", model="llm-ov", total_requests=5)
+            config = LoadTestConfig(endpoint="http://localhost:8080", model="qwen2-5-7b-instruct", total_requests=5)
             result = await engine.run(config)
 
     assert engine._state.status == LoadTestStatus.COMPLETED
@@ -443,11 +443,11 @@ async def test_mixed_failure_reasons_no_abort():
         mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = {"data": [{"id": "llm-ov"}]}
+        mock_resp.json.return_value = {"data": [{"id": "qwen2-5-7b-instruct"}]}
         mock_ctx.get = AsyncMock(return_value=mock_resp)
 
         with patch.object(engine, "_dispatch_request", side_effect=fail_with_different_errors):
-            config = LoadTestConfig(endpoint="http://localhost:8080", model="llm-ov", total_requests=10)
+            config = LoadTestConfig(endpoint="http://localhost:8080", model="qwen2-5-7b-instruct", total_requests=10)
             result = await engine.run(config)
 
     assert result.get("error_type") != "consecutive_failure", (
@@ -474,11 +474,11 @@ async def test_same_failure_reason_aborts():
         mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = {"data": [{"id": "llm-ov"}]}
+        mock_resp.json.return_value = {"data": [{"id": "qwen2-5-7b-instruct"}]}
         mock_ctx.get = AsyncMock(return_value=mock_resp)
 
         with patch.object(engine, "_dispatch_request", side_effect=fail_with_same_error):
-            config = LoadTestConfig(endpoint="http://localhost:8080", model="llm-ov", total_requests=100)
+            config = LoadTestConfig(endpoint="http://localhost:8080", model="qwen2-5-7b-instruct", total_requests=100)
             result = await engine.run(config)
 
     assert result.get("success") is False
@@ -557,11 +557,11 @@ async def test_concurrent_run_rejected():
         mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = {"data": [{"id": "llm-ov"}]}
+        mock_resp.json.return_value = {"data": [{"id": "qwen2-5-7b-instruct"}]}
         mock_ctx.get = AsyncMock(return_value=mock_resp)
 
         with patch.object(engine, "_dispatch_request", side_effect=slow_dispatch):
-            config = LoadTestConfig(endpoint="http://localhost:8080", model="llm-ov", total_requests=5)
+            config = LoadTestConfig(endpoint="http://localhost:8080", model="qwen2-5-7b-instruct", total_requests=5)
 
             first_run = asyncio.create_task(engine.run(config))
             await asyncio.sleep(0.05)
@@ -601,12 +601,12 @@ async def test_sse_subscriber_disconnect_graceful():
         mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = {"data": [{"id": "llm-ov"}]}
+        mock_resp.json.return_value = {"data": [{"id": "qwen2-5-7b-instruct"}]}
         mock_ctx.get = AsyncMock(return_value=mock_resp)
 
         with patch.object(engine, "_dispatch_request", side_effect=mock_dispatch):
             disconnect_queue = await engine.subscribe()
-            config = LoadTestConfig(endpoint="http://localhost:8080", model="llm-ov", total_requests=5)
+            config = LoadTestConfig(endpoint="http://localhost:8080", model="qwen2-5-7b-instruct", total_requests=5)
             result = await engine.run(config)
 
     assert engine._state.status == LoadTestStatus.COMPLETED

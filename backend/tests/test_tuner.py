@@ -70,7 +70,22 @@ def mock_k8s_clients():
         mock_custom_api.return_value = MagicMock(spec=CustomObjectsApi)
 
         mock_custom_api.return_value.get_namespaced_custom_object.return_value = {
-            "status": {"conditions": [{"type": "Ready", "status": "True"}]}
+            "spec": {
+                "template": {
+                    "containers": [
+                        {
+                            "name": "main",
+                            "env": [
+                                {
+                                    "name": "VLLM_ADDITIONAL_ARGS",
+                                    "value": "",
+                                }
+                            ],
+                        }
+                    ]
+                },
+            },
+            "status": {"conditions": [{"type": "Ready", "status": "True"}]},
         }
         mock_custom_api.return_value.patch_namespaced_custom_object = MagicMock()
         yield mock_apps_api, mock_core_api, mock_custom_api
@@ -230,15 +245,13 @@ async def test_start_reapplies_best_params_at_end(auto_tuner_instance, mock_k8s_
 
     last_patch_call = mock_custom_api.patch_namespaced_custom_object.call_args_list[-1]
     patch_body = last_patch_call[1]["body"]
-    patched_args = patch_body["spec"]["predictor"]["model"]["args"]
+    patched_value = patch_body["spec"]["template"]["containers"][0]["env"][0]["value"]
     expected_tuning_args = []
     expected_tuning_args.append(f"--max-num-seqs={tuner._best_trial.params['max_num_seqs']}")
     expected_tuning_args.append(f"--gpu-memory-utilization={tuner._best_trial.params['gpu_memory_utilization']}")
     expected_tuning_args.append(f"--max-num-batched-tokens={tuner._best_trial.params['max_num_batched_tokens']}")
     for expected_arg in expected_tuning_args:
-        assert any(expected_arg in arg for arg in patched_args), (
-            f"Expected {expected_arg} in patched args: {patched_args}"
-        )
+        assert expected_arg in patched_value, f"Expected {expected_arg} in patched value: {patched_value}"
 
     # IS patch should be called once per trial + once for final best params reapplication
     assert mock_custom_api.patch_namespaced_custom_object.call_count == config.n_trials + 1
@@ -440,7 +453,18 @@ async def test_apply_params_uses_correct_configmap_keys(auto_tuner_instance, moc
     tuner = auto_tuner_instance
     mock_custom_api = mock_k8s_clients[2].return_value
 
-    mock_custom_api.get_namespaced_custom_object.return_value = {"spec": {"predictor": {"model": {"args": []}}}}
+    mock_custom_api.get_namespaced_custom_object.return_value = {
+        "spec": {
+            "template": {
+                "containers": [
+                    {
+                        "name": "main",
+                        "env": [{"name": "VLLM_ADDITIONAL_ARGS", "value": ""}],
+                    }
+                ]
+            },
+        },
+    }
 
     params = {
         "max_num_seqs": 128,
@@ -453,10 +477,9 @@ async def test_apply_params_uses_correct_configmap_keys(auto_tuner_instance, moc
 
     mock_custom_api.patch_namespaced_custom_object.assert_called_once()
     call_args = mock_custom_api.patch_namespaced_custom_object.call_args
-    patch_args = call_args.kwargs["body"]["spec"]["predictor"]["model"]["args"]
+    patch_value = call_args.kwargs["body"]["spec"]["template"]["containers"][0]["env"][0]["value"]
 
-    # enable_chunked_prefill should map to --enable-chunked-prefill
-    assert "--enable-chunked-prefill" in patch_args
+    assert "--enable-chunked-prefill" in patch_value
 
 
 def test_importance_returns_empty_when_no_trials(client):
@@ -564,7 +587,18 @@ async def test_apply_params_includes_new_configmap_keys(auto_tuner_instance, moc
     tuner = auto_tuner_instance
     mock_custom_api = mock_k8s_clients[2].return_value
 
-    mock_custom_api.get_namespaced_custom_object.return_value = {"spec": {"predictor": {"model": {"args": []}}}}
+    mock_custom_api.get_namespaced_custom_object.return_value = {
+        "spec": {
+            "template": {
+                "containers": [
+                    {
+                        "name": "main",
+                        "env": [{"name": "VLLM_ADDITIONAL_ARGS", "value": ""}],
+                    }
+                ]
+            },
+        },
+    }
 
     params = {
         "max_num_seqs": 128,
@@ -579,11 +613,11 @@ async def test_apply_params_includes_new_configmap_keys(auto_tuner_instance, moc
 
     mock_custom_api.patch_namespaced_custom_object.assert_called_once()
     call_args = mock_custom_api.patch_namespaced_custom_object.call_args
-    patch_args = call_args.kwargs["body"]["spec"]["predictor"]["model"]["args"]
+    patch_value = call_args.kwargs["body"]["spec"]["template"]["containers"][0]["env"][0]["value"]
 
-    assert "--max-num-batched-tokens=512" in patch_args
-    assert "--block-size=16" in patch_args
-    assert "--enable-chunked-prefill" not in patch_args
+    assert "--max-num-batched-tokens=512" in patch_value
+    assert "--block-size=16" in patch_value
+    assert "--enable-chunked-prefill" not in patch_value
 
 
 @pytest.mark.asyncio
@@ -903,7 +937,18 @@ async def test_apply_params_swap_space_configmap_key(auto_tuner_instance, mock_k
     tuner = auto_tuner_instance
     mock_custom_api = mock_k8s_clients[2].return_value
 
-    mock_custom_api.get_namespaced_custom_object.return_value = {"spec": {"predictor": {"model": {"args": []}}}}
+    mock_custom_api.get_namespaced_custom_object.return_value = {
+        "spec": {
+            "template": {
+                "containers": [
+                    {
+                        "name": "main",
+                        "env": [{"name": "VLLM_ADDITIONAL_ARGS", "value": ""}],
+                    }
+                ]
+            },
+        },
+    }
 
     params = {
         "max_num_seqs": 64,
@@ -916,8 +961,8 @@ async def test_apply_params_swap_space_configmap_key(auto_tuner_instance, mock_k
     await tuner._apply_params(params)
 
     call_args = mock_custom_api.patch_namespaced_custom_object.call_args
-    patch_args = call_args.kwargs["body"]["spec"]["predictor"]["model"]["args"]
-    assert "--swap-space=4.0" in patch_args
+    patch_value = call_args.kwargs["body"]["spec"]["template"]["containers"][0]["env"][0]["value"]
+    assert "--swap-space=4.0" in patch_value
 
 
 @pytest.mark.asyncio
@@ -955,7 +1000,18 @@ async def test_chunked_prefill_false_writes_empty_string(auto_tuner_instance, mo
     tuner = auto_tuner_instance
     mock_custom_api = mock_k8s_clients[2].return_value
 
-    mock_custom_api.get_namespaced_custom_object.return_value = {"spec": {"predictor": {"model": {"args": []}}}}
+    mock_custom_api.get_namespaced_custom_object.return_value = {
+        "spec": {
+            "template": {
+                "containers": [
+                    {
+                        "name": "main",
+                        "env": [{"name": "VLLM_ADDITIONAL_ARGS", "value": ""}],
+                    }
+                ]
+            },
+        },
+    }
 
     params = {
         "max_num_seqs": 64,
@@ -969,17 +1025,17 @@ async def test_chunked_prefill_false_writes_empty_string(auto_tuner_instance, mo
     await tuner._apply_params(params)
 
     call_args = mock_custom_api.patch_namespaced_custom_object.call_args
-    patch_args = call_args.kwargs["body"]["spec"]["predictor"]["model"]["args"]
+    patch_value = call_args.kwargs["body"]["spec"]["template"]["containers"][0]["env"][0]["value"]
 
-    assert "--enable-chunked-prefill" not in patch_args
+    assert "--enable-chunked-prefill" not in patch_value
 
     mock_custom_api.patch_namespaced_custom_object.reset_mock()
     params_true = {**params, "enable_chunked_prefill": True}
     await tuner._apply_params(params_true)
-    patch_args_true = mock_custom_api.patch_namespaced_custom_object.call_args.kwargs["body"]["spec"]["predictor"][
-        "model"
-    ]["args"]
-    assert "--enable-chunked-prefill" in patch_args_true
+    patch_value_true = mock_custom_api.patch_namespaced_custom_object.call_args.kwargs["body"]["spec"]["template"][
+        "containers"
+    ][0]["env"][0]["value"]
+    assert "--enable-chunked-prefill" in patch_value_true
 
 
 @pytest.mark.asyncio
@@ -987,7 +1043,18 @@ async def test_enforce_eager_writes_correct_values(auto_tuner_instance, mock_k8s
     tuner = auto_tuner_instance
     mock_custom_api = mock_k8s_clients[2].return_value
 
-    mock_custom_api.get_namespaced_custom_object.return_value = {"spec": {"predictor": {"model": {"args": []}}}}
+    mock_custom_api.get_namespaced_custom_object.return_value = {
+        "spec": {
+            "template": {
+                "containers": [
+                    {
+                        "name": "main",
+                        "env": [{"name": "VLLM_ADDITIONAL_ARGS", "value": ""}],
+                    }
+                ]
+            },
+        },
+    }
 
     params_false = {
         "max_num_seqs": 64,
@@ -999,18 +1066,18 @@ async def test_enforce_eager_writes_correct_values(auto_tuner_instance, mock_k8s
     }
 
     await tuner._apply_params(params_false)
-    patch_args_false = mock_custom_api.patch_namespaced_custom_object.call_args.kwargs["body"]["spec"]["predictor"][
-        "model"
-    ]["args"]
-    assert "--enforce-eager" not in patch_args_false
+    patch_value_false = mock_custom_api.patch_namespaced_custom_object.call_args.kwargs["body"]["spec"]["template"][
+        "containers"
+    ][0]["env"][0]["value"]
+    assert "--enforce-eager" not in patch_value_false
 
     mock_custom_api.patch_namespaced_custom_object.reset_mock()
     params_true = {**params_false, "enable_enforce_eager": True}
     await tuner._apply_params(params_true)
-    patch_args_true = mock_custom_api.patch_namespaced_custom_object.call_args.kwargs["body"]["spec"]["predictor"][
-        "model"
-    ]["args"]
-    assert "--enforce-eager" in patch_args_true
+    patch_value_true = mock_custom_api.patch_namespaced_custom_object.call_args.kwargs["body"]["spec"]["template"][
+        "containers"
+    ][0]["env"][0]["value"]
+    assert "--enforce-eager" in patch_value_true
 
 
 def test_suggest_params_includes_enforce_eager(auto_tuner_instance):
@@ -1083,7 +1150,7 @@ async def test_rollback_uses_inferenceservice_annotation(auto_tuner_instance, mo
     tuner = auto_tuner_instance
     mock_custom_api = mock_k8s_clients[2].return_value
 
-    tuner._is_args_snapshot = ["--max-num-seqs=64"]
+    tuner._is_args_snapshot = "--max-num-seqs=64"
 
     await tuner._rollback_to_snapshot(0)
 
@@ -1092,7 +1159,7 @@ async def test_rollback_uses_inferenceservice_annotation(auto_tuner_instance, mo
     assert call_args.kwargs["name"] == _get_vllm_is_name()
     assert call_args.kwargs["namespace"] == _get_k8s_namespace()
     patch_body = call_args.kwargs["body"]
-    assert patch_body["spec"]["predictor"]["model"]["args"] == tuner._is_args_snapshot
+    assert patch_body["spec"]["template"]["containers"][0]["env"][0]["value"] == tuner._is_args_snapshot
 
 
 def test_config_has_resolved_model_name(client):
@@ -1159,7 +1226,18 @@ async def test_circuit_breaker_stops_on_consecutive_rbac_failure(auto_tuner_inst
     tuner._preflight_check = AsyncMock(return_value={"success": True})
     tuner._wait_for_ready = AsyncMock(return_value=True)
     mock_custom_api = mock_k8s_clients[2].return_value
-    mock_custom_api.get_namespaced_custom_object.return_value = {"spec": {"predictor": {"model": {"args": []}}}}
+    mock_custom_api.get_namespaced_custom_object.return_value = {
+        "spec": {
+            "template": {
+                "containers": [
+                    {
+                        "name": "main",
+                        "env": [{"name": "VLLM_ADDITIONAL_ARGS", "value": ""}],
+                    }
+                ]
+            },
+        },
+    }
     mock_custom_api.patch_namespaced_custom_object.side_effect = ApiException(status=403)
     config = TuningConfig(n_trials=3, eval_requests=5, warmup_requests=0)
     await tuner.start(config, "http://mock:8080")
@@ -1221,7 +1299,16 @@ async def test_404_circuit_break_stops_tuning(auto_tuner_instance, mock_k8s_clie
 
     mock_custom = mock_k8s_clients[2].return_value
     mock_custom.get_namespaced_custom_object.return_value = {
-        "spec": {"predictor": {"model": {"args": []}}},
+        "spec": {
+            "template": {
+                "containers": [
+                    {
+                        "name": "main",
+                        "env": [{"name": "VLLM_ADDITIONAL_ARGS", "value": ""}],
+                    }
+                ]
+            },
+        },
         "status": {"conditions": [{"type": "Ready", "status": "True"}]},
     }
     mock_custom.patch_namespaced_custom_object.side_effect = ApiException(status=404)
@@ -1251,7 +1338,16 @@ async def test_non_rbac_apply_failure_broadcasts_sse(auto_tuner_instance, mock_k
 
     mock_custom = mock_k8s_clients[2].return_value
     mock_custom.get_namespaced_custom_object.return_value = {
-        "spec": {"predictor": {"model": {"args": []}}},
+        "spec": {
+            "template": {
+                "containers": [
+                    {
+                        "name": "main",
+                        "env": [{"name": "VLLM_ADDITIONAL_ARGS", "value": ""}],
+                    }
+                ]
+            },
+        },
         "status": {"conditions": [{"type": "Ready", "status": "True"}]},
     }
     mock_custom.patch_namespaced_custom_object.side_effect = Exception("Connection refused")
@@ -1280,7 +1376,16 @@ async def test_is_ready_failure_broadcasts_warning(auto_tuner_instance, mock_k8s
 
     mock_custom = mock_k8s_clients[2].return_value
     mock_custom.get_namespaced_custom_object.return_value = {
-        "spec": {"predictor": {"model": {"args": []}}},
+        "spec": {
+            "template": {
+                "containers": [
+                    {
+                        "name": "main",
+                        "env": [{"name": "VLLM_ADDITIONAL_ARGS", "value": ""}],
+                    }
+                ]
+            },
+        },
         "status": {"conditions": [{"type": "Ready", "status": "True"}]},
     }
     mock_custom.patch_namespaced_custom_object.return_value = None
@@ -1308,7 +1413,16 @@ async def test_trial_evaluation_failure_broadcasts_warning(auto_tuner_instance, 
 
     mock_custom = mock_k8s_clients[2].return_value
     mock_custom.get_namespaced_custom_object.return_value = {
-        "spec": {"predictor": {"model": {"args": []}}},
+        "spec": {
+            "template": {
+                "containers": [
+                    {
+                        "name": "main",
+                        "env": [{"name": "VLLM_ADDITIONAL_ARGS", "value": ""}],
+                    }
+                ]
+            },
+        },
         "status": {"conditions": [{"type": "Ready", "status": "True"}]},
     }
     mock_custom.patch_namespaced_custom_object.return_value = None
@@ -1337,7 +1451,16 @@ async def test_storage_fallback_broadcasts_warning(auto_tuner_instance, mock_k8s
 
     mock_custom = mock_k8s_clients[2].return_value
     mock_custom.get_namespaced_custom_object.return_value = {
-        "spec": {"predictor": {"model": {"args": []}}},
+        "spec": {
+            "template": {
+                "containers": [
+                    {
+                        "name": "main",
+                        "env": [{"name": "VLLM_ADDITIONAL_ARGS", "value": ""}],
+                    }
+                ]
+            },
+        },
         "status": {"conditions": [{"type": "Ready", "status": "True"}]},
     }
     mock_custom.patch_namespaced_custom_object.return_value = None

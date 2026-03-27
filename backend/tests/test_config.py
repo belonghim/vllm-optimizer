@@ -166,3 +166,24 @@ class TestPatchConfig:
         assert r2.json()["cr_type"] == "llminferenceservice"
         # Endpoint should be preserved
         assert r2.json()["vllm_endpoint"] == original_endpoint
+
+    def test_cr_type_persists_after_reset(self, client):
+        """Test cr_type reset clears the in-memory override (simulating pod restart).
+
+        Verifies the reset_cr_type() lifecycle:
+        1. PATCH /api/config sets cr_type override
+        2. Override is confirmed in runtime_config._cr_type_override
+        3. reset_cr_type() clears the override to simulate pod restart fallback
+        4. Internal state is cleared (override set to None)
+        """
+        from services.shared import runtime_config
+
+        r1 = client.patch("/api/config", json={"cr_type": "llminferenceservice"})
+        assert r1.status_code == 200
+        assert r1.json()["cr_type"] == "llminferenceservice"
+
+        assert runtime_config._cr_type_override == "llminferenceservice"
+
+        runtime_config.reset_cr_type()
+
+        assert runtime_config._cr_type_override is None
