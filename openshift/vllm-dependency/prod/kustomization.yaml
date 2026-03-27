@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: vllm-lab-prod
 resources:
   - ../base
+  - vllm-inferenceservice.yaml
 patches:
   - target:
       kind: Role
