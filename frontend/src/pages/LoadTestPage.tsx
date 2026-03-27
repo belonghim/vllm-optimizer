@@ -64,7 +64,23 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
     setStatus("running"); setResult(null); setLatencyData([]); setProgress(0);
     setError(null); setSaveStatus(null);
     if (isMockEnabled) {
-      simulateLoadTest(config, setProgress, setResult, setStatus, setLatencyData);
+      simulateLoadTest(
+        config,
+        setProgress,
+        (mockResult) => setResult({ ...mockResult }),
+        (mockStatus) => {
+          if (
+            mockStatus === "idle" ||
+            mockStatus === "running" ||
+            mockStatus === "completed" ||
+            mockStatus === "error" ||
+            mockStatus === "stopped"
+          ) {
+            setStatus(mockStatus);
+          }
+        },
+        setLatencyData
+      );
       return;
     }
      try {

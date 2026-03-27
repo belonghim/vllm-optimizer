@@ -27,7 +27,7 @@ interface TunerStatus {
   best_score_history?: number[];
 }
 
-interface Trial {
+interface TunerTrial {
   id: number;
   tps: number;
   p99_latency: number;
@@ -70,7 +70,7 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [status, setStatus] = useState<TunerStatus>({ running: false, trials_completed: 0 });
-  const [trials, setTrials] = useState<Trial[]>([]);
+  const [trials, setTrials] = useState<TunerTrial[]>([]);
   const [importance, setImportance] = useState<Record<string, number>>({});
   const [currentPhase, setCurrentPhase] = useState<TunerPhase | null>(null);
   const [applyStatus, setApplyStatus] = useState<string | null>(null);
@@ -99,7 +99,12 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
 
   const fetchStatus = useCallback(async (signal?: AbortSignal) => {
     if (isMockEnabled) {
-      setTrials(mockTrials());
+      setTrials(
+        mockTrials().map((trial) => ({
+          ...trial,
+          params: { ...trial.params },
+        }))
+      );
       setError(null);
       return;
     }

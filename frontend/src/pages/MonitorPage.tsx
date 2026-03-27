@@ -215,7 +215,7 @@ function MonitorPage({ isActive }: MonitorPageProps) {
       targets.forEach(target => {
         const key = `${target.namespace}/${target.inferenceService}`;
         newStates[key] = {
-          metrics: mockMetrics(),
+          metrics: { ...mockMetrics() },
           history: buildGapFill(mockHistory().map(h => ({ ...h, t: h.t })), ['ttft', 'lat_p99']).slice(-450),
           status: 'ready',
           error: null

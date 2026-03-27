@@ -21,7 +21,7 @@ interface BenchmarkMetadata {
   extra?: Record<string, string>;
 }
 
-interface BenchmarkConfig {
+interface BenchmarkRunConfig {
   model?: string;
   [key: string]: unknown;
 }
@@ -35,32 +35,37 @@ interface BenchmarkResultData {
   metrics_target_matched?: boolean;
 }
 
-interface Benchmark {
+interface BenchmarkItem {
   id: string | number;
   name: string;
   timestamp: number;
-  config?: BenchmarkConfig;
+  config?: BenchmarkRunConfig;
   result: BenchmarkResultData;
   metadata?: BenchmarkMetadata | null;
 }
 
 interface BenchmarkPageProps {
   isActive: boolean;
-  onRerun?: (config: BenchmarkConfig) => void;
+  onRerun?: (config: BenchmarkRunConfig) => void;
 }
 
 function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
   const { COLORS, TOOLTIP_STYLE } = useThemeColors();
-  const [benchmarks, setBenchmarks] = useState<Benchmark[]>([]);
+  const [benchmarks, setBenchmarks] = useState<BenchmarkItem[]>([]);
   const { selectedIds: selected, setSelectedIds: setSelected } = useBenchmarkSelection();
   const [expanded, setExpanded] = useState<(string | number)[]>([]);
-  const [editing, setEditing] = useState<Benchmark | null>(null);
+  const [editing, setEditing] = useState<BenchmarkItem | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { isMockEnabled } = useMockData();
 
   const fetchBenchmarks = useCallback(() => {
     if (isMockEnabled) {
-      setBenchmarks(mockBenchmarks());
+      setBenchmarks(
+        mockBenchmarks().map((benchmark) => ({
+          ...benchmark,
+          config: benchmark.config ? { ...benchmark.config } : undefined,
+        }))
+      );
       setError(null);
       return () => {};
     }
@@ -99,7 +104,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
     );
   };
 
-  const handleDelete = async (b: Benchmark, e: React.MouseEvent) => {
+  const handleDelete = async (b: BenchmarkItem, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!window.confirm(`벤치마크 '${b.name}'을(를) 삭제하시겠습니까?`)) return;
 
@@ -140,7 +145,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
         body: JSON.stringify(metadata),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const updated: Benchmark = await res.json();
+      const updated: BenchmarkItem = await res.json();
       setBenchmarks(prev => prev.map(b => b.id === benchmarkId ? updated : b));
       setEditing(null);
     } catch (err) {

@@ -19,7 +19,7 @@ interface ClusterConfigContextValue {
   removeTarget: (namespace: string, inferenceService: string) => void;
   setDefaultTarget: (namespace: string, inferenceService: string) => void;
   crType: string;
-  updateCrType: (value: string) => Promise<void>;
+  updateCrType: (value: string) => Promise<{ configmap_updated: boolean }>;
 }
 
 const ClusterConfigContext = createContext<ClusterConfigContextValue>({
@@ -34,7 +34,7 @@ const ClusterConfigContext = createContext<ClusterConfigContextValue>({
   removeTarget: () => {},
   setDefaultTarget: () => {},
   crType: "",
-  updateCrType: async () => {},
+  updateCrType: async () => ({ configmap_updated: true }),
 });
 
 function isRecord(value: unknown): value is Record<string, unknown> {
