@@ -39,6 +39,12 @@ class RequestResult(BaseModel):
     output_tokens: int = Field(default=0, description="Number of output tokens")
     tps: float = Field(default=0.0, description="Tokens per second")
     error: str | None = Field(default=None, description="Error message if failed")
+    token_timestamps: list[float] | None = Field(
+        default=None, description="Per-token receive timestamps (epoch seconds), streaming only"
+    )
+    itl_mean: float | None = Field(default=None, description="Mean inter-token latency in seconds")
+    itl_p95: float | None = Field(default=None, description="P95 inter-token latency in seconds")
+    itl_p99: float | None = Field(default=None, description="P99 inter-token latency in seconds")
 
 
 class ErrorResponse(BaseModel):
@@ -88,6 +94,44 @@ class LoadTestResult(BaseModel):
         default=True,
         description="GPU 메트릭 수집 대상이 부하 테스트 대상과 일치하는지 여부 (불일치 시 GPU Eff. 계산값이 무의미)",
     )
+    itl: dict | None = Field(
+        default=None, description="Aggregated ITL stats: {mean, p95, p99} in seconds. None for non-streaming."
+    )
+
+
+class SweepConfig(BaseModel):
+    endpoint: str = Field(default="", description="vLLM endpoint URL")
+    model: str = Field(default="auto", description="Model name")
+    rps_start: int = Field(default=1, ge=1, description="Starting RPS")
+    rps_end: int = Field(default=50, ge=1, description="Ending RPS")
+    rps_step: int = Field(default=5, ge=1, description="RPS increment per step")
+    requests_per_step: int = Field(default=20, ge=1, description="Requests per step")
+    concurrency: int = Field(default=10, ge=1, description="Concurrent requests")
+    max_tokens: int = Field(default=128, ge=1, description="Max tokens per request")
+    stream: bool = Field(default=True, description="Enable streaming")
+    prompt: str = Field(default="Explain quantum computing in simple terms", description="Request prompt")
+    saturation_error_rate: float = Field(
+        default=0.1, ge=0.0, le=1.0, description="Error rate threshold for saturation detection"
+    )
+    saturation_latency_factor: float = Field(
+        default=3.0, ge=1.0, description="P99 latency multiple vs step-1 for saturation detection"
+    )
+
+
+class SweepStepResult(BaseModel):
+    step: int = Field(description="Step number (1-indexed)")
+    rps: float = Field(description="Target RPS for this step")
+    stats: dict = Field(default_factory=dict, description="Load test stats for this step")
+    saturated: bool = Field(default=False, description="Whether saturation was detected at this step")
+    saturation_reason: str | None = Field(default=None, description="Reason for saturation if detected")
+
+
+class SweepResult(BaseModel):
+    config: SweepConfig
+    steps: list[SweepStepResult] = Field(default_factory=list)
+    saturation_point: float | None = Field(default=None, description="RPS at which saturation was first detected")
+    optimal_rps: float | None = Field(default=None, description="Last non-saturated RPS (recommended operating point)")
+    total_duration: float = Field(default=0.0, description="Total sweep duration in seconds")
 
 
 class TuningConfig(BaseModel):
