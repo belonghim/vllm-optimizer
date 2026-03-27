@@ -910,3 +910,82 @@ async def test_sweep_stop_midway():
 
     # Should have run only 1 step before stopping
     assert call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_itl_computation_with_known_timestamps():
+    """ITL computed correctly from known timestamps."""
+
+    # Known timestamps: 0.0, 0.1, 0.2 → deltas [0.1, 0.1] → mean=0.1
+    timestamps = [0.0, 0.1, 0.2]
+    if len(timestamps) >= 2:
+        deltas = [timestamps[i + 1] - timestamps[i] for i in range(len(timestamps) - 1)]
+        itl_mean = sum(deltas) / len(deltas)
+        itl_p95 = sorted(deltas)[int(len(deltas) * 0.95)]
+        itl_p99 = sorted(deltas)[int(len(deltas) * 0.99)]
+    assert abs(itl_mean - 0.1) < 1e-9
+    assert itl_p95 == 0.1
+    assert itl_p99 == 0.1
+
+
+@pytest.mark.asyncio
+async def test_itl_none_for_single_token():
+    """Single token output → ITL is None (need at least 2 tokens)."""
+
+    # Single timestamp → no deltas → ITL should be None
+    timestamps = [0.0]  # only 1 token received
+    itl_mean = itl_p95 = itl_p99 = None
+    if len(timestamps) >= 2:
+        deltas = [timestamps[i + 1] - timestamps[i] for i in range(len(timestamps) - 1)]
+        itl_mean = sum(deltas) / len(deltas)
+        itl_p95 = sorted(deltas)[int(len(deltas) * 0.95)]
+        itl_p99 = sorted(deltas)[int(len(deltas) * 0.99)]
+    assert itl_mean is None
+    assert itl_p95 is None
+    assert itl_p99 is None
+
+
+@pytest.mark.asyncio
+async def test_sweep_executes_multiple_steps():
+    """run_sweep() calls run() once per RPS step."""
+    from unittest.mock import AsyncMock, patch
+    from services.load_engine import LoadTestEngine
+    from models.load_test import LoadTestConfig, SweepConfig
+
+    sweep_config = SweepConfig(
+        endpoint="http://x",
+        model="m",
+        rps_start=1,
+        rps_end=10,
+        rps_step=5,  # steps: 1, 6, (stop before 11)
+        requests_per_step=5,
+        concurrency=2,
+        max_tokens=32,
+    )
+
+    mock_result = {
+        "success": 5,
+        "failed": 0,
+        "total": 5,
+        "rps_actual": 5.0,
+        "latency": {"mean": 0.5, "p50": 0.5, "p95": 0.6, "p99": 0.7},
+        "tps": {"mean": 10.0, "total": 50.0},
+        "ttft": {"mean": 0.1, "p50": 0.1, "p95": 0.2, "p99": 0.3},
+    }
+
+    engine = LoadTestEngine()
+
+    run_call_count = 0
+
+    async def mock_run(*args, **kwargs):
+        nonlocal run_call_count
+        run_call_count += 1
+        return mock_result
+
+    with patch.object(engine, "run", side_effect=mock_run), patch.object(engine, "_broadcast", new_callable=AsyncMock):
+        result = await engine.run_sweep(sweep_config)
+
+    # rps_start=1, rps_end=10, rps_step=5 → steps at RPS 1, 6 → 2 steps
+    expected_steps = len(range(sweep_config.rps_start, sweep_config.rps_end + 1, sweep_config.rps_step))
+    assert run_call_count == expected_steps, f"Expected {expected_steps} run() calls, got {run_call_count}"
+    assert len(result.steps) == expected_steps

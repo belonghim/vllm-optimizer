@@ -178,10 +178,10 @@ interface MonitorPageProps {
 }
 
 const TIME_RANGES = [
-  { label: '1h',  points: 1200 },
-  { label: '6h',  points: 7200 },
-  { label: '24h', points: 28800 },
-  { label: '7d',  points: 201600 },
+  { label: '1h',  points: 1800 },
+  { label: '6h',  points: 10800 },
+  { label: '24h', points: 43200 },
+  { label: '7d',  points: 302400 },
 ];
 
 function MonitorPage({ isActive }: MonitorPageProps) {
@@ -193,7 +193,7 @@ function MonitorPage({ isActive }: MonitorPageProps) {
   const [chartState, setChartState] = useState<ChartConfig>(() => loadChartConfig());
   const [slaProfiles, setSlaProfiles] = useState<SlaProfile[]>([]);
   const [selectedSlaProfileId, setSelectedSlaProfileId] = useState<number | null>(null);
-  const [timeRangePoints, setTimeRangePoints] = useState(1200); // default 1h
+  const [timeRangePoints, setTimeRangePoints] = useState(1800); // default 1h
   const lastViolationTime = useRef<Record<string, number>>({});
 
   const chartOrder = chartState.order;

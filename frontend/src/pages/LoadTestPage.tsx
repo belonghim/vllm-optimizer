@@ -192,6 +192,24 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
     }
   };
 
+  const saveSweepAsBenchmark = async (sweep: SweepResult) => {
+    if (isSaving || !sweep) return;
+    setIsSaving(true); setSaveStatus(null);
+    const name = `sweep-${sweep.optimal_rps ?? 'custom'}-${Math.floor(Date.now() / 1000)}`;
+    try {
+      const resp = await authFetch(`${API}/benchmark/save`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, config: sweep.config, result: sweep }),
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      setSaveStatus("ok");
+    } catch {
+      setSaveStatus("error");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   useEffect(() => { return () => {
     disconnectRef.current?.();
     if (sweepEventSource.current) {
@@ -455,6 +473,7 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
           {([
             ["RPS Start", "rps_start", "number"], ["RPS End", "rps_end", "number"], ["RPS Step", "rps_step", "number"],
             ["Requests/Step", "requests_per_step", "number"], ["Concurrency", "concurrency", "number"], ["Max Tokens", "max_tokens", "number"],
+            ["Saturation Error Rate", "saturation_error_rate", "number"],
           ] as const).map(([label, key, type]) => (
             <div key={key}>
               <label className="label">{label}</label>
@@ -480,10 +499,14 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
 
       <ErrorAlert message={sweepError} className="error-alert--mb8" />
 
-      {sweepStatus === 'running' && sweepSteps.length === 0 && (
+      {sweepStatus === 'running' && (
         <div className="panel" aria-live="polite">
           <div className="loadtest-progress-header">
-            <span className="label">Sweep 시작 중...</span>
+            {sweepSteps.length === 0 ? (
+              <span className="label">Sweep 시작 중...</span>
+            ) : (
+              <span className="label">Step {sweepSteps.length + 1} 진행 중...</span>
+            )}
           </div>
         </div>
       )}
@@ -521,6 +544,17 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
             <MetricCard label="Total Steps" value={sweepResult.steps.length} color="cyan" />
             <MetricCard label="Duration" value={`${fmt(sweepResult.total_duration, 1)}s`} color="amber" />
           </div>
+          {sweepStatus === 'completed' && (
+            <div className="loadtest-save-row">
+              <button
+                className="btn btn-primary"
+                onClick={() => saveSweepAsBenchmark(sweepResult)}
+                disabled={isSaving || saveStatus === 'ok'}
+              >
+                {saveStatus === 'ok' ? '✓ Saved' : isSaving ? 'Saving...' : '⬆ 벤치마크로 저장'}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </>
