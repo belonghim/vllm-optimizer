@@ -52,7 +52,7 @@ class TargetCache:
     has_monitoring_label: bool | None = None
     is_default: bool = False
     last_label_check: float = field(default_factory=time.time)
-    cr_type: str = "inferenceservice"
+    cr_type: str = ""
 
 
 class MultiTargetMetricsCollector:
@@ -216,7 +216,11 @@ class MultiTargetMetricsCollector:
         await self._ensure_collect_loop()
         return latest
 
-    async def register_target(self, namespace: str, is_name: str, cr_type: str = "inferenceservice") -> bool:
+    async def register_target(self, namespace: str, is_name: str, cr_type: str | None = None) -> bool:
+        if cr_type is None:
+            from services.shared import runtime_config
+
+            cr_type = runtime_config.cr_type
         key = self._target_key(namespace, is_name)
         async with self._lock:
             existing = self._targets.get(key)
@@ -320,7 +324,11 @@ class MultiTargetMetricsCollector:
             logger.debug("[MultiTargetMetricsCollector] cleanup loop cancelled")
             raise
 
-    def _build_target_queries(self, namespace: str, is_name: str, cr_type: str = "inferenceservice") -> dict[str, str]:
+    def _build_target_queries(self, namespace: str, is_name: str, cr_type: str | None = None) -> dict[str, str]:
+        if cr_type is None:
+            from services.shared import runtime_config
+
+            cr_type = runtime_config.cr_type
         adapter = get_cr_adapter(cr_type)
         selector = f'namespace="{namespace}", job="{adapter.prometheus_job(is_name)}"'
         dcgm_selector = f'exported_namespace="{namespace}", exported_pod=~"{adapter.dcgm_pod_pattern(is_name)}"'
@@ -414,9 +422,11 @@ class MultiTargetMetricsCollector:
         target.latest = metrics
         target.history.append(metrics)
 
-    async def _query_prometheus(
-        self, namespace: str, is_name: str, cr_type: str = "inferenceservice"
-    ) -> dict[str, float]:
+    async def _query_prometheus(self, namespace: str, is_name: str, cr_type: str | None = None) -> dict[str, float]:
+        if cr_type is None:
+            from services.shared import runtime_config
+
+            cr_type = runtime_config.cr_type
         queries = self._build_target_queries(namespace, is_name, cr_type)
         headers: dict[str, str] = {}
         if self._token:
@@ -464,9 +474,11 @@ class MultiTargetMetricsCollector:
             pass
         return metric_name, None
 
-    async def _query_kubernetes_pods(
-        self, namespace: str, is_name: str, cr_type: str = "inferenceservice"
-    ) -> dict[str, int]:
+    async def _query_kubernetes_pods(self, namespace: str, is_name: str, cr_type: str | None = None) -> dict[str, int]:
+        if cr_type is None:
+            from services.shared import runtime_config
+
+            cr_type = runtime_config.cr_type
         if not self._k8s_available or self._k8s_core is None:
             return {}
         try:

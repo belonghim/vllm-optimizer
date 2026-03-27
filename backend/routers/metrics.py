@@ -95,7 +95,7 @@ async def get_latest_metrics(
     """
     if namespace is not None and is_name is not None:
         registered = await multi_target_collector.register_target(
-            namespace, is_name, cr_type=cr_type or "inferenceservice"
+            namespace, is_name, cr_type=cr_type or runtime_config.cr_type
         )
         if not registered:
             raise HTTPException(
@@ -140,7 +140,9 @@ async def get_batch_metrics(request: BatchMetricsRequest) -> BatchMetricsRespons
 
     for target in request.targets:
         key = f"{target.namespace}/{target.inferenceService}"
-        registered = await multi_target_collector.register_target(target.namespace, target.inferenceService)
+        registered = await multi_target_collector.register_target(
+            target.namespace, target.inferenceService, cr_type=target.cr_type
+        )
         if not registered:
             results[key] = {"data": None, "status": "max_targets_reached"}
             continue

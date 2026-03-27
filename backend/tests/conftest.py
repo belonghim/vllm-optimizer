@@ -147,7 +147,7 @@ class _StubMultiTargetMetricsCollector:
     def stop(self):
         self.stop_called = True
 
-    async def register_target(self, namespace: str, is_name: str) -> bool:
+    async def register_target(self, namespace: str, is_name: str, cr_type: str | None = None) -> bool:
         self.registered.append((namespace, is_name))
         return True
 
