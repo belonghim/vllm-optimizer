@@ -91,7 +91,9 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
       } else {
         setCurrentEval(null);
       }
-    } catch {
+    } catch (err) {
+      console.error('Failed to evaluate SLA profile:', err);
+      setError(`Failed to evaluate SLA profile: ${(err as Error).message}`);
       setCurrentEval(null);
     }
   }, [selectedIds, loadProfiles]);

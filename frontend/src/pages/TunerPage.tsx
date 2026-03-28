@@ -213,6 +213,7 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
         })
        .catch((err: Error) => {
          if (err.name === 'AbortError') return;
+         console.error('Failed to fetch vLLM config:', err);
          setError(`${ERROR_MESSAGES.TUNER.CONFIG_FETCH_ERROR_PREFIX}${err.message}`);
        });
     return () => controller.abort();
@@ -286,6 +287,7 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
        setApplyStatus(ERROR_MESSAGES.TUNER.APPLY_CURRENT_SUCCESS);
        setTimeout(() => setApplyStatus(null), 3000);
      } catch (err) {
+       console.error('Failed to apply current values:', err);
        setError(`${ERROR_MESSAGES.TUNER.APPLY_CURRENT_FAILED_PREFIX}${(err as Error).message}`);
      }
   }, []);
@@ -304,6 +306,7 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
        }
        setStorageUri(newUri);
      } catch (err) {
+       console.error('Failed to save storage URI:', err);
        setError(`${ERROR_MESSAGES.TUNER.STORAGE_URI_UPDATE_FAILED_PREFIX}${(err as Error).message}`);
      }
    }, []);
@@ -349,6 +352,7 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
        }
        fetchStatus();
      } catch (err) {
+       console.error('Failed to start tuner:', err);
        setError(`${ERROR_MESSAGES.TUNER.START_ERROR_PREFIX}${(err as Error).message}`);
      }
    };
@@ -357,6 +361,7 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
      try {
        await authFetch(`${API}/tuner/stop`, { method: "POST" });
      } catch (err) {
+       console.error('Failed to stop tuner:', err);
        setError(`${ERROR_MESSAGES.TUNER.STOP_FAILED_PREFIX}${(err as Error).message}`);
      }
     setCurrentPhase(null);
@@ -375,6 +380,7 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
          setError(`${ERROR_MESSAGES.TUNER.APPLY_BEST_FAILED_PREFIX}${data?.message || "Unknown error"}`);
        }
      } catch (err) {
+       console.error('Failed to apply best parameters:', err);
        setError(`${ERROR_MESSAGES.TUNER.APPLY_BEST_FAILED_PREFIX}${(err as Error).message}`);
      }
    };

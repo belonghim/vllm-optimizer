@@ -207,14 +207,19 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
   };
 
   const stop = async () => {
-    if (mode === 'normal') {
-      disconnect();
-      await authFetch(`${API}/load_test/stop`, { method: "POST" });
-      setStatus("stopped");
-    } else {
-      setSweepSSEUrl(null);
-      await authFetch(`${API}/load_test/stop`, { method: "POST" });
-      setSweepStatus("stopped");
+    try {
+      if (mode === 'normal') {
+        disconnect();
+        await authFetch(`${API}/load_test/stop`, { method: "POST" });
+        setStatus("stopped");
+      } else {
+        setSweepSSEUrl(null);
+        await authFetch(`${API}/load_test/stop`, { method: "POST" });
+        setSweepStatus("stopped");
+      }
+    } catch (err) {
+      console.error('Failed to stop load test:', err);
+      setError(`Failed to stop load test: ${(err as Error).message}`);
     }
   };
 

@@ -87,6 +87,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
       })
       .catch(err => {
         if (err instanceof Error && err.name === 'AbortError') return;
+        console.error('Failed to fetch benchmarks:', err);
         setError(`Failed to fetch benchmarks: ${(err as Error).message}`);
       })
       .finally(() => {
@@ -130,6 +131,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
       setSelected(selected.filter(x => x !== b.id));
       fetchBenchmarks();
     } catch (err) {
+      console.error('Failed to delete benchmark:', err);
       setError(`Delete failed: ${(err as Error).message}`);
     }
   };
@@ -158,6 +160,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
       setBenchmarks(prev => prev.map(b => b.id === benchmarkId ? updated : b));
       setEditing(null);
     } catch (err) {
+      console.error('Failed to save benchmark metadata:', err);
       setError(`Failed to save metadata: ${(err as Error).message}`);
     }
   };
@@ -210,6 +213,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
       setSelected([]);
       fetchBenchmarks();
     } catch (err) {
+      console.error('Failed to bulk delete benchmarks:', err);
       setError(`Bulk delete failed: ${(err as Error).message}`);
     }
   };
@@ -254,6 +258,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
       fetchBenchmarks();
       alert(`${data.imported_count} benchmark(s) imported successfully.`);
     } catch (err: unknown) {
+      console.error('Failed to import benchmarks:', err);
       setError(err instanceof Error ? err.message : "Import failed");
     } finally {
       setImporting(false);
