@@ -20,6 +20,7 @@ import httpx
 import numpy as np
 import psutil
 from models.load_test import LoadTestConfig, RequestResult, SweepConfig, SweepStepResult, SweepResult
+from services.prompt_generator import generate_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -208,9 +209,13 @@ class LoadTestEngine:
         from services.shared import external_client
 
         async with semaphore:
+            if config.prompt_mode == "synthetic" and config.synthetic_config is not None:
+                prompt = generate_prompt(config.synthetic_config)
+            else:
+                prompt = config.prompt_template
             payload = {
                 "model": config.model,
-                "prompt": config.prompt_template,
+                "prompt": prompt,
                 "max_tokens": config.max_tokens,
                 "temperature": config.temperature,
             }
