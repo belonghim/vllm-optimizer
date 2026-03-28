@@ -3,12 +3,14 @@ Benchmark Router
 Provides endpoints for saving, retrieving, and managing benchmark results.
 """
 
+import json
 import logging
 import os
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from models.load_test import Benchmark, BenchmarkMetadata, ErrorResponse
+from services.guidellm_parser import parse_guidellm_json
 from services.model_resolver import resolve_model_name
 from services.shared import multi_target_collector
 from services.storage import Storage
@@ -129,6 +131,29 @@ async def benchmarks_by_model(
         }
         groups.setdefault(model_key, []).append(entry)
     return {"models": groups}
+
+
+@router.post("/import")
+async def import_guidellm_benchmark(
+    file: UploadFile = File(...),
+    storage: Storage = Depends(get_storage),
+) -> dict:
+    contents = await file.read()
+    if len(contents) > 50 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large (max 50MB)")
+    try:
+        data = json.loads(contents)
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON: {e}") from e
+    try:
+        benchmarks = parse_guidellm_json(data)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    ids = []
+    for bm in benchmarks:
+        saved = await storage.save_benchmark(bm)
+        ids.append(saved.id)
+    return {"imported_count": len(ids), "benchmark_ids": ids}
 
 
 @router.get(
