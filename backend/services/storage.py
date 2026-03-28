@@ -150,7 +150,7 @@ class Storage:
         try:
             await self._conn.execute("ALTER TABLE benchmarks ADD COLUMN metadata_json TEXT DEFAULT NULL")
             await self._conn.commit()
-        except sqlite3.OperationalError:
+        except sqlite3.OperationalError:  # intentional: column already exists → migration is a no-op
             pass
 
     async def _create_load_test_tables(self) -> None:
@@ -207,7 +207,7 @@ class Storage:
                 await self._conn.execute("ALTER TABLE sla_profiles_v2 RENAME TO sla_profiles")
                 await self._conn.commit()
                 logger.info("[Storage] Migrated sla_profiles: removed legacy 'model' column")
-        except sqlite3.OperationalError as e:
+        except sqlite3.OperationalError as e:  # intentional: fail-open, schema migration must not block app start
             logger.warning("[Storage] sla_profiles model column migration failed: %s", e)
 
         try:
@@ -231,7 +231,7 @@ class Storage:
                 await self._conn.execute("ALTER TABLE sla_profiles_v2 RENAME TO sla_profiles")
                 await self._conn.commit()
                 logger.info("[Storage] Migrated sla_profiles: removed benchmark_ids_json column")
-        except sqlite3.OperationalError as e:
+        except sqlite3.OperationalError as e:  # intentional: fail-open, schema migration must not block app start
             logger.warning("[Storage] sla_profiles benchmark_ids_json migration failed: %s", e)
 
     async def _create_tuner_tables(self) -> None:
@@ -285,12 +285,6 @@ class Storage:
     # ==================== Benchmark CRUD ====================
 
     async def save_benchmark(self, b: Benchmark) -> Benchmark:
-        """
-        Save a benchmark to the database.
-
-        If id is None, auto-generates a new id.
-        Returns the benchmark with id and timestamp set.
-        """
         if self._conn is None:
             logger.error("[Storage] Cannot save benchmark: database not initialized")
             return b
@@ -328,7 +322,11 @@ class Storage:
             await self._conn.commit()
             logger.debug("[Storage] Saved benchmark id=%s name=%s", b.id, b.name)
             return b
-        except (sqlite3.Error, TypeError, ValueError) as e:
+        except (
+            sqlite3.Error,
+            TypeError,
+            ValueError,
+        ) as e:  # intentional: fail-open, storage errors must not lose the caller's data
             logger.error("[Storage] Failed to save benchmark: %s", e)
             return b
 
@@ -340,7 +338,7 @@ class Storage:
             cursor = await self._conn.execute("SELECT COUNT(*) FROM benchmarks")
             row = await cursor.fetchone()
             return int(row[0]) if row else 0
-        except sqlite3.Error as e:
+        except sqlite3.Error as e:  # intentional: fail-open, returns 0 so callers can continue without crashing
             logger.error("[Storage] Failed to count benchmarks: %s", e)
             return 0
 
@@ -385,7 +383,9 @@ class Storage:
                 except (ValueError, KeyError, TypeError) as e:
                     logger.warning("[Storage] Failed to parse benchmark row %s: %s", row["id"], e)
             return benchmarks
-        except sqlite3.OperationalError as e:
+        except (
+            sqlite3.OperationalError
+        ) as e:  # intentional: fail-open, returns empty list so callers can continue without crashing
             logger.error("[Storage] Failed to list benchmarks: %s", e)
             return []
 
@@ -420,7 +420,12 @@ class Storage:
                 result=result,
                 metadata=metadata,
             )
-        except (sqlite3.Error, ValueError, KeyError, TypeError) as e:
+        except (
+            sqlite3.Error,
+            ValueError,
+            KeyError,
+            TypeError,
+        ) as e:  # intentional: fail-open, returns None so callers can handle missing data gracefully
             logger.error("[Storage] Failed to get benchmark id=%s: %s", id, e)
             return None
 
@@ -465,7 +470,9 @@ class Storage:
             id_order = {bid: i for i, bid in enumerate(ids)}
             benchmarks.sort(key=lambda b: id_order.get(b.id if b.id is not None else -1, 999))
             return benchmarks
-        except sqlite3.OperationalError as e:
+        except (
+            sqlite3.OperationalError
+        ) as e:  # intentional: fail-open, returns empty list so callers can continue without crashing
             logger.error("[Storage] Failed to get benchmarks by ids: %s", e)
             return []
 
@@ -485,7 +492,7 @@ class Storage:
             if deleted:
                 logger.debug("[Storage] Deleted benchmark id=%s", id)
             return deleted
-        except sqlite3.Error as e:
+        except sqlite3.Error as e:  # intentional: fail-open, returns False so callers can continue without crashing
             logger.error("[Storage] Failed to delete benchmark id=%s: %s", id, e)
             return False
 
@@ -506,7 +513,10 @@ class Storage:
             )
             await self._conn.commit()
             return await self.get_benchmark(benchmark_id)
-        except (sqlite3.Error, ValueError) as e:
+        except (
+            sqlite3.Error,
+            ValueError,
+        ) as e:  # intentional: fail-open, returns None so callers can handle update failure gracefully
             logger.error("[Storage] Failed to update benchmark metadata id=%s: %s", benchmark_id, e)
             return None
 
@@ -543,7 +553,11 @@ class Storage:
             )
             await self._conn.commit()
             logger.debug("[Storage] Saved load test history test_id=%s", test_id)
-        except (sqlite3.Error, TypeError, ValueError) as e:
+        except (
+            sqlite3.Error,
+            TypeError,
+            ValueError,
+        ) as e:  # intentional: fail-open, history write failure must not crash the load test
             logger.error("[Storage] Failed to save load test history: %s", e)
 
     async def count_load_test_history(self) -> int:
@@ -554,7 +568,7 @@ class Storage:
             cursor = await self._conn.execute("SELECT COUNT(*) FROM load_test_history")
             row = await cursor.fetchone()
             return int(row[0]) if row else 0
-        except sqlite3.Error as e:
+        except sqlite3.Error as e:  # intentional: fail-open, returns 0 so callers can continue without crashing
             logger.error("[Storage] Failed to count load test history: %s", e)
             return 0
 
@@ -589,7 +603,9 @@ class Storage:
                 except (json.JSONDecodeError, TypeError) as e:
                     logger.warning("[Storage] Failed to parse load test row: %s", e)
             return history
-        except sqlite3.OperationalError as e:
+        except (
+            sqlite3.OperationalError
+        ) as e:  # intentional: fail-open, returns empty list so callers can continue without crashing
             logger.error("[Storage] Failed to get load test history: %s", e)
             return []
 
@@ -624,7 +640,11 @@ class Storage:
             )
             await self._conn.commit()
             logger.debug("[Storage] Saved trial id=%s status=%s", t.trial_id, t.status)
-        except (sqlite3.Error, TypeError, ValueError) as e:
+        except (
+            sqlite3.Error,
+            TypeError,
+            ValueError,
+        ) as e:  # intentional: fail-open, trial write failure must not abort the tuning session
             logger.error("[Storage] Failed to save trial: %s", e)
 
     async def get_trials(self) -> list[TuningTrial]:
@@ -660,7 +680,9 @@ class Storage:
                 except (json.JSONDecodeError, TypeError, ValueError) as e:
                     logger.warning("[Storage] Failed to parse trial row %s: %s", row[0], e)
             return trials
-        except sqlite3.OperationalError as e:
+        except (
+            sqlite3.OperationalError
+        ) as e:  # intentional: fail-open, returns empty list so callers fall back to in-memory state
             logger.error("[Storage] Failed to get trials: %s", e)
             return []
 
@@ -672,7 +694,7 @@ class Storage:
             cursor = await self._conn.execute("SELECT COUNT(*) FROM tuner_trials")
             row = await cursor.fetchone()
             return int(row[0]) if row else 0
-        except sqlite3.Error as e:
+        except sqlite3.Error as e:  # intentional: fail-open, returns 0 so callers can continue without crashing
             logger.error("[Storage] Failed to count trials: %s", e)
             return 0
 
@@ -686,7 +708,7 @@ class Storage:
             await self._conn.execute("DELETE FROM tuner_trials")
             await self._conn.commit()
             logger.info("[Storage] Cleared all tuner trials")
-        except sqlite3.Error as e:
+        except sqlite3.Error as e:  # intentional: fail-open, clear failure must not block new tuning session start
             logger.error("[Storage] Failed to clear trials: %s", e)
 
     # ==================== Tuning Sessions CRUD ====================
@@ -727,7 +749,12 @@ class Storage:
             session_id = int(cursor.lastrowid) if cursor.lastrowid is not None else -1
             logger.debug("[Storage] Saved tuning session id=%s", session_id)
             return session_id
-        except (sqlite3.Error, json.JSONDecodeError, TypeError, ValueError) as e:
+        except (
+            sqlite3.Error,
+            json.JSONDecodeError,
+            TypeError,
+            ValueError,
+        ) as e:  # intentional: fail-open, returns -1 sentinel so callers can detect failure without crashing
             logger.error("[Storage] Failed to save tuning session: %s", e)
             return -1
 
@@ -739,7 +766,7 @@ class Storage:
             cursor = await self._conn.execute("SELECT COUNT(*) FROM tuning_sessions")
             row = await cursor.fetchone()
             return int(row[0]) if row else 0
-        except sqlite3.Error as e:
+        except sqlite3.Error as e:  # intentional: fail-open, returns 0 so callers can continue without crashing
             logger.error("[Storage] Failed to count tuning sessions: %s", e)
             return 0
 
@@ -766,7 +793,9 @@ class Storage:
                 }
                 for row in rows
             ]
-        except sqlite3.OperationalError as e:
+        except (
+            sqlite3.OperationalError
+        ) as e:  # intentional: fail-open, returns empty list so callers can continue without crashing
             logger.error("[Storage] Failed to list tuning sessions: %s", e)
             return []
 
@@ -796,7 +825,11 @@ class Storage:
                 "importance": json.loads(row[8]),
                 "best_params": best_params,
             }
-        except (sqlite3.Error, json.JSONDecodeError, TypeError) as e:
+        except (
+            sqlite3.Error,
+            json.JSONDecodeError,
+            TypeError,
+        ) as e:  # intentional: fail-open, returns None so callers can handle missing session gracefully
             logger.error("[Storage] Failed to get tuning session id=%s: %s", id, e)
             return None
 
@@ -815,7 +848,7 @@ class Storage:
             if deleted:
                 logger.debug("[Storage] Deleted tuning session id=%s", id)
             return deleted
-        except sqlite3.Error as e:
+        except sqlite3.Error as e:  # intentional: fail-open, returns False so callers can continue without crashing
             logger.error("[Storage] Failed to delete tuning session id=%s: %s", id, e)
             return False
 
@@ -872,7 +905,7 @@ class Storage:
             await self._conn.commit()
             logger.info("[Storage] Pruned %s load test history records (keep_count=%s)", delete_count, keep_count)
             return delete_count
-        except sqlite3.Error as e:
+        except sqlite3.Error as e:  # intentional: fail-open, prune failure must not crash the health monitor
             logger.error("[Storage] Failed to prune load test history: %s", e)
             return 0
 
@@ -927,7 +960,7 @@ class Storage:
             await self._conn.commit()
             logger.info("[Storage] Pruned %s benchmark records (keep_count=%s)", delete_count, keep_count)
             return delete_count
-        except sqlite3.Error as e:
+        except sqlite3.Error as e:  # intentional: fail-open, prune failure must not crash the health monitor
             logger.error("[Storage] Failed to prune benchmarks: %s", e)
             return 0
 
@@ -957,7 +990,7 @@ class Storage:
                     pages_moved,
                 )
             return True
-        except sqlite3.Error as e:
+        except sqlite3.Error as e:  # intentional: fail-open, WAL checkpoint failure must not crash the health monitor
             logger.error("[Storage] Failed to checkpoint WAL: %s", e)
             return False
 
@@ -990,7 +1023,9 @@ class Storage:
             row_id = int(cursor.lastrowid) if cursor.lastrowid is not None else -1
             logger.debug("[Storage] Set running: task_type=%s row_id=%s", task_type, row_id)
             return row_id
-        except sqlite3.Error as e:
+        except (
+            sqlite3.Error
+        ) as e:  # intentional: fail-open, returns -1 sentinel so callers can detect failure without crashing
             logger.error("[Storage] Failed to set running: %s", e)
             return -1
 
@@ -1017,7 +1052,7 @@ class Storage:
             )
             await self._conn.commit()
             logger.debug("[Storage] Cleared running: row_id=%s", row_id)
-        except sqlite3.Error as e:
+        except sqlite3.Error as e:  # intentional: fail-open, clear failure must not crash the task that owns this row
             logger.error("[Storage] Failed to clear running: %s", e)
 
     async def get_interrupted_runs(self) -> list[dict[str, Any]]:
@@ -1052,7 +1087,9 @@ class Storage:
                 )
             logger.debug("[Storage] Retrieved %s interrupted runs", len(result))
             return result
-        except sqlite3.Error as e:
+        except (
+            sqlite3.Error
+        ) as e:  # intentional: fail-open, returns empty list so startup cleanup can continue without crashing
             logger.error("[Storage] Failed to get interrupted runs: %s", e)
             return []
 
@@ -1087,7 +1124,7 @@ class Storage:
                 )
             logger.debug("[Storage] Retrieved %s uncleared running rows", len(result))
             return result
-        except sqlite3.Error as e:
+        except sqlite3.Error as e:  # intentional: fail-open, shutdown cleanup must not be blocked by storage errors
             logger.warning("[Storage] get_all_running failed: %s", e)
             return []
 
@@ -1129,7 +1166,7 @@ class Storage:
             cursor = await self._conn.execute("SELECT COUNT(*) FROM sla_profiles")
             row = await cursor.fetchone()
             return int(row[0]) if row else 0
-        except sqlite3.Error as e:
+        except sqlite3.Error as e:  # intentional: fail-open, returns 0 so callers can continue without crashing
             logger.error("[Storage] Failed to count SLA profiles: %s", e)
             return 0
 
@@ -1160,7 +1197,9 @@ class Storage:
                 except (ValueError, TypeError) as e:
                     logger.warning("[Storage] Failed to parse SLA profile row %s: %s", row[0], e)
             return profiles
-        except sqlite3.OperationalError as e:
+        except (
+            sqlite3.OperationalError
+        ) as e:  # intentional: fail-open, returns empty list so callers can continue without crashing
             logger.error("[Storage] Failed to list SLA profiles: %s", e)
             return []
 
@@ -1186,7 +1225,11 @@ class Storage:
                 thresholds=thresholds,
                 created_at=row[3],
             )
-        except (sqlite3.Error, ValueError, TypeError) as e:
+        except (
+            sqlite3.Error,
+            ValueError,
+            TypeError,
+        ) as e:  # intentional: fail-open, returns None so callers can handle missing profile gracefully
             logger.error("[Storage] Failed to get SLA profile id=%s: %s", profile_id, e)
             return None
 
@@ -1214,7 +1257,11 @@ class Storage:
                 thresholds=profile.thresholds,
                 created_at=existing.created_at,
             )
-        except (sqlite3.Error, ValueError, TypeError) as e:
+        except (
+            sqlite3.Error,
+            ValueError,
+            TypeError,
+        ) as e:  # intentional: fail-open, returns None so callers can handle update failure gracefully
             logger.error("[Storage] Failed to update SLA profile id=%s: %s", profile_id, e)
             return None
 
@@ -1238,7 +1285,7 @@ class Storage:
             if deleted:
                 logger.debug("[Storage] Deleted SLA profile id=%s", profile_id)
             return deleted
-        except sqlite3.Error as e:
+        except sqlite3.Error as e:  # intentional: fail-open, returns False so callers can continue without crashing
             logger.error("[Storage] Failed to delete SLA profile id=%s: %s", profile_id, e)
             return False
 
@@ -1302,7 +1349,9 @@ class Storage:
                 except (json.JSONDecodeError, TypeError) as e:
                     logger.warning("[Storage] Failed to parse sweep row %s: %s", row[0], e)
             return items, total
-        except sqlite3.OperationalError as e:
+        except (
+            sqlite3.OperationalError
+        ) as e:  # intentional: fail-open, returns empty result so callers can continue without crashing
             logger.error("[Storage] Failed to get sweep history: %s", e)
             return [], 0
 
@@ -1321,7 +1370,11 @@ class Storage:
             if row is None:
                 return None
             return json.loads(row[0])
-        except (sqlite3.Error, json.JSONDecodeError, TypeError) as e:
+        except (
+            sqlite3.Error,
+            json.JSONDecodeError,
+            TypeError,
+        ) as e:  # intentional: fail-open, returns None so callers can handle missing result gracefully
             logger.error("[Storage] Failed to get sweep result sweep_id=%s: %s", sweep_id, e)
             return None
 
@@ -1341,7 +1394,7 @@ class Storage:
             if deleted:
                 logger.debug("[Storage] Deleted sweep result sweep_id=%s", sweep_id)
             return deleted
-        except sqlite3.Error as e:
+        except sqlite3.Error as e:  # intentional: fail-open, returns False so callers can continue without crashing
             logger.error("[Storage] Failed to delete sweep result sweep_id=%s: %s", sweep_id, e)
             return False
 

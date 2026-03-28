@@ -97,6 +97,35 @@ async def _fetch_query_range(
         return []
 
 
+def _build_snapshots_from_ts_data(
+    all_timestamps: set[float],
+    ts_data: dict[float, dict[str, float]],
+) -> list[dict]:
+    snapshots = []
+    for ts in sorted(all_timestamps):
+        d = ts_data[ts]
+        snap = MetricsSnapshot(
+            timestamp=ts,
+            tps=d.get("tps", 0.0),
+            rps=d.get("rps", 0.0),
+            ttft_mean=d.get("ttft_mean", 0.0),
+            ttft_p99=d.get("ttft_p99", 0.0),
+            latency_mean=d.get("latency_mean", 0.0),
+            latency_p99=d.get("latency_p99", 0.0),
+            kv_cache=d.get("kv_cache", 0.0),
+            kv_hit_rate=d.get("kv_hit_rate", 0.0),
+            running=int(d.get("running", 0)),
+            waiting=int(d.get("waiting", 0)),
+            gpu_mem_used=d.get("gpu_mem_used", 0.0),
+            gpu_mem_total=d.get("gpu_mem_total", 0.0),
+            gpu_util=d.get("gpu_util", 0.0),
+            pods=0,
+            pods_ready=0,
+        )
+        snapshots.append(snap.model_dump())
+    return snapshots
+
+
 async def _get_history_from_thanos(
     namespace: str,
     is_name: str,
@@ -141,30 +170,7 @@ async def _get_history_from_thanos(
         for ts, value in series:
             ts_data[ts][snapshot_field] = value
 
-    snapshots = []
-    for ts in sorted(all_timestamps):
-        d = ts_data[ts]
-        snap = MetricsSnapshot(
-            timestamp=ts,
-            tps=d.get("tps", 0.0),
-            rps=d.get("rps", 0.0),
-            ttft_mean=d.get("ttft_mean", 0.0),
-            ttft_p99=d.get("ttft_p99", 0.0),
-            latency_mean=d.get("latency_mean", 0.0),
-            latency_p99=d.get("latency_p99", 0.0),
-            kv_cache=d.get("kv_cache", 0.0),
-            kv_hit_rate=d.get("kv_hit_rate", 0.0),
-            running=int(d.get("running", 0)),
-            waiting=int(d.get("waiting", 0)),
-            gpu_mem_used=d.get("gpu_mem_used", 0.0),
-            gpu_mem_total=d.get("gpu_mem_total", 0.0),
-            gpu_util=d.get("gpu_util", 0.0),
-            pods=0,
-            pods_ready=0,
-        )
-        snapshots.append(snap.model_dump())
-
-    return snapshots
+    return _build_snapshots_from_ts_data(all_timestamps, ts_data)
 
 
 def _convert_to_snapshot(vllm_metrics) -> MetricsSnapshot:

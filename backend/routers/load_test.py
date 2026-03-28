@@ -78,6 +78,31 @@ class StatusResponse(BaseModel):
     is_sweeping: bool = False
 
 
+async def _run_test_background(test_id: str, config: LoadTestConfig) -> None:
+    global _active_test_task
+    try:
+        result = await load_engine.run(config, skip_preflight=True)
+        entry = {
+            "test_id": test_id,
+            "config": config.model_dump(),
+            "result": result,
+            "timestamp": time_module.time(),
+        }
+        try:
+            await storage.save_load_test(entry)
+        except OSError as e:
+            logger.warning("[LoadTest] Failed to persist history (fail-open): %s", e)
+    except (
+        asyncio.CancelledError,
+        OSError,
+        RuntimeError,
+        Exception,
+    ) as e:  # intentional: catch all errors during test
+        logger.error("[LoadTest] Error: %s", e)
+    finally:
+        _active_test_task = None
+
+
 @router.post(
     "/start",
     response_model=StartResponse,
@@ -125,34 +150,7 @@ async def start_load_test(request: Request, config: LoadTestConfig) -> dict[str,
             ).model_dump(),
         )
 
-    # Run test in background task
-    async def run_test():
-        """Background task that executes a load test and persists the result."""
-        global _active_test_task
-        try:
-            result = await load_engine.run(config, skip_preflight=True)
-            entry = {
-                "test_id": test_id,
-                "config": config.model_dump(),
-                "result": result,
-                "timestamp": time_module.time(),
-            }
-            try:
-                await storage.save_load_test(entry)
-            except OSError as e:
-                logger.warning("[LoadTest] Failed to persist history (fail-open): %s", e)
-        except (
-            asyncio.CancelledError,
-            OSError,
-            RuntimeError,
-            Exception,
-        ) as e:  # intentional: catch all errors during test
-            logger.error("[LoadTest] Error: %s", e)
-        finally:
-            _active_test_task = None
-
-    # Start the test in background
-    _active_test_task = asyncio.create_task(run_test())
+    _active_test_task = asyncio.create_task(_run_test_background(test_id, config))
     _current_config = config
 
     return {
