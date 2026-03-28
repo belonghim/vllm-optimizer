@@ -22,7 +22,8 @@ class LoadTestConfig(BaseModel):
     model: str = Field(default="auto", description="Model name")
     prompt_template: str = Field(default="Hello, how are you?", description="Prompt for generation")
     total_requests: int = Field(default=100, ge=1, description="Total number of requests")
-    concurrency: int = Field(default=10, ge=1, description="Concurrent requests")
+    concurrency: int = Field(default=10, ge=1, le=500, description="Concurrent requests")
+    duration: int = Field(default=30, ge=1, le=3600, description="Test duration in seconds (max 1 hour)")
     rps: int = Field(default=0, ge=0, description="Requests per second (0=unlimited)")
     max_tokens: int = Field(default=256, ge=1, description="Max tokens to generate")
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Temperature for generation")
@@ -158,16 +159,18 @@ class TuningConfig(BaseModel):
         default=False, description="Enable swap_space parameter search (disable on CPU/OpenVINO)"
     )
     swap_space_range: tuple[float, float] = Field(default=(1.0, 8.0), description="Range for swap-space parameter (GB)")
-    eval_concurrency: int = Field(default=16, ge=1, description="Concurrent requests during evaluation load test")
-    eval_rps: int = Field(default=20, ge=0, description="Requests per second during evaluation (0=unlimited)")
+    eval_concurrency: int = Field(
+        default=16, ge=1, le=128, description="Concurrent requests during evaluation load test"
+    )
+    eval_rps: int = Field(default=20, ge=0, le=500, description="Requests per second during evaluation (0=unlimited)")
     eval_fast_fraction: float = Field(
         default=0.5, ge=0.1, le=1.0, description="Fraction of eval_requests for MedianPruner fast probe"
     )
     # Optimization objectives
     objective: str = Field(default="tps", description="Optimization objective: tps, latency, or balanced")
-    n_trials: int = Field(default=10, ge=1, description="Number of optimization trials")
+    n_trials: int = Field(default=10, ge=1, le=100, description="Number of optimization trials")
     warmup_requests: int = Field(default=20, ge=0, description="Number of warmup requests per trial")
-    eval_requests: int = Field(default=100, ge=1, description="Number of evaluation requests per trial")
+    eval_requests: int = Field(default=100, ge=1, le=1000, description="Number of evaluation requests per trial")
 
     @model_validator(mode="after")
     def validate_ranges(self) -> "TuningConfig":

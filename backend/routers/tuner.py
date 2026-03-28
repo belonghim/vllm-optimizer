@@ -15,7 +15,7 @@ from fastapi import APIRouter, HTTPException, Query, Response
 from fastapi.responses import StreamingResponse
 from kubernetes.client.exceptions import ApiException
 from models.load_test import ErrorResponse, SweepConfig, TuningConfig, TuningSessionDetail, TuningSessionSummary
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 from services.auto_tuner import AutoTuner
 from services.shared import load_engine, multi_target_collector, storage
 
@@ -60,8 +60,8 @@ class TuningStartRequest(BaseModel):
     """Request to start auto-tuning (flat schema matching frontend)"""
 
     objective: str = "balanced"
-    n_trials: int = 10
-    eval_requests: int = 100
+    n_trials: int = Field(default=10, ge=1, le=100)
+    eval_requests: int = Field(default=100, ge=1, le=1000)
     vllm_endpoint: str = ""
     max_num_seqs_min: int = 64
     max_num_seqs_max: int = 512
@@ -76,8 +76,8 @@ class TuningStartRequest(BaseModel):
     include_swap_space: bool = False
     swap_space_min: float = 1.0
     swap_space_max: float = 8.0
-    eval_concurrency: int = 16
-    eval_rps: int = 20
+    eval_concurrency: int = Field(default=16, ge=1, le=128)
+    eval_rps: float = Field(default=20.0, ge=0.1, le=500.0)
     auto_benchmark: bool = False
     evaluation_mode: Literal["single", "sweep"] = "single"
     sweep_config: SweepConfig | None = None
