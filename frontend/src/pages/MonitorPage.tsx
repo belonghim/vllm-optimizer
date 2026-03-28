@@ -192,10 +192,10 @@ interface MonitorPageProps {
 }
 
 const TIME_RANGES = [
-  { label: '1h',  points: 1800 },
-  { label: '6h',  points: 10800 },
-  { label: '24h', points: 43200 },
-  { label: '7d',  points: 302400 },
+  { label: '1h',  points: 360 },
+  { label: '6h',  points: 1000 },
+  { label: '24h', points: 1000 },
+  { label: '7d',  points: 1000 },
 ];
 
 function MonitorPage({ isActive }: MonitorPageProps) {
@@ -207,7 +207,8 @@ function MonitorPage({ isActive }: MonitorPageProps) {
   const [chartState, setChartState] = useState<ChartConfig>(() => loadChartConfig());
   const [slaProfiles, setSlaProfiles] = useState<SlaProfile[]>([]);
   const [selectedSlaProfileId, setSelectedSlaProfileId] = useState<number | null>(null);
-  const [timeRangePoints, setTimeRangePoints] = useState(1800); // default 1h
+  const [timeRangePoints, setTimeRangePoints] = useState(60);
+  const timeRangePointsRef = useRef(60);
   const lastViolationTime = useRef<Record<string, number>>({});
 
   const chartOrder = chartState.order;
@@ -227,7 +228,7 @@ function MonitorPage({ isActive }: MonitorPageProps) {
           setSlaProfiles(data);
         }
       } catch (err) {
-        console.error("SLA 프로필 로드 실패", err);
+        console.error("Failed to load SLA profiles", err);
       }
     };
     fetchSlaProfiles();
@@ -259,7 +260,7 @@ function MonitorPage({ isActive }: MonitorPageProps) {
       const res = await authFetch(`${API}/metrics/batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targets: batchTargets }),
+        body: JSON.stringify({ targets: batchTargets, history_points: timeRangePointsRef.current }),
         signal,
       });
 
@@ -303,7 +304,7 @@ function MonitorPage({ isActive }: MonitorPageProps) {
           kv_hit: m.kv_hit_rate, gpu_util: m.gpu_util,
           gpu_mem_used: m.gpu_mem_used, gpu_mem_total: m.gpu_mem_total,
         }));
-        const history = buildGapFill(mapped, ['ttft', 'lat_p99', 'ttft_p99', 'lat_mean']).slice(-450);
+        const history = buildGapFill(mapped, ['ttft', 'lat_p99', 'ttft_p99', 'lat_mean']);
 
         newStates[key] = {
           data: result.data || null,
@@ -318,7 +319,7 @@ function MonitorPage({ isActive }: MonitorPageProps) {
       setError(null);
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
-      setError(`조회 실패: ${(err as Error).message}`);
+      setError(`Query failed: ${(err as Error).message}`);
     }
   }, [targets, isMockEnabled, crType, selectedSlaProfile]);
 
@@ -356,11 +357,11 @@ function MonitorPage({ isActive }: MonitorPageProps) {
         });
       });
     });
-    return Object.values(timeMap).sort((a, b) => (a.t as string).localeCompare(b.t as string)).slice(-timeRangePoints);
-  }, [targetStates, timeRangePoints]);
+    return Object.values(timeMap).sort((a, b) => (a.t as string).localeCompare(b.t as string));
+  }, [targetStates]);
 
-  // hasMonitoringLabel: null/undefined = 아직 체크 전 (경고 안 뜸), false = 레이블 없음 (경고 표시), true = 레이블 있음 (경고 안 뜸)
-  // !== false 로 판정하여 null/undefined는 경고를 표시하지 않음
+  // hasMonitoringLabel: null/undefined = not yet checked (no warning), false = no label (show warning), true = has label (no warning)
+  // using !== false so null/undefined does not show a warning
   const targetStatuses = useMemo(() => {
     const s: Record<string, { status: string; hasMonitoringLabel: boolean }> = {};
     Object.entries(targetStates).forEach(([key, state]) => {
@@ -397,7 +398,7 @@ function MonitorPage({ isActive }: MonitorPageProps) {
     const { thresholds } = selectedSlaProfile;
     if (id === 'tps') return thresholds.min_tps || undefined;
     if (id === 'latency') return thresholds.p95_latency_max_ms || undefined;
-    // error_rate는 현재 차트 정의에 없으므로 생략
+    // error_rate is not in current chart definitions, skip
     return undefined;
   };
 
@@ -412,7 +413,7 @@ function MonitorPage({ isActive }: MonitorPageProps) {
             value={selectedSlaProfileId || ''}
             onChange={(e) => setSelectedSlaProfileId(e.target.value ? Number(e.target.value) : null)}
           >
-            <option value="">없음 (경고 비활성)</option>
+            <option value="">None (disable warning)</option>
             {slaProfiles.map(p => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
@@ -424,7 +425,7 @@ function MonitorPage({ isActive }: MonitorPageProps) {
               key={r.label}
               data-testid="time-range-btn"
               className={`btn btn-sm${timeRangePoints === r.points ? ' active' : ''}`}
-              onClick={() => setTimeRangePoints(r.points)}
+              onClick={() => { setTimeRangePoints(r.points); timeRangePointsRef.current = r.points; }}
             >
               {r.label}
             </button>
@@ -459,7 +460,7 @@ function MonitorPage({ isActive }: MonitorPageProps) {
       </div>
       {hiddenCharts.length > 0 && (
         <div className="hidden-charts-bar">
-          <span className="hidden-charts-bar-label">숨긴 차트:</span>
+          <span className="hidden-charts-bar-label">Hidden charts:</span>
           {hiddenCharts.map(id => {
             const def = CHART_DEFINITIONS.find(c => c.id === id);
             if (!def) return null;
@@ -468,7 +469,7 @@ function MonitorPage({ isActive }: MonitorPageProps) {
                 key={id}
                 className="hidden-chart-tag"
                 onClick={() => showChart(id)}
-                title="클릭하여 복원"
+                title="Click to restore"
               >
                 {def.title}
               </button>
