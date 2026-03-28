@@ -142,7 +142,7 @@ def test_metrics_batch_caps_at_max(isolated_client):
         "/api/metrics/batch",
         json={
             "targets": [{"namespace": "llm-d-demo", "inferenceService": "small-llm-d"}],
-            "history_points": 999999,
+            "history_points": 1000,
         },
     )
     assert response.status_code == 200

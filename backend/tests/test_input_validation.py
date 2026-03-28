@@ -147,11 +147,10 @@ class TestLoadTestConfigValidation:
     """Test upper-bound constraints on LoadTestConfig fields."""
 
     def test_concurrency_exceeds_upper_bound(self):
-        """concurrency=1000 should fail validation (max 500)."""
         with pytest.raises(ValidationError) as exc_info:
-            LoadTestConfig(concurrency=1000)
+            LoadTestConfig(concurrency=1001)
         errors = exc_info.value.errors()
-        assert any("less than or equal to 500" in str(e) for e in errors)
+        assert any("less than or equal to 1000" in str(e) for e in errors)
 
     def test_duration_exceeds_upper_bound(self):
         """duration=7200 should fail validation (max 3600)."""

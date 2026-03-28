@@ -129,8 +129,15 @@ class Storage:
     async def _create_tables(self) -> None:
         """Create tables if they don't exist."""
         assert self._conn is not None
+        await self._create_benchmark_tables()
+        await self._create_load_test_tables()
+        await self._create_sla_tables()
+        await self._create_tuner_tables()
+        await self._conn.commit()
+        logger.debug("[Storage] Tables created successfully")
 
-        # Benchmarks table
+    async def _create_benchmark_tables(self) -> None:
+        assert self._conn is not None
         await self._conn.execute("""
             CREATE TABLE IF NOT EXISTS benchmarks (
                 id INTEGER PRIMARY KEY,
@@ -140,14 +147,14 @@ class Storage:
                 result_json TEXT NOT NULL
             )
         """)
-
         try:
             await self._conn.execute("ALTER TABLE benchmarks ADD COLUMN metadata_json TEXT DEFAULT NULL")
             await self._conn.commit()
         except sqlite3.OperationalError:
             pass
 
-        # Load test history table
+    async def _create_load_test_tables(self) -> None:
+        assert self._conn is not None
         await self._conn.execute("""
             CREATE TABLE IF NOT EXISTS load_test_history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -157,23 +164,6 @@ class Storage:
                 timestamp REAL NOT NULL
             )
         """)
-
-        # Tuner trials table
-        await self._conn.execute("""
-            CREATE TABLE IF NOT EXISTS tuner_trials (
-                id INTEGER PRIMARY KEY,
-                trial_id INTEGER NOT NULL,
-                params_json TEXT NOT NULL,
-                tps REAL NOT NULL,
-                p99_latency REAL NOT NULL,
-                score REAL NOT NULL,
-                status TEXT NOT NULL,
-                is_pareto_optimal INTEGER NOT NULL DEFAULT 0,
-                pruned INTEGER NOT NULL DEFAULT 0
-            )
-        """)
-
-        # Running state table
         await self._conn.execute("""
             CREATE TABLE IF NOT EXISTS running_state (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -183,7 +173,8 @@ class Storage:
             )
         """)
 
-        # SLA profiles table
+    async def _create_sla_tables(self) -> None:
+        assert self._conn is not None
         await self._conn.execute("""
             CREATE TABLE IF NOT EXISTS sla_profiles (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -192,7 +183,6 @@ class Storage:
                 created_at REAL NOT NULL
             )
         """)
-
         # Migration: remove legacy 'model' column from sla_profiles
         try:
             cursor = await self._conn.execute("PRAGMA table_info(sla_profiles)")
@@ -244,7 +234,21 @@ class Storage:
         except sqlite3.OperationalError as e:
             logger.warning("[Storage] sla_profiles benchmark_ids_json migration failed: %s", e)
 
-        # Tuning sessions table
+    async def _create_tuner_tables(self) -> None:
+        assert self._conn is not None
+        await self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS tuner_trials (
+                id INTEGER PRIMARY KEY,
+                trial_id INTEGER NOT NULL,
+                params_json TEXT NOT NULL,
+                tps REAL NOT NULL,
+                p99_latency REAL NOT NULL,
+                score REAL NOT NULL,
+                status TEXT NOT NULL,
+                is_pareto_optimal INTEGER NOT NULL DEFAULT 0,
+                pruned INTEGER NOT NULL DEFAULT 0
+            )
+        """)
         await self._conn.execute("""
             CREATE TABLE IF NOT EXISTS tuning_sessions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -259,8 +263,6 @@ class Storage:
                 best_params_json TEXT DEFAULT ''
             )
         """)
-
-        # Sweep history table
         await self._conn.execute("""
             CREATE TABLE IF NOT EXISTS sweep_history (
                 sweep_id TEXT PRIMARY KEY,
@@ -269,9 +271,6 @@ class Storage:
                 result_json TEXT NOT NULL
             )
         """)
-
-        await self._conn.commit()
-        logger.debug("[Storage] Tables created successfully")
 
     async def close(self) -> None:
         """Close the database connection."""
