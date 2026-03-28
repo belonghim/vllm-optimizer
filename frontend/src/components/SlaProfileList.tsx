@@ -1,6 +1,6 @@
 import { COLORS } from "../constants";
 import { ERROR_MESSAGES } from "../constants/errorMessages";
-import type { SlaProfile, SlaThresholds } from "../pages/SlaPage";
+import type { SlaProfile, SlaThresholds } from "../types";
 
 interface SlaProfileListProps {
   profiles: SlaProfile[];

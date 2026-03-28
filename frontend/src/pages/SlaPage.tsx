@@ -8,19 +8,8 @@ import { useBenchmarkSelection } from '../contexts/BenchmarkSelectionContext';
 import SlaProfileForm, { SlaFormState } from "../components/SlaProfileForm";
 import SlaProfileList from "../components/SlaProfileList";
 
-export interface SlaThresholds {
-  availability_min: number | null;
-  p95_latency_max_ms: number | null;
-  error_rate_max_pct: number | null;
-  min_tps: number | null;
-}
-
-export interface SlaProfile {
-  id: number;
-  name: string;
-  thresholds: SlaThresholds;
-  created_at: number;
-}
+import type { SlaThresholds, SlaProfile } from "../types";
+export type { SlaThresholds, SlaProfile };
 
 interface SlaVerdict {
   metric: string;
