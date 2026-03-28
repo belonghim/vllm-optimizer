@@ -285,6 +285,7 @@ class BatchMetricsRequest(BaseModel):
     """Request body for batch metrics endpoint."""
 
     targets: list[MetricsTarget] = Field(description="List of targets to query")
+    history_points: int = Field(default=60, description="Number of history points to return per target")
 
 
 class BatchMetricsResponse(BaseModel):

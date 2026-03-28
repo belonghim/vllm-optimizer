@@ -19,6 +19,8 @@ from services.shared import multi_target_collector, runtime_config
 
 router = APIRouter()
 
+MAX_HISTORY_POINTS = 1000
+
 
 def _convert_to_snapshot(vllm_metrics) -> MetricsSnapshot:
     """Convert VLLMMetrics to MetricsSnapshot
@@ -153,8 +155,9 @@ async def get_batch_metrics(request: BatchMetricsRequest) -> BatchMetricsRespons
         )
 
         target_cache = multi_target_collector._targets.get(key)
+        n = min(request.history_points, MAX_HISTORY_POINTS)
         history = (
-            [_convert_to_snapshot(m).model_dump() for m in list(target_cache.history)[-60:]] if target_cache else []
+            [_convert_to_snapshot(m).model_dump() for m in list(target_cache.history)[-n:]] if target_cache else []
         )
 
         if vllm_metrics is None:

@@ -108,3 +108,45 @@ def test_metrics_batch_endpoint_multiple_targets(isolated_client):
     data = response.json()
     assert "ns1/is1" in data["results"]
     assert "ns2/is2" in data["results"]
+
+
+def test_metrics_batch_default_60_points(isolated_client):
+    response = isolated_client.post(
+        "/api/metrics/batch",
+        json={"targets": [{"namespace": "llm-d-demo", "inferenceService": "small-llm-d"}]},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    target_result = data["results"]["llm-d-demo/small-llm-d"]
+    assert "history" in target_result
+    assert len(target_result["history"]) <= 60
+
+
+def test_metrics_batch_custom_history_points(isolated_client):
+    response = isolated_client.post(
+        "/api/metrics/batch",
+        json={
+            "targets": [{"namespace": "llm-d-demo", "inferenceService": "small-llm-d"}],
+            "history_points": 200,
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    target_result = data["results"]["llm-d-demo/small-llm-d"]
+    assert "history" in target_result
+    assert len(target_result["history"]) <= 200
+
+
+def test_metrics_batch_caps_at_max(isolated_client):
+    response = isolated_client.post(
+        "/api/metrics/batch",
+        json={
+            "targets": [{"namespace": "llm-d-demo", "inferenceService": "small-llm-d"}],
+            "history_points": 999999,
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    target_result = data["results"]["llm-d-demo/small-llm-d"]
+    assert "history" in target_result
+    assert len(target_result["history"]) <= 1000
