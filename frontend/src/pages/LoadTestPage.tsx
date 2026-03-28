@@ -406,7 +406,7 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
 
       {isReconnecting && status === "running" && (
         <div className="loadtest-reconnect-banner" aria-live="assertive" role="alert">
-          ↺ SSE 재연결 중... ({retryCount}/3회 시도)
+          ↺ Reconnecting SSE... (attempt {retryCount}/3)
         </div>
       )}
 
@@ -420,9 +420,9 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
       <ErrorAlert message={error} className="error-alert--mb8" />
 
       {status === "running" && (
-        <div className="panel" aria-live="polite" aria-label="부하 테스트 진행 상황">
+        <div className="panel" aria-live="polite" aria-label="Load test progress">
           <div className="loadtest-progress-header">
-            <span className="label">진행률</span>
+            <span className="label">Progress</span>
             <span className="loadtest-progress-pct">{progress}%</span>
           </div>
           <div className="progress-bar">
@@ -447,7 +447,7 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
 
             <div className="panel">
               <div className="section-title">Latency Distribution</div>
-              <table className="table" aria-label="레이턴시 상세 결과">
+              <table className="table" aria-label="Latency Detailed Results">
                <thead><tr><th>Metric</th><th>Value</th></tr></thead>
                <tbody>
                  {([
@@ -515,8 +515,8 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
         </div>
       </div>
 
-      <div className="panel">
-        <div className="section-title">Sweep 테스트 설정</div>
+       <div className="panel">
+         <div className="section-title">Sweep Test Settings</div>
         <div className="grid-form grid-form-compact">
           {([
             ["RPS Start", "rps_start", "number"], ["RPS End", "rps_end", "number"], ["RPS Step", "rps_step", "number"],
@@ -550,20 +550,20 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
 
       {sweepStatus === 'running' && (
         <div className="panel" aria-live="polite">
-          <div className="loadtest-progress-header">
-            {sweepSteps.length === 0 ? (
-              <span className="label">Sweep 시작 중...</span>
-            ) : (
-              <span className="label">Step {sweepSteps.length + 1} 진행 중...</span>
+           <div className="loadtest-progress-header">
+             {sweepSteps.length === 0 ? (
+               <span className="label">Starting Sweep...</span>
+             ) : (
+               <span className="label">Step {sweepSteps.length + 1} In Progress...</span>
             )}
           </div>
         </div>
       )}
 
-      {sweepSteps.length > 0 && (
-        <div className="panel">
-          <div className="section-title">Sweep 결과</div>
-          <table className="table" aria-label="Sweep 단계별 결과">
+       {sweepSteps.length > 0 && (
+         <div className="panel">
+           <div className="section-title">Sweep Results</div>
+           <table className="table" aria-label="Sweep Step Results">
             <thead>
               <tr>
                 <th>Step</th><th>RPS</th><th>P99 Latency</th><th>TPS</th><th>Success %</th><th>Status</th>
@@ -603,17 +603,17 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
                 onClick={() => saveSweepAsBenchmark(sweepResult)}
                 disabled={isSaving || saveStatus === 'ok'}
               >
-                {saveStatus === 'ok' ? '✓ Saved' : isSaving ? 'Saving...' : '⬆ 벤치마크로 저장'}
+                 {saveStatus === 'ok' ? '✓ Saved' : isSaving ? 'Saving...' : '⬆ Save to Benchmark'}
               </button>
             </div>
           )}
         </div>
       )}
-      {sweepHistory.length > 0 && (
-        <div className="panel">
-          <div className="section-title">Sweep 저장 내역</div>
+       {sweepHistory.length > 0 && (
+         <div className="panel">
+           <div className="section-title">Sweep Save History</div>
           {sweepHistoryLoading && <div className="label">Loading...</div>}
-          <table className="table" aria-label="저장된 Sweep 결과 목록">
+           <table className="table" aria-label="Saved Sweep Results List">
             <thead>
               <tr><th>Optimal RPS</th><th>Steps</th><th>Duration</th><th>Actions</th></tr>
             </thead>
@@ -650,8 +650,8 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
   return (
     <div className="flex-col-16">
       <div className="tabs">
-        <button className={`tab ${mode === 'normal' ? 'active' : ''}`} onClick={() => setMode('normal')}>일반 테스트</button>
-        <button className={`tab ${mode === 'sweep' ? 'active' : ''}`} onClick={() => setMode('sweep')}>Sweep 테스트</button>
+        <button className={`tab ${mode === 'normal' ? 'active' : ''}`} onClick={() => setMode('normal')}>Normal Test</button>
+        <button className={`tab ${mode === 'sweep' ? 'active' : ''}`} onClick={() => setMode('sweep')}>Sweep Test</button>
       </div>
       {mode === 'normal' ? renderNormalMode() : renderSweepMode()}
     </div>
