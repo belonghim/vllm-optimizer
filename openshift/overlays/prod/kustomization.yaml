@@ -36,6 +36,9 @@ patches:
         path: /spec/template/spec/containers/0/image
         value: quay.io/joopark/vllm-optimizer-frontend:1.0.0
       - op: replace
+        path: /metadata/annotations/image.openshift.io~1triggers
+        value: '[{"from":{"kind":"ImageStreamTag","name":"vllm-optimizer-frontend:latest","namespace":"vllm-optimizer-prod"},"fieldPath":"spec.template.spec.containers[0].image","pause":"false"}]'
+      - op: replace
         path: /spec/template/spec/containers/1/resources/requests/cpu
         value: "50m"
       - op: replace

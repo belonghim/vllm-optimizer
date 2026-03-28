@@ -284,6 +284,11 @@ else
   warn "[DRY-RUN] Skipping image push"
 fi
 
+if [[ "$DRY_RUN" != "true" ]]; then
+  log "Copying oauth-proxy ImageStream tag..."
+  oc tag openshift/oauth-proxy:v4.4 "${NAMESPACE}/oauth-proxy:v4.4" --reference-policy=local 2>/dev/null || true
+fi
+
 ## Deploy phase (overlay-based via kustomize)
 log "Applying OpenShift overlays (environment: ${ENV})..."
 OVERLAY_PATH="${SCRIPT_DIR}/openshift/overlays/${ENV}"

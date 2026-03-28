@@ -1,0 +1,84 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# 06-imagestream.yaml
+# OpenShift ImageStream — 이미지 버전 추적 및 자동 배포 트리거
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ── Backend ImageStream ────────────────────────────────────────────────────────
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: vllm-optimizer-backend
+  namespace: vllm-optimizer
+  labels:
+    app.kubernetes.io/name: vllm-optimizer-backend
+    app.kubernetes.io/part-of: vllm-optimizer
+spec:
+  # Quay.io에서 이미지 태그 변경 시 자동 감지
+  lookupPolicy:
+    local: true
+  tags:
+    - name: latest
+      from:
+        kind: DockerImage
+        name: quay.io/joopark/vllm-optimizer-backend:latest
+      importPolicy:
+        # 이미지 변경 시 자동으로 Deployment 롤링 업데이트
+        scheduled: true
+        importMode: PreserveOriginal
+      referencePolicy:
+        type: Local
+
+---
+# ── Frontend ImageStream ───────────────────────────────────────────────────────
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: vllm-optimizer-frontend
+  namespace: vllm-optimizer
+  labels:
+    app.kubernetes.io/name: vllm-optimizer-frontend
+    app.kubernetes.io/part-of: vllm-optimizer
+spec:
+  lookupPolicy:
+    local: true
+  tags:
+    - name: latest
+      from:
+        kind: DockerImage
+        name: quay.io/joopark/vllm-optimizer-frontend:latest
+      importPolicy:
+        scheduled: true
+        importMode: PreserveOriginal
+      referencePolicy:
+        type: Local
+
+---
+# ── BuildConfig: Source-to-Image (선택사항) ────────────────────────────────────
+# Quay.io CI/CD 대신 OpenShift 내부 빌드를 원하는 경우 사용
+# 일반적으로는 Tekton Pipeline에서 빌드하므로 주석 처리
+#
+# apiVersion: build.openshift.io/v1
+# kind: BuildConfig
+# metadata:
+#   name: vllm-optimizer-backend-build
+#   namespace: vllm-optimizer
+# spec:
+#   source:
+#     type: Git
+#     git:
+#       uri: https://github.com/joopark/vllm-optimizer.git
+#       ref: main
+#     contextDir: backend
+#   strategy:
+#     type: Docker
+#     dockerStrategy:
+#       dockerfilePath: Dockerfile
+#   output:
+#     to:
+#       kind: ImageStreamTag
+#       name: vllm-optimizer-backend:latest
+#   triggers:
+#     - type: GitHub
+#       github:
+#         secret: github-webhook-secret
+#     - type: ConfigChange
