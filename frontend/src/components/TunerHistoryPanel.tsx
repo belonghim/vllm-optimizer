@@ -38,7 +38,7 @@ export default function TunerHistoryPanel() {
       const data = await res.json();
       setSessions(Array.isArray(data) ? data : []);
     } catch (err) {
-      setError(`히스토리 조회 실패: ${(err as Error).message}`);
+      setError(`Failed to fetch history: ${(err as Error).message}`);
     }
   };
 
@@ -56,7 +56,7 @@ export default function TunerHistoryPanel() {
 
   const handleDelete = async (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!window.confirm("이 튜닝 세션을 삭제하시겠습니까?")) return;
+    if (!window.confirm("Delete this tuning session?")) return;
     try {
       const res = await authFetch(`${API}/tuner/sessions/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -66,7 +66,7 @@ export default function TunerHistoryPanel() {
         setCompareData(prev => prev.filter(d => d.id !== id));
       }
     } catch (err) {
-      setError(`삭제 실패: ${(err as Error).message}`);
+      setError(`Delete failed: ${(err as Error).message}`);
     }
   };
 
@@ -84,7 +84,7 @@ export default function TunerHistoryPanel() {
       );
       setCompareData(details);
     } catch (err) {
-      setError(`비교 데이터 조회 실패: ${(err as Error).message}`);
+      setError(`Failed to fetch comparison data: ${(err as Error).message}`);
     } finally {
       setIsLoading(false);
     }
@@ -97,17 +97,17 @@ export default function TunerHistoryPanel() {
   return (
     <div className="flex-col-16">
       <div className="panel">
-        <div className="section-title">튜닝 히스토리</div>
+        <div className="section-title">Tuning History</div>
         {error && <div className="error-msg" style={{marginBottom: '12px'}}>{error}</div>}
         
         <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span className="td-muted">{selectedIds.length} / 2 선택됨</span>
+          <span className="td-muted">{selectedIds.length} / 2 selected</span>
           <button 
             className="btn-primary" 
             disabled={selectedIds.length !== 2 || isLoading}
             onClick={handleCompare}
           >
-            {isLoading ? "로딩 중..." : "선택 비교"}
+            {isLoading ? "Loading..." : "Compare Selected"}
           </button>
         </div>
 
@@ -149,7 +149,7 @@ export default function TunerHistoryPanel() {
               </tr>
             ))}
             {sessions.length === 0 && (
-              <tr><td colSpan={7} className="td-muted" style={{textAlign: 'center', padding: '24px'}}>저장된 히스토리가 없습니다.</td></tr>
+              <tr><td colSpan={7} className="td-muted" style={{textAlign: 'center', padding: '24px'}}>No saved history.</td></tr>
             )}
           </tbody>
         </table>
@@ -157,7 +157,7 @@ export default function TunerHistoryPanel() {
 
       {compareData.length === 2 && (
         <div className="panel tuner-compare-panel">
-          <div className="section-title">세션 비교</div>
+          <div className="section-title">Session Comparison</div>
           
           <div className="grid-2" style={{ gap: '24px', marginBottom: '24px' }}>
             {compareData.map((d, idx) => (

@@ -10,7 +10,7 @@ export default function ThemeToggle() {
       onClick={toggleTheme}
       role="switch"
       aria-checked={isLight}
-      aria-label="테마 전환"
+      aria-label="Toggle theme"
       tabIndex={0}
       onKeyDown={(e) => (e.key === " " || e.key === "Enter") && toggleTheme()}
     >

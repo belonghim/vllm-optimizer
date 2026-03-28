@@ -61,14 +61,14 @@ export default function MultiTargetSelector({
       try {
         const response = await authFetch(`/api/metrics/latest?namespace=${newTarget.namespace}&is_name=${newTarget.inferenceService}&cr_type=${newTarget.crType}`);
         if (!response.ok) {
-          setAddError("해당 대상을 찾을 수 없습니다");
+          setAddError("Target not found");
           return;
         }
         addTarget(newTarget.namespace, newTarget.inferenceService, newTarget.crType);
         setNewTarget({ namespace: "", inferenceService: "", crType: contextCrType || "inferenceservice" });
         setIsAdding(false);
       } catch (err) {
-        setAddError("검증 중 오류가 발생했습니다");
+        setAddError("Validation error occurred");
       } finally {
         setIsValidating(false);
       }
@@ -80,7 +80,7 @@ export default function MultiTargetSelector({
   return (
     <div className="multi-target-selector panel multi-target-no-border">
       <div className="section-title multi-target-header">
-        <span>모니터링 대상 ({targets.length}/{maxTargets})</span>
+        <span>Monitoring Targets ({targets.length}/{maxTargets})</span>
         {!isAdding && (
           <button 
             className="btn btn-primary multi-target-add-btn" 
@@ -88,7 +88,7 @@ export default function MultiTargetSelector({
             disabled={targets.length >= maxTargets}
             data-testid="add-target-btn"
           >
-            + 추가
+            + Add
           </button>
         )}
       </div>
@@ -116,7 +116,7 @@ export default function MultiTargetSelector({
             {targets.length === 0 ? (
               <tr>
                 <td colSpan={TOTAL_COLUMNS} className="multi-target-empty">
-                  모니터링 대상을 추가하세요
+                  Add a monitoring target
                 </td>
               </tr>
             ) : (
@@ -146,7 +146,7 @@ export default function MultiTargetSelector({
                         {!hasMonitoringLabel && (
                           <span 
                             className="multi-target-warning-icon"
-                            title="이 namespace에 openshift.io/cluster-monitoring=true 레이블이 없어 메트릭을 수집할 수 없습니다."
+                            title="This namespace lacks the openshift.io/cluster-monitoring=true label, so metrics cannot be collected."
                             data-testid="no-monitoring-warning"
                           >
                             ⚠️
@@ -182,14 +182,14 @@ export default function MultiTargetSelector({
                     )}
                     <td className="multi-target-action-cell">
                        {target.isDefault ? (
-                         <span className="tag tag-completed multi-target-default-tag">기본</span>
+                          <span className="tag tag-completed multi-target-default-tag">Default</span>
                        ) : (
                          <div className="multi-target-action-btns">
                            <button
                              className="btn btn-secondary multi-target-setdefault-btn"
                              onClick={() => setDefaultTarget(target.namespace, target.inferenceService)}
                              data-testid="set-default-btn"
-                             title="기본으로 설정"
+                              title="Set as default"
                            >
                              ★
                            </button>
@@ -245,9 +245,9 @@ export default function MultiTargetSelector({
                       data-testid="confirm-add-btn"
                       disabled={isValidating}
                     >
-                      {isValidating ? "검증 중..." : "확인"}
+                      {isValidating ? "Validating..." : "Confirm"}
                     </button>
-                    <button className="btn btn-danger multi-target-action-btn" onClick={() => setIsAdding(false)} disabled={isValidating}>취소</button>
+                     <button className="btn btn-danger multi-target-action-btn" onClick={() => setIsAdding(false)} disabled={isValidating}>Cancel</button>
                   </div>
                 </td>
               </tr>

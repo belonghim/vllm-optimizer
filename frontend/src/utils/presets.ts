@@ -10,7 +10,7 @@ interface LoadTestPresetData {
 const STORAGE_KEY = 'vllm-loadtest-presets';
 
 export const BUILTIN_PRESETS: Record<string, LoadTestPresetData> = {
-  '경량': {
+  'Lightweight': {
     total_requests: 50,
     concurrency: 5,
     rps: 5,
@@ -18,7 +18,7 @@ export const BUILTIN_PRESETS: Record<string, LoadTestPresetData> = {
     temperature: 0.7,
     stream: true,
   },
-  '표준': {
+  'Standard': {
     total_requests: 200,
     concurrency: 20,
     rps: 10,
@@ -26,7 +26,7 @@ export const BUILTIN_PRESETS: Record<string, LoadTestPresetData> = {
     temperature: 0.7,
     stream: true,
   },
-  '스트레스': {
+  'Stress': {
     total_requests: 1000,
     concurrency: 100,
     rps: 50,

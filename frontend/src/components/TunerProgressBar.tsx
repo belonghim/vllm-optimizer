@@ -11,11 +11,11 @@ interface TunerProgressBarProps {
 }
 
 const PHASE_LABELS: Record<string, string> = {
-  applying_config: "설정 업데이트 중...",
-  restarting: "InferenceService 재시작 중...",
-  waiting_ready: "Pod Ready 대기 중...",
-  warmup: "Warmup 요청 전송 중...",
-  evaluating: "성능 평가 중...",
+  applying_config: "Updating config...",
+  restarting: "Restarting InferenceService...",
+  waiting_ready: "Waiting for Pod Ready...",
+  warmup: "Sending warmup requests...",
+  evaluating: "Evaluating performance...",
 };
 
 export default function TunerProgressBar({
@@ -50,7 +50,7 @@ export default function TunerProgressBar({
             aria-valuenow={percentage}
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-label={`${percentage}% 완료`}
+            aria-label={`${percentage}% complete`}
             style={{ width: `${percentage}%` }}
           />
         </div>

@@ -78,7 +78,7 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status,
   };
 
   const handleSavePreset = () => {
-    const name = prompt("프리셋 이름을 입력하세요:");
+    const name = prompt("Enter preset name:");
     if (name?.trim()) {
       try {
         savePreset(name, {
@@ -99,7 +99,7 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status,
 
   const handleDeletePreset = () => {
     if (!selectedPreset || isBuiltinPreset(selectedPreset)) return;
-    if (confirm(`"${selectedPreset}" 프리셋을 삭제하시겠습니까?`)) {
+    if (confirm(`Delete preset "${selectedPreset}"?`)) {
       try {
         deletePreset(selectedPreset);
         setSelectedPreset("");
@@ -112,19 +112,19 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status,
 
   return (
     <div className="panel">
-      <div className="section-title">부하 테스트 설정</div>
+      <div className="section-title">Load Test Settings</div>
 
       <div style={{ marginBottom: "16px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", alignItems: "flex-end" }}>
           <div>
-            <label className="label">프리셋</label>
+            <label className="label">Preset</label>
             <select
               className="input"
               value={selectedPreset}
               onChange={e => handlePresetSelect(e.target.value)}
-              aria-label="프리셋 선택"
+              aria-label="Select preset"
             >
-              <option value="">-- 선택 --</option>
+              <option value="">-- Select --</option>
               {presetNames.map(name => (
                 <option key={name} value={name}>
                   {name}
@@ -161,13 +161,13 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status,
               type={type}
               aria-label={label}
               value={config[key]}
-              placeholder={key === "model" ? "auto (자동 탐지)" : undefined}
+              placeholder={key === "model" ? "auto (auto-detect)" : undefined}
               onChange={e => onChange(key, type === "number" ? +e.target.value : e.target.value)}
             />
           </div>
         ))}
         <div>
-  <label className="label">프롬프트 모드</label>
+  <label className="label">Prompt Mode</label>
   <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
     <button
       type="button"
@@ -175,7 +175,7 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status,
       style={{ fontSize: '13px', padding: '4px 12px' }}
       onClick={() => onPromptModeChange?.('static')}
     >
-      직접 입력
+      Direct Input
     </button>
     <button
       type="button"
@@ -183,21 +183,21 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status,
       style={{ fontSize: '13px', padding: '4px 12px' }}
       onClick={() => onPromptModeChange?.('synthetic')}
     >
-      합성 생성
+      Synthetic
     </button>
   </div>
 
   {(promptMode === 'synthetic') ? (
     <div style={{ border: '1px solid var(--border)', borderRadius: '6px', padding: '12px' }}>
       <div style={{ marginBottom: '8px' }}>
-        <label className="label">분포</label>
+        <label className="label">Distribution</label>
         <select
           className="input"
           value={syntheticConfig?.distribution ?? 'uniform'}
           onChange={e => onSyntheticConfigChange?.('distribution', e.target.value)}
         >
-          <option value="uniform">균등 분포</option>
-          <option value="normal">정규 분포</option>
+          <option value="uniform">Uniform</option>
+          <option value="normal">Normal</option>
         </select>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
@@ -230,7 +230,7 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status,
   ) : (
     <textarea
       className="input loadtest-config-textarea"
-      aria-label="프롬프트 템플릿"
+      aria-label="Prompt template"
       rows={3}
       value={config.prompt_template}
       onChange={e => onChange("prompt_template", e.target.value)}
@@ -256,7 +256,7 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status,
         <input type="checkbox" id="stream" checked={config.stream}
           onChange={e => onChange("stream", e.target.checked)} />
         <label htmlFor="stream" className="label label-no-mb">
-          Streaming Mode (TTFT 측정 활성화)
+          Streaming Mode (enable TTFT measurement)
         </label>
       </div>
 

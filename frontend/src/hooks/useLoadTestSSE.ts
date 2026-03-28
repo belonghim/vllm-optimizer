@@ -70,7 +70,7 @@ export function useLoadTestSSE(): UseLoadTestSSEReturn {
           return;
         }
         if (data.type === 'error') {
-           setError((data.data as SSEErrorPayload | undefined)?.error ?? "부하 테스트 오류가 발생했습니다.");
+           setError((data.data as SSEErrorPayload | undefined)?.error ?? "Load test error occurred.");
           setStatus('error');
           es.close();
           esRef.current = null;
@@ -109,7 +109,7 @@ export function useLoadTestSSE(): UseLoadTestSSEReturn {
           setTimeout(() => { openConnection(reqCount); }, delay);
         } else {
           setIsReconnecting(false);
-          setError('SSE 연결 실패: 부하 테스트 스트림에 연결할 수 없습니다. (최대 재시도 횟수 초과)');
+          setError('SSE connection failed: cannot connect to load test stream. (max retries exceeded)');
           setStatus('error');
         }
       };

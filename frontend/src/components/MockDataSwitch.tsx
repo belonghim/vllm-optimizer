@@ -9,7 +9,7 @@ export default function MockDataSwitch() {
       onClick={toggleMockEnabled}
       role="switch"
       aria-checked={isMockEnabled}
-      aria-label="Mock 데이터 사용 전환"
+      aria-label="Toggle mock data"
       tabIndex={0}
       onKeyDown={(e) => (e.key === " " || e.key === "Enter") && toggleMockEnabled()}
     >

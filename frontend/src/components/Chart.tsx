@@ -66,7 +66,7 @@ function Chart({ data, lines, title, height = 180, onHide, threshold }: ChartPro
           )}
         </span>
         {onHide && (
-          <button className="chart-hide-btn" onClick={onHide} title="차트 숨기기">×</button>
+          <button className="chart-hide-btn" onClick={onHide} title="Hide chart">×</button>
         )}
       </div>
       <ResponsiveContainer width="100%" height={height}>

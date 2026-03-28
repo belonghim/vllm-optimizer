@@ -91,13 +91,13 @@ export function benchmarksToCSV(
   benchmarks: Benchmark[]
 ): { headers: string[]; rows: string[][] } {
   const headers = [
-    "이름",
-    "날짜",
+    "Name",
+    "Date",
     "TPS(mean)",
     "P99 Latency(ms)",
     "TTFT(ms)",
     "RPS",
-    "모델",
+    "Model",
   ];
 
   const rows = benchmarks.map((benchmark) => {

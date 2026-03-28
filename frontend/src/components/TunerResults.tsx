@@ -53,7 +53,7 @@ export default function TunerResults({ trials, bestParams, status, isRunning, im
     <>
       {trials.length > 0 && (
         <div className="panel" style={{ marginBottom: '1rem' }}>
-          <div className="section-title">결과 내보내기</div>
+          <div className="section-title">Export Results</div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button
               onClick={() => {
@@ -65,7 +65,7 @@ export default function TunerResults({ trials, bestParams, status, isRunning, im
               }}
               className="btn"
             >
-              JSON 내보내기
+              Export JSON
             </button>
             <button
               onClick={() => {
@@ -75,7 +75,7 @@ export default function TunerResults({ trials, bestParams, status, isRunning, im
               }}
               className="btn"
             >
-              CSV 내보내기
+              Export CSV
             </button>
           </div>
         </div>
@@ -83,7 +83,7 @@ export default function TunerResults({ trials, bestParams, status, isRunning, im
 
       {bestParams && (
         <div className="tuner-best-panel">
-          <div className="section-title section-title-accent">최적 파라미터 발견</div>
+          <div className="section-title section-title-accent">Best Parameters Found</div>
           <div className="grid-4 tuner-best-metrics-grid">
             <MetricCard label="Best TPS" value={fmt(bestParams.tps, 1)} unit="tok/s" color="amber" />
             <MetricCard label="P99 Latency" value={fmt(bestParams.p99_latency, 0)} unit="ms" color="cyan" />
@@ -105,8 +105,8 @@ export default function TunerResults({ trials, bestParams, status, isRunning, im
       )}
 
       {scatterData.length > 0 && (
-        <div className="panel" aria-label="Trial 분포 차트 (TPS vs P99 Latency)">
-          <div className="section-title">Trial 분포 (TPS vs P99 Latency)</div>
+        <div className="panel" aria-label="Trial distribution chart (TPS vs P99 Latency)">
+          <div className="section-title">Trial Distribution (TPS vs P99 Latency)</div>
           <ResponsiveContainer width="100%" height={240}>
             <ScatterChart margin={{ top: 8, right: 8, bottom: 8, left: -8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
@@ -136,8 +136,8 @@ export default function TunerResults({ trials, bestParams, status, isRunning, im
       )}
 
       {status.best_score_history && status.best_score_history.length > 1 && (
-          <div className="panel" aria-label="최적 점수 수렴 차트">
-              <div className="section-title">최적 점수 수렴</div>
+          <div className="panel" aria-label="Best score convergence chart">
+              <div className="section-title">Best Score Convergence</div>
               <ResponsiveContainer width="100%" height={180}>
                   <LineChart
                       data={status.best_score_history.map((score, i) => ({ trial: i + 1, score: Number(score).toFixed(2) }))}
@@ -158,7 +158,7 @@ export default function TunerResults({ trials, bestParams, status, isRunning, im
 
       {Object.keys(importance).length > 0 && (
         <div className="panel">
-          <div className="section-title">파라미터 중요도 (FAnova)</div>
+          <div className="section-title">Parameter Importance (FAnova)</div>
           {Object.entries(importance).sort((a, b) => b[1] - a[1]).map(([k, v]) => {
             const fillStyle = { width: `${v * 100}%` };
             return (
