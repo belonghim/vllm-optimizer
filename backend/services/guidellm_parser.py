@@ -91,7 +91,7 @@ def parse_guidellm_json(data: dict) -> list[Benchmark]:
         try:
             benchmark = _parse_single_benchmark(bm, i, import_timestamp, guidellm_version)
             results.append(benchmark)
-        except Exception as e:
+        except (KeyError, ValueError, TypeError, AttributeError) as e:
             logger.warning("Failed to parse benchmark[%d]: %s — skipping", i, e)
             continue
 

@@ -9,6 +9,8 @@ import logging
 import os
 from typing import Any
 
+import httpx
+
 from fastapi import APIRouter, Request
 from services.shared import runtime_config
 from services.rate_limiter import limiter
@@ -76,5 +78,5 @@ async def check_prometheus_health() -> bool:
             timeout=3,
         )
         return resp.status_code == 200
-    except Exception:
+    except (httpx.HTTPError, OSError):
         return False

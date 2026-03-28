@@ -93,7 +93,7 @@ async def _fetch_query_range(
             except (ValueError, IndexError):
                 pass
         return parsed
-    except Exception:
+    except (httpx.HTTPError, ValueError, KeyError):
         return []
 
 
