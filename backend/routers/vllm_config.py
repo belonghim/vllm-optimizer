@@ -37,6 +37,46 @@ ALLOWED_CONFIG_KEYS = {
 }
 
 
+async def _validate_and_merge_args(adapter, custom, namespace: str, is_name: str, request_data: dict) -> dict[str, Any]:
+    is_obj = cast(
+        dict[str, Any],
+        await asyncio.to_thread(
+            custom.get_namespaced_custom_object,
+            group=adapter.api_group(),
+            version=adapter.api_version(),
+            namespace=namespace,
+            plural=adapter.api_plural(),
+            name=is_name,
+        ),
+    )
+    return adapter.build_args_patch(is_obj.get("spec", {}), dict(request_data))
+
+
+def _validate_and_merge_resources(
+    adapter, request_resources: dict[Literal["requests", "limits"], dict[str, str]]
+) -> dict[str, Any] | None:
+    clean_resources: dict[str, Any] = {}
+    for _tier, kvs in request_resources.items():
+        cleaned = {k: v for k, v in kvs.items() if v != ""}
+        if cleaned:
+            clean_resources[_tier] = cleaned
+    if clean_resources:
+        return adapter.build_resources_patch(clean_resources)
+    return None
+
+
+async def _apply_patch(adapter, custom, namespace: str, is_name: str, patch_body: dict[str, Any]) -> None:
+    await asyncio.to_thread(
+        custom.patch_namespaced_custom_object,
+        group=adapter.api_group(),
+        version=adapter.api_version(),
+        namespace=namespace,
+        plural=adapter.api_plural(),
+        name=is_name,
+        body=patch_body,
+    )
+
+
 ConfigKey = Literal[
     "max_num_seqs",
     "gpu_memory_utilization",
@@ -110,7 +150,6 @@ async def get_vllm_config() -> dict[str, Any]:
 
 @router.patch("")
 async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict[str, Any]:
-    # 키 유효성 검증
     invalid_keys = {str(k) for k in request.data} - ALLOWED_CONFIG_KEYS
     if invalid_keys:
         raise HTTPException(
@@ -127,7 +166,6 @@ async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict[str, Any]:
     if not request.data and request.storageUri is None and request.resources is None:
         return {"success": True, "updated_keys": [], "updated_storageUri": False}
 
-    # 튜너 실행 중 체크
     try:
         from services.shared import load_engine as _le  # noqa
         from routers.tuner import auto_tuner
@@ -136,32 +174,22 @@ async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict[str, Any]:
             raise HTTPException(status_code=409, detail="Tuner is running, cannot modify config")
     except HTTPException:
         raise
-    except (ImportError, AttributeError):  # intentional: non-critical
-        pass  # auto_tuner 접근 불가 시 진행
+    except (ImportError, AttributeError):
+        pass
 
     custom = await asyncio.to_thread(_get_k8s_custom)
     if custom is None:
         raise HTTPException(status_code=503, detail="Kubernetes not available")
-    _api = custom
+
     namespace = _get_k8s_namespace()
     is_name = _get_vllm_is_name()
     adapter = get_cr_adapter()
+
     try:
         patch_body: dict[str, Any] = {}
 
         if request.data:
-            is_obj = cast(
-                dict[str, Any],
-                await asyncio.to_thread(
-                    _api.get_namespaced_custom_object,
-                    group=adapter.api_group(),
-                    version=adapter.api_version(),
-                    namespace=namespace,
-                    plural=adapter.api_plural(),
-                    name=is_name,
-                ),
-            )
-            args_patch = adapter.build_args_patch(is_obj.get("spec", {}), dict(request.data))
+            args_patch = await _validate_and_merge_args(adapter, custom, namespace, is_name, request.data)
             patch_body = deep_merge(patch_body, args_patch)
 
         if request.storageUri is not None:
@@ -169,24 +197,11 @@ async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict[str, Any]:
             patch_body = deep_merge(patch_body, uri_patch)
 
         if request.resources is not None:
-            clean_resources: dict[str, Any] = {}
-            for _tier, kvs in request.resources.items():
-                cleaned = {k: v for k, v in kvs.items() if v != ""}
-                if cleaned:
-                    clean_resources[_tier] = cleaned
-            if clean_resources:
-                res_patch = adapter.build_resources_patch(clean_resources)
+            res_patch = _validate_and_merge_resources(adapter, request.resources)
+            if res_patch:
                 patch_body = deep_merge(patch_body, res_patch)
 
-        await asyncio.to_thread(
-            _api.patch_namespaced_custom_object,
-            group=adapter.api_group(),
-            version=adapter.api_version(),
-            namespace=namespace,
-            plural=adapter.api_plural(),
-            name=is_name,
-            body=patch_body,
-        )
+        await _apply_patch(adapter, custom, namespace, is_name, patch_body)
         return {
             "success": True,
             "updated_keys": list(request.data.keys()),
