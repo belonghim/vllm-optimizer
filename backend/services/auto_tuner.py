@@ -272,114 +272,27 @@ class AutoTuner:
         state_initialized = False
         _running_row_id: int | None = None
         try:
-            async with self._lock:
-                if self._running:
-                    return {"error": "이미 튜닝이 실행 중입니다."}
-                if not OPTUNA_AVAILABLE:
-                    return {"error": "optuna 패키지가 필요합니다: pip install optuna"}
-                if self._cancel_event.is_set():
-                    await asyncio.sleep(0.1)
-                self._cancel_event.clear()
-                self._running = True
-                state_initialized = True
-                self.evaluation_mode = evaluation_mode
-                self._sweep_config = sweep_config.model_copy(deep=True) if sweep_config is not None else None
-                try:
-                    _running_row_id = await storage.set_running("tuner")
-                except (OSError, RuntimeError, ValueError) as e:
-                    logger.warning("[AutoTuner] Failed to record running state: %s", e)
-                await self._init_tuning_state(config)
+            state_initialized, _running_row_id, init_error = await self._initialize_start_state(
+                config=config,
+                evaluation_mode=evaluation_mode,
+                sweep_config=sweep_config,
+            )
+            if init_error is not None:
+                return init_error
 
             self._vllm_endpoint = vllm_endpoint
-            if not skip_preflight:
-                logger.info("[AutoTuner] 튜닝 시작 전 K8s 권한 사전 검증 중...")
-                preflight = await self._preflight_check()
-                if not preflight["success"]:
-                    error_msg = preflight.get("error", "Preflight 검증 실패")
-                    error_type = preflight.get("error_type", "preflight_error")
-                    await self._broadcast(
-                        {
-                            "type": "tuning_error",
-                            "data": {"error": error_msg, "error_type": error_type},
-                        }
-                    )
-                    return {"error": error_msg, "error_type": error_type}
+            preflight_error = await self._validate_preflight(skip_preflight=skip_preflight)
+            if preflight_error is not None:
+                return preflight_error
 
-            logger.info("[AutoTuner] 튜닝 시작 전 InferenceService 상태 확인 중...")
-            if not await self._wait_for_ready(timeout=60, interval=5):
-                if self._cancel_event.is_set():
-                    return {"error": "튜닝이 취소되었습니다."}
-                return {"error": "InferenceService가 준비되지 않았습니다. 튜닝을 시작할 수 없습니다."}
+            readiness_error = await self._validate_initial_readiness()
+            if readiness_error is not None:
+                return readiness_error
 
             for trial_num in range(config.n_trials):
-                if self._cancel_event.is_set():
+                if self._cancel_event.is_set() or not self._running:
                     break
-                if not self._running:
-                    break
-
-                async with self._study_lock:
-                    assert self._study is not None
-                    trial = self._study.ask()
-                params = self._suggest_params(trial, config)
-                _trial_start = time.monotonic()
-
-                await self._broadcast(
-                    {
-                        "type": "trial_start",
-                        "data": {"trial_id": trial_num, "params": params},
-                    }
-                )
-
-                if not await self._apply_trial_params(trial, trial_num, params):
-                    continue
-
-                await self._broadcast(
-                    {
-                        "type": "phase",
-                        "data": {"trial_id": trial_num, "phase": "restarting"},
-                    }
-                )
-                await self._broadcast(
-                    {
-                        "type": "phase",
-                        "data": {"trial_id": trial_num, "phase": "waiting_ready"},
-                    }
-                )
-
-                if not await self._wait_for_isvc_ready(trial, trial_num):
-                    continue
-
-                try:
-                    score, tps, p99_lat = await self._run_trial_evaluation(trial, trial_num)
-                except Exception as e:  # intentional: per-trial evaluation failure must not abort entire tuning session
-                    logger.warning("[AutoTuner] Trial %d evaluation failed: %s", trial_num, e)
-                    await self._broadcast(
-                        {
-                            "type": "error",
-                            "data": {
-                                "message": f"Trial {trial_num} evaluation failed: {e}",
-                                "recoverable": True,
-                                "timestamp": time.time(),
-                            },
-                        }
-                    )
-                    await self._broadcast(
-                        {
-                            "type": "tuning_warning",
-                            "data": {
-                                "message": "트라이얼 평가 실패로 다음 트라이얼로 진행합니다",
-                                "trial": trial_num,
-                            },
-                        }
-                    )
-                    async with self._study_lock:
-                        assert self._study is not None
-                        self._study.tell(trial, state=optuna.trial.TrialState.FAIL)
-                    continue
-
-                pruned = await self._handle_trial_result(trial, trial_num, score, tps, p99_lat, _trial_start, params)
-                if pruned:
-                    continue
+                await self._execute_trial(trial_num=trial_num, config=config)
 
             if self._cancel_event.is_set():
                 await self._broadcast(
@@ -421,6 +334,122 @@ class AutoTuner:
                         await storage.clear_running(_running_row_id)
                     except (OSError, RuntimeError, ValueError) as e:
                         logger.warning("[AutoTuner] Failed to clear running state: %s", e)
+
+    async def _initialize_start_state(
+        self,
+        config: TuningConfig,
+        evaluation_mode: Literal["single", "sweep"],
+        sweep_config: SweepConfig | None,
+    ) -> tuple[bool, int | None, dict[str, Any] | None]:
+        running_row_id: int | None = None
+        async with self._lock:
+            if self._running:
+                return False, None, {"error": "이미 튜닝이 실행 중입니다."}
+            if not OPTUNA_AVAILABLE:
+                return False, None, {"error": "optuna 패키지가 필요합니다: pip install optuna"}
+            if self._cancel_event.is_set():
+                await asyncio.sleep(0.1)
+
+            self._cancel_event.clear()
+            self._running = True
+            self.evaluation_mode = evaluation_mode
+            self._sweep_config = sweep_config.model_copy(deep=True) if sweep_config is not None else None
+            try:
+                running_row_id = await storage.set_running("tuner")
+            except (OSError, RuntimeError, ValueError) as e:
+                logger.warning("[AutoTuner] Failed to record running state: %s", e)
+            await self._init_tuning_state(config)
+        return True, running_row_id, None
+
+    async def _validate_preflight(self, skip_preflight: bool) -> dict[str, Any] | None:
+        if skip_preflight:
+            return None
+
+        logger.info("[AutoTuner] 튜닝 시작 전 K8s 권한 사전 검증 중...")
+        preflight = await self._preflight_check()
+        if preflight["success"]:
+            return None
+
+        error_msg = preflight.get("error", "Preflight 검증 실패")
+        error_type = preflight.get("error_type", "preflight_error")
+        await self._broadcast(
+            {
+                "type": "tuning_error",
+                "data": {"error": error_msg, "error_type": error_type},
+            }
+        )
+        return {"error": error_msg, "error_type": error_type}
+
+    async def _validate_initial_readiness(self) -> dict[str, Any] | None:
+        logger.info("[AutoTuner] 튜닝 시작 전 InferenceService 상태 확인 중...")
+        if await self._wait_for_ready(timeout=60, interval=5):
+            return None
+        if self._cancel_event.is_set():
+            return {"error": "튜닝이 취소되었습니다."}
+        return {"error": "InferenceService가 준비되지 않았습니다. 튜닝을 시작할 수 없습니다."}
+
+    async def _execute_trial(self, trial_num: int, config: TuningConfig) -> None:
+        async with self._study_lock:
+            assert self._study is not None
+            trial = self._study.ask()
+        params = self._suggest_params(trial, config)
+        trial_start = time.monotonic()
+
+        await self._broadcast(
+            {
+                "type": "trial_start",
+                "data": {"trial_id": trial_num, "params": params},
+            }
+        )
+
+        if not await self._apply_trial_params(trial, trial_num, params):
+            return
+
+        await self._broadcast(
+            {
+                "type": "phase",
+                "data": {"trial_id": trial_num, "phase": "restarting"},
+            }
+        )
+        await self._broadcast(
+            {
+                "type": "phase",
+                "data": {"trial_id": trial_num, "phase": "waiting_ready"},
+            }
+        )
+
+        if not await self._wait_for_isvc_ready(trial, trial_num):
+            return
+
+        try:
+            score, tps, p99_lat = await self._run_trial_evaluation(trial, trial_num)
+        except Exception as e:  # intentional: per-trial evaluation failure must not abort entire tuning session
+            logger.warning("[AutoTuner] Trial %d evaluation failed: %s", trial_num, e)
+            await self._broadcast(
+                {
+                    "type": "error",
+                    "data": {
+                        "message": f"Trial {trial_num} evaluation failed: {e}",
+                        "recoverable": True,
+                        "timestamp": time.time(),
+                    },
+                }
+            )
+            await self._broadcast(
+                {
+                    "type": "tuning_warning",
+                    "data": {
+                        "message": "트라이얼 평가 실패로 다음 트라이얼로 진행합니다",
+                        "trial": trial_num,
+                    },
+                }
+            )
+            async with self._study_lock:
+                assert self._study is not None
+                self._study.tell(trial, state=optuna.trial.TrialState.FAIL)
+            return
+
+        await self._handle_trial_result(trial, trial_num, score, tps, p99_lat, trial_start, params)
 
     async def _setup_study(self, config: TuningConfig, storage_url: str | None) -> tuple[str, optuna.Study]:
         """Optuna study 초기화 및 반환."""
