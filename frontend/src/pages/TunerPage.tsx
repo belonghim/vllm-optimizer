@@ -143,9 +143,9 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
        setError(ERROR_MESSAGES.TUNER.ALL_API_FAILED);
      } else if (!s || !t || !imp) {
        const failed: string[] = [];
-       if (!s) failed.push("상태");
-       if (!t) failed.push("시도");
-       if (!imp) failed.push("중요도");
+       if (!s) failed.push("status");
+       if (!t) failed.push("trials");
+       if (!imp) failed.push("importance");
        setError(`${ERROR_MESSAGES.TUNER.PARTIAL_API_FAILED_PREFIX}${failed.join(", ")})`);
      } else {
        setError(null);

@@ -47,11 +47,11 @@ interface TunerConfigFormProps {
 }
 
 const PHASE_LABELS: Record<string, string> = {
-  applying_config: "설정 업데이트 중...",
-  restarting: "InferenceService 재시작 중...",
-  waiting_ready: "Pod Ready 대기 중...",
-  warmup: "Warmup 요청 전송 중...",
-  evaluating: "성능 평가 중...",
+  applying_config: "Updating config...",
+  restarting: "Restarting InferenceService...",
+  waiting_ready: "Waiting for Pod Ready...",
+  warmup: "Sending warmup requests...",
+  evaluating: "Evaluating performance...",
 };
 
 export default function TunerConfigForm({
@@ -138,34 +138,34 @@ export default function TunerConfigForm({
 
   return (
     <div className="panel">
-      <div className="section-title">Bayesian Optimization 설정</div>
+      <div className="section-title">Bayesian Optimization Settings</div>
       
       <div className="grid-form grid-form-compact" style={{ marginBottom: '20px' }}>
         <div>
-          <label className="label">최적화 목표</label>
-          <select className="input" aria-label="최적화 목표" value={config.objective}
+          <label className="label">Optimization Objective</label>
+          <select className="input" aria-label="Optimization Objective" value={config.objective}
             onChange={e => onChange("objective", e.target.value)}>
-            <option value="tps">최대 처리량 (TPS)</option>
-            <option value="latency">최소 레이턴시</option>
-            <option value="balanced">균형 (TPS / Latency)</option>
+            <option value="tps">Max Throughput (TPS)</option>
+            <option value="latency">Min Latency</option>
+            <option value="balanced">Balanced (TPS / Latency)</option>
             <option value="pareto">Pareto (TPS + Latency)</option>
           </select>
         </div>
         <div>
-          <label className="label">Trial 수</label>
-           <input className="input" type="number" aria-label="Trial 수" min={1} max={100} value={config.n_trials}
+          <label className="label">Trial Count</label>
+           <input className="input" type="number" aria-label="Trial Count" min={1} max={100} value={config.n_trials}
              onChange={e => onChange("n_trials", +e.target.value)} />
         </div>
         <div>
-          <label className="label">평가 모드</label>
+          <label className="label">Eval Mode</label>
           <select
             className="input"
-            aria-label="평가 모드"
+            aria-label="Eval Mode"
             value={config.evaluation_mode}
             onChange={e => onChange("evaluation_mode", e.target.value as "single" | "sweep")}
           >
-            <option value="single">Single (기본 부하 테스트)</option>
-            <option value="sweep">Sweep (optimal RPS 기준)</option>
+            <option value="single">Single (basic load test)</option>
+            <option value="sweep">Sweep (optimal RPS based)</option>
           </select>
         </div>
       </div>
@@ -174,15 +174,15 @@ export default function TunerConfigForm({
         <table className="table tuner-params-table">
           <thead>
             <tr>
-              <th style={{ width: '20%' }}>설정명</th>
-              <th style={{ width: '15%' }}>현재값</th>
-              <th style={{ width: '30%' }}>탐색 범위</th>
-              <th style={{ width: '35%' }}>설명</th>
+              <th style={{ width: '20%' }}>Parameter</th>
+              <th style={{ width: '15%' }}>Current Value</th>
+              <th style={{ width: '30%' }}>Search Range</th>
+              <th style={{ width: '35%' }}>Description</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td title="max_num_seqs">최대 시퀀스 수</td>
+              <td title="Maximum number of sequences">max_num_seqs</td>
               <td className="td-current">{renderCurrentInput("max_num_seqs", "number")}</td>
               <td>
                 <div className="flex-row-8">
@@ -192,10 +192,10 @@ export default function TunerConfigForm({
                     onChange={e => onChange("max_num_seqs_max", +e.target.value)} />
                 </div>
               </td>
-              <td className="td-desc">동시 처리 가능한 최대 시퀀스 수</td>
+              <td className="td-desc">Max concurrent sequences per iteration</td>
             </tr>
             <tr>
-              <td title="gpu_memory_utilization">GPU 메모리 비율</td>
+              <td title="GPU memory utilization fraction (0.0–1.0)">gpu_memory_utilization</td>
               <td className="td-current">{renderCurrentInput("gpu_memory_utilization", "number", { step: "0.01", min: 0, max: 1 })}</td>
               <td>
                 <div className="flex-row-8">
@@ -205,10 +205,10 @@ export default function TunerConfigForm({
                     onChange={e => onChange("gpu_memory_max", +e.target.value)} />
                 </div>
               </td>
-              <td className="td-desc">GPU 메모리 할당 비율 (0.0~1.0)</td>
+              <td className="td-desc">GPU memory allocation fraction (0.0–1.0)</td>
             </tr>
             <tr>
-              <td title="max_model_len">최대 모델 길이</td>
+              <td title="Maximum sequence length the model can handle">max_model_len</td>
               <td className="td-current">{renderCurrentInput("max_model_len", "number")}</td>
               <td>
                 <div className="flex-row-8">
@@ -218,10 +218,10 @@ export default function TunerConfigForm({
                     onChange={e => onChange("max_model_len_max", +e.target.value)} />
                 </div>
               </td>
-              <td className="td-desc">모델이 처리할 수 있는 최대 토큰 길이</td>
+              <td className="td-desc">Maximum token length the model can process</td>
             </tr>
             <tr>
-              <td title="max_num_batched_tokens">최대 배치 토큰 수</td>
+              <td title="Maximum number of tokens in a batch">max_num_batched_tokens</td>
               <td className="td-current">{renderCurrentInput("max_num_batched_tokens", "number")}</td>
               <td>
                 <div className="flex-row-8">
@@ -231,10 +231,10 @@ export default function TunerConfigForm({
                     onChange={e => onChange("max_num_batched_tokens_max", +e.target.value)} />
                 </div>
               </td>
-              <td className="td-desc">한 번에 배치 처리할 최대 토큰 수</td>
+              <td className="td-desc">Maximum tokens to process in one batch</td>
             </tr>
             <tr>
-              <td title="block_size">블록 크기</td>
+              <td title="KV cache block size">block_size</td>
               <td className="td-current">{renderCurrentInput("block_size", "number")}</td>
               <td>
                 <div className="flex-row-12">
@@ -254,10 +254,10 @@ export default function TunerConfigForm({
                   ))}
                 </div>
               </td>
-              <td className="td-desc">KV 캐시 블록 크기</td>
+              <td className="td-desc">KV cache block size</td>
             </tr>
             <tr>
-              <td title="swap_space">스왑 공간 (GB)</td>
+              <td title="CPU swap space in GB">swap_space</td>
               <td className="td-current">{renderCurrentInput("swap_space", "number", { step: "0.5", min: 0 })}</td>
               <td>
                 <div className="flex-col-1">
@@ -266,7 +266,7 @@ export default function TunerConfigForm({
                       checked={config.include_swap_space}
                       onChange={e => onChange("include_swap_space", e.target.checked)}
                     />
-                    포함
+                    Include
                   </label>
                   {config.include_swap_space && (
                     <div className="flex-row-8" style={{ marginTop: '4px' }}>
@@ -278,59 +278,59 @@ export default function TunerConfigForm({
                   )}
                 </div>
               </td>
-              <td className="td-desc">CPU 스왑 공간 크기 (GB)</td>
+              <td className="td-desc">CPU swap space size (GB)</td>
             </tr>
             <tr>
               <td title="enable_chunked_prefill">Chunked Prefill</td>
               <td className="td-current">{renderCurrentInput("enable_chunked_prefill", "checkbox")}</td>
               <td>—</td>
-              <td className="td-desc">Chunked Prefill 활성화 여부</td>
+              <td className="td-desc">Enable chunked prefill</td>
             </tr>
             <tr>
               <td title="enable_enforce_eager">Enforce Eager</td>
               <td className="td-current">{renderCurrentInput("enable_enforce_eager", "checkbox")}</td>
               <td>—</td>
-              <td className="td-desc">CUDA Graph 미사용 (Eager 모드 강제)</td>
+              <td className="td-desc">Disable CUDA graph (force eager mode)</td>
             </tr>
             <tr>
               <td title="resources.requests.cpu">CPU Requests</td>
               <td className="td-current">
                 <input type="text" value={editedValues["resources.requests.cpu"] as string ?? getResourceValue("requests", "cpu")}
                        onChange={e => handleResourceChange("resources.requests.cpu", e.target.value)}
-                       placeholder="예: 4, 500m" />
+                       placeholder="e.g. 4, 500m" />
               </td>
               <td>—</td>
-              <td className="td-desc">CPU 요청량 (예: 4, 500m)</td>
+              <td className="td-desc">CPU request (e.g. 4, 500m)</td>
             </tr>
             <tr>
               <td title="resources.limits.cpu">CPU Limits</td>
               <td className="td-current">
                 <input type="text" value={editedValues["resources.limits.cpu"] as string ?? getResourceValue("limits", "cpu")}
                        onChange={e => handleResourceChange("resources.limits.cpu", e.target.value)}
-                       placeholder="예: 8, 1000m" />
+                       placeholder="e.g. 8, 1000m" />
               </td>
               <td>—</td>
-              <td className="td-desc">CPU 상한 (예: 8, 1000m)</td>
+              <td className="td-desc">CPU limit (e.g. 8, 1000m)</td>
             </tr>
             <tr>
               <td title="resources.requests.memory">Memory Requests</td>
               <td className="td-current">
                 <input type="text" value={editedValues["resources.requests.memory"] as string ?? getResourceValue("requests", "memory")}
                        onChange={e => handleResourceChange("resources.requests.memory", e.target.value)}
-                       placeholder="예: 8Gi, 512Mi" />
+                       placeholder="e.g. 8Gi, 512Mi" />
               </td>
               <td>—</td>
-              <td className="td-desc">메모리 요청량 (예: 8Gi, 512Mi)</td>
+              <td className="td-desc">Memory request (e.g. 8Gi, 512Mi)</td>
             </tr>
             <tr>
               <td title="resources.limits.memory">Memory Limits</td>
               <td className="td-current">
                 <input type="text" value={editedValues["resources.limits.memory"] as string ?? getResourceValue("limits", "memory")}
                        onChange={e => handleResourceChange("resources.limits.memory", e.target.value)}
-                       placeholder="예: 16Gi" />
+                       placeholder="e.g. 16Gi" />
               </td>
               <td>—</td>
-              <td className="td-desc">메모리 상한 (예: 16Gi)</td>
+              <td className="td-desc">Memory limit (e.g. 16Gi)</td>
             </tr>
             <tr>
               <td title="resources.limits.nvidia.com/gpu">GPU Limits</td>
@@ -341,21 +341,21 @@ export default function TunerConfigForm({
                        placeholder="0" />
               </td>
               <td>—</td>
-              <td className="td-desc">GPU 수량</td>
+              <td className="td-desc">GPU count</td>
             </tr>
             {extraArgs && extraArgs.length > 0 && (
               <tr>
-                <td title="extra_args">기타 인자</td>
+                <td title="Other vLLM args not in tuning scope">extra_args</td>
                 <td colSpan={2}>
                   <code style={{ fontSize: '11px', wordBreak: 'break-all' }}>
                     {extraArgs.join(' ')}
                   </code>
                 </td>
-                <td className="td-desc">튜닝 대상 외 vLLM 인자</td>
+                <td className="td-desc">vLLM args outside tuning scope</td>
               </tr>
             )}
             <tr>
-               <td title="storageUri">모델 스토리지</td>
+               <td title="Model storage URI">storageUri</td>
                <td colSpan={2}>
                  <div className="flex-row-8">
                    <input
@@ -373,31 +373,31 @@ export default function TunerConfigForm({
                      disabled={isRunning || localStorageUri === storageUri}
                      style={{ whiteSpace: 'nowrap' }}
                    >
-                     저장
-                   </button>
+                      Save
+                    </button>
                  </div>
                </td>
-               <td className="td-desc">모델 스토리지 URI</td>
+               <td className="td-desc">Model storage URI</td>
              </tr>
           </tbody>
         </table>
       </div>
 
-      <div className="section-title">평가 설정</div>
+      <div className="section-title">Evaluation Settings</div>
       <div className="grid-form grid-form-compact" style={{ marginBottom: '20px' }}>
         <div>
-          <label className="label">평가 요청 수</label>
-           <input className="input" type="number" aria-label="평가 요청 수" min={10} max={10000} step={10} value={config.eval_requests}
+          <label className="label">Eval Request Count</label>
+           <input className="input" type="number" aria-label="Eval Request Count" min={10} max={10000} step={10} value={config.eval_requests}
              onChange={e => onChange("eval_requests", +e.target.value)} />
         </div>
         <div>
-          <label className="label">평가 동시 요청</label>
-           <input className="input" type="number" aria-label="평가 동시 요청" min={1} max={256} value={config.eval_concurrency}
+          <label className="label">Eval Concurrency</label>
+           <input className="input" type="number" aria-label="Eval Concurrency" min={1} max={256} value={config.eval_concurrency}
              onChange={e => onChange("eval_concurrency", +e.target.value)} />
         </div>
         <div>
-          <label className="label">평가 RPS</label>
-           <input className="input" type="number" aria-label="평가 RPS" min={1} max={1000} value={config.eval_rps}
+          <label className="label">Eval RPS</label>
+           <input className="input" type="number" aria-label="Eval RPS" min={1} max={1000} value={config.eval_rps}
              onChange={e => onChange("eval_rps", +e.target.value)} />
         </div>
       </div>
@@ -420,7 +420,7 @@ export default function TunerConfigForm({
             onClick={() => onApplyCurrentValues(editedValues)}
             disabled={Object.keys(editedValues).length === 0}
           >
-            현재값 적용
+            Apply Current Values
           </button>
         )}
         <span className={`tag tag-${isRunning ? "running" : "idle"}`}>
