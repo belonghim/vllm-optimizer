@@ -187,6 +187,35 @@ patch_monitoring_labels() {
   fi
 }
 
+rollback_deployment() {
+  local namespace=$1
+  local deployment=$2
+  local revision_count
+  revision_count=$(oc rollout history deployment/$deployment -n $namespace 2>/dev/null | grep -c "^[0-9]" || echo 0)
+  if [ "$revision_count" -ge 2 ]; then
+    echo "Rolling back $deployment in $namespace..."
+    oc rollout undo deployment/$deployment -n $namespace
+  else
+    echo "WARNING: Cannot rollback $deployment — no previous revision available (first deploy)"
+  fi
+}
+
+health_check_deployment() {
+  local url=$1
+  local max_attempts=5
+  local wait_seconds=10
+  for i in $(seq 1 $max_attempts); do
+    echo "Health check attempt $i/$max_attempts..."
+    if curl -sf "$url/health" > /dev/null 2>&1; then
+      echo "Health check passed."
+      return 0
+    fi
+    sleep $wait_seconds
+  done
+  echo "ERROR: Health check failed after $max_attempts attempts"
+  return 1
+}
+
 info_dry_run() {
   if [[ "$DRY_RUN" == "true" ]]; then
     echo ""
@@ -271,6 +300,15 @@ else
 fi
 log "Waiting for vllm-optimizer-backend deployment to be ready..."
 oc rollout status deployment/vllm-optimizer-backend -n "${NAMESPACE}" --timeout=5m
+
+log "Performing health check for vllm-optimizer-backend..."
+if ! health_check_deployment "http://vllm-optimizer-backend.${NAMESPACE}.svc:8000"; then
+  warn "Health check failed; rolling back vllm-optimizer-backend..."
+  rollback_deployment "${NAMESPACE}" "vllm-optimizer-backend"
+  exit 1
+fi
+ok "Backend deployment healthy"
+
 log "Waiting for vllm-optimizer-frontend deployment to be ready..."
 oc rollout status deployment/vllm-optimizer-frontend -n "${NAMESPACE}" --timeout=5m
 
