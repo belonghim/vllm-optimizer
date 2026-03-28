@@ -140,6 +140,75 @@ class TunerAllResponse(BaseModel):
     importance: dict[str, Any]
 
 
+async def _auto_save_tuning_session() -> None:
+    try:
+        existing_trials = await storage.get_trials()
+        if existing_trials:
+            best = auto_tuner.best
+            session_data = {
+                "timestamp": time.time(),
+                "objective": getattr(auto_tuner, "_last_objective", "balanced"),
+                "n_trials": len(existing_trials),
+                "best_tps": best.tps if best else None,
+                "best_p99": best.p99_latency * 1000 if best else None,
+                "best_score": getattr(auto_tuner, "_best_score", None),
+                "trials_json": json.dumps([t.model_dump() for t in existing_trials], default=str),
+                "importance_json": json.dumps(await auto_tuner.get_importance()),
+            }
+            await storage.save_tuning_session(session_data)
+    except (
+        OSError,
+        ValueError,
+        RuntimeError,
+    ) as e:  # intentional: fail-open, session auto-save must not block new tuning run
+        logger.warning("[Tuner] Failed to auto-save tuning session before new run: %s", e)
+
+
+def _build_tuning_config(body: TuningStartRequest) -> tuple[TuningConfig, str, SweepConfig | None]:
+    import os
+
+    config = TuningConfig(
+        max_num_seqs_range=(body.max_num_seqs_min, body.max_num_seqs_max),
+        gpu_memory_utilization_range=(body.gpu_memory_min, body.gpu_memory_max),
+        max_model_len_range=(body.max_model_len_min, body.max_model_len_max),
+        max_num_batched_tokens_range=(body.max_num_batched_tokens_min, body.max_num_batched_tokens_max),
+        block_size_options=body.block_size_options,
+        include_swap_space=body.include_swap_space,
+        swap_space_range=(body.swap_space_min, body.swap_space_max),
+        eval_concurrency=body.eval_concurrency,
+        eval_rps=body.eval_rps,
+        eval_requests=body.eval_requests,
+        objective=body.objective,
+        n_trials=body.n_trials,
+    )
+    vllm_endpoint = body.vllm_endpoint or os.getenv("VLLM_ENDPOINT", "http://localhost:8000")
+    sweep_config = body.sweep_config
+    if body.evaluation_mode == "sweep" and sweep_config is not None and not sweep_config.endpoint:
+        sweep_config = sweep_config.model_copy(update={"endpoint": vllm_endpoint})
+    return config, vllm_endpoint, sweep_config
+
+
+async def _run_preflight_or_raise() -> None:
+    try:
+        preflight = await auto_tuner._preflight_check()
+    except (RuntimeError, ValueError, ApiException) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=ErrorResponse(
+                error=f"Preflight check failed: {exc}",
+                error_type="preflight_error",
+            ).model_dump(),
+        ) from exc
+    if not preflight.get("success"):
+        raise HTTPException(
+            status_code=400,
+            detail=ErrorResponse(
+                error=preflight.get("error", "Preflight check failed"),
+                error_type=preflight.get("error_type", "preflight_error"),
+            ).model_dump(),
+        )
+
+
 @router.post(
     "/start",
     response_model=TuningStartResponse,
@@ -167,67 +236,17 @@ async def start_tuning(request: Request, body: TuningStartRequest) -> dict[str, 
                 error_type="already_running",
             ).model_dump(),
         )
-    try:
-        existing_trials = await storage.get_trials()
-        if existing_trials:
-            best = auto_tuner.best
-            session_data = {
-                "timestamp": time.time(),
-                "objective": getattr(auto_tuner, "_last_objective", "balanced"),
-                "n_trials": len(existing_trials),
-                "best_tps": best.tps if best else None,
-                "best_p99": best.p99_latency * 1000 if best else None,
-                "best_score": getattr(auto_tuner, "_best_score", None),
-                "trials_json": json.dumps([t.model_dump() for t in existing_trials], default=str),
-                "importance_json": json.dumps(await auto_tuner.get_importance()),
-            }
-            await storage.save_tuning_session(session_data)
-    except (OSError, ValueError, RuntimeError) as e:
-        logger.warning("[Tuner] Failed to auto-save tuning session before new run: %s", e)
+    await _auto_save_tuning_session()
     try:
         await storage.clear_trials()
-    except (OSError, ValueError, RuntimeError) as e:
+    except (
+        OSError,
+        ValueError,
+        RuntimeError,
+    ) as e:  # intentional: fail-open, storage clear failure must not block new tuning session
         logger.warning("[Tuner] Failed to clear trials from storage before new session: %s", e)
-    config = TuningConfig(
-        max_num_seqs_range=(body.max_num_seqs_min, body.max_num_seqs_max),
-        gpu_memory_utilization_range=(body.gpu_memory_min, body.gpu_memory_max),
-        max_model_len_range=(body.max_model_len_min, body.max_model_len_max),
-        max_num_batched_tokens_range=(body.max_num_batched_tokens_min, body.max_num_batched_tokens_max),
-        block_size_options=body.block_size_options,
-        include_swap_space=body.include_swap_space,
-        swap_space_range=(body.swap_space_min, body.swap_space_max),
-        eval_concurrency=body.eval_concurrency,
-        eval_rps=body.eval_rps,
-        eval_requests=body.eval_requests,
-        objective=body.objective,
-        n_trials=body.n_trials,
-    )
-    import os
-
-    vllm_endpoint = body.vllm_endpoint or os.getenv("VLLM_ENDPOINT", "http://localhost:8000")
-    sweep_config = body.sweep_config
-    if body.evaluation_mode == "sweep" and sweep_config is not None and not sweep_config.endpoint:
-        sweep_config = sweep_config.model_copy(update={"endpoint": vllm_endpoint})
-
-    try:
-        preflight = await auto_tuner._preflight_check()
-    except (RuntimeError, ValueError, ApiException) as exc:
-        raise HTTPException(
-            status_code=400,
-            detail=ErrorResponse(
-                error=f"Preflight check failed: {exc}",
-                error_type="preflight_error",
-            ).model_dump(),
-        ) from exc
-    if not preflight.get("success"):
-        raise HTTPException(
-            status_code=400,
-            detail=ErrorResponse(
-                error=preflight.get("error", "Preflight check failed"),
-                error_type=preflight.get("error_type", "preflight_error"),
-            ).model_dump(),
-        )
-
+    config, vllm_endpoint, sweep_config = _build_tuning_config(body)
+    await _run_preflight_or_raise()
     tuning_id = str(uuid.uuid4())
     auto_tuner._current_task = asyncio.create_task(
         auto_tuner.start(
@@ -283,7 +302,7 @@ async def get_tuning_trials(
         all_trials = await storage.get_trials()
         if not all_trials:
             all_trials = auto_tuner.trials
-    except (OSError, ValueError, RuntimeError):
+    except (OSError, ValueError, RuntimeError):  # intentional: fail-open, in-memory fallback when storage unavailable
         all_trials = auto_tuner.trials
     total = len(all_trials)
     # most-recent first: reverse, slice, then return
@@ -339,7 +358,8 @@ async def stream_tuner_events() -> StreamingResponse:
                     if keepalive_count > 20:  # Max 10 minutes of keepalive
                         break
         except asyncio.CancelledError:
-            pass
+            logger.debug("[SSE] Tuner stream client disconnected, cleaning up")
+            raise
         finally:
             await auto_tuner.unsubscribe(q)
 

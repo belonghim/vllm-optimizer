@@ -292,7 +292,9 @@ async def stream_load_test_results(test_id: str | None = None) -> StreamingRespo
                     event_type = data.get("type")
                     # During sweep: only break on sweep_completed or stopped
                     # During regular test: break on completed or stopped
-                    if _is_sweeping:
+                    async with _test_lock:
+                        is_sweeping = _is_sweeping
+                    if is_sweeping:
                         if event_type in ("sweep_completed", "stopped", "error"):
                             break
                     else:
@@ -301,7 +303,8 @@ async def stream_load_test_results(test_id: str | None = None) -> StreamingRespo
                 except TimeoutError:
                     yield ": keepalive\n\n"
         except asyncio.CancelledError:
-            pass
+            logger.debug("[SSE] Load test stream client disconnected, cleaning up")
+            raise
         finally:
             await load_engine.unsubscribe(queue)
 
