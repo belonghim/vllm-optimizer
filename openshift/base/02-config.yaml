@@ -19,10 +19,10 @@ data:
   STORAGE_PATH: "/data/app.db"
   # Optuna RDBStorage URL for persistent study across restarts
   OPTUNA_STORAGE_URL: "sqlite:////data/optuna.db"
-   # vLLM CR type (inferenceservice or pod)
-   VLLM_CR_TYPE: "llminferenceservice"
-   # Optional CA certificate bundle for TLS verification
-   CA_BUNDLE: ""
+  # vLLM CR type (inferenceservice or pod)
+  VLLM_CR_TYPE: "llminferenceservice"
+  # Optional CA certificate bundle for TLS verification
+  CA_BUNDLE: ""
 ---
 apiVersion: v1
 kind: Secret
