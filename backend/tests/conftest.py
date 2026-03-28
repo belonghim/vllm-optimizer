@@ -172,10 +172,10 @@ class _StubMultiTargetMetricsCollector:
 
 
 class _DummyCustomObjectsApi:
-    async def get_namespaced_custom_object(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+    def get_namespaced_custom_object(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
         return {"status": {"conditions": []}}
 
-    async def patch_namespaced_custom_object(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+    def patch_namespaced_custom_object(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
         return {}
 
 

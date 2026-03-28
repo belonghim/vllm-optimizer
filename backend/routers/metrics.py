@@ -14,6 +14,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 from services.rate_limiter import limiter
+from services.retry_helper import with_retry
 from models.load_test import (
     BatchMetricsRequest,
     BatchMetricsResponse,
@@ -64,12 +65,17 @@ async def _fetch_query_range(
     step: int,
 ) -> list[tuple[float, float]]:
     try:
-        response = await client.get(
-            f"{PROMETHEUS_URL}/api/v1/query_range",
-            params={"query": query, "start": start, "end": end, "step": step},
-            headers=headers,
-        )
-        response.raise_for_status()
+
+        async def _do_get():
+            r = await client.get(
+                f"{PROMETHEUS_URL}/api/v1/query_range",
+                params={"query": query, "start": start, "end": end, "step": step},
+                headers=headers,
+            )
+            r.raise_for_status()
+            return r
+
+        response = await with_retry(_do_get, label="thanos-query-range")
         data = response.json()
         if data.get("status") != "success":
             return []

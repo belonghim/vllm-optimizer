@@ -1,3 +1,4 @@
+import inspect
 from typing import cast
 from unittest.mock import MagicMock, patch
 
@@ -42,7 +43,7 @@ def _get_vllm_config_globals(client: TestClient, method: str | None = None):
             continue
         endpoint = getattr(route, "endpoint", None)
         if endpoint is not None:
-            return endpoint.__globals__
+            return inspect.unwrap(endpoint).__globals__
     return None
 
 
