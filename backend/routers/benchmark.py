@@ -8,12 +8,13 @@ import logging
 import os
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
 from models.load_test import Benchmark, BenchmarkMetadata, ErrorResponse
 from services.guidellm_parser import parse_guidellm_json
 from services.model_resolver import resolve_model_name
 from services.shared import multi_target_collector
 from services.storage import Storage
+from services.rate_limiter import limiter
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -33,7 +34,9 @@ def get_storage() -> Storage:
         500: {"model": ErrorResponse},
     },
 )
+@limiter.limit("60/minute")
 async def list_benchmarks(
+    request: Request,
     limit: int = Query(default=20, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
     response: Response = None,
@@ -61,7 +64,9 @@ async def list_benchmarks(
         500: {"model": ErrorResponse},
     },
 )
+@limiter.limit("60/minute")
 async def save_benchmark(
+    request: Request,
     benchmark: Benchmark,
     storage: Storage = Depends(get_storage),
 ) -> Benchmark:
@@ -111,7 +116,9 @@ async def save_benchmark(
         500: {"model": ErrorResponse},
     },
 )
+@limiter.limit("60/minute")
 async def benchmarks_by_model(
+    request: Request,
     storage: Storage = Depends(get_storage),
 ) -> dict[str, Any]:
     """Get benchmarks grouped by model with GPU efficiency metrics."""
@@ -138,7 +145,9 @@ async def benchmarks_by_model(
 
 
 @router.post("/import")
+@limiter.limit("60/minute")
 async def import_guidellm_benchmark(
+    request: Request,
     file: UploadFile = File(...),
     storage: Storage = Depends(get_storage),
 ) -> dict:
@@ -169,7 +178,9 @@ async def import_guidellm_benchmark(
         500: {"model": ErrorResponse},
     },
 )
+@limiter.limit("60/minute")
 async def get_benchmark(
+    request: Request,
     benchmark_id: int,
     storage: Storage = Depends(get_storage),
 ) -> Benchmark:
@@ -197,7 +208,9 @@ async def get_benchmark(
         500: {"model": ErrorResponse},
     },
 )
+@limiter.limit("60/minute")
 async def delete_benchmark(
+    request: Request,
     benchmark_id: int,
     storage: Storage = Depends(get_storage),
 ) -> dict[str, Any]:
@@ -226,7 +239,9 @@ async def delete_benchmark(
         500: {"model": ErrorResponse},
     },
 )
+@limiter.limit("60/minute")
 async def patch_benchmark_metadata(
+    request: Request,
     benchmark_id: int,
     metadata: BenchmarkMetadata,
     storage: Storage = Depends(get_storage),

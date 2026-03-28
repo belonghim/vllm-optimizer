@@ -2,12 +2,13 @@ import asyncio
 import logging
 from typing import Any, Literal, cast
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from kubernetes.client import CustomObjectsApi
 from kubernetes.client.exceptions import ApiException as K8sApiException
 from pydantic import BaseModel
 from services.shared import runtime_config
 from services.cr_adapter import deep_merge, get_cr_adapter
+from services.rate_limiter import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +112,8 @@ def _get_k8s_custom() -> CustomObjectsApi | None:
 
 
 @router.get("")
-async def get_vllm_config() -> dict[str, Any]:
+@limiter.limit("30/minute")
+async def get_vllm_config(request: Request) -> dict[str, Any]:
     """Get current vLLM InferenceService configuration."""
     _custom = await asyncio.to_thread(_get_k8s_custom)
     if _custom is None:
@@ -150,22 +152,23 @@ async def get_vllm_config() -> dict[str, Any]:
 
 
 @router.patch("")
-async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict[str, Any]:
+@limiter.limit("30/minute")
+async def patch_vllm_config(request: Request, config: VllmConfigPatchRequest) -> dict[str, Any]:
     """Update vLLM configuration (args, resources, model URI)."""
-    invalid_keys = {str(k) for k in request.data} - ALLOWED_CONFIG_KEYS
+    invalid_keys = {str(k) for k in config.data} - ALLOWED_CONFIG_KEYS
     if invalid_keys:
         raise HTTPException(
             status_code=422,
             detail=f"Invalid config keys: {sorted(invalid_keys)}. Allowed: {sorted(ALLOWED_CONFIG_KEYS)}",
         )
 
-    if request.resources is not None:
-        for _tier, kvs in request.resources.items():
+    if config.resources is not None:
+        for _tier, kvs in config.resources.items():
             invalid_res_keys = set(kvs.keys()) - ALLOWED_RESOURCE_KEYS
             if invalid_res_keys:
                 raise HTTPException(status_code=422, detail=f"Invalid resource keys: {invalid_res_keys}")
 
-    if not request.data and request.storageUri is None and request.resources is None:
+    if not config.data and config.storageUri is None and config.resources is None:
         return {"success": True, "updated_keys": [], "updated_storageUri": False}
 
     try:
@@ -190,24 +193,24 @@ async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict[str, Any]:
     try:
         patch_body: dict[str, Any] = {}
 
-        if request.data:
-            args_patch = await _validate_and_merge_args(adapter, custom, namespace, is_name, request.data)
+        if config.data:
+            args_patch = await _validate_and_merge_args(adapter, custom, namespace, is_name, config.data)
             patch_body = deep_merge(patch_body, args_patch)
 
-        if request.storageUri is not None:
-            uri_patch = adapter.build_model_uri_patch(request.storageUri)
+        if config.storageUri is not None:
+            uri_patch = adapter.build_model_uri_patch(config.storageUri)
             patch_body = deep_merge(patch_body, uri_patch)
 
-        if request.resources is not None:
-            res_patch = _validate_and_merge_resources(adapter, request.resources)
+        if config.resources is not None:
+            res_patch = _validate_and_merge_resources(adapter, config.resources)
             if res_patch:
                 patch_body = deep_merge(patch_body, res_patch)
 
         await _apply_patch(adapter, custom, namespace, is_name, patch_body)
         return {
             "success": True,
-            "updated_keys": list(request.data.keys()),
-            "updated_storageUri": request.storageUri is not None,
+            "updated_keys": list(config.data.keys()),
+            "updated_storageUri": config.storageUri is not None,
         }
     except K8sApiException as e:
         logger.error("[VllmConfig] Failed to patch InferenceService: %s", e)

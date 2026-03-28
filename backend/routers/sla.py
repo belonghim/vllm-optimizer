@@ -1,10 +1,11 @@
 import logging
 
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 from models.load_test import Benchmark
 from models.sla import SlaEvaluateResponse, SlaEvaluationResult, SlaProfile, SlaVerdict
 from pydantic import BaseModel
 from services.shared import storage
+from services.rate_limiter import limiter
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -92,7 +93,9 @@ def evaluate_benchmarks_against_sla(
 
 
 @router.get("/profiles", response_model=list[SlaProfile])
+@limiter.limit("60/minute")
 async def list_profiles(
+    request: Request,
     limit: int = Query(default=50, ge=1),
     offset: int = Query(default=0, ge=0),
     response: Response = None,
@@ -106,13 +109,15 @@ async def list_profiles(
 
 
 @router.post("/profiles", response_model=SlaProfile, status_code=201)
-async def create_profile(profile: SlaProfile) -> SlaProfile:
+@limiter.limit("60/minute")
+async def create_profile(request: Request, profile: SlaProfile) -> SlaProfile:
     """Create a new SLA profile."""
     return await storage.save_sla_profile(profile)
 
 
 @router.get("/profiles/{profile_id}", response_model=SlaProfile)
-async def get_profile(profile_id: int) -> SlaProfile:
+@limiter.limit("60/minute")
+async def get_profile(request: Request, profile_id: int) -> SlaProfile:
     """Retrieve an SLA profile by ID."""
     profile = await storage.get_sla_profile(profile_id)
     if profile is None:
@@ -121,7 +126,8 @@ async def get_profile(profile_id: int) -> SlaProfile:
 
 
 @router.put("/profiles/{profile_id}", response_model=SlaProfile)
-async def update_profile(profile_id: int, profile: SlaProfile) -> SlaProfile:
+@limiter.limit("60/minute")
+async def update_profile(request: Request, profile_id: int, profile: SlaProfile) -> SlaProfile:
     """Update an existing SLA profile."""
     updated = await storage.update_sla_profile(profile_id, profile)
     if updated is None:
@@ -130,7 +136,8 @@ async def update_profile(profile_id: int, profile: SlaProfile) -> SlaProfile:
 
 
 @router.delete("/profiles/{profile_id}")
-async def delete_profile(profile_id: int) -> dict[str, bool]:
+@limiter.limit("60/minute")
+async def delete_profile(request: Request, profile_id: int) -> dict[str, bool]:
     """Delete an SLA profile by ID."""
     deleted = await storage.delete_sla_profile(profile_id)
     if not deleted:
@@ -139,16 +146,17 @@ async def delete_profile(profile_id: int) -> dict[str, bool]:
 
 
 @router.post("/evaluate", response_model=SlaEvaluateResponse)
-async def evaluate_profile(request: SlaEvaluateRequest) -> SlaEvaluateResponse:
+@limiter.limit("60/minute")
+async def evaluate_profile(request: Request, eval_request: SlaEvaluateRequest) -> SlaEvaluateResponse:
     """Evaluate benchmarks against an SLA profile."""
-    profile = await storage.get_sla_profile(request.profile_id)
+    profile = await storage.get_sla_profile(eval_request.profile_id)
     if profile is None:
-        raise HTTPException(status_code=404, detail=f"SLA profile {request.profile_id} not found")
+        raise HTTPException(status_code=404, detail=f"SLA profile {eval_request.profile_id} not found")
 
-    benchmarks = await storage.get_benchmarks_by_ids(request.benchmark_ids)
+    benchmarks = await storage.get_benchmarks_by_ids(eval_request.benchmark_ids)
 
     found_ids = {b.id for b in benchmarks if b.id is not None}
-    missing_ids = [bid for bid in request.benchmark_ids if bid not in found_ids]
+    missing_ids = [bid for bid in eval_request.benchmark_ids if bid not in found_ids]
     warnings = [f"Benchmark {bid} not found (may have been deleted)" for bid in missing_ids]
 
     results = evaluate_benchmarks_against_sla(profile, benchmarks)

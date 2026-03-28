@@ -2,12 +2,13 @@ import logging
 import os
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from kubernetes import config as k8s_config
 from kubernetes.client.exceptions import ApiException
 from pydantic import BaseModel
 from services.model_resolver import resolve_model_name
 from services.shared import runtime_config
+from services.rate_limiter import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,8 @@ class ConfigPatch(BaseModel):
 
 
 @router.get("", response_model=ConfigResponse)
-async def get_config() -> ConfigResponse:
+@limiter.limit("60/minute")
+async def get_config(request: Request) -> ConfigResponse:
     endpoint = runtime_config.vllm_endpoint
     model_name = os.getenv("VLLM_MODEL", "auto")
     try:
@@ -51,7 +53,8 @@ async def get_config() -> ConfigResponse:
 
 
 @router.patch("", response_model=ConfigResponse)
-async def patch_config(patch: ConfigPatch) -> ConfigResponse:
+@limiter.limit("60/minute")
+async def patch_config(request: Request, patch: ConfigPatch) -> ConfigResponse:
     if patch.cr_type is not None:
         try:
             from routers.tuner import auto_tuner
@@ -101,7 +104,7 @@ async def patch_config(patch: ConfigPatch) -> ConfigResponse:
             logger.warning("ConfigMap patch failed (in-memory applied): %s", e)
             configmap_updated = False
 
-    base = await get_config()
+    base = await get_config(request)
     return ConfigResponse(
         vllm_endpoint=base.vllm_endpoint,
         vllm_namespace=base.vllm_namespace,
