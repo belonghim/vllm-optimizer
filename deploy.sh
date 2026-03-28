@@ -264,12 +264,10 @@ if [[ "$DRY_RUN" != "true" && "$SKIP_BUILD" != "true" ]]; then
   podman login "${REGISTRY}" || true
 
   log "Pushing backend image..."
-  PUSH_OUTPUT=$(podman push "${REGISTRY}/vllm-optimizer-backend:${IMAGE_TAG}" 2>&1)
-  echo "$PUSH_OUTPUT"
+  podman push "${REGISTRY}/vllm-optimizer-backend:${IMAGE_TAG}"
 
   log "Pushing frontend image..."
-  PUSH_OUTPUT=$(podman push "${REGISTRY}/vllm-optimizer-frontend:${IMAGE_TAG}" 2>&1)
-  echo "$PUSH_OUTPUT"
+  podman push "${REGISTRY}/vllm-optimizer-frontend:${IMAGE_TAG}"
   ok "Images pushed to ${REGISTRY}"
   
   # Wait a moment for registry to index the new blobs
