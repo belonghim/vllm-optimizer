@@ -19,10 +19,10 @@ interface PageDef {
 }
 
 const PAGES: PageDef[] = [
-  { id: "monitor", label: "실시간 모니터링" },
-  { id: "tuner", label: "자동 파라미터 튜닝" },
-  { id: "loadtest", label: "부하 테스트" },
-  { id: "benchmark", label: "벤치마크 비교" },
+  { id: "monitor", label: "Monitoring" },
+  { id: "tuner", label: "Auto Tuner" },
+  { id: "loadtest", label: "Load Test" },
+  { id: "benchmark", label: "Benchmark" },
   { id: "sla", label: "SLA" },
 ];
 
@@ -71,7 +71,7 @@ export default function App() {
           </div>
         </div>
 
-        <nav className="app-header-nav" role="tablist" aria-label="페이지 네비게이션">
+        <nav className="app-header-nav" role="tablist" aria-label="Page Navigation">
           {(() => {
             const runningPages = new Set([
               ...(isLoadTestRunning ? ['loadtest'] : []),
@@ -85,7 +85,7 @@ export default function App() {
                 aria-selected={page === p.id}
                 onClick={() => handleSetPage(p.id)}>
                 {p.label}
-                {runningPages.has(p.id) && <span className="nav-btn-dot" aria-label="실행 중" />}
+                {runningPages.has(p.id) && <span className="nav-btn-dot" aria-label="Running" />}
               </button>
             ));
           })()}
