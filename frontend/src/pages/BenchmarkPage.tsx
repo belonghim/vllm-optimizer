@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, Fragment, useCallback } from "react";
+import { useState, useEffect, useMemo, Fragment, useCallback, useRef } from "react";
 import { authFetch } from '../utils/authFetch';
 import { API, TARGET_COLORS } from "../constants";
 import { useThemeColors } from "../contexts/ThemeContext";
@@ -19,6 +19,7 @@ interface BenchmarkMetadata {
   replica_count?: number | null;
   notes?: string | null;
   extra?: Record<string, string>;
+  source?: string | null;
 }
 
 interface BenchmarkRunConfig {
@@ -58,6 +59,8 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { isMockEnabled } = useMockData();
+  const [importing, setImporting] = useState(false);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const fetchBenchmarks = useCallback(() => {
     setLoading(true);
@@ -230,6 +233,34 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
     downloadCSV(headers, rows, `benchmarks-${timestamp}.csv`);
   };
 
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const resp = await authFetch(`${API}/benchmark/import`, {
+        method: "POST",
+        body: formData,
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: "알 수 없는 오류" }));
+        throw new Error(err.detail || `HTTP ${resp.status}`);
+      }
+      const data = await resp.json();
+      setError(null);
+      fetchBenchmarks();
+      alert(`${data.imported_count}개 벤치마크가 임포트되었습니다.`);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "임포트 실패");
+    } finally {
+      setImporting(false);
+      if (importInputRef.current) importInputRef.current.value = "";
+    }
+  };
+
   const compareData = useMemo(() => benchmarks
     .filter(b => selected.includes(b.id))
     .map(b => {
@@ -254,29 +285,21 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
             <div style={{ textAlign: 'center', padding: '40px', color: COLORS.muted }}>로딩 중...</div>
           ) : (
             <>
-              <div style={{ marginBottom: '16px', display: 'flex', gap: '8px' }}>
-                <button
-                  className="btn-primary"
-                  disabled={benchmarks.length === 0}
-                  onClick={handleExportJSON}
-                >
-                  JSON 내보내기
-                </button>
-                <button
-                  className="btn-primary"
-                  disabled={benchmarks.length === 0}
-                  onClick={handleExportCSV}
-                >
-                   CSV 내보내기
-                 </button>
-                 <button
-                   className="btn-danger"
-                   disabled={selected.length === 0}
-                   onClick={handleBulkDelete}
-                 >
-                   선택 삭제 ({selected.length})
-                 </button>
-               </div>
+<div style={{ marginBottom: '16px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+  <button className="btn-primary" disabled={benchmarks.length === 0} onClick={handleExportJSON}>JSON 내보내기</button>
+  <button className="btn-primary" disabled={benchmarks.length === 0} onClick={handleExportCSV}>CSV 내보내기</button>
+  <button className="btn-outline" disabled={importing} onClick={() => importInputRef.current?.click()}>
+    {importing ? "임포트 중..." : "GuideLLM 결과 임포트"}
+  </button>
+  <input
+    ref={importInputRef}
+    type="file"
+    accept=".json"
+    style={{ display: 'none' }}
+    onChange={handleImport}
+  />
+  <button className="btn-danger" disabled={selected.length === 0} onClick={handleBulkDelete}>선택 삭제 ({selected.length})</button>
+</div>
                <table className="table" aria-label="저장된 벤치마크 목록">
           <thead>
             <tr>
@@ -304,7 +327,14 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
                     <td onClick={(e) => toggleSelect(b.id, e)}>
                       <input type="checkbox" checked={isSelected} readOnly aria-label={`벤치마크 ${b.name} 선택`} />
                     </td>
-                    <td className="td-text">{b.name}</td>
+                    <td className="td-text">
+                      {b.name}
+                      {b.metadata?.source === "guidellm" && (
+                        <span style={{ marginLeft: '6px', fontSize: '11px', padding: '1px 6px', borderRadius: '3px', background: '#2563eb', color: '#fff', verticalAlign: 'middle' }}>
+                          GuideLLM
+                        </span>
+                      )}
+                    </td>
                     <td className="td-cyan">{b.metadata?.model_identifier || "—"}</td>
                     <td className="td-muted">{b.config?.model || "—"}</td>
                     <td className="td-muted">{new Date(b.timestamp * 1000).toLocaleString()}</td>
