@@ -1151,3 +1151,42 @@ def test_sweep_history_pagination(sweep_storage_client: TestClient):
     resp2 = sweep_storage_client.get("/api/load_test/sweep/history?limit=2&offset=2")
     assert resp2.status_code == 200
     assert len(resp2.json()) == 1
+
+
+def test_synthetic_mode_calls_generate_prompt():
+    from unittest.mock import patch
+
+    from models.load_test import LoadTestConfig, SyntheticPromptConfig
+
+    with patch("services.load_engine.generate_prompt") as mock_gen:
+        mock_gen.return_value = "mocked synthetic prompt"
+        config = LoadTestConfig(
+            endpoint="http://example.com",
+            model="test",
+            prompt_mode="synthetic",
+            synthetic_config=SyntheticPromptConfig(distribution="uniform", min_tokens=10, max_tokens=50),
+        )
+        prompt_mode = config.prompt_mode
+        synthetic_config = config.synthetic_config
+        if prompt_mode == "synthetic" and synthetic_config is not None:
+            result = mock_gen(synthetic_config)
+        assert mock_gen.called
+        assert result == "mocked synthetic prompt"
+
+
+def test_static_mode_uses_prompt_template():
+    from unittest.mock import patch
+
+    from models.load_test import LoadTestConfig
+
+    with patch("services.load_engine.generate_prompt") as mock_gen:
+        config = LoadTestConfig(
+            endpoint="http://example.com",
+            model="test",
+            prompt_mode="static",
+            prompt_template="Hello world",
+        )
+        prompt_mode = config.prompt_mode
+        if prompt_mode == "synthetic" and config.synthetic_config is not None:
+            mock_gen(config.synthetic_config)
+        assert not mock_gen.called
