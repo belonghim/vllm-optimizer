@@ -337,6 +337,9 @@ class LoadTestEngine:
             {
                 "type": "error",
                 "data": {
+                    "message": error,
+                    "recoverable": False,
+                    "timestamp": time.time(),
                     "error": error,
                     "error_type": error_type,
                 },

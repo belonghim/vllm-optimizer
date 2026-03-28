@@ -355,6 +355,16 @@ class AutoTuner:
                     logger.warning("[AutoTuner] Trial %d evaluation failed: %s", trial_num, e)
                     await self._broadcast(
                         {
+                            "type": "error",
+                            "data": {
+                                "message": f"Trial {trial_num} evaluation failed: {e}",
+                                "recoverable": True,
+                                "timestamp": time.time(),
+                            },
+                        }
+                    )
+                    await self._broadcast(
+                        {
                             "type": "tuning_warning",
                             "data": {
                                 "message": "트라이얼 평가 실패로 다음 트라이얼로 진행합니다",

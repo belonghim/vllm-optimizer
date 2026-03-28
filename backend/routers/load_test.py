@@ -221,7 +221,11 @@ async def start_sweep(config: SweepConfig) -> dict[str, Any]:
     global _sweep_task, _sweep_result, _is_sweeping
 
     async with _test_lock:
-        if (_active_test_task is not None and not _active_test_task.done()) or _is_sweeping or load_engine.is_sweep_running():
+        if (
+            (_active_test_task is not None and not _active_test_task.done())
+            or _is_sweeping
+            or load_engine.is_sweep_running()
+        ):
             raise HTTPException(
                 status_code=409,
                 detail=ErrorResponse(
@@ -281,10 +285,10 @@ async def stream_load_test_results(test_id: str | None = None) -> StreamingRespo
                     # During sweep: only break on sweep_completed or stopped
                     # During regular test: break on completed or stopped
                     if _is_sweeping:
-                        if event_type in ("sweep_completed", "stopped"):
+                        if event_type in ("sweep_completed", "stopped", "error"):
                             break
                     else:
-                        if event_type in ("completed", "stopped"):
+                        if event_type in ("completed", "stopped", "error"):
                             break
                 except TimeoutError:
                     yield ": keepalive\n\n"

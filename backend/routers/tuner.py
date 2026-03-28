@@ -324,7 +324,10 @@ async def stream_tuner_events() -> StreamingResponse:
                     event = await asyncio.wait_for(q.get(), timeout=30.0)
                     yield f"data: {json.dumps(event)}\n\n"
 
-                    if event.get("type") == "tuning_complete":
+                    event_type = event.get("type")
+                    if event_type == "tuning_complete":
+                        break
+                    if event_type == "error" and not event.get("data", {}).get("recoverable", True):
                         break
                 except TimeoutError:
                     yield ": keepalive\n\n"
