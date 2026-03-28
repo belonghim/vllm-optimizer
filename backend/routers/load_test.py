@@ -38,14 +38,75 @@ def get_storage():
     return shared.storage
 
 
-# In-memory state for active test (in production, use proper state management)
-_active_test_task: asyncio.Task[Any] | None = None
-_current_config: LoadTestConfig | None = None
-_test_lock = asyncio.Lock()
+class LoadTestState:
+    def __init__(self) -> None:
+        self._active_test_task: asyncio.Task[None] | None = None
+        self._current_config: LoadTestConfig | None = None
+        self._sweep_task: asyncio.Task[None] | None = None
+        self._sweep_result: SweepResult | None = None
+        self._is_sweeping: bool = False
+        self._test_lock: asyncio.Lock = asyncio.Lock()
 
-_sweep_task: asyncio.Task[Any] | None = None
-_sweep_result: SweepResult | None = None
-_is_sweeping: bool = False
+    async def has_running_test(self) -> bool:
+        async with self._test_lock:
+            return self._active_test_task is not None and not self._active_test_task.done()
+
+    async def set_active_test(self, task: asyncio.Task[None], config: LoadTestConfig) -> None:
+        async with self._test_lock:
+            self._active_test_task = task
+            self._current_config = config
+
+    async def clear_active_test(self) -> None:
+        async with self._test_lock:
+            self._active_test_task = None
+
+    async def cancel_active_test(self) -> None:
+        async with self._test_lock:
+            if self._active_test_task and not self._active_test_task.done():
+                _ = self._active_test_task.cancel()
+                self._active_test_task = None
+
+    async def get_status_snapshot(
+        self,
+    ) -> tuple[asyncio.Task[None] | None, LoadTestConfig | None, SweepResult | None, bool]:
+        async with self._test_lock:
+            return self._active_test_task, self._current_config, self._sweep_result, self._is_sweeping
+
+    async def can_start_sweep(self) -> bool:
+        async with self._test_lock:
+            return (self._active_test_task is None or self._active_test_task.done()) and not self._is_sweeping
+
+    async def mark_sweep_started(self) -> None:
+        async with self._test_lock:
+            self._is_sweeping = True
+            self._sweep_result = None
+
+    async def set_sweep_task(self, task: asyncio.Task[None]) -> None:
+        async with self._test_lock:
+            self._sweep_task = task
+
+    async def set_sweep_result(self, result: SweepResult) -> None:
+        async with self._test_lock:
+            self._sweep_result = result
+
+    async def finish_sweep(self) -> None:
+        async with self._test_lock:
+            self._is_sweeping = False
+            self._sweep_task = None
+
+    async def cancel_sweep_if_running(self) -> None:
+        async with self._test_lock:
+            if self._sweep_task and not self._sweep_task.done():
+                _ = self._sweep_task.cancel()
+                self._sweep_task = None
+                self._is_sweeping = False
+
+    async def is_sweeping(self) -> bool:
+        async with self._test_lock:
+            return self._is_sweeping
+
+
+_state = LoadTestState()
 
 
 # Simple response models for start/stop
@@ -79,7 +140,6 @@ class StatusResponse(BaseModel):
 
 
 async def _run_test_background(test_id: str, config: LoadTestConfig) -> None:
-    global _active_test_task
     try:
         result = await load_engine.run(config, skip_preflight=True)
         entry = {
@@ -100,7 +160,7 @@ async def _run_test_background(test_id: str, config: LoadTestConfig) -> None:
     ) as e:  # intentional: catch all errors during test
         logger.error("[LoadTest] Error: %s", e)
     finally:
-        _active_test_task = None
+        await _state.clear_active_test()
 
 
 @router.post(
@@ -120,17 +180,14 @@ async def start_load_test(request: Request, config: LoadTestConfig) -> dict[str,
     - Returns a test_id to track this specific test run
     - Test runs asynchronously; use /status or /stream to monitor progress
     """
-    global _active_test_task, _current_config
-
-    async with _test_lock:
-        if _active_test_task is not None and not _active_test_task.done():
-            raise HTTPException(
-                status_code=409,
-                detail=ErrorResponse(
-                    error="A load test is already running.",
-                    error_type="already_running",
-                ).model_dump(),
-            )
+    if await _state.has_running_test():
+        raise HTTPException(
+            status_code=409,
+            detail=ErrorResponse(
+                error="A load test is already running.",
+                error_type="already_running",
+            ).model_dump(),
+        )
 
     test_id = str(uuid.uuid4())
 
@@ -150,8 +207,8 @@ async def start_load_test(request: Request, config: LoadTestConfig) -> dict[str,
             ).model_dump(),
         )
 
-    _active_test_task = asyncio.create_task(_run_test_background(test_id, config))
-    _current_config = config
+    active_task = asyncio.create_task(_run_test_background(test_id, config))
+    await _state.set_active_test(active_task, config)
 
     return {
         "test_id": test_id,
@@ -170,20 +227,12 @@ async def stop_load_test(test_id: str | None = None) -> dict[str, Any]:
     - Gracefully stops all worker tasks
     - Final results will be available via /status
     """
-    global _active_test_task, _sweep_task, _is_sweeping
-
     # Stop the engine
     await load_engine.stop()
 
     # Cancel the active task if exists
-    if _active_test_task and not _active_test_task.done():
-        _active_test_task.cancel()
-        _active_test_task = None
-
-    if _sweep_task and not _sweep_task.done():
-        _sweep_task.cancel()
-        _sweep_task = None
-        _is_sweeping = False
+    await _state.cancel_active_test()
+    await _state.cancel_sweep_if_running()
 
     return {
         "status": "stopped",
@@ -201,20 +250,17 @@ async def get_load_test_status(test_id: str | None = None) -> dict[str, Any]:
     - If no test_id, returns status of the most recent test (if any)
     - Includes elapsed time, success/failed counts, and current latency/TPS stats
     """
-    global _active_test_task, _current_config
-
-    is_running = (
-        _active_test_task is not None and not _active_test_task.done() and load_engine.status == LoadTestStatus.RUNNING
-    )
+    active_task, current_config, sweep_result, is_sweeping = await _state.get_status_snapshot()
+    is_running = active_task is not None and not active_task.done() and load_engine.status == LoadTestStatus.RUNNING
 
     return {
         "test_id": test_id,
         "running": is_running,
-        "config": _current_config,
+        "config": current_config,
         "current_result": None,
         "elapsed": load_engine.elapsed,
-        "sweep_result": _sweep_result.model_dump() if _sweep_result else None,
-        "is_sweeping": _is_sweeping,
+        "sweep_result": sweep_result.model_dump() if sweep_result else None,
+        "is_sweeping": is_sweeping,
     }
 
 
@@ -222,23 +268,15 @@ async def get_load_test_status(test_id: str | None = None) -> dict[str, Any]:
 @limiter.limit("5/minute")
 async def start_sweep(request: Request, config: SweepConfig) -> dict[str, Any]:
     """Start a parameter sweep with multiple concurrent loads."""
-    global _sweep_task, _sweep_result, _is_sweeping
-
-    async with _test_lock:
-        if (
-            (_active_test_task is not None and not _active_test_task.done())
-            or _is_sweeping
-            or load_engine.is_sweep_running()
-        ):
-            raise HTTPException(
-                status_code=409,
-                detail=ErrorResponse(
-                    error="A load test or sweep is already running.",
-                    error_type="already_running",
-                ).model_dump(),
-            )
-        _is_sweeping = True
-        _sweep_result = None
+    if (not await _state.can_start_sweep()) or load_engine.is_sweep_running():
+        raise HTTPException(
+            status_code=409,
+            detail=ErrorResponse(
+                error="A load test or sweep is already running.",
+                error_type="already_running",
+            ).model_dump(),
+        )
+    await _state.mark_sweep_started()
 
     if config.model == "auto":
         try:
@@ -248,10 +286,9 @@ async def start_sweep(request: Request, config: SweepConfig) -> dict[str, Any]:
 
     async def run_sweep_task():
         """Background task that executes a sweep load test across concurrency levels."""
-        global _sweep_task, _sweep_result, _is_sweeping
         try:
             result = await load_engine.run_sweep(config)
-            _sweep_result = result
+            await _state.set_sweep_result(result)
             await load_engine._broadcast({"type": "sweep_completed", "data": result.model_dump()})
         except asyncio.CancelledError:
             pass
@@ -259,10 +296,10 @@ async def start_sweep(request: Request, config: SweepConfig) -> dict[str, Any]:
             logger.error("[Sweep] Error: %s", e)
             await load_engine._broadcast({"type": "sweep_completed", "data": None})
         finally:
-            _is_sweeping = False
-            _sweep_task = None
+            await _state.finish_sweep()
 
-    _sweep_task = asyncio.create_task(run_sweep_task())
+    sweep_task = asyncio.create_task(run_sweep_task())
+    await _state.set_sweep_task(sweep_task)
 
     return {"status": "running", "config": config.model_dump()}
 
@@ -290,8 +327,7 @@ async def stream_load_test_results(test_id: str | None = None) -> StreamingRespo
                     event_type = data.get("type")
                     # During sweep: only break on sweep_completed or stopped
                     # During regular test: break on completed or stopped
-                    async with _test_lock:
-                        is_sweeping = _is_sweeping
+                    is_sweeping = await _state.is_sweeping()
                     if is_sweeping:
                         if event_type in ("sweep_completed", "stopped", "error"):
                             break
@@ -323,9 +359,9 @@ async def stream_load_test_results(test_id: str | None = None) -> StreamingRespo
     },
 )
 async def get_load_test_history(
+    response: Response,
     limit: int = Query(default=10, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
-    response: Response = None,
 ) -> list[dict[str, Any]]:
     """
     Get list of recent load test runs and their final results.
@@ -359,9 +395,9 @@ async def get_load_test_history(
     responses={500: {"model": ErrorResponse}},
 )
 async def save_sweep_result(
-    sweep: dict,
+    sweep: dict[str, Any],
     storage=Depends(get_storage),
-) -> dict:
+) -> dict[str, str]:
     """Save a completed sweep result. Returns {id: str}."""
     try:
         sweep_id = await storage.save_sweep_result(sweep)
@@ -379,11 +415,11 @@ async def save_sweep_result(
     responses={500: {"model": ErrorResponse}},
 )
 async def list_sweep_history(
+    response: Response,
     limit: int = 20,
     offset: int = 0,
-    response: Response = None,
     storage=Depends(get_storage),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """List saved sweep results with pagination. Returns X-Total-Count header."""
     try:
         items, total = await storage.get_sweep_history(limit=limit, offset=offset)
@@ -408,7 +444,7 @@ async def list_sweep_history(
 async def get_sweep_result(
     sweep_id: str,
     storage=Depends(get_storage),
-) -> dict:
+) -> dict[str, Any]:
     """Get a single saved sweep result by ID."""
     try:
         result = await storage.get_sweep_result(sweep_id)
@@ -436,7 +472,7 @@ async def get_sweep_result(
 async def delete_sweep_result(
     sweep_id: str,
     storage=Depends(get_storage),
-) -> dict:
+) -> dict[str, str]:
     """Delete a saved sweep result by ID."""
     try:
         deleted = await storage.delete_sweep_result(sweep_id)
