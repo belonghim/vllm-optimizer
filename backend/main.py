@@ -63,8 +63,12 @@ async def lifespan(app: FastAPI):
         ca_bundle = os.environ.get("CA_BUNDLE", "")
         internal_verify = ca_bundle if ca_bundle else False
         external_verify = ca_bundle if ca_bundle else True
-        shared_module.internal_client = httpx.AsyncClient(verify=internal_verify)
-        shared_module.external_client = httpx.AsyncClient(verify=external_verify)
+        shared_module.internal_client = httpx.AsyncClient(
+            verify=internal_verify, timeout=httpx.Timeout(30.0, connect=10.0)
+        )
+        shared_module.external_client = httpx.AsyncClient(
+            verify=external_verify, timeout=httpx.Timeout(30.0, connect=10.0)
+        )
         logger.info("[Lifespan] HTTP clients initialized")
     except Exception as e:
         logger.warning("[Lifespan] HTTP client initialization failed (continuing): %s", e)
