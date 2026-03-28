@@ -11,12 +11,13 @@ import uuid
 from datetime import datetime
 from typing import Any, Literal
 
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from kubernetes.client.exceptions import ApiException
 from models.load_test import ErrorResponse, SweepConfig, TuningConfig, TuningSessionDetail, TuningSessionSummary
 from pydantic import BaseModel, Field, model_validator
 from services.auto_tuner import AutoTuner
+from services.rate_limiter import limiter
 from services.shared import load_engine, multi_target_collector, storage
 
 logger = logging.getLogger(__name__)
@@ -146,8 +147,8 @@ class TunerAllResponse(BaseModel):
         409: {"model": ErrorResponse},
     },
 )
-async def start_tuning(request: TuningStartRequest) -> dict[str, Any]:
-    """Start auto-tuning process."""
+@limiter.limit("3/minute")
+async def start_tuning(request: Request, body: TuningStartRequest) -> dict[str, Any]:
     if auto_tuner.is_running:
         raise HTTPException(
             status_code=409,
@@ -156,7 +157,7 @@ async def start_tuning(request: TuningStartRequest) -> dict[str, Any]:
                 error_type="already_running",
             ).model_dump(),
         )
-    if request.evaluation_mode == "sweep" and load_engine.is_sweep_running():
+    if body.evaluation_mode == "sweep" and load_engine.is_sweep_running():
         raise HTTPException(
             status_code=409,
             detail=ErrorResponse(
@@ -186,24 +187,24 @@ async def start_tuning(request: TuningStartRequest) -> dict[str, Any]:
     except (OSError, ValueError, RuntimeError) as e:
         logger.warning("[Tuner] Failed to clear trials from storage before new session: %s", e)
     config = TuningConfig(
-        max_num_seqs_range=(request.max_num_seqs_min, request.max_num_seqs_max),
-        gpu_memory_utilization_range=(request.gpu_memory_min, request.gpu_memory_max),
-        max_model_len_range=(request.max_model_len_min, request.max_model_len_max),
-        max_num_batched_tokens_range=(request.max_num_batched_tokens_min, request.max_num_batched_tokens_max),
-        block_size_options=request.block_size_options,
-        include_swap_space=request.include_swap_space,
-        swap_space_range=(request.swap_space_min, request.swap_space_max),
-        eval_concurrency=request.eval_concurrency,
-        eval_rps=request.eval_rps,
-        eval_requests=request.eval_requests,
-        objective=request.objective,
-        n_trials=request.n_trials,
+        max_num_seqs_range=(body.max_num_seqs_min, body.max_num_seqs_max),
+        gpu_memory_utilization_range=(body.gpu_memory_min, body.gpu_memory_max),
+        max_model_len_range=(body.max_model_len_min, body.max_model_len_max),
+        max_num_batched_tokens_range=(body.max_num_batched_tokens_min, body.max_num_batched_tokens_max),
+        block_size_options=body.block_size_options,
+        include_swap_space=body.include_swap_space,
+        swap_space_range=(body.swap_space_min, body.swap_space_max),
+        eval_concurrency=body.eval_concurrency,
+        eval_rps=body.eval_rps,
+        eval_requests=body.eval_requests,
+        objective=body.objective,
+        n_trials=body.n_trials,
     )
     import os
 
-    vllm_endpoint = request.vllm_endpoint or os.getenv("VLLM_ENDPOINT", "http://localhost:8000")
-    sweep_config = request.sweep_config
-    if request.evaluation_mode == "sweep" and sweep_config is not None and not sweep_config.endpoint:
+    vllm_endpoint = body.vllm_endpoint or os.getenv("VLLM_ENDPOINT", "http://localhost:8000")
+    sweep_config = body.sweep_config
+    if body.evaluation_mode == "sweep" and sweep_config is not None and not sweep_config.endpoint:
         sweep_config = sweep_config.model_copy(update={"endpoint": vllm_endpoint})
 
     try:
@@ -230,9 +231,9 @@ async def start_tuning(request: TuningStartRequest) -> dict[str, Any]:
         auto_tuner.start(
             config,
             vllm_endpoint,
-            auto_benchmark=request.auto_benchmark,
+            auto_benchmark=body.auto_benchmark,
             skip_preflight=True,
-            evaluation_mode=request.evaluation_mode,
+            evaluation_mode=body.evaluation_mode,
             sweep_config=sweep_config,
         )
     )
@@ -241,7 +242,7 @@ async def start_tuning(request: TuningStartRequest) -> dict[str, Any]:
     )
     return {
         "success": True,
-        "message": f"Tuning started with {request.n_trials} trials",
+        "message": f"Tuning started with {body.n_trials} trials",
         "tuning_id": tuning_id,
     }
 

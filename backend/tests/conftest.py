@@ -52,6 +52,8 @@ _MODULES_TO_CLEAR = [
     "backend.startup_metrics_shim",
     "services.shared",
     "backend.services.shared",
+    "services.rate_limiter",
+    "backend.services.rate_limiter",
 ]
 
 

@@ -12,7 +12,7 @@ import time as time_module
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from models.load_test import (
     ErrorResponse,
@@ -24,6 +24,7 @@ from models.load_test import (
 from pydantic import BaseModel
 from services.load_engine import LoadTestStatus, load_engine
 from services.model_resolver import resolve_model_name
+from services.rate_limiter import limiter
 from services.shared import storage
 
 router = APIRouter()
@@ -84,7 +85,8 @@ class StatusResponse(BaseModel):
         409: {"model": ErrorResponse},
     },
 )
-async def start_load_test(config: LoadTestConfig) -> dict[str, Any]:
+@limiter.limit("5/minute")
+async def start_load_test(request: Request, config: LoadTestConfig) -> dict[str, Any]:
     """
     Start a new load test with the given configuration.
 

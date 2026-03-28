@@ -19,7 +19,10 @@ from errors import OptimizerError
 from routers import alerts, benchmark, load_test, metrics, sla, status, tuner, vllm_config
 from routers import config as config_router
 from routers.status import check_prometheus_health
+from services.rate_limiter import limiter
 from services.shared import runtime_config
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 # ── Logging Configuration ──
 logging.basicConfig(
@@ -151,6 +154,9 @@ app = FastAPI(
     openapi_url="/openapi.json",
     lifespan=lifespan,
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 try:

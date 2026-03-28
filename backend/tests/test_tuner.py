@@ -192,7 +192,8 @@ def test_tuner_start_endpoint_rejects_when_sweep_running(client):
     handler_globals = None
     for route in client.app.routes:
         if getattr(route, "path", None) == "/api/tuner/start":
-            handler_globals = route.endpoint.__globals__
+            endpoint = route.endpoint
+            handler_globals = getattr(endpoint, "__wrapped__", endpoint).__globals__
             break
     assert handler_globals is not None
 

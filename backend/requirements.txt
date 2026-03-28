@@ -35,3 +35,6 @@ psutil>=5.9.0,<7.0.0
 
 ## Monitoring
 prometheus-client>=0.24.0,<1.0.0
+
+## Rate Limiting
+slowapi>=0.1.9,<1.0.0
