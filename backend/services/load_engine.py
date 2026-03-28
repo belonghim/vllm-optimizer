@@ -203,10 +203,161 @@ class LoadTestEngine:
 
         return {"success": True}
 
+    def _build_request_payload(self, config: LoadTestConfig, prompt: str) -> dict:
+        return {
+            "model": config.model,
+            "prompt": prompt,
+            "max_tokens": config.max_tokens,
+            "temperature": config.temperature,
+        }
+
+    async def _dispatch_completions(
+        self,
+        config: LoadTestConfig,
+        payload: dict,
+        external_client: Any,
+        t0: float,
+        request_id: int,
+    ) -> RequestResult:
+        ttft = None
+        output_tokens = 0
+        token_timestamps: list[float] | None = None
+        itl_deltas: list[float] | None = None
+        itl_mean: float | None = None
+        itl_p50: float | None = None
+        itl_p95: float | None = None
+        itl_p99: float | None = None
+        if config.stream:
+            usage_tokens = 0
+            token_timestamps = []
+            async with external_client.stream(
+                "POST",
+                f"{config.endpoint}/v1/completions",
+                json={**payload, "stream": True, "stream_options": {"include_usage": True}},
+                timeout=120,
+            ) as resp:
+                async for chunk in resp.aiter_lines():
+                    if chunk.startswith("data: ") and chunk != "data: [DONE]":
+                        token_timestamps.append(time.time())
+                        if ttft is None:
+                            ttft = time.time() - t0
+                        output_tokens += 1
+                        try:
+                            data = json.loads(chunk[6:])
+                            if data.get("usage") and data["usage"].get("completion_tokens"):
+                                usage_tokens = data["usage"]["completion_tokens"]
+                        except (json.JSONDecodeError, KeyError):
+                            pass
+            if usage_tokens:
+                output_tokens = usage_tokens
+            if len(token_timestamps) >= 2:
+                deltas = [token_timestamps[i + 1] - token_timestamps[i] for i in range(len(token_timestamps) - 1)]
+                itl_deltas = deltas
+                itl_mean = sum(deltas) / len(deltas)
+                itl_p50 = sorted(deltas)[int(len(deltas) * 0.50)]
+                itl_p95 = sorted(deltas)[int(len(deltas) * 0.95)]
+                itl_p99 = sorted(deltas)[int(len(deltas) * 0.99)]
+            else:
+                itl_deltas = None
+                itl_mean = itl_p50 = itl_p95 = itl_p99 = None
+        else:
+            resp = await external_client.post(f"{config.endpoint}/v1/completions", json=payload, timeout=120)
+            data = resp.json()
+            output_tokens = data["usage"]["completion_tokens"]
+        latency = time.time() - t0
+        return RequestResult(
+            req_id=request_id,
+            success=True,
+            latency=latency,
+            ttft=ttft,
+            output_tokens=output_tokens,
+            tps=output_tokens / latency if latency > 0 else 0,
+            token_timestamps=token_timestamps,
+            itl_deltas=itl_deltas,
+            itl_mean=itl_mean,
+            itl_p50=itl_p50,
+            itl_p95=itl_p95,
+            itl_p99=itl_p99,
+        )
+
+    async def _dispatch_chat_completions(
+        self,
+        config: LoadTestConfig,
+        payload: dict,
+        external_client: Any,
+        t0: float,
+        request_id: int,
+    ) -> RequestResult:
+        chat_payload = {
+            "model": payload["model"],
+            "messages": [{"role": "user", "content": payload["prompt"]}],
+            "max_tokens": payload["max_tokens"],
+            "temperature": payload["temperature"],
+        }
+        ttft = None
+        output_tokens = 0
+        token_timestamps: list[float] | None = None
+        itl_deltas: list[float] | None = None
+        itl_mean: float | None = None
+        itl_p50: float | None = None
+        itl_p95: float | None = None
+        itl_p99: float | None = None
+        if config.stream:
+            usage_tokens = 0
+            token_timestamps = []
+            async with external_client.stream(
+                "POST",
+                f"{config.endpoint}/v1/chat/completions",
+                json={**chat_payload, "stream": True, "stream_options": {"include_usage": True}},
+                timeout=120,
+            ) as resp:
+                async for chunk in resp.aiter_lines():
+                    if chunk.startswith("data: ") and chunk != "data: [DONE]":
+                        token_timestamps.append(time.time())
+                        if ttft is None:
+                            ttft = time.time() - t0
+                        output_tokens += 1
+                        try:
+                            data = json.loads(chunk[6:])
+                            if data.get("usage") and data["usage"].get("completion_tokens"):
+                                usage_tokens = data["usage"]["completion_tokens"]
+                        except (json.JSONDecodeError, KeyError):
+                            pass
+            if usage_tokens:
+                output_tokens = usage_tokens
+            if len(token_timestamps) >= 2:
+                deltas = [token_timestamps[i + 1] - token_timestamps[i] for i in range(len(token_timestamps) - 1)]
+                itl_deltas = deltas
+                itl_mean = sum(deltas) / len(deltas)
+                itl_p50 = sorted(deltas)[int(len(deltas) * 0.50)]
+                itl_p95 = sorted(deltas)[int(len(deltas) * 0.95)]
+                itl_p99 = sorted(deltas)[int(len(deltas) * 0.99)]
+            else:
+                itl_deltas = None
+                itl_mean = itl_p50 = itl_p95 = itl_p99 = None
+        else:
+            resp = await external_client.post(f"{config.endpoint}/v1/chat/completions", json=chat_payload, timeout=120)
+            data = resp.json()
+            output_tokens = data["usage"]["completion_tokens"]
+        latency = time.time() - t0
+        return RequestResult(
+            req_id=request_id,
+            success=True,
+            latency=latency,
+            ttft=ttft,
+            output_tokens=output_tokens,
+            tps=output_tokens / latency if latency > 0 else 0,
+            token_timestamps=token_timestamps,
+            itl_deltas=itl_deltas,
+            itl_mean=itl_mean,
+            itl_p50=itl_p50,
+            itl_p95=itl_p95,
+            itl_p99=itl_p99,
+        )
+
     async def _dispatch_request(
         self, config: LoadTestConfig, semaphore: asyncio.Semaphore, request_id: int
     ) -> RequestResult:
-        """Send a single async HTTP request."""
         async with semaphore:
             shared_module = importlib.import_module("services.shared")
             external_client = shared_module.external_client
@@ -214,91 +365,16 @@ class LoadTestEngine:
                 prompt = generate_prompt(config.synthetic_config)
             else:
                 prompt = config.prompt_template
-            payload = {
-                "model": config.model,
-                "prompt": prompt,
-                "max_tokens": config.max_tokens,
-                "temperature": config.temperature,
-            }
+            payload = self._build_request_payload(config, prompt)
             t0 = time.time()
-            ttft = None
-            output_tokens = 0
-            token_timestamps: list[float] | None = None
-            itl_deltas: list[float] | None = None
-            itl_mean: float | None = None
-            itl_p50: float | None = None
-            itl_p95: float | None = None
-            itl_p99: float | None = None
-            try:
-                if not external_client:
-                    return RequestResult(
-                        req_id=request_id,
-                        success=False,
-                        latency=time.time() - t0,
-                        error="HTTP client not initialized",
-                    )
-                if config.stream:
-                    usage_tokens = 0
-                    token_timestamps = []
-                    async with external_client.stream(
-                        "POST",
-                        f"{config.endpoint}/v1/completions",
-                        json={
-                            **payload,
-                            "stream": True,
-                            "stream_options": {"include_usage": True},
-                        },
-                        timeout=120,
-                    ) as resp:
-                        async for chunk in resp.aiter_lines():
-                            if chunk.startswith("data: ") and chunk != "data: [DONE]":
-                                token_timestamps.append(time.time())
-                                if ttft is None:
-                                    ttft = time.time() - t0
-                                output_tokens += 1
-                                try:
-                                    data = json.loads(chunk[6:])
-                                    if data.get("usage") and data["usage"].get("completion_tokens"):
-                                        usage_tokens = data["usage"]["completion_tokens"]
-                                except (json.JSONDecodeError, KeyError):
-                                    pass
-                    if usage_tokens:
-                        output_tokens = usage_tokens
-                    if len(token_timestamps) >= 2:
-                        deltas = [
-                            token_timestamps[i + 1] - token_timestamps[i] for i in range(len(token_timestamps) - 1)
-                        ]
-                        itl_deltas = deltas
-                        itl_mean = sum(deltas) / len(deltas)
-                        itl_p50 = sorted(deltas)[int(len(deltas) * 0.50)]
-                        itl_p95 = sorted(deltas)[int(len(deltas) * 0.95)]
-                        itl_p99 = sorted(deltas)[int(len(deltas) * 0.99)]
-                    else:
-                        itl_deltas = None
-                        itl_mean = itl_p50 = itl_p95 = itl_p99 = None
-                else:
-                    resp = await external_client.post(
-                        f"{config.endpoint}/v1/completions",
-                        json=payload,
-                        timeout=120,
-                    )
-                    data = resp.json()
-                    output_tokens = data["usage"]["completion_tokens"]
-                latency = time.time() - t0
+            if not external_client:
                 return RequestResult(
-                    req_id=request_id,
-                    success=True,
-                    latency=latency,
-                    ttft=ttft,
-                    output_tokens=output_tokens,
-                    tps=output_tokens / latency if latency > 0 else 0,
-                    token_timestamps=token_timestamps,
-                    itl_deltas=itl_deltas,
-                    itl_mean=itl_mean,
-                    itl_p50=itl_p50,
-                    itl_p95=itl_p95,
-                    itl_p99=itl_p99,
+                    req_id=request_id, success=False, latency=time.time() - t0, error="HTTP client not initialized"
                 )
+            try:
+                if config.endpoint_type == "chat":
+                    return await self._dispatch_chat_completions(config, payload, external_client, t0, request_id)
+                return await self._dispatch_completions(config, payload, external_client, t0, request_id)
             except (httpx.HTTPError, json.JSONDecodeError, asyncio.TimeoutError, KeyError) as e:
                 return RequestResult(
                     req_id=request_id,
