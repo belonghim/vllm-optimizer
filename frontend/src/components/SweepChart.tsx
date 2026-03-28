@@ -54,7 +54,14 @@ const CustomTooltip: React.FC<CustomTooltipProps> = ({ active, payload, label })
   return null;
 };
 
-const CustomizedDot: React.FC<DotProps & { saturated?: boolean }> = (props) => {
+interface CustomizedDotProps extends DotProps {
+  payload?: Record<string, unknown>;
+  value?: number;
+  stroke?: string;
+  saturated?: boolean;
+}
+
+const CustomizedDot: React.FC<CustomizedDotProps> = (props) => {
     const { cx, cy, stroke, payload, value, saturated } = props;
     const { COLORS } = useThemeColors();
 

@@ -7,6 +7,7 @@ vi.mock("./TunerProgressBar", () => ({ default: () => null }));
 
 const baseConfig = {
   objective: "balanced",
+  evaluation_mode: "single" as const,
   n_trials: 10,
   vllm_endpoint: "",
   max_num_seqs_min: 1,
