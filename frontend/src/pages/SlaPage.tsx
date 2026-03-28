@@ -136,19 +136,20 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
-      if (!res.ok) {
-        let detail = `HTTP ${res.status}`;
-        try {
-           const errBody = await res.json();
-           if (errBody.detail) {
-             detail = typeof errBody.detail === 'string'
-               ? errBody.detail
-               : errBody.detail.map((d: { msg: string }) => d.msg).join(', ');
-          }
-       } catch {
+       if (!res.ok) {
+         let detail = `HTTP ${res.status}`;
+         try {
+            const errBody = await res.json();
+            if (errBody.detail) {
+              detail = typeof errBody.detail === 'string'
+                ? errBody.detail
+                : errBody.detail.map((d: { msg: string }) => d.msg).join(', ');
+           }
+        } catch (e) {
+          console.error('Failed to parse SLA API error response', e);
+        }
+         throw new Error(detail);
        }
-        throw new Error(detail);
-      }
       
        resetForm();
        await loadProfiles();

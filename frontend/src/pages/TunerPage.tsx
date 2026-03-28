@@ -118,7 +118,8 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
         const response = await authFetch(url, { signal });
         if (!response.ok) return null;
         return await response.json();
-      } catch {
+      } catch (e) {
+        console.error(`Failed to fetch tuner data from ${url}`, e);
         return null;
       }
     };

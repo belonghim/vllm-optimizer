@@ -122,7 +122,8 @@ function loadChartConfig(): ChartConfig {
     const inOrder = new Set(order);
     DEFAULT_ORDER.forEach(id => { if (!inOrder.has(id)) order.push(id); });
     return { order, hidden };
-  } catch {
+  } catch (e) {
+    console.error('Failed to load chart configuration from localStorage', e);
     return { order: DEFAULT_ORDER, hidden: [] };
   }
 }
@@ -130,8 +131,8 @@ function loadChartConfig(): ChartConfig {
 function saveChartConfig(order: string[], hidden: string[]) {
   try {
     localStorage.setItem(LS_KEY, JSON.stringify({ order, hidden }));
-  } catch {
-    // ignore storage errors
+  } catch (e) {
+    console.error('Failed to save chart configuration to localStorage', e);
   }
 }
 
