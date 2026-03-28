@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
 import TunerProgressBar from "./TunerProgressBar";
+import TunerParamInputs from "./TunerParamInputs";
+import TunerResourceInputs from "./TunerResourceInputs";
 
 interface TunerPhase {
   trial_id: number;
   phase: string;
 }
 
-interface TunerConfig {
+export interface TunerConfig {
   objective: string;
   evaluation_mode: "single" | "sweep";
   n_trials: number;
@@ -54,9 +56,8 @@ const PHASE_LABELS: Record<string, string> = {
   evaluating: "Evaluating performance...",
 };
 
-// Validation functions for K8s resource formats
 function isValidCpu(v: string): boolean {
-  if (!v) return true; // empty = no change, OK
+  if (!v) return true;
   return /^\d+(\.\d+)?$/.test(v) || /^\d+m$/.test(v);
 }
 
@@ -99,13 +100,6 @@ export default function TunerConfigForm({
     setEditedValues({});
   }, [currentConfig]);
 
-  const getInputValue = (key: string): string => {
-    if (editedValues[key] !== undefined) return String(editedValues[key]);
-    if (!currentConfig) return "";
-    const val = currentConfig[key];
-    return val !== undefined ? String(val) : "";
-  };
-
   const handleCurrentValChange = (key: string, value: unknown) => {
     setEditedValues(prev => ({ ...prev, [key]: value }));
   };
@@ -116,7 +110,7 @@ export default function TunerConfigForm({
 
   const handleResourceChange = (resourceKey: string, value: string) => {
     setEditedValues(prev => ({ ...prev, [resourceKey]: value }));
-    
+
     let isValid = true;
     if (resourceKey === "resources.requests.cpu" || resourceKey === "resources.limits.cpu") {
       isValid = isValidCpu(value);
@@ -125,52 +119,14 @@ export default function TunerConfigForm({
     } else if (resourceKey === "resources.limits.nvidia.com/gpu") {
       isValid = isValidGpu(value);
     }
-    
-    setResourceErrors(prev => ({
-      ...prev,
-      [resourceKey]: !isValid,
-    }));
-  };
 
-  const renderCurrentInput = (
-    key: string,
-    type: "number" | "text" | "checkbox" = "number",
-    extras?: { step?: string; min?: number; max?: number }
-  ) => {
-    if (!currentConfig) return <span>—</span>;
-
-    if (type === "checkbox") {
-      const val = getInputValue(key);
-      const isChecked = val.toLowerCase() === "true" || val === "1";
-      return (
-        <input
-          type="checkbox"
-          checked={isChecked}
-          onChange={e => handleCurrentValChange(key, e.target.checked)}
-        />
-      );
-    }
-
-    return (
-      <input
-        className="input"
-        type={type}
-        step={extras?.step}
-        min={extras?.min}
-        max={extras?.max}
-        value={getInputValue(key)}
-        onChange={e =>
-          handleCurrentValChange(key, type === "number" ? +e.target.value : e.target.value)
-        }
-        style={{ width: "100%" }}
-      />
-    );
+    setResourceErrors(prev => ({ ...prev, [resourceKey]: !isValid }));
   };
 
   return (
     <div className="panel">
       <div className="section-title">Bayesian Optimization Settings</div>
-      
+
       <div className="grid-form grid-form-compact" style={{ marginBottom: '20px' }}>
         <div>
           <label className="label">Optimization Objective</label>
@@ -184,17 +140,13 @@ export default function TunerConfigForm({
         </div>
         <div>
           <label className="label">Trial Count</label>
-           <input className="input" type="number" aria-label="Trial Count" min={1} max={100} value={config.n_trials}
-             onChange={e => onChange("n_trials", +e.target.value)} />
+          <input className="input" type="number" aria-label="Trial Count" min={1} max={100} value={config.n_trials}
+            onChange={e => onChange("n_trials", +e.target.value)} />
         </div>
         <div>
           <label className="label">Eval Mode</label>
-          <select
-            className="input"
-            aria-label="Eval Mode"
-            value={config.evaluation_mode}
-            onChange={e => onChange("evaluation_mode", e.target.value as "single" | "sweep")}
-          >
+          <select className="input" aria-label="Eval Mode" value={config.evaluation_mode}
+            onChange={e => onChange("evaluation_mode", e.target.value as "single" | "sweep")}>
             <option value="single">Single (basic load test)</option>
             <option value="sweep">Sweep (optimal RPS based)</option>
           </select>
@@ -212,193 +164,19 @@ export default function TunerConfigForm({
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td title="Maximum number of sequences">max_num_seqs</td>
-              <td className="td-current">{renderCurrentInput("max_num_seqs", "number")}</td>
-              <td>
-                <div className="flex-row-8">
-                  <input className="input" type="number" placeholder="Min" min={1} max={2048} value={config.max_num_seqs_min}
-                    onChange={e => onChange("max_num_seqs_min", +e.target.value)} />
-                  <input className="input" type="number" placeholder="Max" min={1} max={2048} value={config.max_num_seqs_max}
-                    onChange={e => onChange("max_num_seqs_max", +e.target.value)} />
-                </div>
-              </td>
-              <td className="td-desc">Max concurrent sequences per iteration</td>
-            </tr>
-            <tr>
-              <td title="GPU memory utilization fraction (0.0–1.0)">gpu_memory_utilization</td>
-              <td className="td-current">{renderCurrentInput("gpu_memory_utilization", "number", { step: "0.01", min: 0, max: 1 })}</td>
-              <td>
-                <div className="flex-row-8">
-                  <input className="input" type="number" step="0.01" placeholder="Min" min={0.5} max={0.99} value={config.gpu_memory_min}
-                    onChange={e => onChange("gpu_memory_min", +e.target.value)} />
-                  <input className="input" type="number" step="0.01" placeholder="Max" min={0.5} max={0.99} value={config.gpu_memory_max}
-                    onChange={e => onChange("gpu_memory_max", +e.target.value)} />
-                </div>
-              </td>
-              <td className="td-desc">GPU memory allocation fraction (0.0–1.0)</td>
-            </tr>
-            <tr>
-              <td title="Maximum sequence length the model can handle">max_model_len</td>
-              <td className="td-current">{renderCurrentInput("max_model_len", "number")}</td>
-              <td>
-                <div className="flex-row-8">
-                  <input className="input" type="number" placeholder="Min" min={256} max={32768} step={256} value={config.max_model_len_min}
-                    onChange={e => onChange("max_model_len_min", +e.target.value)} />
-                  <input className="input" type="number" placeholder="Max" min={256} max={32768} step={256} value={config.max_model_len_max}
-                    onChange={e => onChange("max_model_len_max", +e.target.value)} />
-                </div>
-              </td>
-              <td className="td-desc">Maximum token length the model can process</td>
-            </tr>
-            <tr>
-              <td title="Maximum number of tokens in a batch">max_num_batched_tokens</td>
-              <td className="td-current">{renderCurrentInput("max_num_batched_tokens", "number")}</td>
-              <td>
-                <div className="flex-row-8">
-                  <input className="input" type="number" placeholder="Min" min={256} max={8192} step={256} value={config.max_num_batched_tokens_min}
-                    onChange={e => onChange("max_num_batched_tokens_min", +e.target.value)} />
-                  <input className="input" type="number" placeholder="Max" min={256} max={8192} step={256} value={config.max_num_batched_tokens_max}
-                    onChange={e => onChange("max_num_batched_tokens_max", +e.target.value)} />
-                </div>
-              </td>
-              <td className="td-desc">Maximum tokens to process in one batch</td>
-            </tr>
-            <tr>
-              <td title="KV cache block size">block_size</td>
-              <td className="td-current">{renderCurrentInput("block_size", "number")}</td>
-              <td>
-                <div className="flex-row-12">
-                  {[8, 16, 32].map(size => (
-                    <label key={size} className="tuner-block-size-label">
-                      <input type="checkbox"
-                        checked={config.block_size_options.includes(size)}
-                        onChange={e => {
-                          const next = e.target.checked
-                            ? [...config.block_size_options, size].sort((a, b) => a - b)
-                            : config.block_size_options.filter(s => s !== size);
-                          onChange("block_size_options", next);
-                        }}
-                      />
-                      {size}
-                    </label>
-                  ))}
-                </div>
-              </td>
-              <td className="td-desc">KV cache block size</td>
-            </tr>
-            <tr>
-              <td title="CPU swap space in GB">swap_space</td>
-              <td className="td-current">{renderCurrentInput("swap_space", "number", { step: "0.5", min: 0 })}</td>
-              <td>
-                <div className="flex-col-1">
-                  <label className="label-flex label-no-mb" style={{ fontSize: '10px' }}>
-                    <input type="checkbox"
-                      checked={config.include_swap_space}
-                      onChange={e => onChange("include_swap_space", e.target.checked)}
-                    />
-                    Include
-                  </label>
-                  {config.include_swap_space && (
-                    <div className="flex-row-8" style={{ marginTop: '4px' }}>
-                      <input className="input" type="number" step="0.5" placeholder="Min GB" min={0} max={64} value={config.swap_space_min}
-                        onChange={e => onChange("swap_space_min", +e.target.value)} />
-                      <input className="input" type="number" step="0.5" placeholder="Max GB" min={0} max={64} value={config.swap_space_max}
-                        onChange={e => onChange("swap_space_max", +e.target.value)} />
-                    </div>
-                  )}
-                </div>
-              </td>
-              <td className="td-desc">CPU swap space size (GB)</td>
-            </tr>
-            <tr>
-              <td title="enable_chunked_prefill">Chunked Prefill</td>
-              <td className="td-current">{renderCurrentInput("enable_chunked_prefill", "checkbox")}</td>
-              <td>—</td>
-              <td className="td-desc">Enable chunked prefill</td>
-            </tr>
-            <tr>
-              <td title="enable_enforce_eager">Enforce Eager</td>
-              <td className="td-current">{renderCurrentInput("enable_enforce_eager", "checkbox")}</td>
-              <td>—</td>
-              <td className="td-desc">Disable CUDA graph (force eager mode)</td>
-            </tr>
-            <tr>
-              <td title="resources.requests.cpu">CPU Requests</td>
-              <td className="td-current">
-                <div>
-                  <input type="text" aria-label="CPU Requests" value={editedValues["resources.requests.cpu"] as string ?? getResourceValue("requests", "cpu")}
-                         onChange={e => handleResourceChange("resources.requests.cpu", e.target.value)}
-                         placeholder="e.g. 4, 500m" />
-                  {resourceErrors["resources.requests.cpu"] && (
-                    <div style={{ color: 'red', fontSize: '12px', marginTop: '4px' }}>Invalid format</div>
-                  )}
-                </div>
-              </td>
-              <td>—</td>
-              <td className="td-desc">CPU request (e.g. 4, 500m)</td>
-            </tr>
-            <tr>
-              <td title="resources.limits.cpu">CPU Limits</td>
-              <td className="td-current">
-                <div>
-                  <input type="text" aria-label="CPU Limits" value={editedValues["resources.limits.cpu"] as string ?? getResourceValue("limits", "cpu")}
-                         onChange={e => handleResourceChange("resources.limits.cpu", e.target.value)}
-                         placeholder="e.g. 8, 1000m" />
-                  {resourceErrors["resources.limits.cpu"] && (
-                    <div style={{ color: 'red', fontSize: '12px', marginTop: '4px' }}>Invalid format</div>
-                  )}
-                </div>
-              </td>
-              <td>—</td>
-              <td className="td-desc">CPU limit (e.g. 8, 1000m)</td>
-            </tr>
-            <tr>
-              <td title="resources.requests.memory">Memory Requests</td>
-              <td className="td-current">
-                <div>
-                  <input type="text" aria-label="Memory Requests" value={editedValues["resources.requests.memory"] as string ?? getResourceValue("requests", "memory")}
-                         onChange={e => handleResourceChange("resources.requests.memory", e.target.value)}
-                         placeholder="e.g. 8Gi, 512Mi" />
-                  {resourceErrors["resources.requests.memory"] && (
-                    <div style={{ color: 'red', fontSize: '12px', marginTop: '4px' }}>Invalid format</div>
-                  )}
-                </div>
-              </td>
-              <td>—</td>
-              <td className="td-desc">Memory request (e.g. 8Gi, 512Mi)</td>
-            </tr>
-            <tr>
-              <td title="resources.limits.memory">Memory Limits</td>
-              <td className="td-current">
-                <div>
-                  <input type="text" aria-label="Memory Limits" value={editedValues["resources.limits.memory"] as string ?? getResourceValue("limits", "memory")}
-                         onChange={e => handleResourceChange("resources.limits.memory", e.target.value)}
-                         placeholder="e.g. 16Gi" />
-                  {resourceErrors["resources.limits.memory"] && (
-                    <div style={{ color: 'red', fontSize: '12px', marginTop: '4px' }}>Invalid format</div>
-                  )}
-                </div>
-              </td>
-              <td>—</td>
-              <td className="td-desc">Memory limit (e.g. 16Gi)</td>
-            </tr>
-            <tr>
-              <td title="resources.limits.nvidia.com/gpu">GPU Limits</td>
-              <td className="td-current">
-                <div>
-                  <input type="number" min={0} step={1} aria-label="GPU Limits"
-                         value={editedValues["resources.limits.nvidia.com/gpu"] as string ?? getResourceValue("limits", "nvidia.com/gpu")}
-                         onChange={e => handleResourceChange("resources.limits.nvidia.com/gpu", e.target.value)}
-                         placeholder="0" />
-                  {resourceErrors["resources.limits.nvidia.com/gpu"] && (
-                    <div style={{ color: 'red', fontSize: '12px', marginTop: '4px' }}>Invalid format</div>
-                  )}
-                </div>
-              </td>
-              <td>—</td>
-              <td className="td-desc">GPU count</td>
-            </tr>
+            <TunerParamInputs
+              config={config}
+              onChange={onChange}
+              editedValues={editedValues}
+              currentConfig={currentConfig}
+              handleChange={handleCurrentValChange}
+            />
+            <TunerResourceInputs
+              editedValues={editedValues}
+              getResourceValue={getResourceValue}
+              handleResourceChange={handleResourceChange}
+              resourceErrors={resourceErrors}
+            />
             {extraArgs && extraArgs.length > 0 && (
               <tr>
                 <td title="Other vLLM args not in tuning scope">extra_args</td>
@@ -411,30 +189,22 @@ export default function TunerConfigForm({
               </tr>
             )}
             <tr>
-               <td title="Model storage URI">storageUri</td>
-               <td colSpan={2}>
-                 <div className="flex-row-8">
-                   <input
-                     className="input"
-                     type="text"
-                     value={localStorageUri}
-                     onChange={e => setLocalStorageUri(e.target.value)}
-                     disabled={isRunning}
-                     placeholder="oci://registry/model"
-                     aria-label="storageUri"
-                   />
-                   <button
-                     className="btn btn-primary btn-small"
-                     onClick={() => onSaveStorageUri(localStorageUri)}
-                     disabled={isRunning || localStorageUri === storageUri}
-                     style={{ whiteSpace: 'nowrap' }}
-                   >
-                      Save
-                    </button>
-                 </div>
-               </td>
-               <td className="td-desc">Model storage URI</td>
-             </tr>
+              <td title="Model storage URI">storageUri</td>
+              <td colSpan={2}>
+                <div className="flex-row-8">
+                  <input className="input" type="text" value={localStorageUri}
+                    onChange={e => setLocalStorageUri(e.target.value)}
+                    disabled={isRunning} placeholder="oci://registry/model" aria-label="storageUri" />
+                  <button className="btn btn-primary btn-small"
+                    onClick={() => onSaveStorageUri(localStorageUri)}
+                    disabled={isRunning || localStorageUri === storageUri}
+                    style={{ whiteSpace: 'nowrap' }}>
+                    Save
+                  </button>
+                </div>
+              </td>
+              <td className="td-desc">Model storage URI</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -443,18 +213,18 @@ export default function TunerConfigForm({
       <div className="grid-form grid-form-compact" style={{ marginBottom: '20px' }}>
         <div>
           <label className="label">Eval Request Count</label>
-           <input className="input" type="number" aria-label="Eval Request Count" min={10} max={10000} step={10} value={config.eval_requests}
-             onChange={e => onChange("eval_requests", +e.target.value)} />
+          <input className="input" type="number" aria-label="Eval Request Count" min={10} max={10000} step={10}
+            value={config.eval_requests} onChange={e => onChange("eval_requests", +e.target.value)} />
         </div>
         <div>
           <label className="label">Eval Concurrency</label>
-           <input className="input" type="number" aria-label="Eval Concurrency" min={1} max={256} value={config.eval_concurrency}
-             onChange={e => onChange("eval_concurrency", +e.target.value)} />
+          <input className="input" type="number" aria-label="Eval Concurrency" min={1} max={256}
+            value={config.eval_concurrency} onChange={e => onChange("eval_concurrency", +e.target.value)} />
         </div>
         <div>
           <label className="label">Eval RPS</label>
-           <input className="input" type="number" aria-label="Eval RPS" min={1} max={1000} value={config.eval_rps}
-             onChange={e => onChange("eval_rps", +e.target.value)} />
+          <input className="input" type="number" aria-label="Eval RPS" min={1} max={1000}
+            value={config.eval_rps} onChange={e => onChange("eval_rps", +e.target.value)} />
         </div>
       </div>
 
@@ -471,11 +241,9 @@ export default function TunerConfigForm({
           </button>
         )}
         {onApplyCurrentValues && currentConfig && (
-          <button
-            className="btn btn-secondary"
+          <button className="btn btn-secondary"
             onClick={() => onApplyCurrentValues(editedValues)}
-            disabled={Object.keys(editedValues).length === 0 || Object.values(resourceErrors).some(e => e)}
-          >
+            disabled={Object.keys(editedValues).length === 0 || Object.values(resourceErrors).some(e => e)}>
             Apply Current Values
           </button>
         )}
@@ -486,7 +254,7 @@ export default function TunerConfigForm({
           {trialsCompleted} / {config.n_trials} trials
         </span>
       </div>
-      
+
       {(isRunning || trialsCompleted > 0) && (
         <TunerProgressBar
           isRunning={isRunning}
