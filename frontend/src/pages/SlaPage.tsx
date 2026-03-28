@@ -191,9 +191,9 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
 
    const renderThresholds = (t: SlaThresholds) => {
      const parts = [];
-     if (t.availability_min != null) parts.push(`가용성≥${t.availability_min}%`);
+      if (t.availability_min != null) parts.push(`Availability≥${t.availability_min}%`);
      if (t.p95_latency_max_ms != null) parts.push(`P95≤${t.p95_latency_max_ms}ms`);
-     if (t.error_rate_max_pct != null) parts.push(`에러율≤${t.error_rate_max_pct}%`);
+      if (t.error_rate_max_pct != null) parts.push(`Error Rate≤${t.error_rate_max_pct}%`);
      if (t.min_tps != null) parts.push(`TPS≥${t.min_tps}`);
      return parts.join(' · ') || ERROR_MESSAGES.SLA.NO_THRESHOLDS_SET;
    };
@@ -224,42 +224,42 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
          <div className="section-title">{editingId ? ERROR_MESSAGES.SLA.EDIT_TITLE : ERROR_MESSAGES.SLA.CREATE_TITLE}</div>
         <form onSubmit={handleSubmit} className="form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
           <div className="form-group">
-            <label>프로필 이름 *</label>
-            <input type="text" value={formName} onChange={e => setFormName(e.target.value)} required placeholder="예: Llama3 Production SLA" />
+            <label>Profile Name *</label>
+             <input type="text" value={formName} onChange={e => setFormName(e.target.value)} required placeholder="e.g. Llama3 Production SLA" />
           </div>
           <div className="form-group">
-            <label>가용성 최소 (%)</label>
+             <label>Min Availability (%)</label>
             <input type="number" min="0" max="100" step="0.1" value={formAvailMin} onChange={e => setFormAvailMin(e.target.value)} placeholder="99.9" />
           </div>
           <div className="form-group">
-            <label>P95 지연시간 최대 (ms)</label>
+             <label>Max P95 Latency (ms)</label>
             <input type="number" min="0" step="1" value={formP95Ms} onChange={e => setFormP95Ms(e.target.value)} placeholder="500" />
           </div>
           <div className="form-group">
-            <label>에러율 최대 (%)</label>
+             <label>Max Error Rate (%)</label>
             <input type="number" min="0" max="100" step="0.1" value={formErrRate} onChange={e => setFormErrRate(e.target.value)} placeholder="1.0" />
           </div>
           <div className="form-group">
-            <label>최소 TPS</label>
+             <label>Min TPS</label>
             <input type="number" min="0" step="0.1" value={formMinTps} onChange={e => setFormMinTps(e.target.value)} placeholder="10.0" />
           </div>
           <div className="form-actions" style={{ gridColumn: '1 / -1', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-            {editingId && <button type="button" className="btn-secondary" onClick={resetForm}>취소</button>}
-            <button type="submit" className="btn-primary">{editingId ? '저장' : '프로필 생성'}</button>
+             {editingId && <button type="button" className="btn-secondary" onClick={resetForm}>Cancel</button>}
+             <button type="submit" className="btn-primary">{editingId ? 'Save' : 'Create Profile'}</button>
           </div>
         </form>
 
-        <div className="section-title" style={{ marginTop: '32px' }}>SLA 프로필 목록</div>
+         <div className="section-title" style={{ marginTop: '32px' }}>SLA Profile List</div>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: COLORS.muted }}>로딩 중...</div>
+           <div style={{ textAlign: 'center', padding: '40px', color: COLORS.muted }}>Loading...</div>
         ) : (
           <table className="table">
             <thead>
               <tr>
                 <th style={{ width: '40px' }}></th>
-                <th>이름</th>
-                <th>임계값 요약</th>
-                <th style={{ textAlign: 'right' }}>작업</th>
+                 <th>Name</th>
+                 <th>Threshold Summary</th>
+                 <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -277,8 +277,8 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
                   <td className="td-text">{p.name}</td>
                   <td className="td-muted" style={{ fontSize: '0.85rem' }}>{renderThresholds(p.thresholds)}</td>
                   <td style={{ textAlign: 'right' }}>
-                    <button className="btn-small" onClick={() => handleEdit(p)} style={{ marginRight: '8px' }}>편집</button>
-                    <button className="btn-outline-small" onClick={() => handleDelete(p.id)} style={{ color: COLORS.red, borderColor: COLORS.red }}>삭제</button>
+                     <button className="btn-small" onClick={() => handleEdit(p)} style={{ marginRight: '8px' }}>Edit</button>
+                     <button className="btn-outline-small" onClick={() => handleDelete(p.id)} style={{ color: COLORS.red, borderColor: COLORS.red }}>Delete</button>
                   </td>
                 </tr>
               ))}
@@ -293,7 +293,7 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
        {selectedProfileId && (
          <div className="panel" aria-live="polite">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <div className="section-title" style={{ margin: 0 }}>{currentEval?.profile.name ?? profiles.find(p => p.id === selectedProfileId)?.name} - 지표 추이</div>
+            <div className="section-title" style={{ margin: 0 }}>{currentEval?.profile.name ?? profiles.find(p => p.id === selectedProfileId)?.name} - Metrics Trend</div>
             <div className="tab-group" style={{ display: 'flex', gap: '4px' }}>
               {([
                 { id: 'p95_latency' as const, label: 'P95 Latency' },

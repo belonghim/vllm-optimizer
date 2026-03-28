@@ -72,7 +72,7 @@ describe("TunerConfigForm", () => {
     expect(screen.queryAllByText("—")).toHaveLength(7);
   });
 
-  it("현재값 적용 button is disabled when editedValues is empty", () => {
+   it("Apply Current Values button is disabled when editedValues is empty", () => {
     const currentConfig = {
       max_num_seqs: 64,
       gpu_memory_utilization: 0.9,
@@ -88,10 +88,10 @@ describe("TunerConfigForm", () => {
         onApplyCurrentValues={vi.fn()}
       />
     );
-    expect(screen.getByText("현재값 적용")).toBeDisabled();
+     expect(screen.getByText("Apply Current Values")).toBeDisabled();
   });
 
-  it("현재값 적용 button enables after changing a currentConfig input", () => {
+   it("Apply Current Values button enables after changing a currentConfig input", () => {
     const currentConfig = {
       max_num_seqs: 64,
       gpu_memory_utilization: 0.9,
@@ -107,7 +107,7 @@ describe("TunerConfigForm", () => {
         onApplyCurrentValues={vi.fn()}
       />
     );
-    const btn = screen.getByText("현재값 적용");
+     const btn = screen.getByText("Apply Current Values");
     expect(btn).toBeDisabled();
 
     // Find the max_num_seqs input (value "64") and change it
@@ -119,9 +119,9 @@ describe("TunerConfigForm", () => {
     expect(btn).not.toBeDisabled();
   });
 
-  it("does not render 현재값 적용 button when onApplyCurrentValues is not provided", () => {
-    render(<TunerConfigForm {...baseProps} currentConfig={{ max_num_seqs: 64 }} />);
-    expect(screen.queryByText("현재값 적용")).not.toBeInTheDocument();
+   it("does not render Apply Current Values button when onApplyCurrentValues is not provided", () => {
+     render(<TunerConfigForm {...baseProps} currentConfig={{ max_num_seqs: 64 }} />);
+     expect(screen.queryByText("Apply Current Values")).not.toBeInTheDocument();
   });
 
   it("resource rows show dash in range column", () => {
@@ -160,9 +160,9 @@ describe("TunerConfigForm", () => {
         currentResources={currentResources}
       />
     );
-    const cpuReqInput = screen.getByPlaceholderText("예: 4, 500m") as HTMLInputElement;
+     const cpuReqInput = screen.getByPlaceholderText("e.g. 4, 500m") as HTMLInputElement;
     expect(cpuReqInput.value).toBe("4");
-    const memLimInput = screen.getByPlaceholderText("예: 16Gi") as HTMLInputElement;
+     const memLimInput = screen.getByPlaceholderText("e.g. 16Gi") as HTMLInputElement;
     expect(memLimInput.value).toBe("16Gi");
   });
 });

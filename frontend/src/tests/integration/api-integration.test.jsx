@@ -67,7 +67,7 @@ describe('API Integration Tests (MSW)', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/부하 테스트 결과를 저장하면 여기 나타납니다/)).toBeInTheDocument();
+       expect(screen.getByText(/Saved load test results will appear here./)).toBeInTheDocument();
     });
   });
 

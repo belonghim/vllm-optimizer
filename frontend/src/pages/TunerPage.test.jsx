@@ -108,12 +108,12 @@ describe("TunerPage", () => {
       mockEsInstance.onmessage({
         data: JSON.stringify({
           type: "tuning_error",
-          data: { error: "RBAC 오류", error_type: "rbac" }
+          data: { error: "RBAC Error", error_type: "rbac" }
         }),
       });
     });
 
-    expect(screen.getByText(/RBAC 오류/)).toBeInTheDocument();
+     expect(screen.getByText(/RBAC Error/)).toBeInTheDocument();
     expect(mockEsInstance.closeSpy).toHaveBeenCalled();
   });
 
@@ -150,12 +150,12 @@ describe("TunerPage", () => {
       mockEsInstance.onmessage({
         data: JSON.stringify({
           type: "tuning_warning",
-          data: { message: "스토리지 실패" }
+          data: { message: "Storage failure" }
         }),
       });
     });
 
-    expect(screen.getByText(/스토리지 실패/)).toBeInTheDocument();
+     expect(screen.getByText(/Storage failure/)).toBeInTheDocument();
     expect(mockEsInstance.closeSpy).not.toHaveBeenCalled();
   });
 
@@ -193,13 +193,13 @@ describe("TunerPage", () => {
       mockEsInstance.onmessage({
         data: JSON.stringify({
           type: "tuning_error",
-          data: { error: "K8s 권한 오류", error_type: "rbac" }
+          data: { error: "K8s permission error", error_type: "rbac" }
         }),
       });
     });
 
-    expect(screen.getByText(/K8s 권한 오류/)).toBeInTheDocument();
-    expect(mockEsInstance.closeSpy).toHaveBeenCalled();
+     expect(screen.getByText(/K8s permission error/)).toBeInTheDocument();
+     expect(mockEsInstance.closeSpy).toHaveBeenCalled();
 
     // Fire trial_complete after error → should not crash or change error state
     act(() => {
@@ -211,8 +211,8 @@ describe("TunerPage", () => {
       });
     });
 
-    // Error message still visible, no crash
-    expect(screen.getByText(/K8s 권한 오류/)).toBeInTheDocument();
+     // Error message still visible, no crash
+     expect(screen.getByText(/K8s permission error/)).toBeInTheDocument();
   });
 
   it("handles malformed JSON in SSE without crashing", async () => {
@@ -250,7 +250,7 @@ describe("TunerPage", () => {
     });
 
     // Page still functional, no error displayed from malformed JSON
-    expect(screen.queryByText(/오류/)).not.toBeInTheDocument();
+     expect(screen.queryByText(/Error/)).not.toBeInTheDocument();
   });
 
   it("shows IDLE status tag initially", () => {
@@ -287,11 +287,11 @@ describe("TunerPage", () => {
     render(<TunerPage isActive={true} />);
     
     await waitFor(() => {
-      expect(screen.getByText(/이전 튜닝이 비정상 종료되었습니다/)).toBeInTheDocument();
+       expect(screen.getByText(/Previous tuning was interrupted/)).toBeInTheDocument();
     });
 
     const closeBtn = screen.getByText("×");
     fireEvent.click(closeBtn);
-    expect(screen.queryByText(/이전 튜닝이 비정상 종료되었습니다/)).not.toBeInTheDocument();
+     expect(screen.queryByText(/Previous tuning was interrupted/)).not.toBeInTheDocument();
   });
 });

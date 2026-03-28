@@ -38,7 +38,7 @@ afterEach(() => {
 describe("MonitorPage", () => {
   it("renders without crashing", () => {
     render(<MonitorPage />);
-    expect(screen.getByText("모니터링 대상 (1/5)")).toBeInTheDocument();
+     expect(screen.getByText("Monitoring Targets (1/5)")).toBeInTheDocument();
   });
 
   it("renders 9 chart titles", () => {
@@ -51,7 +51,7 @@ describe("MonitorPage", () => {
 
   it("does not show error banner in mock mode", () => {
     render(<MonitorPage />);
-    expect(screen.queryByText(/조회 실패/)).not.toBeInTheDocument();
+     expect(screen.queryByText(/Query failed/)).not.toBeInTheDocument();
   });
 
   it("renders table with metric column headers", () => {

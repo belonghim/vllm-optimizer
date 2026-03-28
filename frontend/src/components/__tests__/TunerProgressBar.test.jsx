@@ -2,11 +2,11 @@ import { render, screen } from "@testing-library/react";
 import TunerProgressBar from "../TunerProgressBar";
 
 const PHASE_LABELS = {
-  applying_config: "설정 업데이트 중...",
-  restarting: "서버 재시작 중...",
-  waiting_ready: "준비 대기 중...",
-  warmup: "워밍업 중...",
-  evaluating: "성능 평가 중...",
+  applying_config: "Updating config...",
+  restarting: "Restarting server...",
+  waiting_ready: "Waiting for ready...",
+  warmup: "Warming up...",
+  evaluating: "Evaluating performance...",
 };
 
 describe("TunerProgressBar", () => {
@@ -31,7 +31,7 @@ describe("TunerProgressBar", () => {
 
   it("displays phase label when currentPhase is provided", () => {
     render(<TunerProgressBar {...props} />);
-    expect(screen.getByText(/성능 평가 중\.\.\./)).toBeInTheDocument();
+     expect(screen.getByText(/Evaluating performance\.\.\./)).toBeInTheDocument();
   });
 
   it("shows 100% when all trials are done", () => {

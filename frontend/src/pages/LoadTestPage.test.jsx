@@ -98,7 +98,7 @@ describe("LoadTestPage", () => {
       });
     });
 
-    // "Total Requests" 행에 200 (total_requested)이 표시돼야 함
+    // "Total Requests" row should show 200 (total_requested)
     expect(screen.getByText("200")).toBeInTheDocument();
   });
 
@@ -145,7 +145,7 @@ describe("LoadTestPage", () => {
       });
     });
 
-    // COMPLETED 상태 태그 표시
+    // COMPLETED status tag should display
      expect(screen.getByText("COMPLETED")).toBeInTheDocument();
    });
 
@@ -161,12 +161,12 @@ describe("LoadTestPage", () => {
       mockEsInstance.onmessage({
         data: JSON.stringify({
           type: "error",
-          data: { error: "연결 시간 초과", error_type: "timeout" },
+          data: { error: "Connection timeout", error_type: "timeout" },
         }),
       });
     });
 
-    expect(screen.getByText(/연결 시간 초과/)).toBeInTheDocument();
+     expect(screen.getByText(/Connection timeout/)).toBeInTheDocument();
     expect(mockEsInstance.closeSpy).toHaveBeenCalled();
   });
 
@@ -395,7 +395,7 @@ describe("LoadTestPage", () => {
       // Should close the connection (exponential backoff: close + setTimeout reconnect)
       expect(mockEsInstance.closeSpy).toHaveBeenCalled();
       // Should show the reconnecting banner
-      expect(screen.getByText(/재연결 중/)).toBeInTheDocument();
+       expect(screen.getByText(/Reconnecting\.\.\./)).toBeInTheDocument();
     });
 
     it("shows reconnecting banner when onerror fires in CONNECTING state", async () => {
@@ -406,8 +406,8 @@ describe("LoadTestPage", () => {
       mockEsInstance.readyState = 0; // CONNECTING
       act(() => { mockEsInstance.onerror(); });
 
-      expect(screen.getByText(/재연결 중/)).toBeInTheDocument();
-      expect(screen.queryByText(/SSE 연결 실패/)).not.toBeInTheDocument();
+       expect(screen.getByText(/Reconnecting\.\.\./)).toBeInTheDocument();
+       expect(screen.queryByText(/SSE connection failed/)).not.toBeInTheDocument();
     });
 
     it("clears reconnecting banner when valid SSE message received", async () => {
@@ -417,7 +417,7 @@ describe("LoadTestPage", () => {
 
       mockEsInstance.readyState = 0;
       act(() => { mockEsInstance.onerror(); });
-      expect(screen.getByText(/재연결 중/)).toBeInTheDocument();
+       expect(screen.getByText(/Reconnecting\.\.\./)).toBeInTheDocument();
 
       act(() => {
         mockEsInstance.onmessage({
@@ -425,7 +425,7 @@ describe("LoadTestPage", () => {
         });
       });
 
-      expect(screen.queryByText(/재연결 중/)).not.toBeInTheDocument();
+       expect(screen.queryByText(/Reconnecting\.\.\./)).not.toBeInTheDocument();
     });
   });
 
@@ -446,12 +446,12 @@ describe("LoadTestPage", () => {
     render(<LoadTestPage isActive={true} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/이전 부하 테스트가 비정상 종료되었습니다/)).toBeInTheDocument();
+       expect(screen.getByText(/Previous load test was interrupted/)).toBeInTheDocument();
     });
 
     const closeBtn = screen.getByText("×");
     fireEvent.click(closeBtn);
-    expect(screen.queryByText(/이전 부하 테스트가 비정상 종료되었습니다/)).not.toBeInTheDocument();
+     expect(screen.queryByText(/Previous load test was interrupted/)).not.toBeInTheDocument();
   });
 
   it("ignores malformed JSON in SSE event without crashing", async () => {
@@ -466,7 +466,7 @@ describe("LoadTestPage", () => {
       mockEsInstance.onmessage({ data: "not-json" });
     });
 
-    expect(screen.queryByText(/오류/)).not.toBeInTheDocument();
+     expect(screen.queryByText(/Error/)).not.toBeInTheDocument();
     expect(mockEsInstance.closeSpy).not.toHaveBeenCalled();
   });
 });

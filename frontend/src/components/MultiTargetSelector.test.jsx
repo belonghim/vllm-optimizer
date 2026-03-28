@@ -31,7 +31,7 @@ describe("MultiTargetSelector", () => {
 
   it("renders targets and add button", () => {
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
-    expect(screen.getByText("모니터링 대상 (1/5)")).toBeInTheDocument();
+     expect(screen.getByText("Monitoring Targets (1/5)")).toBeInTheDocument();
     expect(screen.getByText("llm-d-demo")).toBeInTheDocument();
     expect(screen.getByText("small-llm-d")).toBeInTheDocument();
     expect(screen.getByTestId("add-target-btn")).toBeInTheDocument();
@@ -78,7 +78,7 @@ describe("MultiTargetSelector", () => {
     };
     useClusterConfig.mockReturnValue(emptyMock);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
-    expect(screen.getByText("모니터링 대상을 추가하세요")).toBeInTheDocument();
+     expect(screen.getByText("Add monitoring targets")).toBeInTheDocument();
   });
 
   it("renders target row with data-testid", () => {
@@ -113,7 +113,7 @@ describe("MultiTargetSelector", () => {
     fireEvent.click(screen.getByTestId("confirm-add-btn"));
     
     await waitFor(() => {
-      expect(screen.getByTestId("add-target-error")).toHaveTextContent("해당 대상을 찾을 수 없습니다");
+       expect(screen.getByTestId("add-target-error")).toHaveTextContent("Target not found");
     });
     expect(mockContext.addTarget).not.toHaveBeenCalled();
   });

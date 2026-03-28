@@ -44,11 +44,11 @@ describe("SlaPage", () => {
       vi.stubGlobal("fetch", fetchMock);
 
       render(<SlaPage isActive={true} />);
-      await waitFor(() => screen.getByRole("button", { name: "프로필 생성" }));
+       await waitFor(() => screen.getByRole("button", { name: "Create Profile" }));
 
       await user.type(screen.getByPlaceholderText(/Llama3/), "My SLA");
       await user.type(screen.getByPlaceholderText("99.9"), "99");
-      await user.click(screen.getByRole("button", { name: "프로필 생성" }));
+       await user.click(screen.getByRole("button", { name: "Create Profile" }));
 
       await waitFor(() => {
         const postCall = fetchMock.mock.calls.find(
@@ -81,11 +81,11 @@ describe("SlaPage", () => {
       vi.stubGlobal("fetch", fetchMock);
 
       render(<SlaPage isActive={true} />);
-      await waitFor(() => screen.getByRole("button", { name: "프로필 생성" }));
+       await waitFor(() => screen.getByRole("button", { name: "Create Profile" }));
 
       await user.type(screen.getByPlaceholderText(/Llama3/), "Test Profile");
       await user.type(screen.getByPlaceholderText("99.9"), "99");
-      await user.click(screen.getByRole("button", { name: "프로필 생성" }));
+       await user.click(screen.getByRole("button", { name: "Create Profile" }));
 
       await waitFor(() => {
         const postCall = fetchMock.mock.calls.find(
@@ -106,12 +106,12 @@ describe("SlaPage", () => {
       vi.stubGlobal("fetch", fetchMock);
 
       render(<SlaPage isActive={true} />);
-      await waitFor(() => screen.getByRole("button", { name: "프로필 생성" }));
+       await waitFor(() => screen.getByRole("button", { name: "Create Profile" }));
 
       await user.type(screen.getByPlaceholderText(/Llama3/), "No Thresholds");
-      await user.click(screen.getByRole("button", { name: "프로필 생성" }));
+       await user.click(screen.getByRole("button", { name: "Create Profile" }));
 
-      expect(screen.getByRole("alert")).toHaveTextContent("최소 1개의 임계값을 입력해야 합니다.");
+       expect(screen.getByRole("alert")).toHaveTextContent("You must enter at least 1 threshold.");
 
       const postCalls = fetchMock.mock.calls.filter(
         ([, init]) => (init as RequestInit)?.method === "POST"
@@ -120,8 +120,8 @@ describe("SlaPage", () => {
     });
   });
 
-  describe("TC4: server error shows error message without redirect", () => {
-    it("displays SLA 프로필 저장 실패 and location.href stays empty", async () => {
+   describe("TC4: server error shows error message without redirect", () => {
+     it("displays Failed to save SLA profile and location.href stays empty", async () => {
       const user = userEvent.setup();
       const fetchMock = makeDefaultFetch((url, init) => {
         if ((init as RequestInit)?.method === "POST") {
@@ -135,15 +135,15 @@ describe("SlaPage", () => {
       vi.stubGlobal("fetch", fetchMock);
 
       render(<SlaPage isActive={true} />);
-      await waitFor(() => screen.getByRole("button", { name: "프로필 생성" }));
+       await waitFor(() => screen.getByRole("button", { name: "Create Profile" }));
 
       await user.type(screen.getByPlaceholderText(/Llama3/), "Test");
       await user.type(screen.getByPlaceholderText("99.9"), "99");
-      await user.click(screen.getByRole("button", { name: "프로필 생성" }));
+       await user.click(screen.getByRole("button", { name: "Create Profile" }));
 
-      await waitFor(() =>
-        expect(screen.getByText(/SLA 프로필 저장 실패/)).toBeInTheDocument()
-      );
+       await waitFor(() =>
+         expect(screen.getByText(/Failed to save SLA profile/)).toBeInTheDocument()
+       );
       expect(window.location.href).toBe("");
     });
   });
@@ -159,11 +159,11 @@ describe("SlaPage", () => {
       vi.stubGlobal("fetch", fetchMock);
 
       render(<SlaPage isActive={true} />);
-      await waitFor(() => screen.getByRole("button", { name: "프로필 생성" }));
+       await waitFor(() => screen.getByRole("button", { name: "Create Profile" }));
 
       await user.type(screen.getByPlaceholderText(/Llama3/), "Test");
       await user.type(screen.getByPlaceholderText("99.9"), "99");
-      await user.click(screen.getByRole("button", { name: "프로필 생성" }));
+       await user.click(screen.getByRole("button", { name: "Create Profile" }));
 
       await waitFor(() => {
         expect(window.location.href).toBe("/oauth/sign_out");
@@ -183,11 +183,11 @@ describe("SlaPage", () => {
 
       render(<SlaPage isActive={true} />);
 
-      await waitFor(() => {
-        const cardEmpty = screen.queryByText("SLA 프로필을 생성하세요");
-        const tableEmpty = screen.queryByText("등록된 프로필이 없습니다.");
-        expect(cardEmpty || tableEmpty).toBeTruthy();
-      });
+       await waitFor(() => {
+         const cardEmpty = screen.queryByText("No profiles registered.");
+         const tableEmpty = screen.queryByText("No profiles registered.");
+         expect(cardEmpty || tableEmpty).toBeTruthy();
+       });
     });
   });
 
@@ -224,7 +224,7 @@ describe("SlaPage", () => {
 
       await waitFor(() => expect(screen.getAllByText("Delete Me").length).toBeGreaterThan(0));
 
-      const deleteBtn = screen.getByRole("button", { name: "삭제" });
+       const deleteBtn = screen.getByRole("button", { name: "Delete" });
       await user.click(deleteBtn);
 
       await waitFor(() => {
