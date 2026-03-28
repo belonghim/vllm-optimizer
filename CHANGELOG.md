@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-28] - Security: Backend Hardening (Input Validation, SSE Errors, Rate Limiting, Deploy Rollback)
+
+**Status**: Completed
+
+백엔드 보안 및 안정성 강화 4개 항목 구현. Pydantic 입력 검증 상한값, SSE 에러 이벤트, slowapi 요청 속도 제한, deploy.sh 롤백 자동화.
+
+### Added
+- **`backend/services/rate_limiter.py`** (NEW): slowapi `Limiter` 인스턴스. `_get_real_ip()` — OpenShift Route `X-Forwarded-For` 헤더 우선 파싱, fallback to `get_remote_address`.
+- **`backend/main.py`**: `app.state.limiter = limiter` 등록, `RateLimitExceeded` 예외 핸들러 (429 응답).
+- **`backend/tests/test_input_validation.py`** (NEW): 18개 Pydantic 검증 테스트 (상한 초과 → 422, 경계값 → 200).
+- **`backend/tests/test_sse_errors.py`** (NEW): 8개 SSE 에러 이벤트 테스트.
+- **`backend/tests/test_rate_limiting.py`** (NEW): 5개 속도 제한 테스트 (429 응답, /health 제외 확인).
+
+### Changed
+- **`backend/routers/tuner.py`**: `TuningStartRequest` — `n_trials le=100`, `eval_requests le=1000`, `concurrency le=100`, `duration le=3600`. `@limiter.limit("3/minute")` on `/start`.
+- **`backend/models/load_test.py`**: `LoadTestConfig` — `concurrency le=500`, `duration le=3600`. `TuningConfig` — `n_trials le=100`.
+- **`backend/routers/load_test.py`**: `@limiter.limit("5/minute")` on `/start`. SSE generator handles `type == "error"` events.
+- **`backend/routers/tuner.py`**: SSE generator handles `type == "error"` events from auto_tuner queue.
+- **`backend/services/load_engine.py`**: 예외 발생 시 `{"type": "error", "data": {"message", "recoverable", "timestamp"}}` 이벤트를 `result_queue`에 emit.
+- **`backend/services/auto_tuner.py`**: 예외 발생 시 동일 구조 에러 이벤트를 `progress_queue`에 emit.
+- **`deploy.sh`**: `rollback_deployment()` — `oc rollout history` 리비전 수 확인 후 `oc rollout undo` (첫 배포 시 skip). `health_check_deployment()` — 5회 재시도, 10초 간격, 실패 시 자동 롤백.
+- **`backend/requirements.txt`**: `slowapi>=0.1.9` 추가.
+
+### Tests
+- 전체 491개 테스트 통과 (단위 테스트, `not integration`).
+
 ## [2026-03-27] - Feature: Sweep 프로파일 + ITL 메트릭 + 프론트엔드 UX
 
 **Status**: Completed
