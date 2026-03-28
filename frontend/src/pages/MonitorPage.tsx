@@ -194,9 +194,9 @@ interface MonitorPageProps {
 
 const TIME_RANGES = [
   { label: '1h',  points: 360 },
-  { label: '6h',  points: 1000 },
+  { label: '6h',  points: 720 },
   { label: '24h', points: 1000 },
-  { label: '7d',  points: 1000 },
+  { label: '7d',  points: 1400 },
 ];
 
 function MonitorPage({ isActive }: MonitorPageProps) {
@@ -209,6 +209,7 @@ function MonitorPage({ isActive }: MonitorPageProps) {
   const [slaProfiles, setSlaProfiles] = useState<SlaProfile[]>([]);
   const [selectedSlaProfileId, setSelectedSlaProfileId] = useState<number | null>(null);
   const [timeRangePoints, setTimeRangePoints] = useState(60);
+  const [selectedRange, setSelectedRange] = useState('1h');
   const timeRangePointsRef = useRef(60);
   const lastViolationTime = useRef<Record<string, number>>({});
 
@@ -426,8 +427,8 @@ function MonitorPage({ isActive }: MonitorPageProps) {
               key={r.label}
               data-testid="time-range-btn"
               aria-label={`Show last ${r.label}`}
-              className={`btn btn-sm${timeRangePoints === r.points ? ' active' : ''}`}
-              onClick={() => { setTimeRangePoints(r.points); timeRangePointsRef.current = r.points; }}
+              className={`btn btn-sm${selectedRange === r.label ? ' active' : ''}`}
+              onClick={() => { setTimeRangePoints(r.points); setSelectedRange(r.label); timeRangePointsRef.current = r.points; }}
             >
               {r.label}
             </button>
