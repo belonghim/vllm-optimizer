@@ -14,189 +14,12 @@ import MonitorChartGrid, {
   type ChartConfig,
 } from "../components/MonitorChartGrid";
 import MonitorMetricCards from "../components/MonitorMetricCards";
+import type { SlaThresholds, SlaProfile, HistoryPoint, TargetResultData, TargetResult, TargetState } from "../types";
 
 // Re-export for backwards compatibility (tests import from this module)
 export { buildChartLinesMap } from "../components/MonitorChartGrid";
 
-interface SlaThresholds {
-  availability_min: number | null;
-  p95_latency_max_ms: number | null;
-  error_rate_max_pct: number | null;
-  min_tps: number | null;
-}
-
-interface SlaProfile {
-  id: number;
-  name: string;
-  thresholds: SlaThresholds;
-}
-
-interface ChartLine {
-  key: string;
-  color: string;
-  label: string;
-  dash?: boolean;
-}
-
-type ChartLinesMap = Record<string, ChartLine[]>;
-
 const fmtTime = (ts: number) => new Date(ts * 1000).toLocaleTimeString("ko-KR", { hour12: false });
-
-export function buildChartLinesMap(targets: ClusterTarget[], defaultKey: string | null, COLORS: typeof DARK_COLORS = DARK_COLORS): ChartLinesMap {
-  const makeMultiLines = (metricKey: string) =>
-    targets.map((t, i) => ({
-      key: `${t.namespace}/${t.inferenceService}_${metricKey}`,
-      label: t.inferenceService,
-      color: TARGET_COLORS[i % TARGET_COLORS.length],
-    }));
-
-  if (targets.length === 1 && defaultKey) {
-    return {
-      tps:      [{ key: `${defaultKey}_tps`, color: COLORS.accent, label: "TPS" }],
-      latency:  [
-        { key: `${defaultKey}_lat_p99_fill`, color: COLORS.red, label: "P99 (idle)", dash: true },
-        { key: `${defaultKey}_lat_p99`, color: COLORS.red, label: "Latency P99" },
-        { key: `${defaultKey}_lat_mean`, color: COLORS.accent, label: "Latency mean" },
-      ],
-      ttft:     [
-        { key: `${defaultKey}_ttft_fill`, color: COLORS.cyan, label: "TTFT (idle)", dash: true },
-        { key: `${defaultKey}_ttft`, color: COLORS.cyan, label: "TTFT mean" },
-        { key: `${defaultKey}_ttft_p99`, color: COLORS.accent, label: "TTFT p99" },
-      ],
-      kv:       [{ key: `${defaultKey}_kv`, color: COLORS.purple, label: "KV Cache %" }],
-      kv_hit:   [{ key: `${defaultKey}_kv_hit`, color: COLORS.cyan, label: "KV Hit Rate %" }],
-      queue:    [
-        { key: `${defaultKey}_running`, color: COLORS.green, label: "Running" },
-        { key: `${defaultKey}_waiting`, color: COLORS.red, label: "Waiting" },
-      ],
-      rps:      [{ key: `${defaultKey}_rps`, color: COLORS.green, label: "RPS" }],
-      gpu_util: [{ key: `${defaultKey}_gpu_util`, color: COLORS.red, label: "GPU Util %" }],
-      gpu_mem:  [{ key: `${defaultKey}_gpu_mem_used`, color: COLORS.purple, label: "GPU Mem Used (GB)" }],
-    };
-  }
-
-  return {
-    tps:      makeMultiLines('tps'),
-    latency:  makeMultiLines('lat_p99'),
-    ttft:     makeMultiLines('ttft'),
-    kv:       makeMultiLines('kv'),
-    kv_hit:   makeMultiLines('kv_hit'),
-    queue:    makeMultiLines('running'),
-    rps:      makeMultiLines('rps'),
-    gpu_util: makeMultiLines('gpu_util'),
-    gpu_mem:  makeMultiLines('gpu_mem_used'),
-  };
-}
-
-interface ChartDefinition {
-  id: string;
-  title: string;
-}
-
-const CHART_DEFINITIONS: ChartDefinition[] = [
-  { id: 'tps',      title: 'Throughput (TPS)' },
-  { id: 'latency',  title: 'Latency (ms)' },
-  { id: 'ttft',     title: 'TTFT (ms)' },
-  { id: 'kv',       title: 'KV Cache Usage (%)' },
-  { id: 'kv_hit',   title: 'KV Cache Hit Rate (%)' },
-  { id: 'queue',    title: 'Request Queue' },
-  { id: 'rps',      title: 'RPS (Requests/sec)' },
-  { id: 'gpu_util', title: 'GPU Utilization (%)' },
-  { id: 'gpu_mem',  title: 'GPU Memory (GB)' },
-];
-
-const LS_KEY = 'vllm-optimizer-chart-config';
-const DEFAULT_ORDER = CHART_DEFINITIONS.map(c => c.id);
-
-interface ChartConfig {
-  order: string[];
-  hidden: string[];
-}
-
-function loadChartConfig(): ChartConfig {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return { order: DEFAULT_ORDER, hidden: [] };
-    const parsed = JSON.parse(raw);
-    const validIds = new Set(DEFAULT_ORDER);
-    const order = Array.isArray(parsed.order)
-      ? parsed.order.filter((id: string) => validIds.has(id))
-      : DEFAULT_ORDER;
-    const hidden = Array.isArray(parsed.hidden)
-      ? parsed.hidden.filter((id: string) => validIds.has(id))
-      : [];
-    const inOrder = new Set(order);
-    DEFAULT_ORDER.forEach(id => { if (!inOrder.has(id)) order.push(id); });
-    return { order, hidden };
-  } catch (e) {
-    console.error('Failed to load chart configuration from localStorage', e);
-    return { order: DEFAULT_ORDER, hidden: [] };
-  }
-}
-
-function saveChartConfig(order: string[], hidden: string[]) {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify({ order, hidden }));
-  } catch (e) {
-    console.error('Failed to save chart configuration to localStorage', e);
-  }
-}
-
-interface HistoryPoint {
-  timestamp: number;
-  tps?: number;
-  ttft_mean?: number;
-  latency_p99?: number;
-  kv_cache?: number;
-  running?: number;
-  waiting?: number;
-  rps?: number;
-  ttft_p99?: number;
-  latency_mean?: number;
-  kv_hit_rate?: number;
-  gpu_util?: number;
-  gpu_mem_used?: number;
-  gpu_mem_total?: number;
-}
-
-interface TargetResultData {
-  tps?: number | null;
-  latency_p99?: number | null;
-  latency_mean?: number | null;
-  ttft_mean?: number | null;
-  ttft_p99?: number | null;
-  kv_cache?: number | null;
-  kv_hit_rate?: number | null;
-  running?: number | null;
-  waiting?: number | null;
-  rps?: number | null;
-  gpu_util?: number | null;
-  gpu_mem_used?: number | null;
-  gpu_mem_total?: number | null;
-  error_rate?: number | null;
-  availability?: number | null;
-}
-
-interface TargetResult {
-  status: string;
-  error?: string;
-  data?: TargetResultData | null;
-  history?: HistoryPoint[];
-  hasMonitoringLabel?: boolean;
-}
-
-interface TargetState {
-  status?: string;
-  data?: TargetResultData | null;
-  metrics?: TargetResultData | null;
-  history?: Record<string, unknown>[];
-  hasMonitoringLabel?: boolean;
-  error?: string | null;
-}
-
-interface MonitorPageProps {
-  isActive: boolean;
-}
 
 const TIME_RANGES = [
   { label: '1h',  points: 360 },
@@ -205,7 +28,7 @@ const TIME_RANGES = [
   { label: '7d',  points: 1400 },
 ];
 
-function MonitorPage({ isActive }: MonitorPageProps) {
+function MonitorPage({ isActive }: { isActive: boolean }) {
   const { isMockEnabled } = useMockData();
   const { targets, crType } = useClusterConfig();
   const { COLORS } = useThemeColors();
@@ -411,17 +234,24 @@ function MonitorPage({ isActive }: MonitorPageProps) {
     const { thresholds } = selectedSlaProfile;
     if (id === 'tps') return thresholds.min_tps || undefined;
     if (id === 'latency') return thresholds.p95_latency_max_ms || undefined;
-    // error_rate is not in current chart definitions, skip
     return undefined;
   };
+
+  const latestMetrics = useMemo(() => {
+    if (!defaultKey) return null;
+    return targetStates[defaultKey]?.data ?? null;
+  }, [targetStates, defaultKey]);
+
+  const formatValue = (v: number | null | undefined, decimals = 0) =>
+    v == null ? '—' : v.toFixed(decimals);
 
   return (
     <div className="flex-col-1">
       <div className="panel flex-row-12" style={{ padding: '12px 20px', borderBottom: 'none', marginBottom: '-1px', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span className="label label-no-mb">SLA PROFILE:</span>
-          <select 
-            className="input" 
+          <select
+            className="input"
             style={{ width: '200px', padding: '4px 8px' }}
             value={selectedSlaProfileId || ''}
             onChange={(e) => setSelectedSlaProfileId(e.target.value ? Number(e.target.value) : null)}
@@ -446,51 +276,21 @@ function MonitorPage({ isActive }: MonitorPageProps) {
           ))}
         </div>
       </div>
-      <MultiTargetSelector 
-        targetStatuses={targetStatuses} 
-        targetStates={targetStates} 
+      <MultiTargetSelector
+        targetStatuses={targetStatuses}
+        targetStates={targetStates}
       />
       <ErrorAlert message={error} className="error-alert--m08" />
-      
-      <div className="grid-2 gap-1">
-        {chartOrder
-          .filter(id => !hiddenCharts.includes(id))
-          .map(id => {
-            const def = CHART_DEFINITIONS.find(c => c.id === id);
-            if (!def) return null;
-            return (
-              <div key={id} aria-label={def.title}>
-                <Chart
-                  data={mergedHistory}
-                  title={def.title}
-                  lines={chartLinesMap[id] || []}
-                  onHide={() => hideChart(id)}
-                  threshold={getSlaThreshold(id)}
-                />
-              </div>
-            );
-          })
-        }
-      </div>
-      {hiddenCharts.length > 0 && (
-        <div className="hidden-charts-bar">
-          <span className="hidden-charts-bar-label">Hidden charts:</span>
-          {hiddenCharts.map(id => {
-            const def = CHART_DEFINITIONS.find(c => c.id === id);
-            if (!def) return null;
-            return (
-              <button
-                key={id}
-                className="hidden-chart-tag"
-                onClick={() => showChart(id)}
-                title="Click to restore"
-              >
-                {def.title}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      <MonitorMetricCards latestMetrics={latestMetrics} formatValue={formatValue} />
+      <MonitorChartGrid
+        visibleCharts={chartOrder.filter(id => !hiddenCharts.includes(id))}
+        hiddenCharts={hiddenCharts}
+        chartData={mergedHistory}
+        chartLinesMap={chartLinesMap}
+        onHideChart={hideChart}
+        onShowChart={showChart}
+        getSlaThreshold={getSlaThreshold}
+      />
     </div>
   );
 }
