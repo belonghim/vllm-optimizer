@@ -8,6 +8,7 @@ import { useClusterConfig } from "../contexts/ClusterConfigContext";
 import { mockTrials } from "../mockData";
 import type { SSEErrorPayload, SSEWarningPayload } from '../types';
 import type { TunerPhase, TunerStatus, TunerTrial, TunerConfig } from "../types";
+import LoadingSpinner from "../components/LoadingSpinner";
 import TunerStatusPanel from "../components/TunerStatusPanel";
 import TunerCurrentConfig from "../components/TunerCurrentConfig";
 import TunerResults from "../components/TunerResults";
@@ -33,6 +34,7 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
   const [autoBenchmark, setAutoBenchmark] = useState(false);
   const [benchmarkSaved, setBenchmarkSaved] = useState(false);
   const [benchmarkSavedId, setBenchmarkSavedId] = useState<number | null>(null);
+  const [initialized, setInitialized] = useState(false);
   const [config, setConfig] = useState<TunerConfig>({
     objective: "balanced",
     evaluation_mode: "single",
@@ -106,7 +108,14 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
     if (!isActive) return;
 
     const controller = new AbortController();
-    fetchStatus(controller.signal);
+    
+    (async () => {
+      await fetchStatus(controller.signal);
+      if (!controller.signal.aborted) {
+        setInitialized(true);
+      }
+    })();
+    
     const id = setInterval(() => fetchStatus(controller.signal), 3000);
     return () => { controller.abort(); clearInterval(id); };
   }, [isActive, fetchStatus]);
@@ -274,14 +283,20 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
         onError={setError}
         onApplySuccess={handleApplySuccess}
       />
-      <TunerResults
-        trials={trials}
-        bestParams={status.best}
-        status={status}
-        isRunning={status.running}
-        importance={importance}
-      />
-      <TunerHistoryPanel />
+      {!initialized ? (
+        <LoadingSpinner />
+      ) : (
+        <>
+          <TunerResults
+            trials={trials}
+            bestParams={status.best}
+            status={status}
+            isRunning={status.running}
+            importance={importance}
+          />
+          <TunerHistoryPanel />
+        </>
+      )}
     </div>
   );
 }

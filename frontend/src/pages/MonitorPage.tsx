@@ -6,6 +6,7 @@ import { useClusterConfig } from "../contexts/ClusterConfigContext";
 import { API, METRIC_KEYS } from "../constants";
 import { useThemeColors } from "../contexts/ThemeContext";
 import ErrorAlert from "../components/ErrorAlert";
+import LoadingSpinner from "../components/LoadingSpinner";
 import MultiTargetSelector from "../components/MultiTargetSelector";
 import { buildGapFill } from "../utils/gapFill";
 import { showSlaViolation } from "../components/Toast";
@@ -39,6 +40,7 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
   const [selectedSlaProfileId, setSelectedSlaProfileId] = useState<number | null>(null);
   const [timeRangePoints, setTimeRangePoints] = useState(60);
   const [selectedRange, setSelectedRange] = useState('1h');
+  const [initialized, setInitialized] = useState(false);
   const timeRangePointsRef = useRef(60);
   const selectedRangeRef = useRef('1h');
   const lastViolationTime = useRef<Record<string, number>>({});
@@ -163,6 +165,7 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
     if (!isActive) return;
     if (targets.length === 0) {
       setTargetStates({});
+      setInitialized(true);
       return;
     }
 
@@ -176,7 +179,14 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
     });
 
     const controller = new AbortController();
-    fetchAllTargets(controller.signal);
+    
+    (async () => {
+      await fetchAllTargets(controller.signal);
+      if (!controller.signal.aborted) {
+        setInitialized(true);
+      }
+    })();
+    
     const id = setInterval(() => fetchAllTargets(controller.signal), 3000);
     return () => { controller.abort(); clearInterval(id); };
   }, [isActive, targets, isMockEnabled, fetchAllTargets]);
@@ -276,21 +286,27 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
           ))}
         </div>
       </div>
-      <MultiTargetSelector
-        targetStatuses={targetStatuses}
-        targetStates={targetStates}
-      />
-      <ErrorAlert message={error} className="error-alert--m08" />
-      <MonitorMetricCards latestMetrics={latestMetrics} formatValue={formatValue} />
-      <MonitorChartGrid
-        visibleCharts={chartOrder.filter(id => !hiddenCharts.includes(id))}
-        hiddenCharts={hiddenCharts}
-        chartData={mergedHistory}
-        chartLinesMap={chartLinesMap}
-        onHideChart={hideChart}
-        onShowChart={showChart}
-        getSlaThreshold={getSlaThreshold}
-      />
+      {!initialized && targets.length > 0 ? (
+        <LoadingSpinner />
+      ) : (
+        <>
+          <MultiTargetSelector
+            targetStatuses={targetStatuses}
+            targetStates={targetStates}
+          />
+          <ErrorAlert message={error} className="error-alert--m08" />
+          <MonitorMetricCards latestMetrics={latestMetrics} formatValue={formatValue} />
+          <MonitorChartGrid
+            visibleCharts={chartOrder.filter(id => !hiddenCharts.includes(id))}
+            hiddenCharts={hiddenCharts}
+            chartData={mergedHistory}
+            chartLinesMap={chartLinesMap}
+            onHideChart={hideChart}
+            onShowChart={showChart}
+            getSlaThreshold={getSlaThreshold}
+          />
+        </>
+      )}
     </div>
   );
 }
