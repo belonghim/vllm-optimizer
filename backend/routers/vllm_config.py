@@ -112,6 +112,7 @@ def _get_k8s_custom() -> CustomObjectsApi | None:
 
 @router.get("")
 async def get_vllm_config() -> dict[str, Any]:
+    """Get current vLLM InferenceService configuration."""
     _custom = await asyncio.to_thread(_get_k8s_custom)
     if _custom is None:
         raise HTTPException(status_code=503, detail="Kubernetes not available")
@@ -150,6 +151,7 @@ async def get_vllm_config() -> dict[str, Any]:
 
 @router.patch("")
 async def patch_vllm_config(request: VllmConfigPatchRequest) -> dict[str, Any]:
+    """Update vLLM configuration (args, resources, model URI)."""
     invalid_keys = {str(k) for k in request.data} - ALLOWED_CONFIG_KEYS
     if invalid_keys:
         raise HTTPException(

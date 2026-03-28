@@ -9,4 +9,4 @@ def _get_real_ip(request):
     return get_remote_address(request)
 
 
-limiter = Limiter(key_func=_get_real_ip)
+limiter = Limiter(key_func=_get_real_ip, default_limits=["60/minute"])

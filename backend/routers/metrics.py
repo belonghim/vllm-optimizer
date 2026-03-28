@@ -11,8 +11,9 @@ import time as time_mod
 from datetime import UTC, datetime
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import PlainTextResponse
+from services.rate_limiter import limiter
 from models.load_test import (
     BatchMetricsRequest,
     BatchMetricsResponse,
@@ -213,7 +214,9 @@ def _convert_to_snapshot(vllm_metrics) -> MetricsSnapshot:
         409: {"model": ErrorResponse},
     },
 )
+@limiter.limit("120/minute")
 async def get_latest_metrics(
+    request: Request,
     namespace: str | None = None,
     is_name: str | None = None,
     cr_type: str | None = None,
@@ -269,7 +272,8 @@ async def get_latest_metrics(
 
 
 @router.post("/batch")
-async def get_batch_metrics(request: BatchMetricsRequest) -> BatchMetricsResponse:
+@limiter.limit("120/minute")
+async def get_batch_metrics(request: Request, body: BatchMetricsRequest) -> BatchMetricsResponse:
     """
     Get latest metrics for multiple targets in a single request.
 
@@ -278,7 +282,7 @@ async def get_batch_metrics(request: BatchMetricsRequest) -> BatchMetricsRespons
     """
     results: dict[str, dict[str, object]] = {}
 
-    for target in request.targets:
+    for target in body.targets:
         key = f"{target.namespace}/{target.inferenceService}"
         registered = await multi_target_collector.register_target(
             target.namespace, target.inferenceService, cr_type=target.cr_type
@@ -292,13 +296,13 @@ async def get_batch_metrics(request: BatchMetricsRequest) -> BatchMetricsRespons
             target.namespace, target.inferenceService
         )
 
-        if request.time_range in _TIME_RANGE_CONFIG:
+        if body.time_range in _TIME_RANGE_CONFIG:
             history = await _get_history_from_thanos(
-                target.namespace, target.inferenceService, target.cr_type, request.time_range
+                target.namespace, target.inferenceService, target.cr_type, body.time_range
             )
         else:
             target_cache = multi_target_collector._targets.get(key)
-            n = min(request.history_points, MAX_HISTORY_POINTS)
+            n = min(body.history_points, MAX_HISTORY_POINTS)
             history = (
                 [_convert_to_snapshot(m).model_dump() for m in list(target_cache.history)[-n:]] if target_cache else []
             )
@@ -323,7 +327,9 @@ async def get_batch_metrics(request: BatchMetricsRequest) -> BatchMetricsRespons
 
 
 @router.get("/history", response_model=list[MetricsSnapshot])
+@limiter.limit("120/minute")
 async def get_metrics_history(
+    request: Request,
     last_n: int | None = 60,
     namespace: str | None = None,
     is_name: str | None = None,
@@ -373,6 +379,7 @@ async def get_metrics_history(
 
 
 @router.get("")
+@limiter.exempt
 async def get_prometheus_metrics() -> PlainTextResponse:
     """
     Expose Prometheus metrics for OpenShift Monitoring.

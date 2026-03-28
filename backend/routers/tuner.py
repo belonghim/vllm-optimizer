@@ -85,6 +85,7 @@ class TuningStartRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_sweep_mode(self) -> "TuningStartRequest":
+        """Validator that ensures sweep mode is active before starting a tuning session."""
         if self.evaluation_mode == "sweep" and self.sweep_config is None:
             raise ValueError("sweep_config is required when evaluation_mode='sweep'")
         return self
@@ -149,6 +150,7 @@ class TunerAllResponse(BaseModel):
 )
 @limiter.limit("3/minute")
 async def start_tuning(request: Request, body: TuningStartRequest) -> dict[str, Any]:
+    """Start Bayesian optimization to find best vLLM parameters."""
     if auto_tuner.is_running:
         raise HTTPException(
             status_code=409,
@@ -315,6 +317,7 @@ async def stream_tuner_events() -> StreamingResponse:
     """Stream tuning events via Server-Sent Events (SSE)."""
 
     async def event_generator():
+        """Async generator that streams tuner progress events via SSE."""
         q = await auto_tuner.subscribe()
         try:
             yield f"data: {json.dumps({'type': 'connected', 'data': {'running': auto_tuner.is_running}})}\n\n"
@@ -412,6 +415,7 @@ async def list_tuning_sessions(
     offset: int = Query(default=0, ge=0),
     response: Response = None,
 ) -> list[TuningSessionSummary]:
+    """List all saved tuning sessions with pagination."""
     total = await storage.count_tuning_sessions()
     rows = await storage.list_tuning_sessions(limit=limit, offset=offset)
     if response is not None:
@@ -421,6 +425,7 @@ async def list_tuning_sessions(
 
 @router.get("/sessions/{session_id}", response_model=TuningSessionDetail)
 async def get_tuning_session(session_id: int) -> TuningSessionDetail:
+    """Retrieve detailed tuning session data by ID."""
     row = await storage.get_tuning_session(session_id)
     if row is None:
         raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
@@ -429,6 +434,7 @@ async def get_tuning_session(session_id: int) -> TuningSessionDetail:
 
 @router.delete("/sessions/{session_id}")
 async def delete_tuning_session(session_id: int) -> dict[str, Any]:
+    """Delete a tuning session by ID."""
     deleted = await storage.delete_tuning_session(session_id)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Session {session_id} not found")

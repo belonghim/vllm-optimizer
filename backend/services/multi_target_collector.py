@@ -15,6 +15,43 @@ from services.runtime_config_instance import runtime_config
 
 logger = logging.getLogger(__name__)
 
+
+async def _with_retry(coro_fn, retries: int = 3, base_delay: float = 1.0):
+    last_exc: Exception | None = None
+    for attempt in range(retries + 1):
+        try:
+            return await coro_fn()
+        except (httpx.TimeoutException, httpx.ConnectError) as e:
+            last_exc = e
+            if attempt < retries:
+                delay = base_delay * (2**attempt)
+                logger.warning(
+                    "Transient error (attempt %d/%d), retrying in %.0fs: %s",
+                    attempt + 1,
+                    retries,
+                    delay,
+                    e,
+                )
+                await asyncio.sleep(delay)
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code in (502, 503, 504):
+                last_exc = e
+                if attempt < retries:
+                    delay = base_delay * (2**attempt)
+                    logger.warning(
+                        "HTTP %d (attempt %d/%d), retrying in %.0fs",
+                        e.response.status_code,
+                        attempt + 1,
+                        retries,
+                        delay,
+                    )
+                    await asyncio.sleep(delay)
+            else:
+                raise  # 401/403/400/404 — don't retry
+    assert last_exc is not None
+    raise last_exc
+
+
 PROMETHEUS_URL = os.getenv(
     "PROMETHEUS_URL",
     "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091",
@@ -457,14 +494,18 @@ class MultiTargetMetricsCollector:
     ) -> tuple[str, float | None]:
         from services.shared import internal_client
 
-        try:
-            response = await internal_client.get(
+        async def _do_fetch():
+            resp = await internal_client.get(
                 f"{PROMETHEUS_URL}/api/v1/query",
                 params={"query": query},
                 headers=headers,
                 timeout=5,
             )
-            _ = response.raise_for_status()
+            resp.raise_for_status()
+            return resp
+
+        try:
+            response = await _with_retry(_do_fetch)
             data = cast(dict[str, Any], response.json())
             payload = cast(dict[str, Any], data.get("data", {}))
             results = cast(list[dict[str, Any]], payload.get("result", []))

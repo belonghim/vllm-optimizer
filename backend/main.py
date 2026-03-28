@@ -23,6 +23,7 @@ from services.rate_limiter import limiter
 from services.shared import runtime_config
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 # ── Logging Configuration ──
 logging.basicConfig(
@@ -185,6 +186,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(SlowAPIMiddleware)
 
 
 @app.exception_handler(OptimizerError)
@@ -214,6 +216,7 @@ app.include_router(alerts, prefix="/api/alerts", tags=["alerts"])
 
 
 @app.get("/health", tags=["health"], response_model=None)
+@limiter.exempt
 async def health_check(request: Request) -> dict[str, Any] | JSONResponse:
     """Health check with dependency validation.
     Query param: deep=1 enables full connectivity checks (slow)."""

@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_storage() -> Storage:
+    """Return the shared storage instance."""
     from services import shared
 
     return shared.storage
@@ -38,6 +39,7 @@ async def list_benchmarks(
     response: Response = None,
     storage: Storage = Depends(get_storage),
 ) -> list[Benchmark]:
+    """List all saved benchmarks with pagination."""
     try:
         total = await storage.count_benchmarks()
         benchmarks = await storage.list_benchmarks(limit=limit, offset=offset)
@@ -63,6 +65,7 @@ async def save_benchmark(
     benchmark: Benchmark,
     storage: Storage = Depends(get_storage),
 ) -> Benchmark:
+    """Save a new benchmark result with auto-populated metadata."""
     try:
         auto_meta: dict[str, Any] = {}
 
@@ -111,6 +114,7 @@ async def save_benchmark(
 async def benchmarks_by_model(
     storage: Storage = Depends(get_storage),
 ) -> dict[str, Any]:
+    """Get benchmarks grouped by model with GPU efficiency metrics."""
     try:
         benchmarks = await storage.list_benchmarks()
     except ValueError as e:
@@ -138,6 +142,7 @@ async def import_guidellm_benchmark(
     file: UploadFile = File(...),
     storage: Storage = Depends(get_storage),
 ) -> dict:
+    """Import benchmarks from a GuideLLM JSON file."""
     contents = await file.read()
     if len(contents) > 50 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="File too large (max 50MB)")
@@ -168,6 +173,7 @@ async def get_benchmark(
     benchmark_id: int,
     storage: Storage = Depends(get_storage),
 ) -> Benchmark:
+    """Retrieve a single benchmark by ID."""
     try:
         benchmark = await storage.get_benchmark(benchmark_id)
     except ValueError as e:
@@ -195,6 +201,7 @@ async def delete_benchmark(
     benchmark_id: int,
     storage: Storage = Depends(get_storage),
 ) -> dict[str, Any]:
+    """Delete a benchmark by ID."""
     try:
         deleted = await storage.delete_benchmark(benchmark_id)
     except ValueError as e:
@@ -224,6 +231,7 @@ async def patch_benchmark_metadata(
     metadata: BenchmarkMetadata,
     storage: Storage = Depends(get_storage),
 ) -> Benchmark:
+    """Update benchmark metadata (tags, annotations, etc)."""
     try:
         existing = await storage.get_benchmark(benchmark_id)
         if existing is None:

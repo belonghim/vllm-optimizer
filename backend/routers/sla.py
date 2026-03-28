@@ -19,6 +19,7 @@ def evaluate_benchmarks_against_sla(
     profile: SlaProfile,
     benchmarks: list[Benchmark],
 ) -> list[SlaEvaluationResult]:
+    """Evaluate saved benchmarks against the given SLA profile and return judgment results."""
     results: list[SlaEvaluationResult] = []
 
     for benchmark in benchmarks:
@@ -96,6 +97,7 @@ async def list_profiles(
     offset: int = Query(default=0, ge=0),
     response: Response = None,
 ) -> list[SlaProfile]:
+    """List all SLA profiles with pagination."""
     total = await storage.count_sla_profiles()
     profiles = await storage.list_sla_profiles(limit=limit, offset=offset)
     if response is not None:
@@ -105,11 +107,13 @@ async def list_profiles(
 
 @router.post("/profiles", response_model=SlaProfile, status_code=201)
 async def create_profile(profile: SlaProfile) -> SlaProfile:
+    """Create a new SLA profile."""
     return await storage.save_sla_profile(profile)
 
 
 @router.get("/profiles/{profile_id}", response_model=SlaProfile)
 async def get_profile(profile_id: int) -> SlaProfile:
+    """Retrieve an SLA profile by ID."""
     profile = await storage.get_sla_profile(profile_id)
     if profile is None:
         raise HTTPException(status_code=404, detail=f"SLA profile {profile_id} not found")
@@ -118,6 +122,7 @@ async def get_profile(profile_id: int) -> SlaProfile:
 
 @router.put("/profiles/{profile_id}", response_model=SlaProfile)
 async def update_profile(profile_id: int, profile: SlaProfile) -> SlaProfile:
+    """Update an existing SLA profile."""
     updated = await storage.update_sla_profile(profile_id, profile)
     if updated is None:
         raise HTTPException(status_code=404, detail=f"SLA profile {profile_id} not found")
@@ -126,6 +131,7 @@ async def update_profile(profile_id: int, profile: SlaProfile) -> SlaProfile:
 
 @router.delete("/profiles/{profile_id}")
 async def delete_profile(profile_id: int) -> dict[str, bool]:
+    """Delete an SLA profile by ID."""
     deleted = await storage.delete_sla_profile(profile_id)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"SLA profile {profile_id} not found")
@@ -134,6 +140,7 @@ async def delete_profile(profile_id: int) -> dict[str, bool]:
 
 @router.post("/evaluate", response_model=SlaEvaluateResponse)
 async def evaluate_profile(request: SlaEvaluateRequest) -> SlaEvaluateResponse:
+    """Evaluate benchmarks against an SLA profile."""
     profile = await storage.get_sla_profile(request.profile_id)
     if profile is None:
         raise HTTPException(status_code=404, detail=f"SLA profile {request.profile_id} not found")

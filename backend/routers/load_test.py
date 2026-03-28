@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_storage():
+    """Return the shared storage instance."""
     from services import shared
 
     return shared.storage
@@ -126,6 +127,7 @@ async def start_load_test(request: Request, config: LoadTestConfig) -> dict[str,
 
     # Run test in background task
     async def run_test():
+        """Background task that executes a load test and persists the result."""
         global _active_test_task
         try:
             result = await load_engine.run(config, skip_preflight=True)
@@ -219,7 +221,9 @@ async def get_load_test_status(test_id: str | None = None) -> dict[str, Any]:
 
 
 @router.post("/sweep", responses={409: {"model": ErrorResponse}})
-async def start_sweep(config: SweepConfig) -> dict[str, Any]:
+@limiter.limit("5/minute")
+async def start_sweep(request: Request, config: SweepConfig) -> dict[str, Any]:
+    """Start a parameter sweep with multiple concurrent loads."""
     global _sweep_task, _sweep_result, _is_sweeping
 
     async with _test_lock:
@@ -245,6 +249,7 @@ async def start_sweep(config: SweepConfig) -> dict[str, Any]:
             config.model = os.getenv("VLLM_MODEL", "auto")
 
     async def run_sweep_task():
+        """Background task that executes a sweep load test across concurrency levels."""
         global _sweep_task, _sweep_result, _is_sweeping
         try:
             result = await load_engine.run_sweep(config)
@@ -278,6 +283,7 @@ async def stream_load_test_results(test_id: str | None = None) -> StreamingRespo
     queue = await load_engine.subscribe()
 
     async def event_generator():
+        """Async generator that streams load test progress events via SSE."""
         try:
             while True:
                 try:
