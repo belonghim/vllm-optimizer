@@ -327,7 +327,7 @@ export default function TunerConfigForm({
               <td title="resources.requests.cpu">CPU Requests</td>
               <td className="td-current">
                 <div>
-                  <input type="text" value={editedValues["resources.requests.cpu"] as string ?? getResourceValue("requests", "cpu")}
+                  <input type="text" aria-label="CPU Requests" value={editedValues["resources.requests.cpu"] as string ?? getResourceValue("requests", "cpu")}
                          onChange={e => handleResourceChange("resources.requests.cpu", e.target.value)}
                          placeholder="e.g. 4, 500m" />
                   {resourceErrors["resources.requests.cpu"] && (
@@ -342,7 +342,7 @@ export default function TunerConfigForm({
               <td title="resources.limits.cpu">CPU Limits</td>
               <td className="td-current">
                 <div>
-                  <input type="text" value={editedValues["resources.limits.cpu"] as string ?? getResourceValue("limits", "cpu")}
+                  <input type="text" aria-label="CPU Limits" value={editedValues["resources.limits.cpu"] as string ?? getResourceValue("limits", "cpu")}
                          onChange={e => handleResourceChange("resources.limits.cpu", e.target.value)}
                          placeholder="e.g. 8, 1000m" />
                   {resourceErrors["resources.limits.cpu"] && (
@@ -357,7 +357,7 @@ export default function TunerConfigForm({
               <td title="resources.requests.memory">Memory Requests</td>
               <td className="td-current">
                 <div>
-                  <input type="text" value={editedValues["resources.requests.memory"] as string ?? getResourceValue("requests", "memory")}
+                  <input type="text" aria-label="Memory Requests" value={editedValues["resources.requests.memory"] as string ?? getResourceValue("requests", "memory")}
                          onChange={e => handleResourceChange("resources.requests.memory", e.target.value)}
                          placeholder="e.g. 8Gi, 512Mi" />
                   {resourceErrors["resources.requests.memory"] && (
@@ -372,7 +372,7 @@ export default function TunerConfigForm({
               <td title="resources.limits.memory">Memory Limits</td>
               <td className="td-current">
                 <div>
-                  <input type="text" value={editedValues["resources.limits.memory"] as string ?? getResourceValue("limits", "memory")}
+                  <input type="text" aria-label="Memory Limits" value={editedValues["resources.limits.memory"] as string ?? getResourceValue("limits", "memory")}
                          onChange={e => handleResourceChange("resources.limits.memory", e.target.value)}
                          placeholder="e.g. 16Gi" />
                   {resourceErrors["resources.limits.memory"] && (
@@ -387,7 +387,7 @@ export default function TunerConfigForm({
               <td title="resources.limits.nvidia.com/gpu">GPU Limits</td>
               <td className="td-current">
                 <div>
-                  <input type="number" min={0} step={1}
+                  <input type="number" min={0} step={1} aria-label="GPU Limits"
                          value={editedValues["resources.limits.nvidia.com/gpu"] as string ?? getResourceValue("limits", "nvidia.com/gpu")}
                          onChange={e => handleResourceChange("resources.limits.nvidia.com/gpu", e.target.value)}
                          placeholder="0" />

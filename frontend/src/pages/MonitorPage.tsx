@@ -424,6 +424,7 @@ function MonitorPage({ isActive }: MonitorPageProps) {
             <button
               key={r.label}
               data-testid="time-range-btn"
+              aria-label={`Show last ${r.label}`}
               className={`btn btn-sm${timeRangePoints === r.points ? ' active' : ''}`}
               onClick={() => { setTimeRangePoints(r.points); timeRangePointsRef.current = r.points; }}
             >
