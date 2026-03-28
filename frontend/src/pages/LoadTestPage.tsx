@@ -116,6 +116,14 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
   const [sweepSSEUrl, setSweepSSEUrl] = useState<string | null>(null);
   const [sweepHistory, setSweepHistory] = useState<SweepResult[]>([]);
   const [sweepHistoryLoading, setSweepHistoryLoading] = useState(false);
+  const [promptMode, setPromptMode] = useState<'static' | 'synthetic'>('static');
+  const [syntheticConfig, setSyntheticConfig] = useState({
+    distribution: 'uniform' as 'uniform' | 'normal',
+    min_tokens: 50,
+    max_tokens: 500,
+    mean_tokens: 200,
+    stddev_tokens: 50,
+  });
 
   useEffect(() => {
     const isSweepRunning = sweepStatus === 'running';
@@ -152,6 +160,10 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
     },
   });
 
+  const handleSyntheticConfigChange = (key: string, value: string | number) => {
+    setSyntheticConfig(prev => ({ ...prev, [key]: value }));
+  };
+
   const start = async () => {
     setStatus("running"); setResult(null); setLatencyData([]); setProgress(0);
     setError(null); setSaveStatus(null);
@@ -175,11 +187,16 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
       );
       return;
     }
-     try {
-       const resp = await authFetch(`${API}/load_test/start`, {
-         method: "POST", headers: { "Content-Type": "application/json" },
-         body: JSON.stringify(config),
-       });
+      const payload = {
+        ...config,
+        prompt_mode: promptMode,
+        ...(promptMode === 'synthetic' ? { synthetic_config: syntheticConfig } : {}),
+      };
+       try {
+         const resp = await authFetch(`${API}/load_test/start`, {
+           method: "POST", headers: { "Content-Type": "application/json" },
+           body: JSON.stringify(payload),
+         });
        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
        const startData = await resp.json();
        if (startData.config?.model) setConfig(c => ({ ...c, model: startData.config.model }));
@@ -372,9 +389,20 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
           ))}
         </div>
       </div>
-      <LoadTestConfig config={config} onChange={handleConfigChange} onSubmit={start}
-        onStop={stop} isRunning={status === "running"} status={status}
-        initialConfig={pendingConfig} onInitialConfigApplied={onConfigConsumed} />
+      <LoadTestConfig
+          config={config}
+          onChange={handleConfigChange}
+          onSubmit={start}
+          onStop={stop}
+          isRunning={status === "running"}
+          status={status}
+          initialConfig={pendingConfig}
+          onInitialConfigApplied={onConfigConsumed}
+          promptMode={promptMode}
+          onPromptModeChange={setPromptMode}
+          syntheticConfig={syntheticConfig}
+          onSyntheticConfigChange={handleSyntheticConfigChange}
+        />
 
       {isReconnecting && status === "running" && (
         <div className="loadtest-reconnect-banner" aria-live="assertive" role="alert">
