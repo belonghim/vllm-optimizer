@@ -201,12 +201,16 @@ rollback_deployment() {
 }
 
 health_check_deployment() {
-  local url=$1
+  local namespace=$1
+  local label=$2
+  local port=$3
   local max_attempts=5
   local wait_seconds=10
   for i in $(seq 1 $max_attempts); do
     echo "Health check attempt $i/$max_attempts..."
-    if curl -sf "$url/health" > /dev/null 2>&1; then
+    local pod
+    pod=$(oc get pod -n "$namespace" -l "$label" --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+    if [ -n "$pod" ] && oc exec -n "$namespace" "$pod" -- curl -sf "http://localhost:${port}/health" > /dev/null 2>&1; then
       echo "Health check passed."
       return 0
     fi
@@ -300,7 +304,7 @@ log "Waiting for vllm-optimizer-backend deployment to be ready..."
 oc rollout status deployment/vllm-optimizer-backend -n "${NAMESPACE}" --timeout=5m
 
 log "Performing health check for vllm-optimizer-backend..."
-if ! health_check_deployment "http://vllm-optimizer-backend.${NAMESPACE}.svc:8000"; then
+if ! health_check_deployment "${NAMESPACE}" "app=vllm-optimizer-backend" "8000"; then
   warn "Health check failed; rolling back vllm-optimizer-backend..."
   rollback_deployment "${NAMESPACE}" "vllm-optimizer-backend"
   exit 1
