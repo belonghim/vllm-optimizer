@@ -161,23 +161,24 @@ function LoadTestNormalMode({ isActive, pendingConfig, onConfigConsumed, onRunni
     }
   };
 
-  const saveAsBenchmark = async () => {
-    if (isSaving || !result) return;
-    setIsSaving(true); setSaveStatus(null);
-    const name = `${config.model}-${Math.floor(Date.now() / 1000)}`;
-    try {
-      const resp = await authFetch(`${API}/benchmark/save`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, config, result }),
-      });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      setSaveStatus("ok");
-    } catch {
-      setSaveStatus("error");
-    } finally {
-      setIsSaving(false);
-    }
-  };
+   const saveAsBenchmark = async () => {
+     if (isSaving || !result) return;
+     setIsSaving(true); setSaveStatus(null);
+     const name = `${config.model}-${Math.floor(Date.now() / 1000)}`;
+     try {
+       const resp = await authFetch(`${API}/benchmark/save`, {
+         method: "POST", headers: { "Content-Type": "application/json" },
+         body: JSON.stringify({ name, config, result }),
+       });
+       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+       setSaveStatus("ok");
+     } catch (e) {
+       console.error('Failed to save load test result as benchmark', e);
+       setSaveStatus("error");
+     } finally {
+       setIsSaving(false);
+     }
+   };
 
   const progressFillStyle = { width: `${progress}%` };
   const gpuEff = result ? calcGpuEfficiency(result) : null;

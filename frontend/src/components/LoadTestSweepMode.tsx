@@ -97,19 +97,20 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
     },
   });
 
-  const fetchSweepHistory = async () => {
-    setSweepHistoryLoading(true);
-    try {
-      const resp = await authFetch(`${API}/load_test/sweep/history?limit=20`);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
-      setSweepHistory(data);
-    } catch {
-      // fail silently - history is optional
-    } finally {
-      setSweepHistoryLoading(false);
-    }
-  };
+   const fetchSweepHistory = async () => {
+     setSweepHistoryLoading(true);
+     try {
+       const resp = await authFetch(`${API}/load_test/sweep/history?limit=20`);
+       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+       const data = await resp.json();
+       setSweepHistory(data);
+     } catch (e) {
+       console.error('Failed to fetch sweep test history', e);
+       // fail silently - history is optional
+     } finally {
+       setSweepHistoryLoading(false);
+     }
+   };
 
   useEffect(() => {
     if (isActive) fetchSweepHistory();
@@ -164,33 +165,35 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
     }
   };
 
-  const saveSweepAsBenchmark = async (sweep: SweepResult) => {
-    if (isSaving || !sweep) return;
-    setIsSaving(true); setSaveStatus(null);
-    try {
-      const resp = await authFetch(`${API}/load_test/sweep/save`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(sweep),
-      });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      setSaveStatus("ok");
-      await fetchSweepHistory();
-    } catch {
-      setSaveStatus("error");
-    } finally {
-      setIsSaving(false);
-    }
-  };
+   const saveSweepAsBenchmark = async (sweep: SweepResult) => {
+     if (isSaving || !sweep) return;
+     setIsSaving(true); setSaveStatus(null);
+     try {
+       const resp = await authFetch(`${API}/load_test/sweep/save`, {
+         method: "POST", headers: { "Content-Type": "application/json" },
+         body: JSON.stringify(sweep),
+       });
+       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+       setSaveStatus("ok");
+       await fetchSweepHistory();
+     } catch (e) {
+       console.error('Failed to save sweep test result as benchmark', e);
+       setSaveStatus("error");
+     } finally {
+       setIsSaving(false);
+     }
+   };
 
-  const deleteSweepResult = async (sweepId: string) => {
-    try {
-      const resp = await authFetch(`${API}/load_test/sweep/history/${sweepId}`, { method: "DELETE" });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      await fetchSweepHistory();
-    } catch {
-      // fail silently
-    }
-  };
+   const deleteSweepResult = async (sweepId: string) => {
+     try {
+       const resp = await authFetch(`${API}/load_test/sweep/history/${sweepId}`, { method: "DELETE" });
+       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+       await fetchSweepHistory();
+     } catch (e) {
+       console.error('Failed to delete sweep result', e);
+       // fail silently
+     }
+   };
 
   return (
     <>

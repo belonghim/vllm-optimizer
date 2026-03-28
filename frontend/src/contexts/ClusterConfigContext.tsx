@@ -2,6 +2,7 @@ import { createContext, useState, useEffect, useMemo, useContext, useCallback } 
 import type { ReactNode } from "react";
 import { API } from "../constants";
 import type { ClusterTarget, ClusterConfig } from "../types";
+import { authFetch } from "../utils/authFetch";
 
 const STORAGE_KEY = "vllm-opt-cluster-config";
 const SCHEMA_VERSION = 2;
@@ -99,8 +100,8 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
           return migrateSchema(parsed);
         }
       }
-    } catch {
-      /* localStorage unavailable */
+    } catch (e) {
+      console.error('Failed to parse stored cluster configuration from localStorage', e);
     }
     return {
       endpoint: "",
@@ -120,7 +121,8 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
         const parsed: unknown = JSON.parse(stored);
         if (!isRecord(parsed)) return false;
         return !!(parsed.endpoint || (Array.isArray(parsed.targets) && parsed.targets.length > 0));
-      } catch {
+      } catch (e) {
+        console.error('Failed to check stored cluster configuration', e);
         return false;
       }
     };
@@ -132,7 +134,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
 
     const controller = new AbortController();
     // No auth required — /config endpoint reads env variables with no auth middleware
-    fetch(`${API}/config`, { signal: controller.signal })
+    authFetch(`${API}/config`, { signal: controller.signal })
       .then(r => r.json())
       .then((data: unknown) => {
         if (!isRecord(data)) return;
@@ -167,7 +169,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
   useEffect(() => {
     const controller = new AbortController();
     // No auth required — /config endpoint reads env variables with no auth middleware
-    fetch(`${API}/config`, { signal: controller.signal })
+    authFetch(`${API}/config`, { signal: controller.signal })
       .then(r => r.json())
       .then((data: unknown) => {
         if (!isRecord(data)) return;
@@ -181,7 +183,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
 
   const updateCrType = useCallback(async (value: string): Promise<{ configmap_updated: boolean }> => {
     // No auth required — /config endpoint reads env variables with no auth middleware
-    const res = await fetch(`${API}/config`, {
+    const res = await authFetch(`${API}/config`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cr_type: value }),
