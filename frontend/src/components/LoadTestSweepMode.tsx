@@ -218,7 +218,7 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
               <label className="label">{label}</label>
               <input
                 className="input" type={type} aria-label={label}
-                value={sweepConfig[key as keyof SweepConfigState]}
+                value={sweepConfig[key as keyof SweepConfigState] as string | number}
                 onChange={e => handleSweepConfigChange(key, type === "number" ? +e.target.value : e.target.value)}
                 disabled={sweepStatus === 'running'}
               />
@@ -272,10 +272,10 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
       {sweepResult && (
         <div className="flex-col-16">
           <div className="grid-5 gap-1">
-            <MetricCard label="Optimal RPS" value={sweepResult.optimal_rps ?? 'N/A'} color="green" />
-            <MetricCard label="Saturation RPS" value={sweepResult.saturation_point ?? 'None'} color="red" />
-            <MetricCard label="Total Steps" value={sweepResult.steps.length} color="cyan" />
-            <MetricCard label="Duration" value={`${fmt(sweepResult.total_duration, 1)}s`} color="amber" />
+            <MetricCard label="Optimal RPS" value={sweepResult.optimal_rps ?? 'N/A'} unit="" color="green" />
+            <MetricCard label="Saturation RPS" value={sweepResult.saturation_point ?? 'None'} unit="" color="red" />
+            <MetricCard label="Total Steps" value={sweepResult.steps.length} unit="" color="cyan" />
+            <MetricCard label="Duration" value={`${fmt(sweepResult.total_duration, 1)}s`} unit="" color="amber" />
           </div>
           {sweepResult.steps && sweepResult.steps.length > 0 && (
             <SweepChart steps={sweepResult.steps} saturationRps={sweepResult.saturation_point} />
@@ -300,7 +300,7 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
             </thead>
             <tbody>
               {sweepHistory.map((h, idx) => {
-                const hAny = h as Record<string, unknown>;
+                const hAny = h as unknown as Record<string, unknown>;
                 const sweepId = hAny.sweep_id as string | undefined;
                 return (
                   <tr key={sweepId ?? idx}>
