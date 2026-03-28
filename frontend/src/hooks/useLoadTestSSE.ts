@@ -59,16 +59,17 @@ export function useLoadTestSSE(): UseLoadTestSSEReturn {
       const es = new EventSource(`${API}/load_test/stream`);
       esRef.current = es;
 
-      es.onmessage = (e: MessageEvent) => {
-        retryCountRef.current = 0;
-        setRetryCount(0);
-        setIsReconnecting(false);
-        let data: SSEMessage;
-        try {
-          data = JSON.parse(e.data as string) as SSEMessage;
-        } catch {
-          return;
-        }
+       es.onmessage = (e: MessageEvent) => {
+         retryCountRef.current = 0;
+         setRetryCount(0);
+         setIsReconnecting(false);
+         let data: SSEMessage;
+         try {
+           data = JSON.parse(e.data as string) as SSEMessage;
+         } catch (err) {
+           console.error('Failed to parse SSE message data', err);
+           return;
+         }
         if (data.type === 'error') {
            setError((data.data as SSEErrorPayload | undefined)?.error ?? "Load test error occurred.");
           setStatus('error');

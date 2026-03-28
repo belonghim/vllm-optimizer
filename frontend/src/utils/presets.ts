@@ -66,13 +66,14 @@ export function deletePreset(name: string): void {
 }
 
 function getUserPresets(): Record<string, LoadTestPresetData> {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : {};
-  } catch {
-    return {};
-  }
-}
+   try {
+     const stored = localStorage.getItem(STORAGE_KEY);
+     return stored ? JSON.parse(stored) : {};
+   } catch (e) {
+     console.error('Failed to parse preset from localStorage', e);
+     return {};
+   }
+ }
 
 export function isBuiltinPreset(name: string): boolean {
   return name in BUILTIN_PRESETS;
