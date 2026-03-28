@@ -106,11 +106,10 @@ export default function ClusterConfigBar() {
       }
       setIsSaved(true);
       setTimeout(() => setIsSaved(false), 2000);
-     } catch (err) {
-       console.warn('[ClusterConfig] backend sync failed:', err);
-       setError(ERROR_MESSAGES.CLUSTER_CONFIG.SAVE_FAILED);
-       setIsSaved(false);
-     }
+      } catch (err) {
+        setError(ERROR_MESSAGES.CLUSTER_CONFIG.SAVE_FAILED);
+        setIsSaved(false);
+      }
   };
 
   if (isLoading) {

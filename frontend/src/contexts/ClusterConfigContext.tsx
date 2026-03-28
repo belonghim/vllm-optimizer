@@ -155,7 +155,6 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
       })
       .catch((err: Error) => {
         if (err.name === 'AbortError') return;
-        console.warn('[ClusterConfig] config fetch failed:', err.message);
       })
       .finally(() => setIsLoading(false));
     return () => controller.abort();
