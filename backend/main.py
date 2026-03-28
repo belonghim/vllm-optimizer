@@ -103,6 +103,20 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("[Lifespan] Storage health monitor start failed (continuing): %s", e)
 
+    # ── Startup configuration validation ──
+    _required_env = ["VLLM_ENDPOINT", "VLLM_MODEL"]
+    _optional_env = ["PROMETHEUS_URL", "K8S_NAMESPACE", "K8S_DEPLOYMENT_NAME"]
+
+    for var in _required_env:
+        if not os.getenv(var):
+            logger.warning("[config] Required env var %s is not set — some features may not work", var)
+        else:
+            logger.info("[config] %s configured", var)
+
+    for var in _optional_env:
+        if not os.getenv(var):
+            logger.info("[config] Optional env var %s not set", var)
+
     async with _create_lifespan(app)(app):
         yield
 
