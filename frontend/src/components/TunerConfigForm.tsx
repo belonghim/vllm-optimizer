@@ -54,6 +54,22 @@ const PHASE_LABELS: Record<string, string> = {
   evaluating: "Evaluating performance...",
 };
 
+// Validation functions for K8s resource formats
+function isValidCpu(v: string): boolean {
+  if (!v) return true; // empty = no change, OK
+  return /^\d+(\.\d+)?$/.test(v) || /^\d+m$/.test(v);
+}
+
+function isValidMemory(v: string): boolean {
+  if (!v) return true;
+  return /^\d+(\.\d+)?(Gi|Mi)$/.test(v);
+}
+
+function isValidGpu(v: string): boolean {
+  if (!v) return true;
+  return /^\d+$/.test(v);
+}
+
 export default function TunerConfigForm({
   config,
   onChange,
@@ -73,6 +89,7 @@ export default function TunerConfigForm({
 }: TunerConfigFormProps) {
   const [localStorageUri, setLocalStorageUri] = useState(storageUri ?? "");
   const [editedValues, setEditedValues] = useState<Record<string, unknown>>({});
+  const [resourceErrors, setResourceErrors] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setLocalStorageUri(storageUri ?? "");
@@ -99,6 +116,20 @@ export default function TunerConfigForm({
 
   const handleResourceChange = (resourceKey: string, value: string) => {
     setEditedValues(prev => ({ ...prev, [resourceKey]: value }));
+    
+    let isValid = true;
+    if (resourceKey === "resources.requests.cpu" || resourceKey === "resources.limits.cpu") {
+      isValid = isValidCpu(value);
+    } else if (resourceKey === "resources.requests.memory" || resourceKey === "resources.limits.memory") {
+      isValid = isValidMemory(value);
+    } else if (resourceKey === "resources.limits.nvidia.com/gpu") {
+      isValid = isValidGpu(value);
+    }
+    
+    setResourceErrors(prev => ({
+      ...prev,
+      [resourceKey]: !isValid,
+    }));
   };
 
   const renderCurrentInput = (
@@ -295,9 +326,14 @@ export default function TunerConfigForm({
             <tr>
               <td title="resources.requests.cpu">CPU Requests</td>
               <td className="td-current">
-                <input type="text" value={editedValues["resources.requests.cpu"] as string ?? getResourceValue("requests", "cpu")}
-                       onChange={e => handleResourceChange("resources.requests.cpu", e.target.value)}
-                       placeholder="e.g. 4, 500m" />
+                <div>
+                  <input type="text" value={editedValues["resources.requests.cpu"] as string ?? getResourceValue("requests", "cpu")}
+                         onChange={e => handleResourceChange("resources.requests.cpu", e.target.value)}
+                         placeholder="e.g. 4, 500m" />
+                  {resourceErrors["resources.requests.cpu"] && (
+                    <div style={{ color: 'red', fontSize: '12px', marginTop: '4px' }}>Invalid format</div>
+                  )}
+                </div>
               </td>
               <td>—</td>
               <td className="td-desc">CPU request (e.g. 4, 500m)</td>
@@ -305,9 +341,14 @@ export default function TunerConfigForm({
             <tr>
               <td title="resources.limits.cpu">CPU Limits</td>
               <td className="td-current">
-                <input type="text" value={editedValues["resources.limits.cpu"] as string ?? getResourceValue("limits", "cpu")}
-                       onChange={e => handleResourceChange("resources.limits.cpu", e.target.value)}
-                       placeholder="e.g. 8, 1000m" />
+                <div>
+                  <input type="text" value={editedValues["resources.limits.cpu"] as string ?? getResourceValue("limits", "cpu")}
+                         onChange={e => handleResourceChange("resources.limits.cpu", e.target.value)}
+                         placeholder="e.g. 8, 1000m" />
+                  {resourceErrors["resources.limits.cpu"] && (
+                    <div style={{ color: 'red', fontSize: '12px', marginTop: '4px' }}>Invalid format</div>
+                  )}
+                </div>
               </td>
               <td>—</td>
               <td className="td-desc">CPU limit (e.g. 8, 1000m)</td>
@@ -315,9 +356,14 @@ export default function TunerConfigForm({
             <tr>
               <td title="resources.requests.memory">Memory Requests</td>
               <td className="td-current">
-                <input type="text" value={editedValues["resources.requests.memory"] as string ?? getResourceValue("requests", "memory")}
-                       onChange={e => handleResourceChange("resources.requests.memory", e.target.value)}
-                       placeholder="e.g. 8Gi, 512Mi" />
+                <div>
+                  <input type="text" value={editedValues["resources.requests.memory"] as string ?? getResourceValue("requests", "memory")}
+                         onChange={e => handleResourceChange("resources.requests.memory", e.target.value)}
+                         placeholder="e.g. 8Gi, 512Mi" />
+                  {resourceErrors["resources.requests.memory"] && (
+                    <div style={{ color: 'red', fontSize: '12px', marginTop: '4px' }}>Invalid format</div>
+                  )}
+                </div>
               </td>
               <td>—</td>
               <td className="td-desc">Memory request (e.g. 8Gi, 512Mi)</td>
@@ -325,9 +371,14 @@ export default function TunerConfigForm({
             <tr>
               <td title="resources.limits.memory">Memory Limits</td>
               <td className="td-current">
-                <input type="text" value={editedValues["resources.limits.memory"] as string ?? getResourceValue("limits", "memory")}
-                       onChange={e => handleResourceChange("resources.limits.memory", e.target.value)}
-                       placeholder="e.g. 16Gi" />
+                <div>
+                  <input type="text" value={editedValues["resources.limits.memory"] as string ?? getResourceValue("limits", "memory")}
+                         onChange={e => handleResourceChange("resources.limits.memory", e.target.value)}
+                         placeholder="e.g. 16Gi" />
+                  {resourceErrors["resources.limits.memory"] && (
+                    <div style={{ color: 'red', fontSize: '12px', marginTop: '4px' }}>Invalid format</div>
+                  )}
+                </div>
               </td>
               <td>—</td>
               <td className="td-desc">Memory limit (e.g. 16Gi)</td>
@@ -335,10 +386,15 @@ export default function TunerConfigForm({
             <tr>
               <td title="resources.limits.nvidia.com/gpu">GPU Limits</td>
               <td className="td-current">
-                <input type="number" min={0} step={1}
-                       value={editedValues["resources.limits.nvidia.com/gpu"] as string ?? getResourceValue("limits", "nvidia.com/gpu")}
-                       onChange={e => handleResourceChange("resources.limits.nvidia.com/gpu", e.target.value)}
-                       placeholder="0" />
+                <div>
+                  <input type="number" min={0} step={1}
+                         value={editedValues["resources.limits.nvidia.com/gpu"] as string ?? getResourceValue("limits", "nvidia.com/gpu")}
+                         onChange={e => handleResourceChange("resources.limits.nvidia.com/gpu", e.target.value)}
+                         placeholder="0" />
+                  {resourceErrors["resources.limits.nvidia.com/gpu"] && (
+                    <div style={{ color: 'red', fontSize: '12px', marginTop: '4px' }}>Invalid format</div>
+                  )}
+                </div>
               </td>
               <td>—</td>
               <td className="td-desc">GPU count</td>
@@ -418,7 +474,7 @@ export default function TunerConfigForm({
           <button
             className="btn btn-secondary"
             onClick={() => onApplyCurrentValues(editedValues)}
-            disabled={Object.keys(editedValues).length === 0}
+            disabled={Object.keys(editedValues).length === 0 || Object.values(resourceErrors).some(e => e)}
           >
             Apply Current Values
           </button>
