@@ -2,6 +2,43 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-29] - Codebase Quality Hardening
+
+**Status**: Completed
+
+TypeScript 오류 전수 수정, 빈 catch 블록 제거, 대용량 파일 분해, 백엔드 견고성(타임아웃/재시도/Rate Limiting/유효성 검증), 로딩 상태 일관성, 공개 API Docstring, deploy.sh 버그 수정.
+
+### Fixed
+- **`deploy.sh`**: `podman push` 출력을 변수로 캡처하던 방식 제거 — exit code가 유실되어 push 실패가 묵살되던 버그 수정.
+- **`frontend/src/components/SweepChart.tsx`**: TypeScript 오류 수정.
+- **`frontend/src/components/TunerConfigForm.test.tsx`**: TypeScript 오류 수정.
+
+### Added
+- **`backend/services/rate_limiter.py`** + **`backend/main.py`**: slowapi 기반 Rate Limiting 미들웨어 — 전역 60/min, sweep 5/min, metrics 120/min. `/health` 예외 처리.
+- **`backend/services/multi_target_collector.py`**: `_with_retry()` 헬퍼 — httpx Timeout/ConnectError 및 5xx 응답에 대해 지수 백오프 재시도 (1s/2s/4s, 최대 3회).
+- **`frontend/src/components/LoadingSpinner.tsx`**: 3-dot 펄스 애니메이션 로딩 컴포넌트 (`role="status"`, `aria-label="Loading"`).
+- **`backend/routers/`**: 모든 public FastAPI 라우트 핸들러에 Google-style Docstring 추가 (load_test, metrics, benchmark, tuner, sla, vllm_config).
+- **`backend/routers/load_test.py`**, **`backend/routers/metrics.py`**, **`backend/routers/benchmark.py`**, **`backend/routers/sla.py`**, **`backend/routers/vllm_config.py`**: 입력 유효성 검증 강화 (Pydantic validators).
+
+### Changed
+- **Empty catch blocks 전수 제거**: hooks/utils (.ts), components (.tsx), pages (.tsx) — 모든 미처리 예외에 `console.error` 또는 `console.warn` 로깅 추가.
+- **`fetch()` → `authFetch()` 마이그레이션**: 잔여 fetch 호출 전수 교체.
+- **SQLite WAL 모드 활성화**: `backend/services/storage.py`.
+- **nginx CSP 헤더 추가**: `frontend/nginx.conf` — `Content-Security-Policy`, `X-Content-Type-Options`, `X-Frame-Options`.
+- **접근성**: 클릭 가능한 테이블 행에 키보드 지원 (`tabIndex`, `onKeyDown`, `role="button"`).
+- **컴포넌트 분해** (>300줄 파일 해소):
+  - `TunerConfigForm.tsx` 506→<300줄
+  - `MonitorPage.tsx` 485→<300줄
+  - `TunerPage.tsx` 455→<300줄
+  - `SlaPage.tsx` 375→<250줄
+- **`backend/services/`** 분해 (>80줄 함수 해소):
+  - `storage._create_tables` → 헬퍼 4개 추출
+  - `load_engine._dispatch_request` → 헬퍼 3개 추출
+  - `vllm_config.patch_vllm_config` → 헬퍼 2개 추출
+- **`backend/services/metrics_collector.py`**: httpx `timeout=10.0` 전수 적용.
+- **로딩 상태 일관성**: BenchmarkPage, SlaPage 초기 렌더링에 LoadingSpinner 가드 추가.
+- **MonitorPage 시간 범위**: `query_range` API 연동 (6h/24h/7d 실제 데이터 조회).
+
 ## [2026-03-28] - Comprehensive Improvements: UI Translation, Code Quality, Accessibility
 
 **Status**: Completed
