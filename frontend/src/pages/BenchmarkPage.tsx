@@ -7,6 +7,7 @@ import { downloadJSON, downloadCSV, benchmarksToCSV } from '../utils/export';
 import { useMockData } from "../contexts/MockDataContext";
 import { useBenchmarkSelection } from "../contexts/BenchmarkSelectionContext";
 import ErrorAlert from "../components/ErrorAlert";
+import LoadingSpinner from "../components/LoadingSpinner";
 import BenchmarkTable from "../components/BenchmarkTable";
 import BenchmarkMetadataModal from "../components/BenchmarkMetadataModal";
 import BenchmarkCompareCharts from "../components/BenchmarkCompareCharts";
@@ -183,17 +184,23 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
   return (
     <div className="flex-col-16">
       <ErrorAlert message={error} className="error-alert--mb8" />
-      <BenchmarkTable
-        benchmarks={benchmarks} selected={selected} expanded={expanded} loading={loading}
-        importing={importing} importInputRef={importInputRef} onToggleSelect={toggleSelect}
-        onToggleExpand={toggleExpand} onDelete={handleDelete} onEdit={setEditing}
-        onExportJSON={handleExportJSON} onExportCSV={handleExportCSV}
-        onImport={handleImport} onBulkDelete={handleBulkDelete} onRerun={onRerun}
-      />
-      {editing && (
-        <BenchmarkMetadataModal editing={editing} onClose={() => setEditing(null)} onSave={handleSaveMetadata} />
+      {loading && benchmarks.length === 0 ? (
+        <LoadingSpinner />
+      ) : (
+        <>
+          <BenchmarkTable
+            benchmarks={benchmarks} selected={selected} expanded={expanded} loading={loading}
+            importing={importing} importInputRef={importInputRef} onToggleSelect={toggleSelect}
+            onToggleExpand={toggleExpand} onDelete={handleDelete} onEdit={setEditing}
+            onExportJSON={handleExportJSON} onExportCSV={handleExportCSV}
+            onImport={handleImport} onBulkDelete={handleBulkDelete} onRerun={onRerun}
+          />
+          {editing && (
+            <BenchmarkMetadataModal editing={editing} onClose={() => setEditing(null)} onSave={handleSaveMetadata} />
+          )}
+          {compareData.length >= 2 && <BenchmarkCompareCharts compareData={compareData} />}
+        </>
       )}
-      {compareData.length >= 2 && <BenchmarkCompareCharts compareData={compareData} />}
     </div>
   );
 }

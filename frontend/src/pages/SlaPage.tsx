@@ -3,6 +3,7 @@ import { authFetch } from '../utils/authFetch';
 import { API, COLORS, TOOLTIP_STYLE, TARGET_COLORS } from "../constants";
 import { ERROR_MESSAGES } from "../constants/errorMessages";
 import ErrorAlert from "../components/ErrorAlert";
+import LoadingSpinner from "../components/LoadingSpinner";
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer, Legend } from 'recharts';
 import { useBenchmarkSelection } from '../contexts/BenchmarkSelectionContext';
 import SlaProfileForm, { SlaFormState } from "../components/SlaProfileForm";
@@ -157,7 +158,11 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
     <div className="flex-col-16">
       <ErrorAlert message={error} className="error-alert--mb8" />
       <SlaProfileForm formState={formState} onChange={handleFormChange} onSubmit={handleSubmit} onCancel={resetForm} editingId={editingId} />
-      <SlaProfileList profiles={profiles} onEdit={handleEdit} onDelete={handleDelete} selectedProfileId={selectedProfileId} onSelect={handleProfileSelect} loading={loading} />
+      {loading && profiles.length === 0 ? (
+        <LoadingSpinner />
+      ) : (
+        <SlaProfileList profiles={profiles} onEdit={handleEdit} onDelete={handleDelete} selectedProfileId={selectedProfileId} onSelect={handleProfileSelect} loading={loading} />
+      )}
       {selectedProfileId && (
         <div className="panel" aria-live="polite">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
