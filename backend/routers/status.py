@@ -9,8 +9,9 @@ import logging
 import os
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from services.shared import runtime_config
+from services.rate_limiter import limiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -29,7 +30,8 @@ async def set_interrupted_runs(runs: list[dict[str, Any]]) -> None:
 
 
 @router.get("/status/interrupted")
-async def get_interrupted_runs() -> dict[str, Any]:
+@limiter.limit("60/minute")
+async def get_interrupted_runs(request: Request) -> dict[str, Any]:
     """Return interrupted runs, clear the stored list, and mark DB rows as cleared."""
     global _interrupted_runs
     async with _lock:
@@ -52,7 +54,7 @@ async def get_interrupted_runs() -> dict[str, Any]:
 
 async def check_prometheus_health() -> bool:
     """Check Prometheus/Thanos connectivity with a lightweight query."""
-    from services.shared import internal_client
+    from services.shared import get_internal_client
 
     try:
         thanos_url = os.getenv("PROMETHEUS_URL", "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091")
@@ -66,8 +68,7 @@ async def check_prometheus_health() -> bool:
         headers = {"Authorization": f"Bearer {token}"} if token else {}
 
         query = "1"
-        if not internal_client:
-            return False
+        internal_client = get_internal_client()
         resp = await internal_client.get(
             f"{thanos_url}/api/v1/query",
             headers=headers,

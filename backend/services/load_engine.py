@@ -108,12 +108,12 @@ class LoadTestEngine:
             cpu = await asyncio.to_thread(proc.cpu_percent)
             gpu = 0.0
             try:
-                shared_module = importlib.import_module("services.shared")
-                external_client = shared_module.external_client
-                if external_client:
-                    resp = await external_client.get("http://localhost:8000/api/metrics/latest", timeout=5)
-                    if resp.status_code == 200:
-                        gpu = resp.json().get("gpu_util", 0.0)
+                from services.shared import get_external_client
+
+                external_client = get_external_client()
+                resp = await external_client.get("http://localhost:8000/api/metrics/latest", timeout=5)
+                if resp.status_code == 200:
+                    gpu = resp.json().get("gpu_util", 0.0)
             except httpx.HTTPError as e:
                 logger.debug("[LoadEngine] GPU metrics unavailable: %s", e)
             samples.append({"cpu": cpu, "gpu": gpu})
@@ -133,8 +133,7 @@ class LoadTestEngine:
         return semaphore, metric_samples, sample_stop, sampling_task, interval
 
     async def _preflight_check(self, config: "LoadTestConfig") -> dict[str, Any]:
-        shared_module = importlib.import_module("services.shared")
-        internal_client = shared_module.internal_client
+        from services.shared import get_internal_client
 
         if config.total_requests < 1:
             return {
@@ -153,8 +152,7 @@ class LoadTestEngine:
         models_url = f"{endpoint}/v1/models"
 
         try:
-            if not internal_client:
-                return {"success": False, "error": "HTTP client not initialized", "error_type": "internal"}
+            internal_client = get_internal_client()
             response = await internal_client.get(models_url, timeout=5.0)
         except httpx.ConnectError as e:
             return {
