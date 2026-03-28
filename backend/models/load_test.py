@@ -13,6 +13,16 @@ from typing import Any
 from pydantic import BaseModel, Field, model_validator
 
 
+class SyntheticPromptConfig(BaseModel):
+    """Synthetic prompt generation configuration"""
+
+    distribution: str = Field(default="uniform", description="Distribution type: 'uniform' or 'normal'")
+    min_tokens: int = Field(default=50, ge=1, description="Minimum approximate token count")
+    max_tokens: int = Field(default=500, ge=1, description="Maximum approximate token count")
+    mean_tokens: int | None = Field(default=None, ge=1, description="Mean tokens for normal distribution")
+    stddev_tokens: int | None = Field(default=None, ge=1, description="Std dev tokens for normal distribution")
+
+
 class LoadTestConfig(BaseModel):
     """Load test configuration"""
 
@@ -28,6 +38,10 @@ class LoadTestConfig(BaseModel):
     max_tokens: int = Field(default=256, ge=1, description="Max tokens to generate")
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Temperature for generation")
     stream: bool = Field(default=True, description="Enable streaming mode")
+    prompt_mode: str = Field(default="static", description="Prompt mode: 'static' or 'synthetic'")
+    synthetic_config: SyntheticPromptConfig | None = Field(
+        default=None, description="Synthetic prompt config (used when prompt_mode='synthetic')"
+    )
 
 
 class RequestResult(BaseModel):
@@ -231,6 +245,9 @@ class BenchmarkMetadata(BaseModel):
     replica_count: int | None = Field(default=None, description="레플리카 수")
     notes: str | None = Field(default=None, description="사용자 메모")
     extra: dict[str, str] = Field(default_factory=dict, description="사용자 자유 key-value (문자열 쌍)")
+    source: str | None = Field(
+        default=None, description="Benchmark source: None=native, 'guidellm'=imported from GuideLLM"
+    )
 
 
 class Benchmark(BaseModel):
