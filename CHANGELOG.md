@@ -2,6 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-28] - Comprehensive Improvements: UI Translation, Code Quality, Accessibility
+
+**Status**: Completed
+
+OpenShift ImageStream 어노테이션 복원, 전체 UI 한→영 번역, MonitorPage 시간 범위 버튼 수정, TunerPage vLLM 옵션명 표시, 백엔드 리팩토링, 컴포넌트 분해, 접근성 개선.
+
+### Fixed
+- **`openshift/base/04-frontend.yaml`**: `image.openshift.io/triggers` 어노테이션 복원 (commit `87ce9f5`에서 삭제된 oauth-proxy용 ImageStream 트리거, 에어갭 환경 필수).
+- **`frontend/src/pages/MonitorPage.tsx`**: 1h/6h/24h/7d 시간 범위 버튼이 실제로 백엔드에 `history_points` 파라미터를 전달하도록 수정 (기존: UI 상태만 변경, 백엔드 미반영).
+
+### Added
+- **`backend/routers/metrics.py`**: `/api/metrics/batch` 엔드포인트에 선택적 `history_points` 파라미터 추가 (기본값 60, 최대 `MAX_HISTORY_POINTS=1000`).
+- **`frontend/src/components/TunerConfigForm.tsx`**: K8s 리소스 필드 입력 검증 추가 (CPU: 정수/밀리코어/소수, Memory: Gi/Mi 접미사 필수, GPU: 정수만 허용). 인라인 오류 메시지, 오류 시 저장 버튼 비활성화.
+
+### Changed
+- **UI 번역 (한→영)**: 32개 프론트엔드 파일 전체 (~157개 문자열). Korean 문자 zero 달성. i18n 프레임워크 미사용 — 직접 문자열 교체.
+- **TunerPage/TunerConfigForm**: 파라미터 라벨을 vLLM CLI 옵션명으로 표시 (`max_num_seqs`, `gpu_memory_utilization`, `max_model_len` 등).
+- **`backend/services/auto_tuner.py`**: `start()` 162줄 → ~101줄. 헬퍼 메서드 4개 추출 (`_initialize_start_state`, `_validate_preflight`, `_validate_initial_readiness`, `_execute_trial`).
+- **`backend/services/load_engine.py`**: `run()` 98줄 → 41줄. 헬퍼 메서드 3개 추출 (`_create_consecutive_failure_checker`, `_execute_requests`, `_drain_remaining_tasks`).
+- **`frontend/src/pages/LoadTestPage.tsx`**: 666줄 → 52줄. `LoadTestNormalMode.tsx`, `LoadTestSweepMode.tsx`로 분해.
+- **`frontend/src/pages/BenchmarkPage.tsx`**: 587줄 → 200줄. `BenchmarkTable.tsx`, `BenchmarkMetadataModal.tsx`, `BenchmarkCompareCharts.tsx`로 분해.
+- **Promise 오류 처리**: `LoadTestPage`, `SlaPage`, `BenchmarkPage`, `TunerPage` 전체 미처리 거부 해결. `console.error` 로깅 추가.
+- **접근성**: MonitorPage 시간 범위 버튼에 `aria-label` 추가. TunerConfigForm 리소스 입력 필드에 `aria-label` 추가.
+- **`frontend/src/hooks/useSSE.ts`**: 기존 훅이 2개 소비자에서 활용 중 (LoadTestSweepMode, TunerPage) — 훅 재사용 완료.
+
+### Removed
+- **Production `console.warn`/`console.log`**: 프론트엔드 소스 전체에서 제거 (`console.error`는 유지).
+
+### Tests
+- 백엔드 단위 테스트 506개 전체 통과 (`not integration`).
+
 ## [2026-03-28] - Security: Backend Hardening (Input Validation, SSE Errors, Rate Limiting, Deploy Rollback)
 
 **Status**: Completed
