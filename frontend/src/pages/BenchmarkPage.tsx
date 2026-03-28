@@ -87,7 +87,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
       })
       .catch(err => {
         if (err instanceof Error && err.name === 'AbortError') return;
-        setError(`벤치마크 조회 실패: ${(err as Error).message}`);
+        setError(`Failed to fetch benchmarks: ${(err as Error).message}`);
       })
       .finally(() => {
         setLoading(false);
@@ -115,7 +115,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
 
   const handleDelete = async (b: BenchmarkItem, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!window.confirm(`벤치마크 '${b.name}'을(를) 삭제하시겠습니까?`)) return;
+    if (!window.confirm(`Delete benchmark '${b.name}'?`)) return;
 
     if (isMockEnabled) {
       setBenchmarks(prev => prev.filter(x => x.id !== b.id));
@@ -130,7 +130,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
       setSelected(selected.filter(x => x !== b.id));
       fetchBenchmarks();
     } catch (err) {
-      setError(`삭제 실패: ${(err as Error).message}`);
+      setError(`Delete failed: ${(err as Error).message}`);
     }
   };
 
@@ -158,7 +158,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
       setBenchmarks(prev => prev.map(b => b.id === benchmarkId ? updated : b));
       setEditing(null);
     } catch (err) {
-      setError(`메타데이터 저장 실패: ${(err as Error).message}`);
+      setError(`Failed to save metadata: ${(err as Error).message}`);
     }
   };
 
@@ -192,7 +192,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
 
   const handleBulkDelete = async () => {
     if (selected.length === 0) return;
-    if (!window.confirm(`${selected.length}개의 벤치마크를 삭제하시겠습니까?`)) return;
+    if (!window.confirm(`Delete ${selected.length} benchmark(s)?`)) return;
 
     if (isMockEnabled) {
       setBenchmarks(prev => prev.filter(b => !selected.includes(b.id)));
@@ -210,7 +210,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
       setSelected([]);
       fetchBenchmarks();
     } catch (err) {
-      setError(`일괄 삭제 실패: ${(err as Error).message}`);
+      setError(`Bulk delete failed: ${(err as Error).message}`);
     }
   };
 
@@ -246,15 +246,15 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
         body: formData,
       });
       if (!resp.ok) {
-        const err = await resp.json().catch(() => ({ detail: "알 수 없는 오류" }));
+        const err = await resp.json().catch(() => ({ detail: "Unknown error" }));
         throw new Error(err.detail || `HTTP ${resp.status}`);
       }
       const data = await resp.json();
       setError(null);
       fetchBenchmarks();
-      alert(`${data.imported_count}개 벤치마크가 임포트되었습니다.`);
+      alert(`${data.imported_count} benchmark(s) imported successfully.`);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "임포트 실패");
+      setError(err instanceof Error ? err.message : "Import failed");
     } finally {
       setImporting(false);
       if (importInputRef.current) importInputRef.current.value = "";
@@ -280,16 +280,16 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
     <div className="flex-col-16">
       <ErrorAlert message={error} className="error-alert--mb8" />
        <div className="panel">
-         <div className="section-title">저장된 벤치마크</div>
+         <div className="section-title">Saved Benchmarks</div>
           {loading ? (
-            <div style={{ textAlign: 'center', padding: '40px', color: COLORS.muted }}>로딩 중...</div>
+            <div style={{ textAlign: 'center', padding: '40px', color: COLORS.muted }}>Loading...</div>
           ) : (
             <>
 <div style={{ marginBottom: '16px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-  <button className="btn-primary" disabled={benchmarks.length === 0} onClick={handleExportJSON}>JSON 내보내기</button>
-  <button className="btn-primary" disabled={benchmarks.length === 0} onClick={handleExportCSV}>CSV 내보내기</button>
+  <button className="btn-primary" disabled={benchmarks.length === 0} onClick={handleExportJSON}>Export JSON</button>
+  <button className="btn-primary" disabled={benchmarks.length === 0} onClick={handleExportCSV}>Export CSV</button>
   <button className="btn-outline" disabled={importing} onClick={() => importInputRef.current?.click()}>
-    {importing ? "임포트 중..." : "GuideLLM 결과 임포트"}
+    {importing ? "Importing..." : "Import GuideLLM Results"}
   </button>
   <input
     ref={importInputRef}
@@ -298,9 +298,9 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
     style={{ display: 'none' }}
     onChange={handleImport}
   />
-  <button className="btn-danger" disabled={selected.length === 0} onClick={handleBulkDelete}>선택 삭제 ({selected.length})</button>
+  <button className="btn-danger" disabled={selected.length === 0} onClick={handleBulkDelete}>Delete Selected ({selected.length})</button>
 </div>
-               <table className="table" aria-label="저장된 벤치마크 목록">
+               <table className="table" aria-label="Saved benchmark list">
           <thead>
             <tr>
               <th></th>
@@ -312,7 +312,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
               <th>P99 ms</th>
               <th>RPS</th>
               <th>GPU Eff.</th>
-              <th>삭제</th>
+              <th>Delete</th>
             </tr>
           </thead>
           <tbody>
@@ -325,7 +325,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
                   <tr onClick={() => toggleExpand(b.id)}
                     className={`benchmark-row ${isSelected ? 'benchmark-row--selected' : ''} ${isExpanded ? 'benchmark-row--expanded' : ''}`}>
                     <td onClick={(e) => toggleSelect(b.id, e)}>
-                      <input type="checkbox" checked={isSelected} readOnly aria-label={`벤치마크 ${b.name} 선택`} />
+                      <input type="checkbox" checked={isSelected} readOnly aria-label={`Select benchmark ${b.name}`} />
                     </td>
                     <td className="td-text">
                       {b.name}
@@ -345,7 +345,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
                       {eff.mismatch ? <span title="GPU metrics mismatch">N/A</span> : eff.display || "—"}
                     </td>
                     <td>
-                      <button className="btn-icon" aria-label="벤치마크 삭제" onClick={(e) => handleDelete(b, e)}>✕</button>
+                      <button className="btn-icon" aria-label="Delete benchmark" onClick={(e) => handleDelete(b, e)}>✕</button>
                     </td>
                   </tr>
                   {isExpanded && (
@@ -389,14 +389,14 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
                             )}
                           </div>
                           <div className="metadata-actions">
-                            <button className="btn-small" onClick={() => setEditing(b)}>편집</button>
+                            <button className="btn-small" onClick={() => setEditing(b)}>Edit</button>
                             {b.config && onRerun && (
                               <button
                                 className="btn-small"
                                 onClick={(e) => { e.stopPropagation(); onRerun(b.config!); }}
-                                aria-label="이 설정으로 부하 테스트 재실행"
+                                aria-label="Rerun load test with this config"
                               >
-                                ▶ 재실행
+                                ▶ Rerun
                               </button>
                             )}
                           </div>
@@ -409,7 +409,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
             })}
             {benchmarks.length === 0 && (
               <tr><td colSpan={10} className="benchmark-empty">
-                부하 테스트 결과를 저장하면 여기 나타납니다.
+                Saved load test results will appear here.
               </td></tr>
             )}
            </tbody>
@@ -422,7 +422,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="modal-header">
-              <h3>벤치마크 메타데이터 편집</h3>
+              <h3>Edit Benchmark Metadata</h3>
               <button className="btn-close" onClick={() => setEditing(null)}>✕</button>
             </div>
             <form onSubmit={handleSaveMetadata} className="metadata-form">
@@ -432,9 +432,9 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
                   type="text"
                   value={editing.metadata?.model_identifier || ""}
                   onChange={e => updateMetadataField('model_identifier', e.target.value)}
-                  placeholder="예: llama-3.1-8b-instruct"
+                  placeholder="e.g. llama-3.1-8b-instruct"
                 />
-                 <small className="help-text">실제 모델 이름을 입력하세요 (기본값은 서빙 이름 small-llm-d)</small>
+                 <small className="help-text">Enter the actual model name (default is serving name small-llm-d)</small>
               </div>
               <div className="form-row">
                 <div className="form-group">
@@ -443,7 +443,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
                     type="text"
                     value={editing.metadata?.hardware_type || ""}
                     onChange={e => updateMetadataField('hardware_type', e.target.value)}
-                    placeholder="예: A100, L4, CPU"
+                     placeholder="e.g. A100, L4, CPU"
                   />
                 </div>
                 <div className="form-group">
@@ -452,7 +452,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
                     type="text"
                     value={editing.metadata?.runtime || ""}
                     onChange={e => updateMetadataField('runtime', e.target.value)}
-                    placeholder="예: OpenVINO, CUDA"
+                     placeholder="e.g. OpenVINO, CUDA"
                   />
                 </div>
               </div>
@@ -463,7 +463,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
                     type="text"
                     value={editing.metadata?.vllm_version || ""}
                     onChange={e => updateMetadataField('vllm_version', e.target.value)}
-                    placeholder="예: 0.6.2"
+                     placeholder="e.g. 0.6.2"
                   />
                 </div>
                 <div className="form-group">
@@ -505,13 +505,13 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
                   ))}
                   <button type="button" className="btn-outline-small"
                     onClick={() => updateExtra(`key_${Object.keys(editing.metadata?.extra || {}).length + 1}`, "value")}>
-                    + 항목 추가
+                    + Add Entry
                   </button>
                 </div>
               </div>
               <div className="form-actions">
-                <button type="button" className="btn-secondary" onClick={() => setEditing(null)}>취소</button>
-                <button type="submit" className="btn-primary">저장</button>
+                <button type="button" className="btn-secondary" onClick={() => setEditing(null)}>Cancel</button>
+                 <button type="submit" className="btn-primary">Save</button>
               </div>
             </form>
           </div>
@@ -520,10 +520,10 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
 
       {compareData.length >= 2 && (
         <div className="panel">
-          <div className="section-title">비교 차트</div>
+           <div className="section-title">Comparison Charts</div>
           <div className="benchmark-compare-charts">
              <div>
-               <div className="label">TPS 비교</div>
+               <div className="label">TPS Comparison</div>
                <ResponsiveContainer width="100%" height={200}>
                  <BarChart data={compareData}>
                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
@@ -539,7 +539,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
                </ResponsiveContainer>
              </div>
              <div>
-               <div className="label">P99 Latency 비교 (ms)</div>
+               <div className="label">P99 Latency Comparison (ms)</div>
                <ResponsiveContainer width="100%" height={200}>
                  <BarChart data={compareData}>
                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
@@ -555,7 +555,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
                </ResponsiveContainer>
              </div>
              <div>
-               <div className="label">GPU 효율 비교 (TPS/GPU%)</div>
+               <div className="label">GPU Efficiency Comparison (TPS/GPU%)</div>
                <ResponsiveContainer width="100%" height={200}>
                  <BarChart data={compareData.filter(d => d.metricsTargetMatched)}>
                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />

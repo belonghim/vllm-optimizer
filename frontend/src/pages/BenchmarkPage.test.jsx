@@ -51,7 +51,7 @@ describe("BenchmarkPage", () => {
       }));
       render(<BenchmarkPage isActive={true} />);
       await waitFor(() =>
-        expect(screen.getByText("부하 테스트 결과를 저장하면 여기 나타납니다.")).toBeInTheDocument()
+        expect(screen.getByText("Saved load test results will appear here.")).toBeInTheDocument()
       );
     });
 
@@ -60,7 +60,7 @@ describe("BenchmarkPage", () => {
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
       render(<BenchmarkPage isActive={true} />);
       await waitFor(() =>
-        expect(screen.getByText(/벤치마크 조회 실패/)).toBeInTheDocument()
+        expect(screen.getByText(/Failed to fetch benchmarks/)).toBeInTheDocument()
       );
     });
   });
@@ -68,7 +68,7 @@ describe("BenchmarkPage", () => {
   describe("delete", () => {
     it("shows delete button for each row", () => {
       render(<BenchmarkPage isActive={true} />);
-      const buttons = screen.getAllByRole("button", { name: "벤치마크 삭제" });
+      const buttons = screen.getAllByRole("button", { name: "Delete benchmark" });
       expect(buttons.length).toBeGreaterThan(0);
     });
 
@@ -77,7 +77,7 @@ describe("BenchmarkPage", () => {
       vi.stubGlobal("confirm", vi.fn(() => true));
       render(<BenchmarkPage isActive={true} />);
 
-      const buttons = screen.getAllByRole("button", { name: "벤치마크 삭제" });
+      const buttons = screen.getAllByRole("button", { name: "Delete benchmark" });
       const initialRows = screen.getAllByRole("row").length;
       await user.click(buttons[0]);
 
@@ -91,7 +91,7 @@ describe("BenchmarkPage", () => {
       vi.stubGlobal("confirm", vi.fn(() => false));
       render(<BenchmarkPage isActive={true} />);
 
-      const buttons = screen.getAllByRole("button", { name: "벤치마크 삭제" });
+      const buttons = screen.getAllByRole("button", { name: "Delete benchmark" });
       const initialRows = screen.getAllByRole("row").length;
       await user.click(buttons[0]);
 
