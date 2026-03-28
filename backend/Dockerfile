@@ -12,6 +12,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/app PORT=8000 PATH=
 WORKDIR /app
 USER root
 # curl is pre-installed in ubi9/python-311; no additional packages needed for healthchecks.
+COPY requirements.txt /app/requirements.txt
 COPY --from=builder /opt/app-root /opt/app-root
 COPY . /app
 RUN echo $(date +%s)
