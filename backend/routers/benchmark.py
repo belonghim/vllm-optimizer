@@ -33,7 +33,7 @@ def get_storage() -> Storage:
     },
 )
 async def list_benchmarks(
-    limit: int = Query(default=20, ge=1),
+    limit: int = Query(default=20, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
     response: Response = None,
     storage: Storage = Depends(get_storage),

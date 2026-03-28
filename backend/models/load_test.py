@@ -32,13 +32,14 @@ class LoadTestConfig(BaseModel):
     model: str = Field(default="auto", description="Model name")
     prompt_template: str = Field(default="Hello, how are you?", description="Prompt for generation")
     total_requests: int = Field(default=100, ge=1, description="Total number of requests")
-    concurrency: int = Field(default=10, ge=1, le=500, description="Concurrent requests")
+    concurrency: int = Field(default=10, ge=1, le=1000, description="Concurrent requests")
     duration: int = Field(default=30, ge=1, le=3600, description="Test duration in seconds (max 1 hour)")
     rps: int = Field(default=0, ge=0, description="Requests per second (0=unlimited)")
-    max_tokens: int = Field(default=256, ge=1, description="Max tokens to generate")
+    max_tokens: int = Field(default=256, ge=1, le=8192, description="Max tokens to generate")
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Temperature for generation")
     stream: bool = Field(default=True, description="Enable streaming mode")
     prompt_mode: str = Field(default="static", description="Prompt mode: 'static' or 'synthetic'")
+    endpoint_type: str = Field(default="completions", description="API endpoint type: 'completions' or 'chat'")
     synthetic_config: SyntheticPromptConfig | None = Field(
         default=None, description="Synthetic prompt config (used when prompt_mode='synthetic')"
     )
@@ -285,7 +286,7 @@ class BatchMetricsRequest(BaseModel):
     """Request body for batch metrics endpoint."""
 
     targets: list[MetricsTarget] = Field(description="List of targets to query")
-    history_points: int = Field(default=60, description="Number of history points to return per target")
+    history_points: int = Field(default=60, ge=1, le=1000, description="Number of history points to return per target")
 
 
 class BatchMetricsResponse(BaseModel):

@@ -316,7 +316,7 @@ async def stream_load_test_results(test_id: str | None = None) -> StreamingRespo
     },
 )
 async def get_load_test_history(
-    limit: int = Query(default=10, ge=1),
+    limit: int = Query(default=10, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
     response: Response = None,
 ) -> list[dict[str, Any]]:
