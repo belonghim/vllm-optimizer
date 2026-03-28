@@ -3,14 +3,20 @@ import { authFetch } from '../utils/authFetch';
 import { mockMetrics, mockHistory } from "../mockData";
 import { useMockData } from "../contexts/MockDataContext";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
-import { API, TARGET_COLORS, METRIC_KEYS, COLORS as DARK_COLORS } from "../constants";
+import { API, METRIC_KEYS } from "../constants";
 import { useThemeColors } from "../contexts/ThemeContext";
-import Chart from "../components/Chart";
 import ErrorAlert from "../components/ErrorAlert";
 import MultiTargetSelector from "../components/MultiTargetSelector";
 import { buildGapFill } from "../utils/gapFill";
-import type { ClusterTarget } from "../types";
 import { showSlaViolation } from "../components/Toast";
+import MonitorChartGrid, {
+  buildChartLinesMap, loadChartConfig, saveChartConfig,
+  type ChartConfig,
+} from "../components/MonitorChartGrid";
+import MonitorMetricCards from "../components/MonitorMetricCards";
+
+// Re-export for backwards compatibility (tests import from this module)
+export { buildChartLinesMap } from "../components/MonitorChartGrid";
 
 interface SlaThresholds {
   availability_min: number | null;
@@ -211,6 +217,7 @@ function MonitorPage({ isActive }: MonitorPageProps) {
   const [timeRangePoints, setTimeRangePoints] = useState(60);
   const [selectedRange, setSelectedRange] = useState('1h');
   const timeRangePointsRef = useRef(60);
+  const selectedRangeRef = useRef('1h');
   const lastViolationTime = useRef<Record<string, number>>({});
 
   const chartOrder = chartState.order;
@@ -262,7 +269,11 @@ function MonitorPage({ isActive }: MonitorPageProps) {
       const res = await authFetch(`${API}/metrics/batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targets: batchTargets, history_points: timeRangePointsRef.current }),
+        body: JSON.stringify(
+          ['6h', '24h', '7d'].includes(selectedRangeRef.current)
+            ? { targets: batchTargets, time_range: selectedRangeRef.current }
+            : { targets: batchTargets, history_points: timeRangePointsRef.current }
+        ),
         signal,
       });
 
@@ -428,7 +439,7 @@ function MonitorPage({ isActive }: MonitorPageProps) {
               data-testid="time-range-btn"
               aria-label={`Show last ${r.label}`}
               className={`btn btn-sm${selectedRange === r.label ? ' active' : ''}`}
-              onClick={() => { setTimeRangePoints(r.points); setSelectedRange(r.label); timeRangePointsRef.current = r.points; }}
+              onClick={() => { setTimeRangePoints(r.points); setSelectedRange(r.label); timeRangePointsRef.current = r.points; selectedRangeRef.current = r.label; }}
             >
               {r.label}
             </button>
