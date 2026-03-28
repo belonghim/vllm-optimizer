@@ -128,6 +128,8 @@ export default function TunerHistoryPanel() {
               <tr 
                 key={s.id} 
                 onClick={() => toggleSelect(s.id)}
+                onKeyDown={(e) => (e.key === " " || e.key === "Enter") && toggleSelect(s.id)}
+                tabIndex={0}
                 style={{ cursor: 'pointer', backgroundColor: selectedIds.includes(s.id) ? 'var(--bg-highlight)' : 'transparent' }}
               >
                 <td>

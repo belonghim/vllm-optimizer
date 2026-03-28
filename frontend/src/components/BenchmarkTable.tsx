@@ -77,7 +77,16 @@ export default function BenchmarkTable({
                       onClick={() => onToggleExpand(b.id)}
                       className={`benchmark-row ${isSelected ? 'benchmark-row--selected' : ''} ${isExpanded ? 'benchmark-row--expanded' : ''}`}
                     >
-                      <td onClick={(e) => onToggleSelect(b.id, e)}>
+                      <td 
+                        onClick={(e) => onToggleSelect(b.id, e)}
+                        onKeyDown={(e) => {
+                          if (e.key === " " || e.key === "Enter") {
+                            e.preventDefault();
+                            onToggleSelect(b.id, e as unknown as React.MouseEvent);
+                          }
+                        }}
+                        tabIndex={0}
+                      >
                         <input type="checkbox" checked={isSelected} readOnly aria-label={`Select benchmark ${b.name}`} />
                       </td>
                       <td className="td-text">
