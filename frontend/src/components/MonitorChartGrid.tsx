@@ -123,6 +123,7 @@ interface MonitorChartGridProps {
   onHideChart: (id: string) => void;
   onShowChart: (id: string) => void;
   getSlaThreshold: (id: string) => number | undefined;
+  timeRange: string;
 }
 
 function MonitorChartGrid({
@@ -133,6 +134,7 @@ function MonitorChartGrid({
   onHideChart,
   onShowChart,
   getSlaThreshold,
+  timeRange,
 }: MonitorChartGridProps) {
   return (
     <>
@@ -148,6 +150,7 @@ function MonitorChartGrid({
                 lines={chartLinesMap[id] || []}
                 onHide={() => onHideChart(id)}
                 threshold={getSlaThreshold(id)}
+                timeRange={timeRange}
               />
             </div>
           );

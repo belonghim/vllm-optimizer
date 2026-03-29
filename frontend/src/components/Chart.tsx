@@ -5,6 +5,29 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 
+const fmtTooltip = (ts: number) => {
+  const date = new Date(ts * 1000);
+  const Y = date.getFullYear();
+  const M = String(date.getMonth() + 1).padStart(2, '0');
+  const D = String(date.getDate()).padStart(2, '0');
+  const h = String(date.getHours()).padStart(2, '0');
+  const m = String(date.getMinutes()).padStart(2, '0');
+  const s = String(date.getSeconds()).padStart(2, '0');
+  return `${Y}-${M}-${D} ${h}:${m}:${s}`;
+};
+
+const fmtTick = (ts: number, range: string) => {
+  const date = new Date(ts * 1000);
+  const d = String(date.getDate()).padStart(2, '0');
+  const HH = String(date.getHours()).padStart(2, '0');
+  const MM = String(date.getMinutes()).padStart(2, '0');
+
+  if (range === '7d') {
+    return `${d}d${HH}h`;
+  }
+  return `${HH}h${MM}m`;
+};
+
 interface ChartLine {
   key: string;
   color: string;
@@ -32,7 +55,7 @@ const CustomTooltip = React.memo(function CustomTooltip({ active, payload, label
   if (!visible.length) return null;
   return (
     <div className="chart-tooltip" style={TOOLTIP_STYLE}>
-      <p className="chart-tooltip-label" style={{ margin: 0, marginBottom: '4px', fontWeight: 'bold' }}>{label}</p>
+      <p className="chart-tooltip-label" style={{ margin: 0, marginBottom: '4px', fontWeight: 'bold' }}>{fmtTooltip(Number(label))}</p>
       {visible.map(e => {
         const entryStyle = { color: e.color, margin: 0, fontSize: '11px' };
         return (
@@ -50,9 +73,10 @@ interface ChartProps {
   height?: number;
   onHide?: () => void;
   threshold?: number;
+  timeRange?: string;
 }
 
-function Chart({ data, lines, title, height = 180, onHide, threshold }: ChartProps) {
+function Chart({ data, lines, title, height = 180, onHide, threshold, timeRange = '1h' }: ChartProps) {
   const { COLORS } = useThemeColors();
   return (
     <div className="chart-container" aria-label={title}>
@@ -72,7 +96,7 @@ function Chart({ data, lines, title, height = 180, onHide, threshold }: ChartPro
       <ResponsiveContainer width="100%" height={height}>
         <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
-          <XAxis dataKey="t" tick={{ fontSize: 9, fill: COLORS.muted }} tickFormatter={d => d} />
+          <XAxis dataKey="t" tick={{ fontSize: 9, fill: COLORS.muted }} tickFormatter={ts => fmtTick(ts, timeRange)} />
           <YAxis tick={{ fontSize: 9, fill: COLORS.muted }} />
           <Tooltip content={<CustomTooltip />} />
           {threshold != null && (

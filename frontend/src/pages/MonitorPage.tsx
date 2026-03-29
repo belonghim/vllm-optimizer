@@ -19,9 +19,8 @@ import type { SlaThresholds, SlaProfile, HistoryPoint, TargetResultData, TargetR
 // Re-export for backwards compatibility (tests import from this module)
 export { buildChartLinesMap } from "../components/MonitorChartGrid";
 
-const fmtTime = (ts: number) => new Date(ts * 1000).toLocaleTimeString("ko-KR", { hour12: false });
-
 const TIME_RANGES = [
+  { label: 'Live', points: 60 },
   { label: '1h',  points: 360, timeRange: '1h' },
   { label: '6h',  points: 720, timeRange: '6h' },
   { label: '24h', points: 1000, timeRange: '24h' },
@@ -38,10 +37,10 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
   const [slaProfiles, setSlaProfiles] = useState<SlaProfile[]>([]);
   const [selectedSlaProfileId, setSelectedSlaProfileId] = useState<number | null>(null);
   const [timeRangePoints, setTimeRangePoints] = useState(60);
-  const [selectedRange, setSelectedRange] = useState('1h');
+  const [selectedRange, setSelectedRange] = useState('Live');
   const [initialized, setInitialized] = useState(false);
   const timeRangePointsRef = useRef(60);
-  const selectedRangeRef = useRef('1h');
+  const selectedRangeRef = useRef('Live');
   const lastViolationTime = useRef<Record<string, number>>({});
 
   const chartOrder = chartState.order;
@@ -90,16 +89,16 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
         cr_type: t.crType || crType
       }));
 
-      const res = await authFetch(`${API}/metrics/batch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(
-          ['1h', '6h', '24h', '7d'].includes(selectedRangeRef.current)
-            ? { targets: batchTargets, time_range: selectedRangeRef.current }
-            : { targets: batchTargets, history_points: timeRangePointsRef.current }
-        ),
-        signal,
-      });
+       const res = await authFetch(`${API}/metrics/batch`, {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify(
+           selectedRangeRef.current === 'Live'
+             ? { targets: batchTargets, history_points: timeRangePointsRef.current }
+             : { targets: batchTargets, time_range: selectedRangeRef.current }
+         ),
+         signal,
+       });
 
       if (signal?.aborted) return;
       if (!res.ok) throw new Error(`Batch HTTP ${res.status}`);
@@ -134,7 +133,7 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
         }
 
         const mapped = (result.history || []).map((m) => ({
-          t: fmtTime(m.timestamp),
+          t: m.timestamp,
           tps: m.tps, ttft: m.ttft_mean, lat_p99: m.latency_p99,
           kv: m.kv_cache, running: m.running, waiting: m.waiting,
           rps: m.rps, ttft_p99: m.ttft_p99, lat_mean: m.latency_mean,
@@ -294,6 +293,7 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
             onHideChart={hideChart}
             onShowChart={showChart}
             getSlaThreshold={getSlaThreshold}
+            timeRange={selectedRange}
           />
         </>
       )}
