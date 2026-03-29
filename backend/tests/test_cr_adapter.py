@@ -92,12 +92,28 @@ class TestArgHelpers:
         assert rebuilt == "--tensor-parallel-size=1 --gpu-memory-utilization=0.9 --max-model-len=4096"
 
 
+class TestLLMInferenceServiceAdapter:
+    def test_api_coordinates(self):
+        adapter = LLMInferenceServiceAdapter()
+        assert adapter.api_group() == "inference.io"
+        assert adapter.api_version() == "v1"
+        assert adapter.api_plural() == "llminferenceservices"
+
+    def test_metric_prefix(self):
+        adapter = LLMInferenceServiceAdapter()
+        assert adapter.metric_prefix() == "kserve_vllm:"
+
+
 class TestInferenceServiceAdapter:
     def test_api_coordinates(self):
         adapter = InferenceServiceAdapter()
         assert adapter.api_group() == "serving.kserve.io"
         assert adapter.api_version() == "v1beta1"
         assert adapter.api_plural() == "inferenceservices"
+
+    def test_metric_prefix(self):
+        adapter = InferenceServiceAdapter()
+        assert adapter.metric_prefix() == "vllm:"
 
     def test_read_args_empty(self):
         adapter = InferenceServiceAdapter()

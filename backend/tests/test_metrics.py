@@ -94,6 +94,14 @@ def test_metrics_batch_endpoint_empty_targets(isolated_client):
     assert data["results"] == {}
 
 
+def test_time_range_config_includes_1h():
+    from routers.metrics import _TIME_RANGE_CONFIG
+
+    assert "1h" in _TIME_RANGE_CONFIG
+    assert _TIME_RANGE_CONFIG["1h"]["duration"] == 3600
+    assert _TIME_RANGE_CONFIG["1h"]["step"] == 10
+
+
 def test_metrics_batch_endpoint_multiple_targets(isolated_client):
     response = isolated_client.post(
         "/api/metrics/batch",
