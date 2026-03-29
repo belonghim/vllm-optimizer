@@ -33,6 +33,7 @@ export default function TunerStatusPanel({
           <ErrorAlert message={interruptedWarning} severity="warning" className="error-alert--mb16" />
           <button
             onClick={onDismissInterrupted}
+            aria-label="Dismiss tuner interruption warning"
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--muted-color)', fontSize: '18px' }}
           >×</button>
         </div>

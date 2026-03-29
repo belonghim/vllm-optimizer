@@ -185,21 +185,23 @@ export default function MultiTargetSelector({
                           <span className="tag tag-completed multi-target-default-tag">Default</span>
                        ) : (
                          <div className="multi-target-action-btns">
-                           <button
-                             className="btn btn-secondary multi-target-setdefault-btn"
-                             onClick={() => setDefaultTarget(target.namespace, target.inferenceService)}
-                             data-testid="set-default-btn"
-                              title="Set as default"
-                           >
-                             ★
-                           </button>
-                           <button
-                             className="btn btn-danger multi-target-delete-btn"
-                             onClick={() => removeTarget(target.namespace, target.inferenceService)}
-                             data-testid="delete-btn"
-                           >
-                             ×
-                           </button>
+                            <button
+                              className="btn btn-secondary multi-target-setdefault-btn"
+                              onClick={() => setDefaultTarget(target.namespace, target.inferenceService)}
+                              data-testid="set-default-btn"
+                               title="Set as default"
+                               aria-label={`Set ${target.inferenceService} as default monitoring target`}
+                            >
+                              ★
+                            </button>
+                            <button
+                              className="btn btn-danger multi-target-delete-btn"
+                              onClick={() => removeTarget(target.namespace, target.inferenceService)}
+                              data-testid="delete-btn"
+                              aria-label={`Remove monitoring target ${target.namespace}/${target.inferenceService}`}
+                            >
+                              ×
+                            </button>
                          </div>
                        )}
                      </td>

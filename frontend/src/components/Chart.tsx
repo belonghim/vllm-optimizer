@@ -92,7 +92,7 @@ function Chart({ data, lines, title, height = 180, onHide, threshold, timeRange 
           )}
         </span>
         {onHide && (
-          <button className="chart-hide-btn" onClick={onHide} title="Hide chart">×</button>
+          <button className="chart-hide-btn" onClick={onHide} title="Hide chart" aria-label={`Hide ${title} chart`}>×</button>
         )}
       </div>
       <ResponsiveContainer width="100%" height={height}>

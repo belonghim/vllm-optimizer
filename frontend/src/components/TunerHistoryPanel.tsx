@@ -146,7 +146,7 @@ export default function TunerHistoryPanel() {
                 <td className="td-accent">{fmt(s.best_tps, 1)}</td>
                 <td className="td-red">{fmt(s.best_p99, 0)}</td>
                 <td>
-                  <button className="btn-icon" onClick={(e) => handleDelete(s.id, e)}>✕</button>
+                  <button className="btn-icon" aria-label={`Delete tuning session ${s.id}`} onClick={(e) => handleDelete(s.id, e)}>✕</button>
                 </td>
               </tr>
             ))}
@@ -162,7 +162,7 @@ export default function TunerHistoryPanel() {
           <div className="section-title">Session Comparison</div>
           
           <div className="grid-2" style={{ gap: '24px', marginBottom: '24px' }}>
-            {compareData.map((d, idx) => (
+            {compareData.map((d) => (
               <div key={d.id} className="compare-column">
                 <div className="td-muted" style={{ marginBottom: '8px', fontSize: '12px' }}>
                   Session #{d.id} ({new Date((sessions.find(s => s.id === d.id)?.timestamp || 0) * 1000).toLocaleString()})

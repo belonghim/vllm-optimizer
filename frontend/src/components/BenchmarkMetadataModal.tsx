@@ -26,7 +26,7 @@ export default function BenchmarkMetadataModal({ editing, onClose, onSave }: Ben
     setMeta(prev => ({ ...prev, extra }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     onSave(editing.id, meta);
   };
@@ -36,7 +36,7 @@ export default function BenchmarkMetadataModal({ editing, onClose, onSave }: Ben
       <div className="modal-content">
         <div className="modal-header">
           <h3>Edit Benchmark Metadata</h3>
-          <button className="btn-close" onClick={onClose}>✕</button>
+          <button className="btn-close" aria-label="Close benchmark metadata editor" onClick={onClose}>✕</button>
         </div>
         <form onSubmit={handleSubmit} className="metadata-form">
           <div className="form-group">
@@ -99,8 +99,8 @@ export default function BenchmarkMetadataModal({ editing, onClose, onSave }: Ben
           <div className="form-group">
             <label>Extra Metadata (Key: Value)</label>
             <div className="extra-editor">
-              {Object.entries(meta.extra || {}).map(([k, v], idx) => (
-                <div key={idx} className="extra-row">
+              {Object.entries(meta.extra || {}).map(([k, v]) => (
+                <div key={k} className="extra-row">
                   <input
                     type="text"
                     value={k}
@@ -113,7 +113,7 @@ export default function BenchmarkMetadataModal({ editing, onClose, onSave }: Ben
                     onChange={e => updateExtra(k, e.target.value)}
                     placeholder="Value"
                   />
-                  <button type="button" onClick={() => removeExtra(k)}>✕</button>
+                  <button type="button" aria-label={`Remove metadata entry ${k}`} onClick={() => removeExtra(k)}>✕</button>
                 </div>
               ))}
               <button

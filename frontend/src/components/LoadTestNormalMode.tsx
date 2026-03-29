@@ -219,7 +219,7 @@ function LoadTestNormalMode({ isActive, pendingConfig, onConfigConsumed, onRunni
       {interruptedWarning && (
         <div style={{display: 'flex', alignItems: 'flex-start', gap: '8px'}}>
           <ErrorAlert message={interruptedWarning} severity="warning" className="error-alert--mb8" />
-          <button onClick={() => setInterruptedWarning(null)} style={{background:'none',border:'none',cursor:'pointer',padding:'4px',color:'var(--muted-color)',fontSize:'18px'}}>×</button>
+          <button aria-label="Dismiss interrupted load test warning" onClick={() => setInterruptedWarning(null)} style={{background:'none',border:'none',cursor:'pointer',padding:'4px',color:'var(--muted-color)',fontSize:'18px'}}>×</button>
         </div>
       )}
 
