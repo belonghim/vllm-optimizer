@@ -304,6 +304,7 @@ async def start_sweep(request: Request, config: SweepConfig) -> dict[str, Any]:
     return {"status": "running", "config": config.model_dump()}
 
 
+@limiter.exempt
 @router.get("/stream")
 async def stream_load_test_results(test_id: str | None = None) -> StreamingResponse:
     """

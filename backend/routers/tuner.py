@@ -331,6 +331,7 @@ async def stop_tuning() -> dict[str, Any]:
     return await auto_tuner.stop()
 
 
+@limiter.exempt
 @router.get("/stream")
 async def stream_tuner_events() -> StreamingResponse:
     """Stream tuning events via Server-Sent Events (SSE)."""
