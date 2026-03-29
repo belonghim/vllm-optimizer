@@ -260,8 +260,11 @@ class LoadTestEngine:
                 itl_mean = itl_p50 = itl_p95 = itl_p99 = None
         else:
             resp = await external_client.post(f"{config.endpoint}/v1/completions", json=payload, timeout=120)
-            data = resp.json()
-            output_tokens = data["usage"]["completion_tokens"]
+            try:
+                data = resp.json()
+                output_tokens = data["usage"]["completion_tokens"]
+            except (KeyError, TypeError):
+                output_tokens = 0
         latency = time.time() - t0
         return RequestResult(
             req_id=request_id,
@@ -335,8 +338,11 @@ class LoadTestEngine:
                 itl_mean = itl_p50 = itl_p95 = itl_p99 = None
         else:
             resp = await external_client.post(f"{config.endpoint}/v1/chat/completions", json=chat_payload, timeout=120)
-            data = resp.json()
-            output_tokens = data["usage"]["completion_tokens"]
+            try:
+                data = resp.json()
+                output_tokens = data["usage"]["completion_tokens"]
+            except (KeyError, TypeError):
+                output_tokens = 0
         latency = time.time() - t0
         return RequestResult(
             req_id=request_id,
