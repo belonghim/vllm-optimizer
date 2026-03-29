@@ -8,6 +8,8 @@
   --cyan-color: #00d4ff;
   --green-color: #00ff87;
   --red-color: #ff3b6b;
+  --red-rgb: 255, 59, 107;
+  --success-rgb: 76, 175, 80;
   --purple-color: #b060ff;
   --text-color: #c8cfe0;
   --muted-color: #4a5578;
@@ -186,7 +188,7 @@ select.input option { background: var(--surface-color); }
   padding: 10px 16px;
   font-family: var(--font-mono);
   font-size: 11px;
-  background: rgba(255,59,107,0.05);
+  background: rgba(var(--red-rgb), 0.05);
 }
 .error-alert--warning {
   border: 1px solid var(--accent-color);
