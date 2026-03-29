@@ -58,8 +58,7 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status,
       if (val !== undefined) onChange(key, val);
     }
     onInitialConfigApplied?.();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialConfig]);
+  }, [initialConfig, onChange, onInitialConfigApplied]);
   const presets = useMemo(() => loadPresets(), []);
   const presetNames = useMemo(() => Object.keys(presets), [presets]);
 
@@ -117,12 +116,12 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status,
       <div style={{ marginBottom: "16px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", alignItems: "flex-end" }}>
           <div>
-            <label className="label">Preset</label>
+            <label className="label" htmlFor="ltc-preset">Preset</label>
             <select
+              id="ltc-preset"
               className="input"
               value={selectedPreset}
               onChange={e => handlePresetSelect(e.target.value)}
-              aria-label="Select preset"
             >
               <option value="">-- Select --</option>
               {presetNames.map(name => (
@@ -132,10 +131,11 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status,
               ))}
             </select>
           </div>
-          <button className="btn btn-primary" onClick={handleSavePreset} style={{ height: "36px" }}>
+          <button type="button" className="btn btn-primary" onClick={handleSavePreset} style={{ height: "36px" }}>
             💾 Save
           </button>
           <button
+            type="button"
             className="btn btn-danger"
             onClick={handleDeletePreset}
             disabled={!selectedPreset || isBuiltinPreset(selectedPreset)}
@@ -155,11 +155,11 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status,
           ["Max Tokens", "max_tokens", "number"],
         ] as const).map(([label, key, type]) => (
           <div key={key}>
-            <label className="label">{label}</label>
+            <label className="label" htmlFor={`ltc-${key}`}>{label}</label>
             <input
+              id={`ltc-${key}`}
               className="input"
               type={type}
-              aria-label={label}
               value={config[key]}
               placeholder={key === "model" ? "auto (auto-detect)" : undefined}
               onChange={e => onChange(key, type === "number" ? +e.target.value : e.target.value)}
@@ -167,7 +167,7 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status,
           </div>
         ))}
         <div>
-  <label className="label">Prompt Mode</label>
+  <div className="label">Prompt Mode</div>
   <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
     <button
       type="button"
@@ -190,8 +190,9 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status,
   {(promptMode === 'synthetic') ? (
     <div style={{ border: '1px solid var(--border)', borderRadius: '6px', padding: '12px' }}>
       <div style={{ marginBottom: '8px' }}>
-        <label className="label">Distribution</label>
+        <label className="label" htmlFor="ltc-syn-distribution">Distribution</label>
         <select
+          id="ltc-syn-distribution"
           className="input"
           value={syntheticConfig?.distribution ?? 'uniform'}
           onChange={e => onSyntheticConfigChange?.('distribution', e.target.value)}
@@ -202,25 +203,25 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status,
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
         <div>
-          <label className="label">Min Tokens</label>
-          <input className="input" type="number" min={1} value={syntheticConfig?.min_tokens ?? 50}
+          <label className="label" htmlFor="ltc-syn-min">Min Tokens</label>
+          <input id="ltc-syn-min" className="input" type="number" min={1} value={syntheticConfig?.min_tokens ?? 50}
             onChange={e => onSyntheticConfigChange?.('min_tokens', +e.target.value)} />
         </div>
         <div>
-          <label className="label">Max Tokens</label>
-          <input className="input" type="number" min={1} value={syntheticConfig?.max_tokens ?? 500}
+          <label className="label" htmlFor="ltc-syn-max">Max Tokens</label>
+          <input id="ltc-syn-max" className="input" type="number" min={1} value={syntheticConfig?.max_tokens ?? 500}
             onChange={e => onSyntheticConfigChange?.('max_tokens', +e.target.value)} />
         </div>
         {syntheticConfig?.distribution === 'normal' && (
           <>
             <div>
-              <label className="label">Mean Tokens</label>
-              <input className="input" type="number" min={1} value={syntheticConfig?.mean_tokens ?? 200}
+              <label className="label" htmlFor="ltc-syn-mean">Mean Tokens</label>
+              <input id="ltc-syn-mean" className="input" type="number" min={1} value={syntheticConfig?.mean_tokens ?? 200}
                 onChange={e => onSyntheticConfigChange?.('mean_tokens', +e.target.value)} />
             </div>
             <div>
-              <label className="label">Std Dev</label>
-              <input className="input" type="number" min={1} value={syntheticConfig?.stddev_tokens ?? 50}
+              <label className="label" htmlFor="ltc-syn-std">Std Dev</label>
+              <input id="ltc-syn-std" className="input" type="number" min={1} value={syntheticConfig?.stddev_tokens ?? 50}
                 onChange={e => onSyntheticConfigChange?.('stddev_tokens', +e.target.value)} />
             </div>
           </>
@@ -238,14 +239,14 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status,
   )}
 </div>
         <div>
-          <label className="label">Temperature</label>
+          <label className="label" htmlFor="ltc-temperature">Temperature</label>
           <input
+            id="ltc-temperature"
             className="input"
             type="number"
             step="0.1"
             min="0"
             max="2"
-            aria-label="Temperature"
             value={config.temperature}
             onChange={e => onChange("temperature", +e.target.value)}
           />
@@ -261,10 +262,10 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status,
       </div>
 
       <div className="loadtest-config-actions">
-        <button className="btn btn-primary" onClick={onSubmit} disabled={isRunning}>
+        <button type="button" className="btn btn-primary" onClick={onSubmit} disabled={isRunning}>
           ▶ Run Load Test
         </button>
-        <button className="btn btn-danger" onClick={onStop} disabled={!isRunning}>
+        <button type="button" className="btn btn-danger" onClick={onStop} disabled={!isRunning}>
           ■ Stop
         </button>
         <span className={`tag tag-${status}`}>{status.toUpperCase()}</span>

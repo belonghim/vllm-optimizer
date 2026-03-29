@@ -20,11 +20,11 @@ import type { SlaThresholds, SlaProfile, HistoryPoint, TargetResultData, TargetR
 export { buildChartLinesMap } from "../components/MonitorChartGrid";
 
 const TIME_RANGES = [
-  { label: 'Live', points: 60 },
-  { label: '1h',  points: 360, timeRange: '1h' },
-  { label: '6h',  points: 720, timeRange: '6h' },
-  { label: '24h', points: 1000, timeRange: '24h' },
-  { label: '7d',  points: 1400, timeRange: '7d' },
+  { label: 'Live' as const, points: 60 },
+  { label: '1h' as const,  points: 360, timeRange: '1h' },
+  { label: '6h' as const,  points: 720, timeRange: '6h' },
+  { label: '24h' as const, points: 1000, timeRange: '24h' },
+  { label: '7d' as const,  points: 1400, timeRange: '7d' },
 ];
 
 function MonitorPage({ isActive }: { isActive: boolean }) {
@@ -37,7 +37,7 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
   const [slaProfiles, setSlaProfiles] = useState<SlaProfile[]>([]);
   const [selectedSlaProfileId, setSelectedSlaProfileId] = useState<number | null>(null);
   const [timeRangePoints, setTimeRangePoints] = useState(60);
-  const [selectedRange, setSelectedRange] = useState('Live');
+  const [selectedRange, setSelectedRange] = useState<'Live' | '1h' | '6h' | '24h' | '7d'>('Live');
   const [initialized, setInitialized] = useState(false);
   const timeRangePointsRef = useRef(60);
   const selectedRangeRef = useRef('Live');
@@ -187,7 +187,7 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
     
     const id = setInterval(() => fetchAllTargets(controller.signal), 3000);
     return () => { controller.abort(); clearInterval(id); };
-  }, [isActive, targets, isMockEnabled, fetchAllTargets]);
+  }, [isActive, targets, fetchAllTargets]);
 
   const mergedHistory = useMemo(() => {
     const timeMap: Record<string, Record<string, unknown>> = {};
@@ -271,6 +271,7 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
           {TIME_RANGES.map(r => (
             <button
               key={r.label}
+              type="button"
               data-testid="time-range-btn"
               aria-label={`Show last ${r.label}`}
               className={`btn btn-sm${selectedRange === r.label ? ' active' : ''}`}

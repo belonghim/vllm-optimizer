@@ -35,12 +35,12 @@ export default function App() {
   const [tunerMounted, setTunerMounted] = useState(false);
   useSessionKeepAlive();
 
-  const handleSetPage = (id: string) => {
+  const handleSetPage = useCallback((id: string) => {
     if (id === 'loadtest') setLoadTestMounted(true);
     if (id === 'tuner') setTunerMounted(true);
     setPage(id);
     requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
-  };
+  }, []);
 
   const handleRerun = useCallback((config: { [key: string]: unknown }) => {
     setPendingLoadTestConfig({
@@ -52,7 +52,7 @@ export default function App() {
       stream: typeof config.stream === 'boolean' ? config.stream : undefined,
     });
     handleSetPage("loadtest");
-  }, []);
+  }, [handleSetPage]);
 
   const handleConfigConsumed = useCallback(() => setPendingLoadTestConfig(null), []);
 
@@ -71,24 +71,26 @@ export default function App() {
           </div>
         </div>
 
-        <nav className="app-header-nav" role="tablist" aria-label="Page Navigation">
-          {(() => {
-            const runningPages = new Set([
-              ...(isLoadTestRunning ? ['loadtest'] : []),
-              ...(isTunerRunning ? ['tuner'] : []),
-            ]);
+        <nav className="app-header-nav" aria-label="Page Navigation">
+          <div role="tablist">
+            {(() => {
+              const runningPages = new Set([
+                ...(isLoadTestRunning ? ['loadtest'] : []),
+                ...(isTunerRunning ? ['tuner'] : []),
+              ]);
 
-            return PAGES.map(p => (
-              <button key={p.id}
-                className={`nav-btn ${page === p.id ? "active" : ""} ${runningPages.has(p.id) ? "nav-btn--running" : ""}`}
-                role="tab"
-                aria-selected={page === p.id}
-                onClick={() => handleSetPage(p.id)}>
-                {p.label}
-                {runningPages.has(p.id) && <span className="nav-btn-dot" aria-label="Running" />}
-              </button>
-            ));
-          })()}
+              return PAGES.map(p => (
+                <button type="button" key={p.id}
+                  className={`nav-btn ${page === p.id ? "active" : ""} ${runningPages.has(p.id) ? "nav-btn--running" : ""}`}
+                  role="tab"
+                  aria-selected={page === p.id}
+                  onClick={() => handleSetPage(p.id)}>
+                  {p.label}
+                  {runningPages.has(p.id) && <span role="img" className="nav-btn-dot" aria-label="Running" />}
+                </button>
+              ));
+            })()}
+          </div>
         </nav>
 
         <div className="app-header-right">

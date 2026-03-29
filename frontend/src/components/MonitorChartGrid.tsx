@@ -123,7 +123,7 @@ interface MonitorChartGridProps {
   onHideChart: (id: string) => void;
   onShowChart: (id: string) => void;
   getSlaThreshold: (id: string) => number | undefined;
-  timeRange: string;
+  timeRange: 'Live' | '1h' | '6h' | '24h' | '7d';
 }
 
 function MonitorChartGrid({
@@ -143,7 +143,7 @@ function MonitorChartGrid({
           const def = CHART_DEFINITIONS.find(c => c.id === id);
           if (!def) return null;
           return (
-            <div key={id} aria-label={def.title}>
+            <section key={id} aria-label={def.title}>
               <Chart
                 data={chartData}
                 title={def.title}
@@ -152,7 +152,7 @@ function MonitorChartGrid({
                 threshold={getSlaThreshold(id)}
                 timeRange={timeRange}
               />
-            </div>
+            </section>
           );
         })}
       </div>
@@ -164,6 +164,7 @@ function MonitorChartGrid({
             if (!def) return null;
             return (
               <button
+                type="button"
                 key={id}
                 className="hidden-chart-tag"
                 onClick={() => onShowChart(id)}

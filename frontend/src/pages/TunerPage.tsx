@@ -172,6 +172,7 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
     }
   }, [endpoint]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- namespace/inferenceservice trigger re-fetch on IS change (AGENTS.md rule)
   useEffect(() => {
     if (!isActive) return;
     if (isMockEnabled) return;
@@ -196,7 +197,7 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
               next[key] = value;
             }
           });
-          return next as TunerConfig;
+          return next as unknown as TunerConfig;
         });
       })
       .catch((err: Error) => {
