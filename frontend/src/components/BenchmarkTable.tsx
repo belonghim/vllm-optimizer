@@ -92,7 +92,7 @@ export default function BenchmarkTable({
                       <td className="td-text">
                         {b.name}
                         {b.metadata?.source === "guidellm" && (
-                          <span style={{ marginLeft: '6px', fontSize: '11px', padding: '1px 6px', borderRadius: '3px', background: '#2563eb', color: '#fff', verticalAlign: 'middle' }}>
+                          <span style={{ marginLeft: '6px', fontSize: '11px', padding: '1px 6px', borderRadius: '3px', background: 'var(--info-color)', color: '#fff', verticalAlign: 'middle' }}>
                             GuideLLM
                           </span>
                         )}

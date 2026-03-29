@@ -258,7 +258,7 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
             </thead>
             <tbody>
               {sweepSteps.map((step, index) => (
-                <tr key={index} data-testid="sweep-step-row" style={step.saturated ? { backgroundColor: 'rgba(255,59,107,0.15)' } : {}}>
+                <tr key={index} data-testid="sweep-step-row" style={step.saturated ? { backgroundColor: 'rgba(var(--red-rgb), 0.15)' } : {}}>
                   <td>{step.step}</td>
                   <td>{fmt(step.rps, 1)}</td>
                   <td>{fmt(step.stats.latency.p99 * 1000, 0)} ms</td>

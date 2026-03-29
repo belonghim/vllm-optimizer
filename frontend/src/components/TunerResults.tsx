@@ -121,7 +121,7 @@ export default function TunerResults({ trials, bestParams, status, isRunning, im
               />
               <Scatter
                   data={scatterData.filter(d => d.pareto_optimal)}
-                  fill={"#4caf50"}
+                  fill={"rgb(var(--success-rgb))"}
                   opacity={1.0}
               />
             </ScatterChart>
