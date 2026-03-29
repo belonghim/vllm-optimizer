@@ -3,7 +3,8 @@ import logging
 import math
 import os
 import time
-from typing import Any
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any, Protocol
 
 import httpx
 import optuna
@@ -25,6 +26,15 @@ from .model_resolver import resolve_model_name
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 logger = logging.getLogger(__name__)
 
+_EvalFn = Callable[
+    [str, TuningConfig, optuna.trial.Trial | None, int],
+    Awaitable[tuple[float, float, float]],
+]
+
+
+class _Broadcaster(Protocol):
+    async def broadcast(self, data: dict[str, Any]) -> None: ...
+
 
 class TunerLogic:
     def __init__(self, load_engine: LoadTestEngine) -> None:
@@ -34,7 +44,7 @@ class TunerLogic:
         self,
         config: TuningConfig,
         storage_url: str | None,
-        broadcaster: Any | None = None,
+        broadcaster: _Broadcaster | None = None,
     ) -> tuple[str, optuna.Study]:
         direction = "maximize"
         if config.objective == "pareto":
@@ -70,7 +80,7 @@ class TunerLogic:
                     best_params = study.best_trial.params
                     study.enqueue_trial(params=best_params)
                     logger.info("[AutoTuner] Warm-start: enqueued previous best params: %s", best_params)
-            except Exception as e:
+            except Exception as e:  # intentional: storage fallback (SQLAlchemy/Optuna errors too diverse)
                 logger.warning("[AutoTuner] SQLite storage failed, falling back to in-memory: %s", e)
                 if broadcaster is not None:
                     await broadcaster.broadcast(
@@ -99,7 +109,7 @@ class TunerLogic:
 
         return direction, study
 
-    def suggest_params(self, trial, config: TuningConfig) -> dict[str, Any]:
+    def suggest_params(self, trial: optuna.trial.Trial, config: TuningConfig) -> dict[str, Any]:
         params: dict[str, Any] = {}
 
         params["max_num_seqs"] = trial.suggest_int(
@@ -171,7 +181,7 @@ class TunerLogic:
         model: str,
         config: TuningConfig,
         trial_id: int,
-        broadcaster: Any | None = None,
+        broadcaster: _Broadcaster | None = None,
     ) -> None:
         if broadcaster is not None:
             await broadcaster.broadcast(
@@ -191,7 +201,7 @@ class TunerLogic:
         try:
             await self._load_engine.run(warmup_config)
             logger.info("[AutoTuner] Warmup completed (%d requests)", config.warmup_requests)
-        except Exception as e:
+        except Exception as e:  # intentional: warmup non-critical
             logger.warning("[AutoTuner] Warmup failed (continuing): %s", e)
 
     async def run_probe_load(
@@ -199,9 +209,9 @@ class TunerLogic:
         endpoint: str,
         model: str,
         config: TuningConfig,
-        trial,
+        trial: optuna.trial.Trial | None,
         trial_id: int,
-        broadcaster: Any | None = None,
+        broadcaster: _Broadcaster | None = None,
     ) -> tuple[float, float, float]:
         fast_requests = max(1, int(config.eval_requests * config.eval_fast_fraction))
         fast_config = LoadTestConfig(
@@ -254,9 +264,9 @@ class TunerLogic:
         self,
         endpoint: str,
         config: TuningConfig,
-        trial=None,
+        trial: optuna.trial.Trial | None = None,
         trial_num: int = 0,
-        broadcaster: Any | None = None,
+        broadcaster: _Broadcaster | None = None,
         model_resolver=resolve_model_name,
     ) -> tuple[float, float, float]:
         try:
@@ -286,10 +296,10 @@ class TunerLogic:
         config: TuningConfig,
         evaluation_mode: str,
         sweep_config: SweepConfig | None,
-        trial=None,
+        trial: optuna.trial.Trial | None = None,
         trial_num: int = 0,
-        broadcaster: Any | None = None,
-        evaluate_fn: Any | None = None,
+        broadcaster: _Broadcaster | None = None,
+        evaluate_fn: _EvalFn | None = None,
     ) -> tuple[float, float, float]:
         if evaluation_mode == "sweep":
             if sweep_config is None:
@@ -314,7 +324,9 @@ class TunerLogic:
         evaluator = evaluate_fn if evaluate_fn is not None else self.evaluate
         return await evaluator(endpoint, config, trial=trial, trial_num=trial_num)
 
-    async def get_importance(self, study: optuna.Study | None, trials: list[Any]) -> dict[str, Any]:
+    async def get_importance(
+        self, study: optuna.Study | None, trials: list[optuna.trial.FrozenTrial]
+    ) -> dict[str, Any]:
         if not study or len(trials) < 5:
             return {}
         try:
@@ -330,7 +342,7 @@ class TunerLogic:
             return {}
 
 
-async def update_pareto_front_for_tuner(tuner: Any) -> None:
+async def update_pareto_front_for_tuner(tuner: Any) -> None:  # AutoTuner — avoid circular import
     try:
         assert tuner._study is not None
         pareto = {t.number for t in tuner._study.best_trials}
@@ -343,7 +355,7 @@ async def update_pareto_front_for_tuner(tuner: Any) -> None:
 
 
 async def handle_trial_result_for_tuner(
-    tuner: Any,
+    tuner: Any,  # AutoTuner — avoid circular import
     trial,
     trial_num: int,
     score,
@@ -413,7 +425,9 @@ async def handle_trial_result_for_tuner(
     return False
 
 
-async def execute_trial_for_tuner(tuner: Any, trial_num: int, config: TuningConfig) -> None:
+async def execute_trial_for_tuner(
+    tuner: Any, trial_num: int, config: TuningConfig
+) -> None:  # AutoTuner — avoid circular import
     async with tuner._study_lock:
         assert tuner._study is not None
         trial = tuner._study.ask()
@@ -428,7 +442,7 @@ async def execute_trial_for_tuner(tuner: Any, trial_num: int, config: TuningConf
         return
     try:
         score, tps, p99_lat = await tuner._run_trial_evaluation(trial, trial_num)
-    except Exception as e:
+    except Exception as e:  # intentional: trial evaluation recovery (specific errors caught earlier)
         logger.warning("[AutoTuner] Trial %d evaluation failed: %s", trial_num, e)
         await tuner._broadcast(
             {
@@ -456,7 +470,9 @@ async def execute_trial_for_tuner(tuner: Any, trial_num: int, config: TuningConf
 
 
 async def save_auto_benchmark_for_tuner(
-    tuner: Any, model_resolver=resolve_model_name, save_benchmark_fn=None
+    tuner: Any,  # AutoTuner — avoid circular import
+    model_resolver=resolve_model_name,
+    save_benchmark_fn=None,
 ) -> int | None:
     if tuner._best_trial is None or tuner._config is None:
         return None
@@ -489,7 +505,9 @@ async def save_auto_benchmark_for_tuner(
     return (await save_benchmark_fn(benchmark)).id
 
 
-async def finalize_tuning_for_tuner(tuner: Any, auto_benchmark: bool = False) -> int | None:
+async def finalize_tuning_for_tuner(
+    tuner: Any, auto_benchmark: bool = False
+) -> int | None:  # AutoTuner — avoid circular import
     benchmark_id: int | None = None
     if tuner._best_trial:
         await tuner._apply_params(tuner._best_trial.params)

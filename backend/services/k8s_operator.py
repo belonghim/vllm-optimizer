@@ -27,7 +27,7 @@ class K8sOperator:
         self._k8s_available = False
         self._k8s_apps: k8s_client.AppsV1Api | None = None
         self._k8s_custom: k8s_client.CustomObjectsApi | None = None
-        self._is_args_snapshot: Any = None
+        self._is_args_snapshot: dict[str, Any] | None = None
         self._last_rollback_trial: int | None = None
         self._wait_durations: list[float] = []
         self._total_wait_seconds: float = 0.0
@@ -250,7 +250,7 @@ class K8sOperator:
                     "error_type": "not_found",
                 }
             return {"success": False, "error": f"InferenceService args patch failed: {e}"}
-        except Exception as e:
+        except Exception as e:  # intentional: K8s operation fallback (fail-open)
             logger.error(f"[AutoTuner] 파라미터 적용 실패: {e}")
             return {"success": False, "error": str(e)}
 

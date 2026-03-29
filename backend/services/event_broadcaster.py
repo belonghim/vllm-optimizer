@@ -2,14 +2,19 @@ import asyncio
 import logging
 import time
 from contextlib import suppress
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from prometheus_client import Counter, Gauge, Histogram
+
+    from models.load_test import TuningConfig, TuningTrial
 
 logger = logging.getLogger(__name__)
 
 _metrics_available: bool = False
-tuner_trials_total: Any = None
-tuner_best_score: Any = None
-tuner_trial_duration_seconds: Any = None
+tuner_trials_total: Counter | None = None
+tuner_best_score: Gauge | None = None
+tuner_trial_duration_seconds: Histogram | None = None
 try:
     from metrics.prometheus_metrics import (  # pyright: ignore[reportImplicitRelativeImport]
         tuner_best_score,  # type: ignore[assignment]
@@ -24,17 +29,17 @@ except ImportError:
 
 class EventBroadcaster:
     def __init__(self) -> None:
-        self._subscribers: list[asyncio.Queue[Any]] = []
+        self._subscribers: list[asyncio.Queue[dict[str, Any]]] = []
         self._subscribers_lock: asyncio.Lock = asyncio.Lock()
         self._persistence_warning_sent: bool = False
 
-    async def subscribe(self) -> asyncio.Queue[Any]:
-        q: asyncio.Queue[Any] = asyncio.Queue()
+    async def subscribe(self) -> asyncio.Queue[dict[str, Any]]:
+        q: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
         async with self._subscribers_lock:
             self._subscribers.append(q)
         return q
 
-    async def unsubscribe(self, q: asyncio.Queue[Any]) -> None:
+    async def unsubscribe(self, q: asyncio.Queue[dict[str, Any]]) -> None:
         async with self._subscribers_lock:
             with suppress(ValueError):
                 self._subscribers.remove(q)
@@ -61,7 +66,9 @@ class EventBroadcaster:
     def reset_persistence_warning(self) -> None:
         self._persistence_warning_sent = False
 
-    async def emit_trial_metrics(self, trial_start: float, status: str, best_trial: Any, config: Any) -> None:
+    async def emit_trial_metrics(
+        self, trial_start: float, status: str, best_trial: "TuningTrial | None", config: "TuningConfig | None"
+    ) -> None:
         try:
             if _metrics_available:
                 tuner_trial_duration_seconds.observe(time.monotonic() - trial_start)
@@ -69,5 +76,5 @@ class EventBroadcaster:
                 if status == "completed" and best_trial is not None:
                     assert config is not None
                     tuner_best_score.labels(objective=config.objective).set(best_trial.score)
-        except Exception as _e:
+        except Exception as _e:  # intentional: non-critical metrics
             logger.debug("[AutoTuner] Metrics emit failed (non-critical): %s", _e)
