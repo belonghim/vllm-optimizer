@@ -66,6 +66,49 @@ VLLM_DEPLOYMENT_NAME="${VLLM_DEPLOYMENT_NAME:-small-llm-d}"
 log() { echo "[$(date +%H:%M:%S)] $*"; }
 ok()  { echo "[OK] $*"; }
 warn() { echo "[WARN] $*"; }
+err() { echo "[ERROR] $*" >&2; }
+
+validate_prerequisites() {
+  log "Validating prerequisites..."
+  
+  # Check REGISTRY
+  if [ -z "$REGISTRY" ]; then
+    err "REGISTRY environment variable is not set"
+    exit 1
+  fi
+  
+  # Check IMAGE_TAG
+  if [ -z "$IMAGE_TAG" ]; then
+    err "IMAGE_TAG environment variable is not set"
+    exit 1
+  fi
+  
+  # Check oc availability
+  if ! command -v oc >/dev/null 2>&1; then
+    err "OpenShift CLI 'oc' not found in PATH"
+    exit 1
+  fi
+  
+  # Skip cluster checks in dry-run mode
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "Skipping cluster connectivity checks (dry-run mode)"
+    return 0
+  fi
+  
+  # Check oc whoami (cluster login)
+  if ! oc whoami >/dev/null 2>&1; then
+    err "Failed to authenticate with OpenShift cluster. Please run 'oc login'"
+    exit 1
+  fi
+  
+  # Check target namespace exists
+  if ! oc get namespace "$NAMESPACE" >/dev/null 2>&1; then
+    err "Namespace '$NAMESPACE' does not exist or is not accessible"
+    exit 1
+  fi
+  
+  log "Prerequisites validation passed"
+}
 
 get_image_digest() {
   local image_ref="$1"
@@ -243,6 +286,9 @@ command -v podman >/dev/null 2>&1 || { warn "Podman not found; deploy steps requ
 
 ## Show dry-run info before any actions
 info_dry_run
+
+# Validate prerequisites (fatal if missing)
+validate_prerequisites
 
 if [[ "$SKIP_BUILD" != "true" && "$DRY_RUN" != "true" ]]; then
   log "Starting container image build (backend) -> ${REGISTRY}/vllm-optimizer-backend:${IMAGE_TAG}"
