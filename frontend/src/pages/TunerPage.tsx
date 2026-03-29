@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSSE } from "../hooks/useSSE";
 import { authFetch } from '../utils/authFetch';
 import { API } from "../constants";
@@ -35,6 +35,7 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
   const [benchmarkSaved, setBenchmarkSaved] = useState(false);
   const [benchmarkSavedId, setBenchmarkSavedId] = useState<number | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const userEditedRef = useRef<Record<string, boolean>>({});
   const [config, setConfig] = useState<TunerConfig>({
     objective: "balanced",
     evaluation_mode: "single",
@@ -164,9 +165,47 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
 
   useEffect(() => {
     if (endpoint) {
-      setConfig(c => ({ ...c, vllm_endpoint: c.vllm_endpoint || endpoint }));
+      setConfig(c => {
+        if (userEditedRef.current.vllm_endpoint) return c;
+        return { ...c, vllm_endpoint: c.vllm_endpoint || endpoint };
+      });
     }
   }, [endpoint]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    if (isMockEnabled) return;
+
+    const controller = new AbortController();
+    authFetch(`${API}/vllm-config`, { signal: controller.signal })
+      .then((r) => {
+        if (!r.ok) {
+          return r.json().then((errData) => {
+            throw new Error(errData.detail || `HTTP ${r.status}`);
+          });
+        }
+        return r.json();
+      })
+      .then((data) => {
+        if (!data?.success || !data?.data) return;
+        const fetchedData = data.data as Record<string, unknown>;
+        setConfig((prev) => {
+          const next = { ...prev } as Record<string, unknown>;
+          Object.entries(fetchedData).forEach(([key, value]) => {
+            if (key in next && !userEditedRef.current[key]) {
+              next[key] = value;
+            }
+          });
+          return next as TunerConfig;
+        });
+      })
+      .catch((err: Error) => {
+        if (err.name === "AbortError") return;
+        console.error("Failed to fetch vLLM config:", err);
+      });
+
+    return () => controller.abort();
+  }, [isActive, isMockEnabled, namespace, inferenceservice]);
 
   useEffect(() => {
     onRunningChange?.(status.running);
@@ -174,6 +213,7 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
 
   const handleConfigChange = useCallback((field: string, value: string | number | boolean | number[]) => {
     setConfig(c => ({ ...c, [field]: value }));
+    userEditedRef.current[field] = true;
   }, []);
 
   const handleApplySuccess = useCallback(() => {
