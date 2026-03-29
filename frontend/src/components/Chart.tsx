@@ -16,7 +16,9 @@ const fmtTooltip = (ts: number) => {
   return `${Y}-${M}-${D} ${h}:${m}:${s}`;
 };
 
-const fmtTick = (ts: number, range: string) => {
+type TimeRange = 'Live' | '1h' | '6h' | '24h' | '7d';
+
+const fmtTick = (ts: number, range: TimeRange) => {
   const date = new Date(ts * 1000);
   const d = String(date.getDate()).padStart(2, '0');
   const HH = String(date.getHours()).padStart(2, '0');
@@ -73,7 +75,7 @@ interface ChartProps {
   height?: number;
   onHide?: () => void;
   threshold?: number;
-  timeRange?: string;
+  timeRange?: TimeRange;
 }
 
 function Chart({ data, lines, title, height = 180, onHide, threshold, timeRange = '1h' }: ChartProps) {
