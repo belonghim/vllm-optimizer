@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-29] - Security Hardening, Reliability & Code Quality (r5)
+
+**Status**: Completed
+
+CSP 강화, Rate Limiting 확장, SSE 안정성, 코드 품질(함수 분해, 예외 범위 좁히기), LoadingSpinner 일관성, ImageStream 복원, Dockerfile 최적화, 헬스체크 수정.
+
+### Fixed
+- **`deploy.sh`**: 헬스체크를 클러스터 내부 DNS 대신 `oc exec`로 Pod 내부에서 실행 — 로컬 머신에서 접근 불가능한 DNS 문제 해소.
+- **`backend/routers/load_test.py`**, **`backend/routers/tuner.py`**: SSE 스트림 엔드포인트에 `@limiter.exempt` 추가 — `default_limits` Rate Limit이 SSE에 잘못 적용되던 버그 수정.
+- **`backend/tests/test_sse_errors.py`**: `LoadTestState` 싱글톤 리팩터링 후 깨진 import (`_is_sweeping` → `_state._is_sweeping`) 수정.
+
+### Added
+- **`backend/services/retry_helper.py`**: `with_retry()` 공유 헬퍼 — 모든 외부 httpx 호출에 지수 백오프 재시도 적용.
+- **`backend/main.py`**: 시작 시 환경변수 유효성 검증 — 누락 시 WARNING/INFO 로그 출력.
+- **`openshift/base/06-imagestream.yaml`**: oauth-proxy ImageStream 복원 + kustomization.yaml에 등록.
+- **`deploy.sh`**: `oc tag openshift/oauth-proxy:v4.4` — 에어갭 환경에서 oauth-proxy 이미지 로컬 복사.
+
+### Changed
+- **`frontend/nginx.conf`**: CSP `script-src`에서 `unsafe-inline` 제거. `X-XSS-Protection`, `Permissions-Policy` 헤더 추가. `/health` 및 정적 자산 location 블록에 보안 헤더 반복 적용 (nginx 상속 버그 대응).
+- **`backend/routers/load_test.py`**: 6개 모듈 전역 변수를 `LoadTestState` 싱글톤으로 캡슐화. `asyncio.Lock` 일관 적용.
+- **`backend/routers/tuner.py`**: `start_tuning` 98줄 → 48줄 분해. SSE `asyncio.CancelledError` 처리 추가.
+- **`backend/services/shared.py`**: `get_internal_client()` / `get_external_client()` 팩토리 함수로 httpx 클라이언트 지연 초기화.
+- **`frontend/src/pages/MonitorPage.jsx`**, **`frontend/src/pages/TunerPage.jsx`**: 초기 로딩 시 `LoadingSpinner` 표시.
+- **`backend/services/storage.py`**: 광범위한 `except Exception` 36개에 `# intentional:` 어노테이션 추가.
+- **`backend/routers/tuner.py`**: 광범위한 `except Exception` 3개에 `# intentional:` 어노테이션 추가.
+- **`backend/Dockerfile`**: 레이어 캐시 최적화 — `requirements.txt` 복사를 소스 코드 복사보다 먼저 배치.
+
 ## [2026-03-29] - Codebase Quality Hardening
 
 **Status**: Completed
