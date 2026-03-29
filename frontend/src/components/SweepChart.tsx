@@ -91,32 +91,41 @@ const SweepChart: React.FC<SweepChartProps> = ({ steps, saturationRps }) => {
   return (
     <div className="panel" data-testid="sweep-chart">
       <div className="section-title">Sweep Visualization</div>
-      <ResponsiveContainer width="100%" height={300}>
-        <ComposedChart
-          data={chartData}
-          margin={{
-            top: 5, right: 30, left: 20, bottom: 5,
-          }}
-        >
-          <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
-          <XAxis dataKey="rps" type="number" domain={['dataMin', 'dataMax']} tick={{ fontSize: 9, fill: COLORS.muted }} label={{ value: 'Target RPS', position: 'insideBottom', offset: -5, fill: COLORS.muted, fontSize: 10 }} />
-          <YAxis yAxisId="left" stroke={COLORS.cyan} tick={{ fontSize: 9, fill: COLORS.cyan }} label={{ value: 'Throughput (TPS)', angle: -90, position: 'insideLeft', fill: COLORS.cyan, fontSize: 10 }} />
-          <YAxis yAxisId="right" orientation="right" stroke={COLORS.accent} tick={{ fontSize: 9, fill: COLORS.accent }} label={{ value: 'P99 Latency (ms)', angle: 90, position: 'insideRight', fill: COLORS.accent, fontSize: 10 }} />
-          <Tooltip content={<CustomTooltip />} />
-          <Legend wrapperStyle={{ fontSize: '12px' }} />
-          <Line yAxisId="left" type="monotone" dataKey="throughput" stroke={COLORS.cyan} name="Throughput" dot={(props) => <CustomizedDot {...props} saturated={props.payload.saturated} />} />
-          <Line yAxisId="right" type="monotone" dataKey="p99_latency" stroke={COLORS.accent} name="P99 Latency" dot={(props) => <CustomizedDot {...props} saturated={props.payload.saturated} />} />
-          {saturationRps != null && (
-            <ReferenceLine
-              x={saturationRps}
-              yAxisId="left"
-              stroke={COLORS.red}
-              strokeDasharray="3 3"
-              label={{ value: 'Saturation', position: 'top', fill: COLORS.red, fontSize: 10 }}
-            />
-          )}
-        </ComposedChart>
-      </ResponsiveContainer>
+      <div
+        style={{
+          width: '100%',
+          height: '30vh',
+          minHeight: '220px',
+          maxHeight: '420px',
+        }}
+      >
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart
+            data={chartData}
+            margin={{
+              top: 5, right: 30, left: 20, bottom: 5,
+            }}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
+            <XAxis dataKey="rps" type="number" domain={['dataMin', 'dataMax']} tick={{ fontSize: 9, fill: COLORS.muted }} label={{ value: 'Target RPS', position: 'insideBottom', offset: -5, fill: COLORS.muted, fontSize: 10 }} />
+            <YAxis yAxisId="left" stroke={COLORS.cyan} tick={{ fontSize: 9, fill: COLORS.cyan }} label={{ value: 'Throughput (TPS)', angle: -90, position: 'insideLeft', fill: COLORS.cyan, fontSize: 10 }} />
+            <YAxis yAxisId="right" orientation="right" stroke={COLORS.accent} tick={{ fontSize: 9, fill: COLORS.accent }} label={{ value: 'P99 Latency (ms)', angle: 90, position: 'insideRight', fill: COLORS.accent, fontSize: 10 }} />
+            <Tooltip content={<CustomTooltip />} />
+            <Legend wrapperStyle={{ fontSize: '12px' }} />
+            <Line yAxisId="left" type="monotone" dataKey="throughput" stroke={COLORS.cyan} name="Throughput" dot={(props) => <CustomizedDot {...props} saturated={props.payload.saturated} />} />
+            <Line yAxisId="right" type="monotone" dataKey="p99_latency" stroke={COLORS.accent} name="P99 Latency" dot={(props) => <CustomizedDot {...props} saturated={props.payload.saturated} />} />
+            {saturationRps != null && (
+              <ReferenceLine
+                x={saturationRps}
+                yAxisId="left"
+                stroke={COLORS.red}
+                strokeDasharray="3 3"
+                label={{ value: 'Saturation', position: 'top', fill: COLORS.red, fontSize: 10 }}
+              />
+            )}
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 };

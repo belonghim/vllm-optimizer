@@ -184,7 +184,14 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
           {selectedIds.length === 0 ? (
             <div className="td-muted" style={{ textAlign: 'center', padding: '60px' }}>{ERROR_MESSAGES.SLA.SELECT_BENCHMARK}</div>
           ) : (currentEval?.results ?? []).length > 0 ? (
-            <div style={{ height: '300px', width: '100%' }}>
+            <div
+              style={{
+                width: '100%',
+                height: '30vh',
+                minHeight: '220px',
+                maxHeight: '420px',
+              }}
+            >
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
