@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-29] - Monitor Page Improvements & LLMIS Metric Fix
+
+**Status**: Completed
+
+MonitorPage MetricCards 제거, LLMIS(llm-d) 메트릭 prefix 불일치 수정(`vllm:*` → `kserve_vllm:*`), cross-page default target 전파, 1h Thanos 조회 지원, "Live" 실시간 버튼, 활성 버튼 CSS, 차트 시간 포맷 개선.
+
+### Fixed
+- **`backend/services/multi_target_collector.py`**: 하드코딩된 `"vllm:"` prefix를 `adapter.metric_prefix()` 동적 호출로 교체 — LLMIS(llm-d) 환경에서 메트릭 빈 결과 문제 해소.
+- **`openshift/vllm-dependency/base/06-vllm-monitoring.yaml`**: PrometheusRule alert 표현식의 `vllm:*` → `kserve_vllm:*` 수정 — llm-d-demo 네임스페이스에서 dead alert 해소.
+- **`frontend/src/index.css`**: `.btn.active` CSS 규칙 추가 — 활성 시간 범위 버튼이 시각적으로 구분되지 않던 문제 수정.
+
+### Added
+- **`backend/services/cr_adapter.py`**: `CRAdapter.metric_prefix()` 추상 메서드 추가. `InferenceServiceAdapter` → `"vllm:"`, `LLMInferenceServiceAdapter` → `"kserve_vllm:"` 반환.
+- **`backend/routers/metrics.py`**: `_TIME_RANGE_CONFIG`에 `"1h"` 엔트리 추가 (`duration: 3600, step: 10`) — 1h 버튼도 Thanos query_range 사용.
+- **`frontend/src/pages/MonitorPage.tsx`**: "Live" 버튼 추가 (기본값) — `history_points` 기반 실시간 3s 폴링 모드 복귀 수단.
+
+### Changed
+- **`frontend/src/pages/MonitorPage.tsx`**: `TIME_RANGES` 배열에 `timeRange` 필드 추가 — 1h/6h/24h/7d 모두 `time_range` 파라미터로 Thanos 조회.
+- **`frontend/src/components/Chart.tsx`**: `fmtTick` (범위별 간결 포맷: `"14h30m"`, `"29d14h"`) + `fmtTooltip` (전체 날짜+시간: `"2026-03-29 14:30:45"`) 도입. 한국어 로케일(`ko-KR`) 제거.
+- **`frontend/src/pages/LoadTestPage.tsx`**: default target 변경 시 endpoint/model 반응형 동기화 useEffect 추가.
+- **`frontend/src/pages/TunerPage.tsx`**: default target 변경 시 `config.vllm_endpoint` 반응형 동기화 useEffect 추가.
+
+### Removed
+- **`frontend/src/components/MonitorMetricCards.tsx`**: 삭제 — MultiTargetSelector가 동일 정보를 이미 표시하므로 중복.
+
 ## [2026-03-29] - Security Hardening, Reliability & Code Quality (r5)
 
 **Status**: Completed
