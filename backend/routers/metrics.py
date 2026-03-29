@@ -11,7 +11,7 @@ import time as time_mod
 from datetime import UTC, datetime
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 from services.rate_limiter import limiter
 from services.retry_helper import with_retry
@@ -343,7 +343,7 @@ async def get_batch_metrics(request: Request, body: BatchMetricsRequest) -> Batc
 @limiter.limit("120/minute")
 async def get_metrics_history(
     request: Request,
-    last_n: int | None = 60,
+    last_n: int | None = Query(default=60, ge=1, le=10000),
     namespace: str | None = None,
     is_name: str | None = None,
 ) -> list[MetricsSnapshot]:
