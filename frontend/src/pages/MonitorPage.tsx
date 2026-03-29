@@ -22,10 +22,10 @@ export { buildChartLinesMap } from "../components/MonitorChartGrid";
 const fmtTime = (ts: number) => new Date(ts * 1000).toLocaleTimeString("ko-KR", { hour12: false });
 
 const TIME_RANGES = [
-  { label: '1h',  points: 360 },
-  { label: '6h',  points: 720 },
-  { label: '24h', points: 1000 },
-  { label: '7d',  points: 1400 },
+  { label: '1h',  points: 360, timeRange: '1h' },
+  { label: '6h',  points: 720, timeRange: '6h' },
+  { label: '24h', points: 1000, timeRange: '24h' },
+  { label: '7d',  points: 1400, timeRange: '7d' },
 ];
 
 function MonitorPage({ isActive }: { isActive: boolean }) {
@@ -94,7 +94,7 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(
-          ['6h', '24h', '7d'].includes(selectedRangeRef.current)
+          ['1h', '6h', '24h', '7d'].includes(selectedRangeRef.current)
             ? { targets: batchTargets, time_range: selectedRangeRef.current }
             : { targets: batchTargets, history_points: timeRangePointsRef.current }
         ),

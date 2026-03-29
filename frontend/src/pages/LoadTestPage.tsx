@@ -23,6 +23,12 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
     }
   }, [globalIsLoading, globalEndpoint]);
 
+  useEffect(() => {
+    if (!globalIsLoading && inferenceservice) {
+      setSharedModel(m => m === "auto" ? inferenceservice : m);
+    }
+  }, [globalIsLoading, inferenceservice]);
+
   return (
     <div className="flex-col-16">
       <div className="tabs">

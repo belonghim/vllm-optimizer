@@ -57,6 +57,11 @@ body {
 .nav-btn.active { color: var(--accent-color); border-bottom-color: var(--accent-color); }
 .nav-btn:hover { color: var(--text-color); }
 
+.btn.active {
+  background: var(--accent-color);
+  color: var(--bg-primary);
+}
+
 .nav-btn--running { position: relative; }
 .nav-btn-dot {
   display: inline-block;
