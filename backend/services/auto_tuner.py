@@ -8,7 +8,6 @@ import logging
 import math
 import os
 import time
-from contextlib import suppress
 from typing import Any, Literal
 
 import httpx
@@ -25,6 +24,7 @@ from models.load_test import (  # pyright: ignore[reportImplicitRelativeImport]
     TuningConfig,
     TuningTrial,
 )
+from services.event_broadcaster import EventBroadcaster  # pyright: ignore[reportImplicitRelativeImport,reportMissingImports]
 from services.k8s_operator import K8sOperator, _get_k8s_namespace, _get_vllm_is_name  # pyright: ignore[reportImplicitRelativeImport]
 from services.shared import storage  # pyright: ignore[reportImplicitRelativeImport]
 
@@ -32,22 +32,6 @@ from .model_resolver import resolve_model_name
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 OPTUNA_AVAILABLE = True
-
-# Prometheus metrics integration (optional)
-_metrics_available: bool = False
-tuner_trials_total: Any = None
-tuner_best_score: Any = None
-tuner_trial_duration_seconds: Any = None
-try:
-    from metrics.prometheus_metrics import (  # pyright: ignore[reportImplicitRelativeImport]
-        tuner_best_score,  # type: ignore[assignment]
-        tuner_trial_duration_seconds,  # type: ignore[assignment]
-        tuner_trials_total,  # type: ignore[assignment]
-    )
-
-    _metrics_available = True
-except ImportError:
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -67,17 +51,14 @@ class AutoTuner:
         self._sweep_config: SweepConfig | None = None
         self._config: TuningConfig | None = None  # Set in start()
         self._k8s_operator = K8sOperator()
+        self._event_broadcaster = EventBroadcaster()
         self._k8s_core: k8s_client.CoreV1Api | None = None
         self._cooldown_secs: int = 30
         self._pareto_front_size: int | None = None
-        # SSE broadcasting primitives
-        self._subscribers: list[asyncio.Queue[Any]] = []
-        self._subscribers_lock: asyncio.Lock = asyncio.Lock()
         self._lock = asyncio.Lock()
         self._study_lock = asyncio.Lock()
         self._k8s_lock = asyncio.Lock()
         self._best_score_history: list[float] = []
-        self._persistence_warning_sent: bool = False
         self._current_task: asyncio.Task[Any] | None = None
         self._k8s_apps = self._k8s_operator._k8s_apps
         self._k8s_custom = self._k8s_operator._k8s_custom
@@ -161,24 +142,13 @@ class AutoTuner:
         return await self._k8s_operator.preflight_check()
 
     async def subscribe(self) -> asyncio.Queue[Any]:
-        """Subscribe to tuning events. Returns a queue that will receive events."""
-        q: asyncio.Queue[Any] = asyncio.Queue()
-        async with self._subscribers_lock:
-            self._subscribers.append(q)
-        return q
+        return await self._event_broadcaster.subscribe()
 
     async def unsubscribe(self, q: asyncio.Queue[Any]) -> None:
-        """Unsubscribe from tuning events."""
-        async with self._subscribers_lock:
-            with suppress(ValueError):
-                self._subscribers.remove(q)
+        await self._event_broadcaster.unsubscribe(q)
 
     async def _broadcast(self, data: dict[str, Any]) -> None:
-        """Broadcast an event to all subscribers."""
-        async with self._subscribers_lock:
-            targets = list(self._subscribers)
-        for q in targets:
-            await q.put(data)
+        await self._event_broadcaster.broadcast(data)
 
     @property
     def trials(self) -> list[TuningTrial]:
@@ -202,7 +172,7 @@ class AutoTuner:
         self._best_score_history = []
         self._best_trial = None
         self._pareto_front_size = None
-        self._persistence_warning_sent = False
+        self._event_broadcaster.reset_persistence_warning()
         storage_url = os.getenv("OPTUNA_STORAGE_URL")
         self._direction, self._study = await self._setup_study(config, storage_url)
 
@@ -563,28 +533,10 @@ class AutoTuner:
         return await self._evaluate(endpoint, config, trial=trial, trial_num=trial_num)
 
     async def _emit_trial_metrics(self, trial_start: float, status: str) -> None:
-        try:
-            if _metrics_available:
-                tuner_trial_duration_seconds.observe(time.monotonic() - trial_start)
-                tuner_trials_total.labels(status=status).inc()
-                if status == "completed" and self._best_trial is not None:
-                    assert self._config is not None
-                    tuner_best_score.labels(objective=self._config.objective).set(self._best_trial.score)
-        except Exception as _e:  # intentional: non-critical metrics
-            logger.debug("[AutoTuner] Metrics emit failed (non-critical): %s", _e)
+        await self._event_broadcaster.emit_trial_metrics(trial_start, status, self._best_trial, self._config)
 
     async def _broadcast_persistence_warning_once(self) -> None:
-        if self._persistence_warning_sent:
-            return
-        self._persistence_warning_sent = True
-        await self._broadcast(
-            {
-                "type": "tuning_warning",
-                "data": {
-                    "message": "트라이얼 저장에 실패했지만 튜닝은 계속 진행합니다",
-                },
-            }
-        )
+        await self._event_broadcaster.broadcast_persistence_warning_once()
 
     async def _update_pareto_front(self) -> None:
         try:
