@@ -34,6 +34,7 @@ PROMETHEUS_URL = os.getenv(
 )
 
 _TIME_RANGE_CONFIG: dict[str, dict[str, int]] = {
+    "1h": {"duration": 3600, "step": 10},
     "6h": {"duration": 6 * 3600, "step": 30},
     "24h": {"duration": 24 * 3600, "step": 90},
     "7d": {"duration": 7 * 24 * 3600, "step": 600},

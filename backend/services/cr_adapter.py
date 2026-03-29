@@ -147,6 +147,10 @@ class CRAdapter(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    def metric_prefix(self) -> str:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     def check_ready(self, status: dict[str, Any]) -> bool:
         raise NotImplementedError
 
@@ -205,6 +209,9 @@ class InferenceServiceAdapter(CRAdapter):
 
     def prometheus_job(self, name: str) -> str:
         return f"{name}-metrics"
+
+    def metric_prefix(self) -> str:
+        return "vllm:"
 
     def dcgm_pod_pattern(self, name: str) -> str:
         return f"{name}-predictor.*"
@@ -324,6 +331,9 @@ class LLMInferenceServiceAdapter(CRAdapter):
     def prometheus_job(self, name: str) -> str:
         # LLMIS uses static PodMonitor name regardless of CR name
         return "kserve-llm-isvc-vllm-engine"
+
+    def metric_prefix(self) -> str:
+        return "kserve_vllm:"
 
     def dcgm_pod_pattern(self, name: str) -> str:
         return f"{name}-kserve.*"

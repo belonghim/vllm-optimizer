@@ -14,7 +14,6 @@ import MonitorChartGrid, {
   buildChartLinesMap, loadChartConfig, saveChartConfig,
   type ChartConfig,
 } from "../components/MonitorChartGrid";
-import MonitorMetricCards from "../components/MonitorMetricCards";
 import type { SlaThresholds, SlaProfile, HistoryPoint, TargetResultData, TargetResult, TargetState } from "../types";
 
 // Re-export for backwards compatibility (tests import from this module)
@@ -247,14 +246,6 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
     return undefined;
   };
 
-  const latestMetrics = useMemo(() => {
-    if (!defaultKey) return null;
-    return targetStates[defaultKey]?.data ?? null;
-  }, [targetStates, defaultKey]);
-
-  const formatValue = (v: number | null | undefined, decimals = 0) =>
-    v == null ? '—' : v.toFixed(decimals);
-
   return (
     <div className="flex-col-1">
       <div className="panel flex-row-12" style={{ padding: '12px 20px', borderBottom: 'none', marginBottom: '-1px', justifyContent: 'space-between' }}>
@@ -290,13 +281,12 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
         <LoadingSpinner />
       ) : (
         <>
-          <MultiTargetSelector
-            targetStatuses={targetStatuses}
-            targetStates={targetStates}
-          />
-          <ErrorAlert message={error} className="error-alert--m08" />
-          <MonitorMetricCards latestMetrics={latestMetrics} formatValue={formatValue} />
-          <MonitorChartGrid
+           <MultiTargetSelector
+             targetStatuses={targetStatuses}
+             targetStates={targetStates}
+           />
+           <ErrorAlert message={error} className="error-alert--m08" />
+           <MonitorChartGrid
             visibleCharts={chartOrder.filter(id => !hiddenCharts.includes(id))}
             hiddenCharts={hiddenCharts}
             chartData={mergedHistory}
