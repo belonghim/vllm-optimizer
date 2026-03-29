@@ -9,7 +9,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "type-check": "tsc --noEmit",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "lint": "eslint src/",
+    "format": "prettier --write src/"
   },
   "dependencies": {
     "react": "^18.2.0",
@@ -18,6 +20,7 @@
     "recharts": "^2.10.3"
   },
   "devDependencies": {
+    "@eslint/js": "^9.0.0",
     "@playwright/test": "^1.58.2",
     "@testing-library/jest-dom": "^6.0.0",
     "@testing-library/react": "^16.0.0",
@@ -30,6 +33,12 @@
     "msw": "^2.12.14",
     "typescript": "^5.9.3",
     "vite": "^5.0.0",
-    "vitest": "^3.0.0"
+    "vitest": "^3.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-react": "^7.37.0",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "prettier": "^3.0.0",
+    "typescript-eslint": "^8.0.0"
   }
 }
