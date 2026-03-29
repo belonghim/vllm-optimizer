@@ -16,7 +16,7 @@ export default function ConfirmDialog({ open, title, message, onConfirm, onCance
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0, 0, 0, 0.55)",
+        background: "var(--confirm-dialog-overlay)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
