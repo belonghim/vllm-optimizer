@@ -1734,3 +1734,60 @@ async def test_stop_returns_error_when_not_running(auto_tuner_instance):
     result = await tuner.stop()
     assert result["success"] is False
     assert "message" in result
+
+
+# ── T21/T19 Extracted Module Error-Path Tests ─────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_preflight_check_returns_rbac_error_on_403(auto_tuner_instance):
+    """preflight_check returns rbac error_type when K8s API returns 403."""
+    tuner = auto_tuner_instance
+    from kubernetes.client.exceptions import ApiException
+
+    mock_custom = tuner._k8s_custom
+    mock_custom.get_namespaced_custom_object.side_effect = ApiException(status=403, reason="Forbidden")
+    result = await tuner._preflight_check()
+    assert result["success"] is False
+    assert result["error_type"] == "rbac"
+
+
+@pytest.mark.asyncio
+async def test_preflight_check_returns_not_found_on_404(auto_tuner_instance):
+    """preflight_check returns not_found error_type when K8s API returns 404."""
+    tuner = auto_tuner_instance
+    from kubernetes.client.exceptions import ApiException
+
+    mock_custom = tuner._k8s_custom
+    mock_custom.get_namespaced_custom_object.side_effect = ApiException(status=404, reason="Not Found")
+    result = await tuner._preflight_check()
+    assert result["success"] is False
+    assert result["error_type"] == "not_found"
+
+
+def test_compute_trial_score_latency_objective():
+    """compute_trial_score returns negative p99 for latency objective."""
+    from unittest.mock import AsyncMock
+
+    from ..models.load_test import TuningConfig
+    from ..services.tuner_logic import TunerLogic
+
+    logic = TunerLogic(load_engine=AsyncMock())
+    config = TuningConfig(n_trials=1, objective="latency")
+    result = {"tps": {"total": 100}, "latency": {"p99": 0.5}}
+    score = logic.compute_trial_score(result, config)
+    assert score == -0.5  # negative for minimization
+
+
+def test_compute_trial_score_missing_data():
+    """compute_trial_score handles missing tps/latency gracefully."""
+    from unittest.mock import AsyncMock
+
+    from ..models.load_test import TuningConfig
+    from ..services.tuner_logic import TunerLogic
+
+    logic = TunerLogic(load_engine=AsyncMock())
+    config = TuningConfig(n_trials=1, objective="tps")
+    result = {}  # empty result
+    score = logic.compute_trial_score(result, config)
+    assert score == 0  # default when tps missing
