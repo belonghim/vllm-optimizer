@@ -162,6 +162,11 @@ class _StubMultiTargetMetricsCollector:
     def get_history_dict(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
         return list(self._history)
 
+    def _build_target_queries(self, namespace: str, is_name: str, cr_type: str | None = None) -> dict[str, str]:
+        return {"tokens_per_second": f'vllm:tokens{{namespace="{namespace}"}}'}
+
+    _token: str | None = None
+
     @property
     def latest(self):
         return None

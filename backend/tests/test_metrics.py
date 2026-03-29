@@ -1,7 +1,10 @@
+import asyncio
 import time
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from ..main import app
 from ..services.multi_target_collector import VLLMMetrics
@@ -158,3 +161,126 @@ def test_metrics_batch_caps_at_max(isolated_client):
     target_result = data["results"]["llm-d-demo/small-llm-d"]
     assert "history" in target_result
     assert len(target_result["history"]) <= 1000
+
+
+def _make_async_client_mock(get_mock):
+    mock_ac = AsyncMock()
+    mock_ac.get = get_mock
+    mock_cm = MagicMock()
+    mock_cm.__aenter__ = AsyncMock(return_value=mock_ac)
+    mock_cm.__aexit__ = AsyncMock(return_value=False)
+    return mock_cm
+
+
+def test_thanos_500_error(isolated_client):
+    mock_response = MagicMock()
+    mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "500 Server Error",
+        request=MagicMock(),
+        response=MagicMock(status_code=500),
+    )
+    mock_cm = _make_async_client_mock(AsyncMock(return_value=mock_response))
+
+    with patch("routers.metrics.httpx.AsyncClient", return_value=mock_cm):
+        response = isolated_client.post(
+            "/api/metrics/batch",
+            json={
+                "targets": [{"namespace": "llm-d-demo", "inferenceService": "small-llm-d"}],
+                "time_range": "1h",
+            },
+        )
+    assert response.status_code == 200
+    data = response.json()
+    target_result = data["results"]["llm-d-demo/small-llm-d"]
+    assert target_result["history"] == []
+
+
+def test_thanos_timeout(isolated_client):
+    mock_cm = _make_async_client_mock(AsyncMock(side_effect=httpx.TimeoutException("timed out")))
+
+    with patch("routers.metrics.httpx.AsyncClient", return_value=mock_cm):
+        response = isolated_client.post(
+            "/api/metrics/batch",
+            json={
+                "targets": [{"namespace": "llm-d-demo", "inferenceService": "small-llm-d"}],
+                "time_range": "1h",
+            },
+        )
+    assert response.status_code == 200
+    data = response.json()
+    target_result = data["results"]["llm-d-demo/small-llm-d"]
+    assert target_result["history"] == []
+
+
+def test_thanos_malformed_response(isolated_client):
+    mock_response = MagicMock()
+    mock_response.raise_for_status = MagicMock()
+    mock_response.json.return_value = {"status": "success", "data": {}}
+    mock_cm = _make_async_client_mock(AsyncMock(return_value=mock_response))
+
+    with patch("routers.metrics.httpx.AsyncClient", return_value=mock_cm):
+        response = isolated_client.post(
+            "/api/metrics/batch",
+            json={
+                "targets": [{"namespace": "llm-d-demo", "inferenceService": "small-llm-d"}],
+                "time_range": "1h",
+            },
+        )
+    assert response.status_code == 200
+    data = response.json()
+    target_result = data["results"]["llm-d-demo/small-llm-d"]
+    assert target_result["history"] == []
+
+
+def test_fetch_query_range_thanos_500_returns_empty():
+    from routers.metrics import _fetch_query_range
+
+    mock_response = MagicMock()
+    mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "500", request=MagicMock(), response=MagicMock(status_code=500)
+    )
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(return_value=mock_response)
+
+    result = asyncio.run(_fetch_query_range(mock_client, {}, "test_metric{}", 0.0, 100.0, 10))
+    assert result == []
+
+
+def test_fetch_query_range_malformed_json_returns_empty():
+    from routers.metrics import _fetch_query_range
+
+    mock_response = MagicMock()
+    mock_response.raise_for_status = MagicMock()
+    mock_response.json.return_value = {"status": "error", "error": "query failed"}
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(return_value=mock_response)
+
+    result = asyncio.run(_fetch_query_range(mock_client, {}, "test_metric{}", 0.0, 100.0, 10))
+    assert result == []
+
+
+def test_fetch_query_range_nan_inf_values_filtered():
+    from routers.metrics import _fetch_query_range
+
+    mock_response = MagicMock()
+    mock_response.raise_for_status = MagicMock()
+    mock_response.json.return_value = {
+        "status": "success",
+        "data": {
+            "result": [
+                {
+                    "values": [
+                        [1000.0, "NaN"],
+                        [1010.0, "Inf"],
+                        [1020.0, "42.5"],
+                    ]
+                }
+            ]
+        },
+    }
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(return_value=mock_response)
+
+    result = asyncio.run(_fetch_query_range(mock_client, {}, "test_metric{}", 0.0, 100.0, 10))
+    assert len(result) == 1
+    assert result[0] == (1020.0, 42.5)
