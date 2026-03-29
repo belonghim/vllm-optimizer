@@ -225,6 +225,10 @@ spec:
 | `VLLM_DEPLOYMENT_NAME` | LLMInferenceService 이름. **auto-tuner의 리소스 이름 참조에 사용.** `K8S_DEPLOYMENT_NAME`과 혼동 금지. | `small-llm-d` |
 | `VLLM_ENDPOINT` | LLM 추론 엔드포인트 (테스트용). Gateway 내부 또는 외부 주소. | `http://openshift-ai-inference-openshift-default.openshift-ingress.svc/llm-d-demo/small-llm-d` |
 | `VLLM_MODEL` | LLM 모델명 | `qwen2-5-7b-instruct` |
+| `LOAD_ENGINE_TIMEOUT` | 부하 테스트 HTTP 요청 타임아웃 (기본: 120초) | `120` |
+| `LOAD_ENGINE_SHORT_TIMEOUT` | 부하 테스트 short 요청 타임아웃 (기본: 5초) | `5` |
+| `SELF_METRICS_URL` | self-metrics 수집 URL (기본: http://localhost:8000/metrics) | `http://localhost:8000/metrics` |
+| `MODEL_RESOLVE_TIMEOUT` | 모델명 해석 HTTP 타임아웃 (기본: 10초) | `10` |
 
 ---
 
