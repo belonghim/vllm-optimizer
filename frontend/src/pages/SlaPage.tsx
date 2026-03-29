@@ -8,6 +8,7 @@ import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLin
 import { useBenchmarkSelection } from '../contexts/BenchmarkSelectionContext';
 import SlaProfileForm, { SlaFormState } from "../components/SlaProfileForm";
 import SlaProfileList from "../components/SlaProfileList";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 import type { SlaThresholds, SlaProfile } from "../types";
 export type { SlaThresholds, SlaProfile };
@@ -46,6 +47,17 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
   const [formState, setFormState] = useState<SlaFormState>(EMPTY_FORM);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [chartMetric, setChartMetric] = useState<'p95_latency' | 'availability' | 'error_rate' | 'min_tps'>('p95_latency');
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean;
+    title?: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    open: false,
+    title: undefined,
+    message: "",
+    onConfirm: () => {},
+  });
 
   const handleFormChange = (field: keyof SlaFormState, value: string) =>
     setFormState(prev => ({ ...prev, [field]: value }));
@@ -133,8 +145,7 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm(ERROR_MESSAGES.SLA.PROFILE_DELETE_CONFIRM)) return;
+  const deleteProfile = useCallback(async (id: number) => {
     try {
       const res = await authFetch(`${API}/sla/profiles/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -143,6 +154,17 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
     } catch (err) {
       setError(`${ERROR_MESSAGES.SLA.PROFILE_DELETE_FAILED}: ${(err as Error).message}`);
     }
+  }, [loadProfiles, selectedProfileId]);
+
+  const handleDelete = async (id: number) => {
+    setConfirmState({
+      open: true,
+      title: "Delete SLA Profile",
+      message: ERROR_MESSAGES.SLA.PROFILE_DELETE_CONFIRM,
+      onConfirm: () => {
+        void deleteProfile(id);
+      },
+    });
   };
 
   const chartData = (currentEval?.results ?? []).map(r => {
@@ -215,6 +237,17 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
           )}
         </div>
       )}
+      <ConfirmDialog
+        open={confirmState.open}
+        title={confirmState.title}
+        message={confirmState.message}
+        onCancel={() => setConfirmState(prev => ({ ...prev, open: false }))}
+        onConfirm={() => {
+          const callback = confirmState.onConfirm;
+          setConfirmState(prev => ({ ...prev, open: false }));
+          callback();
+        }}
+      />
     </div>
   );
 }

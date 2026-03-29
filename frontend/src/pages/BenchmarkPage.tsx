@@ -11,6 +11,7 @@ import LoadingSpinner from "../components/LoadingSpinner";
 import BenchmarkTable from "../components/BenchmarkTable";
 import BenchmarkMetadataModal from "../components/BenchmarkMetadataModal";
 import BenchmarkCompareCharts from "../components/BenchmarkCompareCharts";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 export interface BenchmarkMetadata {
   model_identifier?: string | null;
@@ -51,6 +52,17 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
   const { isMockEnabled } = useMockData();
   const [importing, setImporting] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean;
+    title?: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    open: false,
+    title: undefined,
+    message: "",
+    onConfirm: () => {},
+  });
 
   const fetchBenchmarks = useCallback(() => {
     setLoading(true);
@@ -81,24 +93,34 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
   const toggleExpand = (id: string | number) =>
     setExpanded(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
 
-  const handleDelete = async (b: BenchmarkItem, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!window.confirm(`Delete benchmark '${b.name}'?`)) return;
+  const deleteBenchmark = useCallback(async (b: BenchmarkItem) => {
     if (isMockEnabled) {
       setBenchmarks(prev => prev.filter(x => x.id !== b.id));
-      setSelected(selected.filter(x => x !== b.id));
+      setSelected(prev => prev.filter(x => x !== b.id));
       setExpanded(prev => prev.filter(x => x !== b.id));
       return;
     }
     try {
       const res = await authFetch(`${API}/benchmark/${b.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setSelected(selected.filter(x => x !== b.id));
+      setSelected(prev => prev.filter(x => x !== b.id));
       fetchBenchmarks();
     } catch (err) {
       console.error('Failed to delete benchmark:', err);
       setError(`Delete failed: ${(err as Error).message}`);
     }
+  }, [fetchBenchmarks, isMockEnabled, setSelected]);
+
+  const handleDelete = async (b: BenchmarkItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setConfirmState({
+      open: true,
+      title: "Delete Benchmark",
+      message: `Delete benchmark '${b.name}'?`,
+      onConfirm: () => {
+        void deleteBenchmark(b);
+      },
+    });
   };
 
   const handleSaveMetadata = async (benchmarkId: string | number, metadata: BenchmarkMetadata) => {
@@ -123,12 +145,15 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
     }
   };
 
-  const handleBulkDelete = async () => {
-    if (selected.length === 0) return;
-    if (!window.confirm(`Delete ${selected.length} benchmark(s)?`)) return;
-    if (isMockEnabled) { setBenchmarks(prev => prev.filter(b => !selected.includes(b.id))); setSelected([]); return; }
+  const bulkDeleteBenchmarks = useCallback(async (ids: (string | number)[]) => {
+    if (ids.length === 0) return;
+    if (isMockEnabled) {
+      setBenchmarks(prev => prev.filter(b => !ids.includes(b.id)));
+      setSelected([]);
+      return;
+    }
     try {
-      for (const id of selected) {
+      for (const id of ids) {
         const res = await authFetch(`${API}/benchmark/${id}`, { method: 'DELETE' });
         if (!res.ok) throw new Error(`HTTP ${res.status} for benchmark ID ${id}`);
       }
@@ -138,6 +163,19 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
       console.error('Failed to bulk delete benchmarks:', err);
       setError(`Bulk delete failed: ${(err as Error).message}`);
     }
+  }, [fetchBenchmarks, isMockEnabled, setSelected]);
+
+  const handleBulkDelete = async () => {
+    if (selected.length === 0) return;
+    const idsToDelete = [...selected];
+    setConfirmState({
+      open: true,
+      title: "Delete Benchmarks",
+      message: `Delete ${idsToDelete.length} benchmark(s)?`,
+      onConfirm: () => {
+        void bulkDeleteBenchmarks(idsToDelete);
+      },
+    });
   };
 
   const handleExportJSON = () => {
@@ -201,6 +239,17 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
           {compareData.length >= 2 && <BenchmarkCompareCharts compareData={compareData} />}
         </>
       )}
+      <ConfirmDialog
+        open={confirmState.open}
+        title={confirmState.title}
+        message={confirmState.message}
+        onCancel={() => setConfirmState(prev => ({ ...prev, open: false }))}
+        onConfirm={() => {
+          const callback = confirmState.onConfirm;
+          setConfirmState(prev => ({ ...prev, open: false }));
+          callback();
+        }}
+      />
     </div>
   );
 }

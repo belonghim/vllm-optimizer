@@ -5,6 +5,7 @@ import { ERROR_MESSAGES } from "../constants/errorMessages";
 import { useMockData } from "../contexts/MockDataContext";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
 import TunerConfigForm from "./TunerConfigForm";
+import ConfirmDialog from "./ConfirmDialog";
 import type { TunerPhase, TunerConfig } from "../types";
 
 interface TunerCurrentConfigProps {
@@ -42,6 +43,17 @@ export default function TunerCurrentConfig({
   const [currentResources, setCurrentResources] = useState<Record<string, Record<string, string>> | null>(null);
   const [storageUri, setStorageUri] = useState<string | null>(null);
   const [extraArgs, setExtraArgs] = useState<string[]>([]);
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean;
+    title?: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    open: false,
+    title: undefined,
+    message: "",
+    onConfirm: () => {},
+  });
 
   useEffect(() => {
     if (!isActive) return;
@@ -75,9 +87,7 @@ export default function TunerCurrentConfig({
     return () => controller.abort();
   }, [isActive, isMockEnabled, namespace, inferenceservice, onError]);
 
-  const handleApplyCurrentValues = useCallback(async (values: Record<string, unknown>) => {
-    const confirmed = window.confirm(ERROR_MESSAGES.TUNER.RESTART_CONFIRM);
-    if (!confirmed) return;
+  const applyCurrentValues = useCallback(async (values: Record<string, unknown>) => {
     try {
       const dataPayload: Record<string, string> = {};
       const resourcesPayload: Record<string, Record<string, string>> = {};
@@ -116,6 +126,17 @@ export default function TunerCurrentConfig({
     }
   }, [onError, onApplySuccess]);
 
+  const handleApplyCurrentValues = useCallback((values: Record<string, unknown>) => {
+    setConfirmState({
+      open: true,
+      title: "Apply Configuration",
+      message: ERROR_MESSAGES.TUNER.RESTART_CONFIRM,
+      onConfirm: () => {
+        void applyCurrentValues(values);
+      },
+    });
+  }, [applyCurrentValues]);
+
   const handleSaveStorageUri = useCallback(async (newUri: string) => {
     try {
       const res = await authFetch(`${API}/vllm-config`, {
@@ -136,22 +157,35 @@ export default function TunerCurrentConfig({
   }, [onError]);
 
   return (
-    <TunerConfigForm
-      config={config}
-      onChange={onChange}
-      onSubmit={onSubmit}
-      onStop={onStop}
-      onApplyBest={onApplyBest}
-      isRunning={isRunning}
-      hasBest={hasBest}
-      currentConfig={currentConfig}
-      currentResources={currentResources}
-      storageUri={storageUri}
-      onSaveStorageUri={handleSaveStorageUri}
-      onApplyCurrentValues={handleApplyCurrentValues}
-      currentPhase={currentPhase}
-      trialsCompleted={trialsCompleted}
-      extraArgs={extraArgs}
-    />
+    <>
+      <TunerConfigForm
+        config={config}
+        onChange={onChange}
+        onSubmit={onSubmit}
+        onStop={onStop}
+        onApplyBest={onApplyBest}
+        isRunning={isRunning}
+        hasBest={hasBest}
+        currentConfig={currentConfig}
+        currentResources={currentResources}
+        storageUri={storageUri}
+        onSaveStorageUri={handleSaveStorageUri}
+        onApplyCurrentValues={handleApplyCurrentValues}
+        currentPhase={currentPhase}
+        trialsCompleted={trialsCompleted}
+        extraArgs={extraArgs}
+      />
+      <ConfirmDialog
+        open={confirmState.open}
+        title={confirmState.title}
+        message={confirmState.message}
+        onCancel={() => setConfirmState(prev => ({ ...prev, open: false }))}
+        onConfirm={() => {
+          const callback = confirmState.onConfirm;
+          setConfirmState(prev => ({ ...prev, open: false }));
+          callback();
+        }}
+      />
+    </>
   );
 }

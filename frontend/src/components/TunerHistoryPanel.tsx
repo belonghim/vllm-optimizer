@@ -3,6 +3,7 @@ import { authFetch } from '../utils/authFetch';
 import { API } from "../constants";
 import { fmt } from "../utils/format";
 import MetricCard from "./MetricCard";
+import ConfirmDialog from "./ConfirmDialog";
 
 interface TuningSessionSummary {
   id: number;
@@ -30,6 +31,17 @@ export default function TunerHistoryPanel() {
   const [compareData, setCompareData] = useState<TuningSessionDetail[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean;
+    title?: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    open: false,
+    title: undefined,
+    message: "",
+    onConfirm: () => {},
+  });
 
   const fetchSessions = async () => {
     try {
@@ -54,20 +66,28 @@ export default function TunerHistoryPanel() {
     });
   };
 
-  const handleDelete = async (id: number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!window.confirm("Delete this tuning session?")) return;
+  const deleteSession = async (id: number) => {
     try {
       const res = await authFetch(`${API}/tuner/sessions/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setSessions(prev => prev.filter(s => s.id !== id));
       setSelectedIds(prev => prev.filter(x => x !== id));
-      if (compareData.some(d => d.id === id)) {
-        setCompareData(prev => prev.filter(d => d.id !== id));
-      }
+      setCompareData(prev => prev.filter(d => d.id !== id));
     } catch (err) {
       setError(`Delete failed: ${(err as Error).message}`);
     }
+  };
+
+  const handleDelete = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setConfirmState({
+      open: true,
+      title: "Delete Tuning Session",
+      message: "Delete this tuning session?",
+      onConfirm: () => {
+        void deleteSession(id);
+      },
+    });
   };
 
   const handleCompare = async () => {
@@ -201,6 +221,17 @@ export default function TunerHistoryPanel() {
           </table>
         </div>
       )}
+      <ConfirmDialog
+        open={confirmState.open}
+        title={confirmState.title}
+        message={confirmState.message}
+        onCancel={() => setConfirmState(prev => ({ ...prev, open: false }))}
+        onConfirm={() => {
+          const callback = confirmState.onConfirm;
+          setConfirmState(prev => ({ ...prev, open: false }));
+          callback();
+        }}
+      />
     </div>
   );
 }
