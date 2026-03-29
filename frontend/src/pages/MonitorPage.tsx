@@ -191,17 +191,17 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
 
   const mergedHistory = useMemo(() => {
     const timeMap: Record<string, Record<string, unknown>> = {};
-    Object.entries(targetStates).forEach(([targetKey, state]) => {
-      if (!state.history) return;
-      state.history.forEach(h => {
-        const t = h.t as string;
-        if (!timeMap[t]) timeMap[t] = { t };
-        METRIC_KEYS.forEach(mk => {
-          timeMap[t][`${targetKey}_${mk}`] = h[mk];
-        });
-      });
-    });
-    return Object.values(timeMap).sort((a, b) => (a.t as string).localeCompare(b.t as string));
+     Object.entries(targetStates).forEach(([targetKey, state]) => {
+       if (!state.history) return;
+       state.history.forEach(h => {
+         const t = String(h.t);
+         if (!timeMap[t]) timeMap[t] = { t };
+         METRIC_KEYS.forEach(mk => {
+           timeMap[t][`${targetKey}_${mk}`] = h[mk];
+         });
+       });
+     });
+    return Object.values(timeMap).sort((a, b) => Number(a.t) - Number(b.t));
   }, [targetStates]);
 
   // hasMonitoringLabel: null/undefined = not yet checked (no warning), false = no label (show warning), true = has label (no warning)
