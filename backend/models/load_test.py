@@ -8,7 +8,7 @@ and internal data structures. Models are divided into:
 - Auto-tuning configuration and trial results
 """
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -16,7 +16,9 @@ from pydantic import BaseModel, Field, model_validator
 class SyntheticPromptConfig(BaseModel):
     """Synthetic prompt generation configuration"""
 
-    distribution: str = Field(default="uniform", description="Distribution type: 'uniform' or 'normal'")
+    distribution: Literal["uniform", "normal"] = Field(
+        default="uniform", description="Distribution type: 'uniform' or 'normal'"
+    )
     min_tokens: int = Field(default=50, ge=1, description="Minimum approximate token count")
     max_tokens: int = Field(default=500, ge=1, description="Maximum approximate token count")
     mean_tokens: int | None = Field(default=None, ge=1, description="Mean tokens for normal distribution")
@@ -34,7 +36,7 @@ class LoadTestConfig(BaseModel):
     total_requests: int = Field(default=100, ge=1, description="Total number of requests")
     concurrency: int = Field(default=10, ge=1, le=1000, description="Concurrent requests")
     duration: int = Field(default=30, ge=1, le=3600, description="Test duration in seconds (max 1 hour)")
-    rps: int = Field(default=0, ge=0, description="Requests per second (0=unlimited)")
+    rps: int = Field(default=0, ge=0, le=10000, description="Requests per second (0=unlimited)")
     max_tokens: int = Field(default=256, ge=1, le=8192, description="Max tokens to generate")
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Temperature for generation")
     stream: bool = Field(default=True, description="Enable streaming mode")
