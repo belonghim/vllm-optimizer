@@ -1702,3 +1702,35 @@ async def test_evaluate_raises_value_error_when_model_resolution_fails(auto_tune
         with patch.object(_at_mod, "resolve_model_name", new=AsyncMock(side_effect=ValueError("resolver error"))):
             with pytest.raises(ValueError, match="Cannot resolve model name"):
                 await tuner._evaluate("http://mock:8080", config)
+
+
+def test_wait_metrics_returns_empty_when_idle(auto_tuner_instance):
+    """wait_metrics returns zeroed dict when no tuning has run."""
+    tuner = auto_tuner_instance
+    metrics = tuner.wait_metrics
+    assert metrics["total_wait_seconds"] == 0
+    assert metrics["poll_count"] == 0
+    assert metrics["per_trial_waits"] == []
+
+
+def test_wait_metrics_tracks_poll_count(auto_tuner_instance):
+    """wait_metrics tracks poll count after internal state changes."""
+    tuner = auto_tuner_instance
+    tuner._total_wait_seconds = 12.5
+    tuner._poll_count = 7
+    tuner._wait_durations = [1.0, 2.5, 3.0, 1.5, 2.0, 1.0, 1.5]
+    metrics = tuner.wait_metrics
+    assert metrics["total_wait_seconds"] == 12.5
+    assert metrics["poll_count"] == 7
+    assert len(metrics["per_trial_waits"]) == 7
+    assert metrics["per_trial_waits"][0] == 1.0
+
+
+@pytest.mark.asyncio
+async def test_stop_returns_error_when_not_running(auto_tuner_instance):
+    """stop() returns success=False when tuner is not running."""
+    tuner = auto_tuner_instance
+    assert tuner.is_running is False
+    result = await tuner.stop()
+    assert result["success"] is False
+    assert "message" in result
