@@ -1,4 +1,6 @@
 import asyncio
+import io
+import json
 from typing import Any
 
 import pytest
@@ -139,3 +141,79 @@ def test_by_model_gpu_zero(client):
     assert resp.status_code == 200
     items = resp.json()["models"]["model-A"]
     assert items[0]["gpu_efficiency"] is None
+
+
+_VALID_GUIDELLM = {
+    "metadata": {"version": 1, "guidellm_version": "0.1.0"},
+    "benchmarks": [
+        {
+            "config": {"target": "http://localhost:8000", "model": "test-model"},
+            "metrics": {},
+            "scheduler_metrics": {
+                "requests_made": {
+                    "total": 5,
+                    "successful": 5,
+                    "errored": 0,
+                    "incomplete": 0,
+                },
+                "measure_start_time": 1000.0,
+                "measure_end_time": 1002.0,
+            },
+        }
+    ],
+}
+
+
+def test_import_guidellm_invalid_json(client):
+    resp = client.post(
+        "/api/benchmark/import",
+        files={"file": ("test.json", b"not valid json!!!", "application/json")},
+    )
+    assert resp.status_code == 400
+
+
+def test_import_guidellm_wrong_version(client):
+    data = {
+        "metadata": {"version": 99},
+        "benchmarks": [{"config": {}, "metrics": {}, "scheduler_metrics": {}}],
+    }
+    resp = client.post(
+        "/api/benchmark/import",
+        files={"file": ("test.json", json.dumps(data).encode(), "application/json")},
+    )
+    assert resp.status_code == 422
+
+
+def test_import_guidellm_empty_benchmarks(client):
+    data = {"metadata": {"version": 1}, "benchmarks": []}
+    resp = client.post(
+        "/api/benchmark/import",
+        files={"file": ("test.json", json.dumps(data).encode(), "application/json")},
+    )
+    assert resp.status_code == 422
+
+
+def test_import_guidellm_valid(client):
+    resp = client.post(
+        "/api/benchmark/import",
+        files={"file": ("test.json", json.dumps(_VALID_GUIDELLM).encode(), "application/json")},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["imported_count"] == 1
+    assert len(body["benchmark_ids"]) == 1
+
+
+def test_patch_metadata_not_found(client):
+    resp = client.patch("/api/benchmark/9999/metadata", json={"notes": "ghost"})
+    assert resp.status_code == 404
+
+
+def test_patch_metadata_valid(client):
+    save_resp = client.post("/api/benchmark/save", json=_BASE_PAYLOAD)
+    assert save_resp.status_code == 200
+    bm_id = save_resp.json()["id"]
+
+    patch_resp = client.patch(f"/api/benchmark/{bm_id}/metadata", json={"notes": "updated note"})
+    assert patch_resp.status_code == 200
+    assert patch_resp.json()["metadata"]["notes"] == "updated note"
