@@ -1686,3 +1686,19 @@ async def test_clear_running_called_on_exception_during_tuning(auto_tuner_instan
 
     mock_storage.set_running.assert_called_once_with("tuner")
     mock_storage.clear_running.assert_called_once_with(42)
+
+
+@pytest.mark.asyncio
+async def test_evaluate_raises_value_error_when_model_resolution_fails(auto_tuner_instance):
+    tuner = auto_tuner_instance
+    config = TuningConfig(eval_requests=10, warmup_requests=0)
+
+    from ..services import auto_tuner as _at_mod
+
+    with patch.dict("os.environ", {}, clear=False):
+        import os
+
+        os.environ.pop("VLLM_MODEL", None)
+        with patch.object(_at_mod, "resolve_model_name", new=AsyncMock(side_effect=ValueError("resolver error"))):
+            with pytest.raises(ValueError, match="Cannot resolve model name"):
+                await tuner._evaluate("http://mock:8080", config)

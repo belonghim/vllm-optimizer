@@ -1190,3 +1190,63 @@ def test_static_mode_uses_prompt_template():
         if prompt_mode == "synthetic" and config.synthetic_config is not None:
             mock_gen(config.synthetic_config)
         assert not mock_gen.called
+
+
+async def test_dispatch_completions_non_streaming_handles_malformed_usage_dict():
+    from unittest.mock import AsyncMock, MagicMock
+
+    from models.load_test import LoadTestConfig
+    from services.load_engine import LoadTestEngine
+
+    engine = LoadTestEngine()
+    config = LoadTestConfig(endpoint="http://localhost:8080", model="qwen2-5-7b-instruct", stream=False)
+    payload = engine._build_request_payload(config, "hello")
+
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"usage": None}
+
+    mock_external_client = MagicMock()
+    mock_external_client.post = AsyncMock(return_value=mock_response)
+
+    result = await engine._dispatch_completions(
+        config=config,
+        payload=payload,
+        external_client=mock_external_client,
+        t0=time.time(),
+        request_id=1,
+    )
+
+    assert result.success is True
+    assert result.output_tokens == 0
+
+
+def test_metrics_history_rejects_last_n_zero(isolated_client: TestClient):
+    response = isolated_client.get("/api/metrics/history?last_n=0")
+
+    assert response.status_code == 422
+    detail = response.json().get("detail", [])
+    assert detail and detail[0].get("loc", [])[-1] == "last_n"
+
+
+def test_metrics_history_rejects_last_n_above_upper_bound(isolated_client: TestClient):
+    response = isolated_client.get("/api/metrics/history?last_n=10001")
+
+    assert response.status_code == 422
+    detail = response.json().get("detail", [])
+    assert detail and detail[0].get("loc", [])[-1] == "last_n"
+
+
+def test_load_test_config_rejects_invalid_distribution_literal():
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        LoadTestConfig.model_validate(
+            {"prompt_mode": "synthetic", "synthetic_config": {"distribution": "invalid_value"}}
+        )
+
+
+def test_load_test_config_rejects_rps_above_maximum():
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        LoadTestConfig(rps=10001)
