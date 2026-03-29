@@ -792,9 +792,9 @@ class LoadTestEngine:
         elif itl_means:
             itl_stats = {
                 "mean": round(statistics.mean(itl_means), 4),
-                "p50": round(_percentile(itl_means, 50), 4),
-                "p95": round(_percentile(itl_means, 95), 4),
-                "p99": round(_percentile(itl_means, 99), 4),
+                "p50": round(float(np.percentile(itl_means, 50, method="lower")), 4),
+                "p95": round(float(np.percentile(itl_means, 95, method="lower")), 4),
+                "p99": round(float(np.percentile(itl_means, 99, method="lower")), 4),
             }
         else:
             itl_stats = None
@@ -811,14 +811,14 @@ class LoadTestEngine:
             "latency": {
                 "mean": round(statistics.mean(latencies), 3) if latencies else 0,
                 "p50": round(statistics.median(latencies), 3) if latencies else 0,
-                "p95": round(_percentile(latencies, 95), 3) if latencies else 0,
-                "p99": round(_percentile(latencies, 99), 3) if latencies else 0,
+                "p95": round(float(np.percentile(latencies, 95, method="lower")), 3) if latencies else 0,
+                "p99": round(float(np.percentile(latencies, 99, method="lower")), 3) if latencies else 0,
                 "min": round(min(latencies), 3) if latencies else 0,
                 "max": round(max(latencies), 3) if latencies else 0,
             },
             "ttft": {
                 "mean": round(statistics.mean(ttfts), 3) if ttfts else 0,
-                "p95": round(_percentile(ttfts, 95), 3) if ttfts else 0,
+                "p95": round(float(np.percentile(ttfts, 95, method="lower")), 3) if ttfts else 0,
             },
             "tps": {
                 "mean": round(statistics.mean(tps_values), 1) if tps_values else 0,
@@ -826,14 +826,6 @@ class LoadTestEngine:
             },
             "itl": itl_stats,
         }
-
-
-def _percentile(data: list[float], p: int) -> float:
-    if not data:
-        return 0
-    sorted_data = sorted(data)
-    idx = int(len(sorted_data) * p / 100)
-    return sorted_data[min(idx, len(sorted_data) - 1)]
 
 
 # 싱글턴 인스턴스
