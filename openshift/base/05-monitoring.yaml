@@ -74,6 +74,7 @@ spec:
               HPA 스케일아웃 또는 파라미터 튜닝을 고려하세요.
 
         - alert: VLLMKVCacheSaturation
+          # Threshold (0.95) can be tuned per environment via Kustomize patch
           expr: vllm:gpu_cache_usage_perc > 0.95
           for: 3m
           labels:
@@ -128,6 +129,8 @@ spec:
       rules:
         - alert: VLLMPodNotReady
           expr: |
+            # NOTE: "vllm-deployment" is a placeholder — override via Kustomize patch
+            # for each environment (e.g., small-llm-d-kserve in dev, different name in prod)
             kube_deployment_status_replicas_available{deployment="vllm-deployment"}
             <
             kube_deployment_spec_replicas{deployment="vllm-deployment"} * 0.5
@@ -139,6 +142,27 @@ spec:
             summary: "vLLM Pod 50% 이상 비가용 상태"
             description: |
               전체 {{ $labels.deployment }} 레플리카 중 절반 이상이 비가용입니다.
+
+    # ── vLLM Optimizer 인프라 알람 ───────────────────────────────────────────
+    - name: vllm-optimizer.infra
+      rules:
+        - alert: VllmOptimizerPVCDiskUsageHigh
+          # Threshold (0.8 = 80%) can be tuned per environment via Kustomize patch
+          expr: |
+            kubelet_volume_stats_used_bytes{persistentvolumeclaim=~"vllm-optimizer.*"}
+            /
+            kubelet_volume_stats_capacity_bytes{persistentvolumeclaim=~"vllm-optimizer.*"}
+            > 0.8
+          for: 5m
+          labels:
+            severity: warning
+            team: mlops
+          annotations:
+            summary: "vLLM Optimizer PVC 디스크 사용량 80% 초과"
+            description: |
+              PVC {{ $labels.persistentvolumeclaim }} 사용량이
+              {{ $value | humanizePercentage }}로 80% 임계치를 초과했습니다.
+              SQLite DB 파일 및 백업 정리를 고려하세요.
 
 ---
 # ── PodDisruptionBudget: 롤링 업데이트 시 가용성 보장 ─────────────────────────
