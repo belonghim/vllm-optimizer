@@ -1,0 +1,76 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vllm-optimizer-pod-exec
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vllm-optimizer-backup-exec
+subjects:
+  - kind: ServiceAccount
+    name: vllm-optimizer-backend
+roleRef:
+  kind: Role
+  name: vllm-optimizer-pod-exec
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vllm-optimizer-sqlite-backup
+spec:
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: vllm-optimizer-backend
+          restartPolicy: OnFailure
+          containers:
+            - name: backup
+              image: registry.redhat.io/openshift4/ose-cli:latest
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  NAMESPACE="${NAMESPACE:-vllm-optimizer-dev}"
+                  POD=$(oc get pod -n "$NAMESPACE" -l app=vllm-optimizer-backend \
+                    --field-selector=status.phase=Running \
+                    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+                  if [ -z "$POD" ]; then
+                    echo "No running backend pod found in $NAMESPACE" >&2
+                    exit 1
+                  fi
+                  oc exec -n "$NAMESPACE" "$POD" -- \
+                    python3 /app/scripts/backup_sqlite.py --keep 7
+              env:
+                - name: NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
+              securityContext:
+                runAsNonRoot: true
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                seccompProfile:
+                  type: RuntimeDefault
