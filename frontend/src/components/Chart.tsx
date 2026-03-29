@@ -23,9 +23,13 @@ const fmtTick = (ts: number, range: TimeRange) => {
   const d = String(date.getDate()).padStart(2, '0');
   const HH = String(date.getHours()).padStart(2, '0');
   const MM = String(date.getMinutes()).padStart(2, '0');
+  const SS = String(date.getSeconds()).padStart(2, '0');
 
   if (range === '7d') {
     return `${d}d${HH}h`;
+  }
+  if (range === 'Live') {
+    return `${HH}:${MM}:${SS}`;
   }
   return `${HH}h${MM}m`;
 };

@@ -201,8 +201,13 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
          });
        });
      });
-    return Object.values(timeMap).sort((a, b) => Number(a.t) - Number(b.t));
-  }, [targetStates]);
+    const sorted = Object.values(timeMap).sort((a, b) => Number(a.t) - Number(b.t));
+    if (selectedRange === 'Live') {
+      const cutoff = Date.now() / 1000 - 300; // keep last 5 minutes (timestamps in seconds)
+      return sorted.filter(p => Number(p.t) >= cutoff);
+    }
+    return sorted;
+  }, [targetStates, selectedRange]);
 
   // hasMonitoringLabel: null/undefined = not yet checked (no warning), false = no label (show warning), true = has label (no warning)
   // using !== false so null/undefined does not show a warning
