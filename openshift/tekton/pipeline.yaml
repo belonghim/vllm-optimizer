@@ -79,7 +79,7 @@ spec:
 
     # ── 3. Backend Type Check (basedpyright) ───────────────────────────────────
     - name: typecheck-backend
-      runAfter: ["test-backend"]
+      runAfter: ["git-clone"]
       taskSpec:
         workspaces:
           - name: source
