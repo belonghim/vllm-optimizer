@@ -1,3 +1,5 @@
+import { memo } from "react";
+
 interface LoadTestPresetSelectorProps {
   presetNames: string[];
   selectedPreset: string;
@@ -7,7 +9,7 @@ interface LoadTestPresetSelectorProps {
   canDelete: boolean;
 }
 
-function LoadTestPresetSelector({ presetNames, selectedPreset, onSelect, onSave, onDelete, canDelete }: LoadTestPresetSelectorProps) {
+const LoadTestPresetSelector = memo(function LoadTestPresetSelector({ presetNames, selectedPreset, onSelect, onSave, onDelete, canDelete }: LoadTestPresetSelectorProps) {
   return (
     <div style={{ marginBottom: "16px" }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", alignItems: "flex-end" }}>
@@ -34,6 +36,6 @@ function LoadTestPresetSelector({ presetNames, selectedPreset, onSelect, onSave,
       </div>
     </div>
   );
-}
+});
 
 export default LoadTestPresetSelector;

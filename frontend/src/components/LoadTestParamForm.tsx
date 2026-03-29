@@ -1,3 +1,5 @@
+import { memo } from "react";
+
 interface SyntheticConfig {
   distribution: 'uniform' | 'normal';
   min_tokens: number;
@@ -24,7 +26,7 @@ const PARAM_FIELDS = [
   ["Max Tokens", "max_tokens", "number"],
 ] as const;
 
-function LoadTestParamForm({ config, onChange, promptMode, onPromptModeChange, syntheticConfig, onSyntheticConfigChange }: LoadTestParamFormProps) {
+const LoadTestParamForm = memo(function LoadTestParamForm({ config, onChange, promptMode, onPromptModeChange, syntheticConfig, onSyntheticConfigChange }: LoadTestParamFormProps) {
   return (
     <div className="grid-form grid-form-compact">
       {PARAM_FIELDS.map(([label, key, type]) => (
@@ -126,6 +128,6 @@ function LoadTestParamForm({ config, onChange, promptMode, onPromptModeChange, s
       </div>
     </div>
   );
-}
+});
 
 export default LoadTestParamForm;

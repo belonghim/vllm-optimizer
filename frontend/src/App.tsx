@@ -106,23 +106,37 @@ export default function App() {
       {page === "tuner" && <ClusterConfigBar />}
 
       <main className="app-main">
-        <ErrorBoundary>
-          <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>Loading...</div>}>
-            {page === 'monitor' && <MonitorPage isActive={page === 'monitor'} />}
-            {tunerMounted && (
-              <div style={page !== 'tuner' ? { display: 'none' } : undefined}>
+        <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>Loading...</div>}>
+          {page === 'monitor' && (
+            <ErrorBoundary>
+              <MonitorPage isActive={page === 'monitor'} />
+            </ErrorBoundary>
+          )}
+          {tunerMounted && (
+            <div style={page !== 'tuner' ? { display: 'none' } : undefined}>
+              <ErrorBoundary>
                 <TunerPage isActive={page === 'tuner'} onTabChange={handleSetPage} onRunningChange={setIsTunerRunning} />
-              </div>
-            )}
-            {loadTestMounted && (
-              <div style={page !== 'loadtest' ? { display: 'none' } : undefined}>
+              </ErrorBoundary>
+            </div>
+          )}
+          {loadTestMounted && (
+            <div style={page !== 'loadtest' ? { display: 'none' } : undefined}>
+              <ErrorBoundary>
                 <LoadTestPage isActive={page === 'loadtest'} pendingConfig={pendingLoadTestConfig} onConfigConsumed={handleConfigConsumed} onRunningChange={setIsLoadTestRunning} />
-              </div>
-            )}
-            {page === 'benchmark' && <BenchmarkPage isActive={page === 'benchmark'} onRerun={handleRerun} />}
-            {page === 'sla' && <SlaPage isActive={page === 'sla'} />}
-          </Suspense>
-        </ErrorBoundary>
+              </ErrorBoundary>
+            </div>
+          )}
+          {page === 'benchmark' && (
+            <ErrorBoundary>
+              <BenchmarkPage isActive={page === 'benchmark'} onRerun={handleRerun} />
+            </ErrorBoundary>
+          )}
+          {page === 'sla' && (
+            <ErrorBoundary>
+              <SlaPage isActive={page === 'sla'} />
+            </ErrorBoundary>
+          )}
+        </Suspense>
       </main>
     </BenchmarkSelectionProvider>
   );
