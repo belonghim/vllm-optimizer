@@ -1,5 +1,3 @@
-# pyright: reportImportCycles=false
-
 import asyncio
 import logging
 import math
