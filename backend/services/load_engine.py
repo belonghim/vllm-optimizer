@@ -1,3 +1,4 @@
+# pyright: reportImportCycles=false
 """
 부하 테스트 엔진 — 동시 요청, RPS 제어, 실시간 결과 스트리밍
 """
@@ -23,6 +24,7 @@ from models.load_test import LoadTestConfig, RequestResult, SweepConfig, SweepSt
 from services.prompt_generator import generate_prompt
 
 logger = logging.getLogger(__name__)
+SELF_METRICS_URL = os.getenv("SELF_METRICS_URL", "http://localhost:8000")
 
 
 def _normalize_url(url: str) -> str:
@@ -111,7 +113,7 @@ class LoadTestEngine:
                 from services.shared import get_external_client
 
                 external_client = get_external_client()
-                resp = await external_client.get("http://localhost:8000/api/metrics/latest", timeout=5)
+                resp = await external_client.get(f"{SELF_METRICS_URL}/api/metrics/latest", timeout=5)
                 if resp.status_code == 200:
                     gpu = resp.json().get("gpu_util", 0.0)
             except httpx.HTTPError as e:
@@ -201,7 +203,7 @@ class LoadTestEngine:
 
         return {"success": True}
 
-    def _build_request_payload(self, config: LoadTestConfig, prompt: str) -> dict:
+    def _build_request_payload(self, config: LoadTestConfig, prompt: str) -> dict[str, Any]:
         return {
             "model": config.model,
             "prompt": prompt,
@@ -212,7 +214,7 @@ class LoadTestEngine:
     async def _dispatch_completions(
         self,
         config: LoadTestConfig,
-        payload: dict,
+        payload: dict[str, Any],
         external_client: Any,
         t0: float,
         request_id: int,
@@ -284,7 +286,7 @@ class LoadTestEngine:
     async def _dispatch_chat_completions(
         self,
         config: LoadTestConfig,
-        payload: dict,
+        payload: dict[str, Any],
         external_client: Any,
         t0: float,
         request_id: int,
