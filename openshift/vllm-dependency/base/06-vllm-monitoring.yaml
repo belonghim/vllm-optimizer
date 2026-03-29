@@ -23,10 +23,10 @@ spec:
       interval: 30s
       rules:
         - alert: VLLMHighP99Latency
-           expr: |
-             histogram_quantile(0.99,
-               rate(kserve_vllm:e2e_request_latency_seconds_bucket[5m])
-             ) > 2.0
+          expr: |
+            histogram_quantile(0.99,
+              rate(kserve_vllm:e2e_request_latency_seconds_bucket[5m])
+            ) > 2.0
           for: 5m
           labels:
             severity: warning
@@ -38,8 +38,8 @@ spec:
               2초 임계치를 초과했습니다. (namespace: {{ $labels.namespace }})
             runbook_url: "https://wiki.example.com/runbooks/vllm-high-latency"
 
-         - alert: VLLMHighQueueDepth
-           expr: kserve_vllm:num_requests_waiting > 50
+        - alert: VLLMHighQueueDepth
+          expr: kserve_vllm:num_requests_waiting > 50
           for: 2m
           labels:
             severity: warning
@@ -50,8 +50,8 @@ spec:
               vLLM 대기 중인 요청이 {{ $value }}개로 50개 임계치를 초과했습니다.
               HPA 스케일아웃 또는 파라미터 튜닝을 고려하세요.
 
-         - alert: VLLMKVCacheSaturation
-           expr: kserve_vllm:gpu_cache_usage_perc > 0.95
+        - alert: VLLMKVCacheSaturation
+          expr: kserve_vllm:gpu_cache_usage_perc > 0.95
           for: 3m
           labels:
             severity: critical
@@ -62,9 +62,9 @@ spec:
               vLLM KV Cache 사용률이 {{ $value | humanizePercentage }}로
               95% 임계치를 초과했습니다. OOM 위험이 있습니다.
 
-         - alert: VLLMLowThroughput
-           expr: |
-             rate(kserve_vllm:generation_tokens_total[5m]) < 10
+        - alert: VLLMLowThroughput
+          expr: |
+            rate(kserve_vllm:generation_tokens_total[5m]) < 10
           for: 10m
           labels:
             severity: warning
