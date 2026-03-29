@@ -322,7 +322,7 @@ async def test_auto_benchmark_saves_on_completion(auto_tuner_instance, mock_k8s_
     save_benchmark_mock = AsyncMock(return_value=MagicMock(id=321))
     q = await tuner.subscribe()
     with patch.object(_at_mod.storage, "save_benchmark", save_benchmark_mock):
-        with patch("services.auto_tuner.resolve_model_name", new=AsyncMock(return_value="llm-ov")):
+        with patch.object(_at_mod, "resolve_model_name", new=AsyncMock(return_value="llm-ov")):
             config = TuningConfig(n_trials=1, eval_requests=5, warmup_requests=0)
             result = await tuner.start(config, "http://mock:8080", auto_benchmark=True)
 
@@ -687,8 +687,9 @@ async def test_eval_uses_config_concurrency_and_rps(auto_tuner_instance, mock_k8
 
     config = TuningConfig(eval_concurrency=16, eval_rps=5, eval_requests=10, warmup_requests=0)
     tuner._config = config
+    from ..services import auto_tuner as _at_mod
 
-    with patch("services.auto_tuner.resolve_model_name", return_value="test-model"):
+    with patch.object(_at_mod, "resolve_model_name", new=AsyncMock(return_value="test-model")):
         score, tps, p99 = await tuner._evaluate("http://mock:8080", config)
 
     assert len(captured_configs) == 2
@@ -747,8 +748,9 @@ async def test_warmup_runs_before_evaluation(auto_tuner_instance, mock_k8s_clien
     tuner._load_engine.run = mock_run
 
     config = TuningConfig(warmup_requests=5, eval_requests=10, eval_concurrency=8, eval_rps=0)
+    from ..services import auto_tuner as _at_mod
 
-    with patch("services.auto_tuner.resolve_model_name", return_value="test-model"):
+    with patch.object(_at_mod, "resolve_model_name", new=AsyncMock(return_value="test-model")):
         score, tps, p99 = await tuner._evaluate("http://mock:8080", config)
 
     assert call_count == 3
@@ -771,8 +773,9 @@ async def test_no_warmup_when_zero(auto_tuner_instance, mock_k8s_clients):
     tuner._load_engine.run = mock_run
 
     config = TuningConfig(warmup_requests=0, eval_requests=10)
+    from ..services import auto_tuner as _at_mod
 
-    with patch("services.auto_tuner.resolve_model_name", return_value="test-model"):
+    with patch.object(_at_mod, "resolve_model_name", new=AsyncMock(return_value="test-model")):
         score, tps, p99 = await tuner._evaluate("http://mock:8080", config)
 
     assert call_count == 2

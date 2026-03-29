@@ -1116,8 +1116,10 @@ class AutoTuner:
         """부하 테스트 실행 후 점수 반환 (fast probe + full evaluation)"""
         try:
             model_name = await asyncio.wait_for(resolve_model_name(endpoint), timeout=3.0)
-        except TimeoutError:
+        except (TimeoutError, httpx.HTTPError, ValueError):
             model_name = os.getenv("VLLM_MODEL", "auto")
+        if not model_name or model_name == "auto":
+            raise ValueError(f"Cannot resolve model name from {endpoint}. Set VLLM_MODEL env var.")
         _trial_id = trial.number if trial is not None and hasattr(trial, "number") else trial_num
 
         if config.warmup_requests > 0:
