@@ -1,3 +1,5 @@
+# pyright: reportImportCycles=false
+
 import asyncio
 import logging
 import math
@@ -329,50 +331,53 @@ class MultiTargetMetricsCollector:
         if cr_type is None:
             cr_type = runtime_config.cr_type
         adapter = get_cr_adapter(cr_type)
+        prefix = adapter.metric_prefix()
         selector = f'namespace="{namespace}", job="{adapter.prometheus_job(is_name)}"'
         dcgm_selector = f'exported_namespace="{namespace}", exported_pod=~"{adapter.dcgm_pod_pattern(is_name)}"'
         return {
             "tokens_per_second": (
-                f"sum(rate(vllm:num_generated_tokens{{{selector}}}[1m])) "
-                f"or sum(rate(vllm:generation_tokens_total{{{selector}}}[1m]))"
+                f"sum(rate({prefix}num_generated_tokens{{{selector}}}[1m])) "
+                f"or sum(rate({prefix}generation_tokens_total{{{selector}}}[1m]))"
             ),
             "requests_per_second": (
-                f"sum(rate(vllm:num_requests_finished{{{selector}}}[1m])) "
-                f"or sum(rate(vllm:request_success_total{{{selector}}}[1m]))"
+                f"sum(rate({prefix}num_requests_finished{{{selector}}}[1m])) "
+                f"or sum(rate({prefix}request_success_total{{{selector}}}[1m]))"
             ),
             "mean_ttft_ms": (
                 f"histogram_quantile(0.5, sum by (le) "
-                f"(rate(vllm:time_to_first_token_seconds_bucket{{{selector}}}[1m]))) * 1000"
+                f"(rate({prefix}time_to_first_token_seconds_bucket{{{selector}}}[1m]))) * 1000"
             ),
             "p99_ttft_ms": (
                 f"histogram_quantile(0.99, sum by (le) "
-                f"(rate(vllm:time_to_first_token_seconds_bucket{{{selector}}}[1m]))) * 1000"
+                f"(rate({prefix}time_to_first_token_seconds_bucket{{{selector}}}[1m]))) * 1000"
             ),
             "mean_e2e_latency_ms": (
                 f"histogram_quantile(0.5, sum by (le) "
-                f"(rate(vllm:e2e_request_latency_seconds_bucket{{{selector}}}[1m]))) * 1000"
+                f"(rate({prefix}e2e_request_latency_seconds_bucket{{{selector}}}[1m]))) * 1000"
             ),
             "p99_e2e_latency_ms": (
                 f"histogram_quantile(0.99, sum by (le) "
-                f"(rate(vllm:e2e_request_latency_seconds_bucket{{{selector}}}[1m]))) * 1000"
+                f"(rate({prefix}e2e_request_latency_seconds_bucket{{{selector}}}[1m]))) * 1000"
             ),
-            "kv_cache_usage_pct": f"vllm:kv_cache_usage_perc{{{selector}}} * 100",
-            "kv_cache_hit_rate": (f"vllm:kv_cache_hit_rate{{{selector}}} or vllm:cache_config_info{{{selector}}}"),
-            "running_requests": f"vllm:num_requests_running{{{selector}}}",
-            "waiting_requests": f"vllm:num_requests_waiting{{{selector}}}",
+            "kv_cache_usage_pct": f"{prefix}kv_cache_usage_perc{{{selector}}} * 100",
+            "kv_cache_hit_rate": (
+                f"{prefix}kv_cache_hit_rate{{{selector}}} or {prefix}cache_config_info{{{selector}}}"
+            ),
+            "running_requests": f"{prefix}num_requests_running{{{selector}}}",
+            "waiting_requests": f"{prefix}num_requests_waiting{{{selector}}}",
             "gpu_memory_used_gb": (
-                f"(vllm:gpu_memory_usage_bytes{{{selector}}} / 1024^3) "
-                f"or vllm:gpu_cache_usage_perc{{{selector}}} "
+                f"({prefix}gpu_memory_usage_bytes{{{selector}}} / 1024^3) "
+                f"or {prefix}gpu_cache_usage_perc{{{selector}}} "
                 f"or (sum(DCGM_FI_DEV_FB_USED{{{dcgm_selector}}}) / 1024)"
             ),
             "gpu_memory_total_gb": (
-                f"(vllm:gpu_memory_total_bytes{{{selector}}} / 1024^3) "
-                f"or (vllm:gpu_cache_usage_perc{{{selector}}} * 0 + 1) "
+                f"({prefix}gpu_memory_total_bytes{{{selector}}} / 1024^3) "
+                f"or ({prefix}gpu_cache_usage_perc{{{selector}}} * 0 + 1) "
                 f"or (sum(DCGM_FI_DEV_FB_USED{{{dcgm_selector}}} + DCGM_FI_DEV_FB_FREE{{{dcgm_selector}}} + DCGM_FI_DEV_FB_RESERVED{{{dcgm_selector}}}) / 1024)"
             ),
             "gpu_utilization_pct": (
-                f"(vllm:gpu_utilization_perc{{{selector}}} * 100) "
-                f"or (vllm:gpu_utilization{{{selector}}} * 100) "
+                f"({prefix}gpu_utilization_perc{{{selector}}} * 100) "
+                f"or ({prefix}gpu_utilization{{{selector}}} * 100) "
                 f"or sum(DCGM_FI_DEV_GPU_UTIL{{{dcgm_selector}}})"
             ),
         }
