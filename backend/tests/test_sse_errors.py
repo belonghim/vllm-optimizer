@@ -50,7 +50,7 @@ async def test_load_test_sse_generator_breaks_on_error():
     collected = []
 
     async def run_generator():
-        from routers.load_test import _is_sweeping
+        from routers.load_test import _state
 
         try:
             while True:
@@ -58,7 +58,7 @@ async def test_load_test_sse_generator_breaks_on_error():
                     data = await asyncio.wait_for(q.get(), timeout=0.5)
                     collected.append(data)
                     event_type = data.get("type")
-                    if _is_sweeping:
+                    if _state._is_sweeping:
                         if event_type in ("sweep_completed", "stopped", "error"):
                             break
                     else:
@@ -89,7 +89,7 @@ async def test_load_test_sse_completed_still_works():
     collected = []
 
     async def run_generator():
-        from routers.load_test import _is_sweeping
+        from routers.load_test import _state
 
         try:
             while True:
@@ -97,7 +97,7 @@ async def test_load_test_sse_completed_still_works():
                     data = await asyncio.wait_for(q.get(), timeout=0.5)
                     collected.append(data)
                     event_type = data.get("type")
-                    if not _is_sweeping and event_type in ("completed", "stopped", "error"):
+                    if not _state._is_sweeping and event_type in ("completed", "stopped", "error"):
                         break
                 except TimeoutError:
                     break
