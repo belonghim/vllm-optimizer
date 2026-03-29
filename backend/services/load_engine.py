@@ -25,6 +25,8 @@ from services.prompt_generator import generate_prompt
 
 logger = logging.getLogger(__name__)
 SELF_METRICS_URL = os.getenv("SELF_METRICS_URL", "http://localhost:8000")
+LOAD_ENGINE_SHORT_TIMEOUT = float(os.getenv("LOAD_ENGINE_SHORT_TIMEOUT", "5"))
+LOAD_ENGINE_TIMEOUT = int(os.getenv("LOAD_ENGINE_TIMEOUT", "120"))
 
 
 def _normalize_url(url: str) -> str:
@@ -113,7 +115,9 @@ class LoadTestEngine:
                 from services.shared import get_external_client
 
                 external_client = get_external_client()
-                resp = await external_client.get(f"{SELF_METRICS_URL}/api/metrics/latest", timeout=5)
+                resp = await external_client.get(
+                    f"{SELF_METRICS_URL}/api/metrics/latest", timeout=LOAD_ENGINE_SHORT_TIMEOUT
+                )
                 if resp.status_code == 200:
                     gpu = resp.json().get("gpu_util", 0.0)
             except httpx.HTTPError as e:
@@ -155,7 +159,7 @@ class LoadTestEngine:
 
         try:
             internal_client = get_internal_client()
-            response = await internal_client.get(models_url, timeout=5.0)
+            response = await internal_client.get(models_url, timeout=LOAD_ENGINE_SHORT_TIMEOUT)
         except httpx.ConnectError as e:
             return {
                 "success": False,
@@ -234,7 +238,7 @@ class LoadTestEngine:
                 "POST",
                 f"{config.endpoint}/v1/completions",
                 json={**payload, "stream": True, "stream_options": {"include_usage": True}},
-                timeout=120,
+                timeout=LOAD_ENGINE_TIMEOUT,
             ) as resp:
                 async for chunk in resp.aiter_lines():
                     if chunk.startswith("data: ") and chunk != "data: [DONE]":
@@ -261,7 +265,9 @@ class LoadTestEngine:
                 itl_deltas = None
                 itl_mean = itl_p50 = itl_p95 = itl_p99 = None
         else:
-            resp = await external_client.post(f"{config.endpoint}/v1/completions", json=payload, timeout=120)
+            resp = await external_client.post(
+                f"{config.endpoint}/v1/completions", json=payload, timeout=LOAD_ENGINE_TIMEOUT
+            )
             try:
                 data = resp.json()
                 output_tokens = data["usage"]["completion_tokens"]
@@ -312,7 +318,7 @@ class LoadTestEngine:
                 "POST",
                 f"{config.endpoint}/v1/chat/completions",
                 json={**chat_payload, "stream": True, "stream_options": {"include_usage": True}},
-                timeout=120,
+                timeout=LOAD_ENGINE_TIMEOUT,
             ) as resp:
                 async for chunk in resp.aiter_lines():
                     if chunk.startswith("data: ") and chunk != "data: [DONE]":
@@ -339,7 +345,9 @@ class LoadTestEngine:
                 itl_deltas = None
                 itl_mean = itl_p50 = itl_p95 = itl_p99 = None
         else:
-            resp = await external_client.post(f"{config.endpoint}/v1/chat/completions", json=chat_payload, timeout=120)
+            resp = await external_client.post(
+                f"{config.endpoint}/v1/chat/completions", json=chat_payload, timeout=LOAD_ENGINE_TIMEOUT
+            )
             try:
                 data = resp.json()
                 output_tokens = data["usage"]["completion_tokens"]
