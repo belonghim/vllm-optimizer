@@ -9,14 +9,12 @@ import math
 import os
 import time
 from contextlib import suppress
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 import httpx
 import optuna
 from errors import TunerError  # pyright: ignore[reportImplicitRelativeImport]
 from kubernetes import client as k8s_client
-from kubernetes import config as k8s_config
-from kubernetes.client.exceptions import ApiException
 from models.load_test import (  # pyright: ignore[reportImplicitRelativeImport]
     Benchmark,
     LatencyStats,
@@ -27,8 +25,8 @@ from models.load_test import (  # pyright: ignore[reportImplicitRelativeImport]
     TuningConfig,
     TuningTrial,
 )
-from services.cr_adapter import CRAdapter, TUNING_ARG_PREFIXES, args_list_to_config_dict, get_cr_adapter  # pyright: ignore[reportImplicitRelativeImport]
-from services.shared import runtime_config, storage  # pyright: ignore[reportImplicitRelativeImport]
+from services.k8s_operator import K8sOperator, _get_k8s_namespace, _get_vllm_is_name  # pyright: ignore[reportImplicitRelativeImport]
+from services.shared import storage  # pyright: ignore[reportImplicitRelativeImport]
 
 from .model_resolver import resolve_model_name
 
@@ -54,15 +52,6 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-def _get_k8s_namespace() -> str:
-    namespace = runtime_config.vllm_namespace
-    return namespace if namespace else "default"
-
-
-def _get_vllm_is_name() -> str:
-    return runtime_config.vllm_is_name or "small-llm-d"
-
-
 class AutoTuner:
     def __init__(self, metrics_collector, load_engine) -> None:
         self._metrics = metrics_collector
@@ -77,10 +66,9 @@ class AutoTuner:
         self.evaluation_mode: Literal["single", "sweep"] = "single"
         self._sweep_config: SweepConfig | None = None
         self._config: TuningConfig | None = None  # Set in start()
-        self._k8s_available = False
+        self._k8s_operator = K8sOperator()
         self._k8s_core: k8s_client.CoreV1Api | None = None
-        self._is_args_snapshot: Any = None
-        self._last_rollback_trial: int | None = None
+        self._cooldown_secs: int = 30
         self._pareto_front_size: int | None = None
         # SSE broadcasting primitives
         self._subscribers: list[asyncio.Queue[Any]] = []
@@ -88,127 +76,89 @@ class AutoTuner:
         self._lock = asyncio.Lock()
         self._study_lock = asyncio.Lock()
         self._k8s_lock = asyncio.Lock()
-        self._wait_durations: list[float] = []
-        self._total_wait_seconds: float = 0.0
-        self._poll_count: int = 0
-        self._cooldown_secs: int = 30
         self._best_score_history: list[float] = []
         self._persistence_warning_sent: bool = False
         self._current_task: asyncio.Task[Any] | None = None
-        self._init_k8s()
-
-    def _init_k8s(self) -> None:
-        try:
-            try:
-                k8s_config.load_incluster_config()
-            except k8s_config.ConfigException:
-                k8s_config.load_kube_config()
-            self._k8s_apps = k8s_client.AppsV1Api()
-            self._k8s_custom = k8s_client.CustomObjectsApi()
-            self._k8s_available = True
-        except k8s_config.ConfigException as e:
-            logger.warning("K8s client unavailable: %s", e)
+        self._k8s_apps = self._k8s_operator._k8s_apps
+        self._k8s_custom = self._k8s_operator._k8s_custom
 
     @property
-    def _cr_adapter(self) -> CRAdapter:
-        return get_cr_adapter()
+    def _k8s_available(self) -> bool:
+        return self._k8s_operator.k8s_available
+
+    @_k8s_available.setter
+    def _k8s_available(self, value: bool) -> None:
+        self._k8s_operator._k8s_available = value
+
+    @property
+    def _k8s_apps(self):
+        return self._k8s_operator._k8s_apps
+
+    @_k8s_apps.setter
+    def _k8s_apps(self, value) -> None:
+        self._k8s_operator._k8s_apps = value
+
+    @property
+    def _k8s_custom(self):
+        return self._k8s_operator._k8s_custom
+
+    @_k8s_custom.setter
+    def _k8s_custom(self, value) -> None:
+        self._k8s_operator._k8s_custom = value
+
+    @property
+    def _is_args_snapshot(self) -> Any:
+        return self._k8s_operator._is_args_snapshot
+
+    @_is_args_snapshot.setter
+    def _is_args_snapshot(self, value: Any) -> None:
+        self._k8s_operator._is_args_snapshot = value
+
+    @property
+    def _last_rollback_trial(self) -> int | None:
+        return self._k8s_operator._last_rollback_trial
+
+    @_last_rollback_trial.setter
+    def _last_rollback_trial(self, value: int | None) -> None:
+        self._k8s_operator._last_rollback_trial = value
+
+    @property
+    def _wait_durations(self) -> list[float]:
+        return self._k8s_operator._wait_durations
+
+    @_wait_durations.setter
+    def _wait_durations(self, value: list[float]) -> None:
+        self._k8s_operator._wait_durations = value
+
+    @property
+    def _total_wait_seconds(self) -> float:
+        return self._k8s_operator._total_wait_seconds
+
+    @_total_wait_seconds.setter
+    def _total_wait_seconds(self, value: float) -> None:
+        self._k8s_operator._total_wait_seconds = value
+
+    @property
+    def _poll_count(self) -> int:
+        return self._k8s_operator._poll_count
+
+    @_poll_count.setter
+    def _poll_count(self, value: int) -> None:
+        self._k8s_operator._poll_count = value
+
+    @property
+    def _cooldown_secs(self) -> int:
+        return self._k8s_operator._cooldown_secs
+
+    @_cooldown_secs.setter
+    def _cooldown_secs(self, value: int) -> None:
+        self._k8s_operator._cooldown_secs = value
 
     async def _wait_for_ready(self, timeout: int = 300, interval: int = 5) -> bool:
-        namespace = _get_k8s_namespace()
-        is_name = _get_vllm_is_name()
-        logger.info(f"[AutoTuner] InferenceService '{is_name}' 준비 대기 중...")
-        wait_start = time.monotonic()
-        start_time = asyncio.get_event_loop().time()
-        result = False
-        while asyncio.get_event_loop().time() - start_time < timeout:
-            if self._cancel_event.is_set():
-                logger.info("[AutoTuner] 준비 대기가 취소되었습니다.")
-                break
-
-            self._poll_count += 1
-            try:
-                inferenceservice = await asyncio.to_thread(
-                    self._k8s_custom.get_namespaced_custom_object,
-                    group=self._cr_adapter.api_group(),
-                    version=self._cr_adapter.api_version(),
-                    name=is_name,
-                    namespace=namespace,
-                    plural=self._cr_adapter.api_plural(),
-                )
-                _isvc: dict[str, Any] = cast(dict[str, Any], inferenceservice) if inferenceservice else {}
-                if self._cr_adapter.check_ready(_isvc.get("status", {})):
-                    logger.info(f"[AutoTuner] InferenceService '{is_name}' 준비 완료.")
-                    result = True
-                    break
-            except ApiException as e:
-                if e.status == 403:
-                    logger.error(f"[AutoTuner] IS 상태 확인 403 Forbidden: {e}. 즉시 중단.")
-                    break
-                logger.warning(f"[AutoTuner] IS 상태 확인 오류: {e}")
-
-            try:
-                await asyncio.wait_for(self._cancel_event.wait(), timeout=interval)
-                logger.info("[AutoTuner] 준비 대기 중 취소 신호를 감지했습니다.")
-                break
-            except TimeoutError:
-                await asyncio.sleep(0)
-
-        wait_duration = time.monotonic() - wait_start
-        self._wait_durations.append(round(wait_duration, 2))
-        self._total_wait_seconds += wait_duration
-
-        if not result and not self._cancel_event.is_set():
-            logger.error(f"[AutoTuner] InferenceService '{is_name}' 시간 초과: {timeout}초.")
-
-        if result and not self._cancel_event.is_set():
-            cooldown = self._cooldown_secs
-            logger.info(f"[AutoTuner] 메트릭 안정화를 위해 {cooldown}초 대기 중...")
-            try:
-                await asyncio.wait_for(self._cancel_event.wait(), timeout=cooldown)
-                logger.info("[AutoTuner] 쿨다운 중 취소 신호를 감지했습니다.")
-                return False
-            except TimeoutError:
-                pass
-
-        return result
+        return await self._k8s_operator.wait_for_ready(self._cancel_event, timeout=timeout, interval=interval)
 
     async def _preflight_check(self) -> dict[str, Any]:
-        if not self._k8s_available:
-            return {
-                "success": False,
-                "error": "K8s 클라이언트를 초기화할 수 없습니다. 클러스터 연결을 확인하세요.",
-                "error_type": "k8s_unavailable",
-            }
-        namespace = _get_k8s_namespace()
-        is_name = _get_vllm_is_name()
-        try:
-            await asyncio.to_thread(
-                self._k8s_custom.get_namespaced_custom_object,
-                group=self._cr_adapter.api_group(),
-                version=self._cr_adapter.api_version(),
-                name=is_name,
-                namespace=namespace,
-                plural=self._cr_adapter.api_plural(),
-            )
-            return {"success": True}
-        except ApiException as e:
-            if e.status == 403:
-                return {
-                    "success": False,
-                    "error": "InferenceService 접근 권한이 없습니다 (403 Forbidden). Role/RoleBinding 설정을 확인하세요.",
-                    "error_type": "rbac",
-                }
-            if e.status == 404:
-                return {
-                    "success": False,
-                    "error": f"InferenceService '{is_name}'을(를) '{namespace}'에서 찾을 수 없습니다.",
-                    "error_type": "not_found",
-                }
-            return {
-                "success": False,
-                "error": f"K8s API 오류: {e}",
-                "error_type": "k8s_error",
-            }
+        return await self._k8s_operator.preflight_check()
 
     async def subscribe(self) -> asyncio.Queue[Any]:
         """Subscribe to tuning events. Returns a queue that will receive events."""
@@ -244,11 +194,7 @@ class AutoTuner:
 
     @property
     def wait_metrics(self) -> dict[str, Any]:
-        return {
-            "total_wait_seconds": round(self._total_wait_seconds, 2),
-            "poll_count": self._poll_count,
-            "per_trial_waits": [round(d, 2) for d in self._wait_durations],
-        }
+        return self._k8s_operator.wait_metrics
 
     async def _init_tuning_state(self, config: TuningConfig) -> None:
         self._config = config
@@ -887,131 +833,13 @@ class AutoTuner:
         return params
 
     def _params_to_args(self, params: dict[str, Any]) -> list[str]:
-        """Convert tuning params to vLLM command-line args list."""
-        args: list[str] = []
-
-        # max_num_seqs
-        if "max_num_seqs" in params:
-            args.append(f"--max-num-seqs={params['max_num_seqs']}")
-
-        # gpu_memory_utilization
-        if "gpu_memory_utilization" in params:
-            args.append(f"--gpu-memory-utilization={params['gpu_memory_utilization']}")
-
-        # max_model_len
-        if "max_model_len" in params:
-            args.append(f"--max-model-len={params['max_model_len']}")
-
-        # max_num_batched_tokens
-        if "max_num_batched_tokens" in params:
-            args.append(f"--max-num-batched-tokens={params['max_num_batched_tokens']}")
-
-        # block_size (optional)
-        if "block_size" in params:
-            args.append(f"--block-size={params['block_size']}")
-
-        # swap_space (optional)
-        if "swap_space" in params:
-            args.append(f"--swap-space={params['swap_space']}")
-
-        # enable_chunked_prefill (bool)
-        if params.get("enable_chunked_prefill"):
-            args.append("--enable-chunked-prefill")
-
-        # enable_enforce_eager (bool)
-        if params.get("enable_enforce_eager"):
-            args.append("--enforce-eager")
-
-        return args
+        return self._k8s_operator.params_to_args(params)
 
     async def _apply_params(self, params: dict[str, Any]) -> dict[str, Any]:
-        if not self._k8s_available:
-            logger.error("[AutoTuner] K8s 클라이언트가 초기화되지 않아 파라미터를 적용할 수 없습니다.")
-            return {
-                "success": False,
-                "error": "K8s 클라이언트가 초기화되지 않았습니다.",
-                "error_type": "k8s_unavailable",
-            }
-
-        try:
-            async with self._k8s_lock:
-                namespace = _get_k8s_namespace()
-                is_name = _get_vllm_is_name()
-                logger.info(f"[AutoTuner] InferenceService '{is_name}' in namespace '{namespace}'")
-                isvc = await asyncio.to_thread(
-                    self._k8s_custom.get_namespaced_custom_object,
-                    group=self._cr_adapter.api_group(),
-                    version=self._cr_adapter.api_version(),
-                    name=is_name,
-                    namespace=namespace,
-                    plural=self._cr_adapter.api_plural(),
-                )
-                _isvc2: dict[str, Any] = cast(dict[str, Any], isvc) if isvc else {}
-                self._is_args_snapshot = self._cr_adapter.snapshot_args(_isvc2.get("spec", {}))
-
-                tuning_args = self._params_to_args(params)
-                params_config_dict = args_list_to_config_dict(tuning_args)
-                patch_body = self._cr_adapter.build_args_patch(_isvc2.get("spec", {}), params_config_dict)
-
-                await asyncio.to_thread(
-                    self._k8s_custom.patch_namespaced_custom_object,
-                    group=self._cr_adapter.api_group(),
-                    version=self._cr_adapter.api_version(),
-                    namespace=namespace,
-                    plural=self._cr_adapter.api_plural(),
-                    name=is_name,
-                    body=patch_body,
-                )
-                logger.info(f"[AutoTuner] InferenceService '{is_name}' args patched successfully: {tuning_args}")
-
-            return {"success": True}
-        except ApiException as e:
-            logger.error(f"[AutoTuner] InferenceService args patch failed: {e}")
-            if e.status == 403:
-                return {
-                    "success": False,
-                    "error": "InferenceService 패치 권한 없음 (403 Forbidden)",
-                    "error_type": "rbac",
-                }
-            if e.status == 404:
-                namespace = _get_k8s_namespace()
-                is_name = _get_vllm_is_name()
-                return {
-                    "success": False,
-                    "error": f"InferenceService '{is_name}'을(를) '{namespace}'에서 찾을 수 없습니다.",
-                    "error_type": "not_found",
-                }
-            return {"success": False, "error": f"InferenceService args patch failed: {e}"}
-        except Exception as e:  # intentional: K8s operation fallback
-            logger.error(f"[AutoTuner] 파라미터 적용 실패: {e}")
-            return {"success": False, "error": str(e)}
+        return await self._k8s_operator.apply_params(params, self._k8s_lock)
 
     async def _rollback_to_snapshot(self, trial_num: int) -> bool:
-        if not self._k8s_available or self._is_args_snapshot is None:
-            logger.warning("[AutoTuner] Rollback requested but no snapshot available (trial %d)", trial_num)
-            return False
-        try:
-            async with self._k8s_lock:
-                namespace = _get_k8s_namespace()
-                is_name = _get_vllm_is_name()
-                # Restore args from snapshot
-                patch_body = self._cr_adapter.build_rollback_patch(self._is_args_snapshot)
-                await asyncio.to_thread(
-                    self._k8s_custom.patch_namespaced_custom_object,
-                    group=self._cr_adapter.api_group(),
-                    version=self._cr_adapter.api_version(),
-                    namespace=namespace,
-                    plural=self._cr_adapter.api_plural(),
-                    name=is_name,
-                    body=patch_body,
-                )
-                # No annotation needed — args change triggers automatic restart
-            self._last_rollback_trial = trial_num
-            logger.info("[AutoTuner] Rollback to snapshot completed for trial %d", trial_num)
-            return True
-        except ApiException as e:
-            logger.error("[AutoTuner] Rollback failed for trial %d: %s", trial_num, e)
-            return False
+        return await self._k8s_operator.rollback_to_snapshot(trial_num, self._k8s_lock)
 
     def _compute_trial_score(self, result: dict[str, Any], config: TuningConfig) -> float:
         """부하 테스트 결과에서 점수 계산."""
