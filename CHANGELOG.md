@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-30] - Code Quality Hardening Round 6
+
+**Status**: Completed
+
+런타임 에러 방지, 하드코딩 제거, 타입/검증 강화 — 프론트엔드/백엔드 전반 17건 품질 개선.
+
+### Fixed
+- **`backend/services/load_engine.py`**: non-streaming 응답 파싱 시 `KeyError` 방어 (`.get()` 사용) — 예상치 못한 응답 키 누락으로 인한 RuntimeError 방지.
+- **`backend/routers/metrics.py`**: `last_n` 파라미터에 `Query(ge=1, le=10000)` 상한 추가 — DoS 방지 및 메모리 보호.
+- **`backend/services/auto_tuner.py`**: `model="auto"` 폴백 이중 방어 — 모델명이 여전히 `"auto"`이거나 미해석 시 `ValueError` 즉시 raise.
+- **`backend/models/load_test.py`**: `distribution` 필드에 `Literal["uniform", "normal"]` enum 적용 + `rps` 필드에 `le=10000` 상한 추가 — 잘못된 입력 422 즉시 반환.
+- **`openshift/vllm-dependency/base/06-vllm-monitoring.yaml`**: PrometheusRule 내 4개 alert rule YAML 들여쓰기 수정 — kustomize MalformedYAMLError 해소.
+
+### Added
+- **`frontend/src/components/ConfirmDialog.tsx`**: 최소 구현 ConfirmDialog 모달 컴포넌트 추가 — `window.confirm()` 교체용.
+- **`backend/tests/test_load_test.py`**, **`backend/tests/test_tuner.py`**: T1/T2/T9/T12 에러 경로 테스트 6개 추가 — 총 176개 테스트.
+
+### Changed
+- **`backend/services/load_engine.py`**: `timeout=120`, `timeout=5` → `LOAD_ENGINE_TIMEOUT`, `LOAD_ENGINE_SHORT_TIMEOUT` 환경변수화 (기본값 동일).
+- **`backend/services/load_engine.py`**: self-metrics URL → `SELF_METRICS_URL` 환경변수화.
+- **`backend/services/model_resolver.py`**: `MODEL_RESOLVE_TIMEOUT` 환경변수화 (기본값 10s).
+- **`backend/services/load_engine.py`**: 커스텀 `_percentile()` → `np.percentile(method='lower')` 교체 — 표준 라이브러리 활용.
+- **`frontend/src/pages/TunerPage.jsx`**: `useEffect` deps에 `namespace`, `inferenceservice` 추가 — IS 변경 시 vllm-config 자동 재조회.
+- **`frontend/src/components/Chart.tsx`**: `timeRange` prop을 `string`에서 `'Live' | '1h' | '6h' | '24h' | '7d'` 유니온 타입으로 강화.
+- **`frontend/src/components/Chart.tsx`**, **`frontend/src/components/ClusterConfigBar.tsx`**: `aria-label` 속성 추가 — 접근성 보완.
+- **`frontend/src/pages/SlaPage.tsx`**: `window.confirm` → `ConfirmDialog` 컴포넌트 교체.
+- **`frontend/src/pages/SlaPage.tsx`**, **`frontend/src/components/SweepChart.tsx`**: 차트 높이를 `30vh / minHeight:220px / maxHeight:420px` 반응형으로 변경.
+- **`frontend/src/index.css`**: `--red-rgb`, `--success-rgb`, `--info-color` CSS 변수 추가.
+- **`frontend/src/components/TunerResults.tsx`**, **`frontend/src/components/LoadTestSweepMode.tsx`**, **`frontend/src/components/BenchmarkTable.tsx`**: 하드코딩 색상(`#4caf50`, `rgba(255,59,107,...)`, `#2563eb`) → CSS 변수 교체.
+
 ## [2026-03-29] - Monitor Page Improvements & LLMIS Metric Fix
 
 **Status**: Completed
