@@ -83,7 +83,10 @@ vllm-optimizer/
 │   │   ├── shared.py           # 싱글톤 인스턴스 (MetricsCollector, load_engine)
 │   │   ├── load_engine.py      # 비동기 부하 생성 엔진
 │   │   ├── metrics_collector.py # Prometheus + K8s API 수집기
-│   │   └── auto_tuner.py       # Optuna + InferenceService args 업데이트
+│   │   ├── auto_tuner.py       # Thin facade (K8sOperator + EventBroadcaster + TunerLogic 조합)
+│   │   ├── k8s_operator.py     # K8s API 연산 (IS 패치, 준비 대기, 롤백)
+│   │   ├── event_broadcaster.py # SSE 이벤트 브로드캐스트 + Prometheus 메트릭
+│   │   └── tuner_logic.py      # Optuna study 관리, 파라미터 서치, trial 평가
 │   ├── models/
 │   │   ├── __init__.py
 │   │   ├── load_test.py        # Pydantic 요청/응답 모델
