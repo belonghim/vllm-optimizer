@@ -8,6 +8,8 @@ and mounts placeholder routers for the vLLM optimizer backend.
 import logging
 import os
 import time
+
+from logging_config import configure_logging
 from contextlib import asynccontextmanager, suppress
 from typing import Any
 
@@ -26,11 +28,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 # ── Logging Configuration ──
-logging.basicConfig(
-    level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO),
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
+configure_logging()
 
 logger = logging.getLogger(__name__)
 

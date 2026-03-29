@@ -97,25 +97,23 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
     },
   });
 
-   const fetchSweepHistory = async () => {
-     setSweepHistoryLoading(true);
-     try {
-       const resp = await authFetch(`${API}/load_test/sweep/history?limit=20`);
-       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-       const data = await resp.json();
-       setSweepHistory(data);
-     } catch (e) {
-       console.error('Failed to fetch sweep test history', e);
-       // fail silently - history is optional
-     } finally {
-       setSweepHistoryLoading(false);
-     }
-   };
+  const fetchSweepHistory = useCallback(async () => {
+    setSweepHistoryLoading(true);
+    try {
+      const resp = await authFetch(`${API}/load_test/sweep/history?limit=20`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      setSweepHistory(data);
+    } catch (e) {
+      console.error('Failed to fetch sweep test history', e);
+    } finally {
+      setSweepHistoryLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (isActive) fetchSweepHistory();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive]);
+  }, [isActive, fetchSweepHistory]);
 
   const handleSweepConfigChange = useCallback((key: string, value: string | number | boolean) => setSweepConfig(c => ({ ...c, [key]: value })), []);
 
@@ -201,7 +199,7 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <span className="label label-no-mb" style={{ marginRight: '4px' }}>SWEEP PRESETS:</span>
           {SWEEP_PRESETS.map(preset => (
-            <button key={preset.name} className="btn btn-outline" title={preset.description} onClick={() => applySweepPreset(preset)}>
+            <button type="button" key={preset.name} className="btn btn-outline" title={preset.description} onClick={() => applySweepPreset(preset)}>
               {preset.name}
             </button>
           ))}
@@ -218,8 +216,9 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
             ["Min Stable Steps", "min_stable_steps", "number"],
           ] as const).map(([label, key, type]) => (
             <div key={key}>
-              <label className="label">{label}</label>
+              <label htmlFor={`sweep-${key}`} className="label">{label}</label>
               <input
+                id={`sweep-${key}`}
                 className="input" type={type} aria-label={label}
                 value={sweepConfig[key as keyof SweepConfigState] as string | number}
                 onChange={e => handleSweepConfigChange(key, type === "number" ? +e.target.value : e.target.value)}
@@ -229,8 +228,8 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
           ))}
         </div>
         <div className="loadtest-config-actions">
-          <button className="btn btn-primary" onClick={startSweep} disabled={sweepStatus === 'running'}>▶ Start Sweep</button>
-          <button className="btn btn-danger" onClick={stop} disabled={sweepStatus !== 'running'}>■ Stop</button>
+          <button type="button" className="btn btn-primary" onClick={startSweep} disabled={sweepStatus === 'running'}>▶ Start Sweep</button>
+          <button type="button" className="btn btn-danger" onClick={stop} disabled={sweepStatus !== 'running'}>■ Stop</button>
           <span className={`tag tag-${sweepStatus}`}>{sweepStatus.toUpperCase()}</span>
         </div>
       </div>
@@ -257,8 +256,8 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
               <tr><th>Step</th><th>RPS</th><th>P99 Latency</th><th>TPS</th><th>Success %</th><th>Status</th></tr>
             </thead>
             <tbody>
-              {sweepSteps.map((step, index) => (
-                <tr key={index} data-testid="sweep-step-row" style={step.saturated ? { backgroundColor: 'var(--sweep-step-bg)' } : {}}>
+              {sweepSteps.map((step) => (
+                <tr key={step.step} data-testid="sweep-step-row" style={step.saturated ? { backgroundColor: 'var(--sweep-step-bg)' } : {}}>
                   <td>{step.step}</td>
                   <td>{fmt(step.rps, 1)}</td>
                   <td>{fmt(step.stats.latency.p99 * 1000, 0)} ms</td>
@@ -285,7 +284,7 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
           )}
           {sweepStatus === 'completed' && (
             <div className="loadtest-save-row">
-              <button className="btn btn-primary" onClick={() => saveSweepAsBenchmark(sweepResult)} disabled={isSaving || saveStatus === 'ok'}>
+              <button type="button" className="btn btn-primary" onClick={() => saveSweepAsBenchmark(sweepResult)} disabled={isSaving || saveStatus === 'ok'}>
                 {saveStatus === 'ok' ? '✓ Saved' : isSaving ? 'Saving...' : '⬆ Save to Benchmark'}
               </button>
             </div>
@@ -312,7 +311,7 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
                     <td>{fmt(h.total_duration, 1)}s</td>
                     <td>
                       {sweepId && (
-                        <button className="btn btn-danger" style={{ padding: '2px 8px', fontSize: '12px' }} onClick={() => deleteSweepResult(sweepId)}>
+                        <button type="button" className="btn btn-danger" style={{ padding: '2px 8px', fontSize: '12px' }} onClick={() => deleteSweepResult(sweepId)}>
                           Delete
                         </button>
                       )}
