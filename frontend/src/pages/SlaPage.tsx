@@ -162,7 +162,7 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
       title: "Delete SLA Profile",
       message: ERROR_MESSAGES.SLA.PROFILE_DELETE_CONFIRM,
       onConfirm: () => {
-        void deleteProfile(id).catch((e) => console.error("Failed to delete profile:", e));
+        void deleteProfile(id);
       },
     });
   };

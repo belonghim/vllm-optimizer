@@ -85,7 +85,7 @@ export default function TunerHistoryPanel() {
       title: "Delete Tuning Session",
       message: "Delete this tuning session?",
       onConfirm: () => {
-        void deleteSession(id).catch((e) => console.error("Failed to delete session:", e));
+        void deleteSession(id);
       },
     });
   };
