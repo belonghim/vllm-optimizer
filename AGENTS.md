@@ -220,13 +220,13 @@ spec:
 |--------|------|------|
 | `REGISTRY` | 컨테이너 레지스트리 | `quay.io/joopark` |
 | `IMAGE_TAG` | 이미지 태그 | `1.0.0` |
-| `VLLM_NAMESPACE` | LLM 추론 서비스 네임스페이스 | `llm-d-demo` (dev), `llm-d-prod` (prod) |
-| `VLLM_CR_TYPE` | LLM 리소스 타입 (KServe 또는 LLMIS) | `llminferenceservice` (기본) |
+| `VLLM_NAMESPACE` | LLM 추론 서비스 네임스페이스 | `vllm-lab-dev` (dev), `vllm-lab-prod` (prod) |
+| `VLLM_CR_TYPE` | LLM 리소스 타입 (KServe 또는 LLMIS) | `inferenceservice` (기본) |
 | `PROMETHEUS_URL` | Thanos Querier URL | `https://thanos-querier.openshift-monitoring.svc.cluster.local:9091` |
-| `K8S_NAMESPACE` | K8s Pod 조회 대상 네임스페이스 | `llm-d-demo` (dev), `llm-d-prod` (prod) |
-| `K8S_DEPLOYMENT_NAME` | LLM Deployment 이름 (LLMIS: `{llmis}-kserve`). **MetricsCollector의 pod listing 및 auto-tuner의 Deployment rollout restart에 사용.** | `small-llm-d-kserve` |
-| `VLLM_DEPLOYMENT_NAME` | LLMInferenceService 이름. **auto-tuner의 리소스 이름 참조에 사용.** `K8S_DEPLOYMENT_NAME`과 혼동 금지. | `small-llm-d` |
-| `VLLM_ENDPOINT` | LLM 추론 엔드포인트 (테스트용). Gateway 내부 또는 외부 주소. | `http://openshift-ai-inference-openshift-default.openshift-ingress.svc/llm-d-demo/small-llm-d` |
+| `K8S_NAMESPACE` | K8s Pod 조회 대상 네임스페이스 | `vllm-lab-dev` (dev), `vllm-lab-prod` (prod) |
+| `K8S_DEPLOYMENT_NAME` | LLM Deployment 이름 (KServe: `{name}-predictor`). **MetricsCollector의 pod listing 및 auto-tuner의 Deployment rollout restart에 사용.** | `llm-ov-predictor` |
+| `VLLM_DEPLOYMENT_NAME` | InferenceService 이름. **auto-tuner의 리소스 이름 참조에 사용.** `K8S_DEPLOYMENT_NAME`과 혼동 금지. | `llm-ov` |
+| `VLLM_ENDPOINT` | LLM 추론 엔드포인트 (테스트용). KServe 서비스 내부 주소 또는 외부 주소. | `http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080` |
 | `VLLM_MODEL` | LLM 모델명 | `qwen2-5-7b-instruct` |
 | `LOAD_ENGINE_TIMEOUT` | 부하 테스트 HTTP 요청 타임아웃 (기본: 120초) | `120` |
 | `LOAD_ENGINE_SHORT_TIMEOUT` | 부하 테스트 short 요청 타임아웃 (기본: 5초) | `5` |
@@ -251,7 +251,9 @@ podman build -t vllm-optimizer-frontend:dev ./frontend
 # 환경변수 설정 후
 export REGISTRY="quay.io/joopark"
 export IMAGE_TAG="1.0.0"
-export VLLM_NAMESPACE="llm-d-demo"  # Dev: llm-d-demo, Prod: llm-d-prod
+export VLLM_NAMESPACE="vllm-lab-dev"  # Dev: vllm-lab-dev, Prod: vllm-lab-prod
+# 참고: deploy.sh의 셸 변수 VLLM_NAMESPACE 기본값은 llm-d-demo (LLMIS RBAC 배포용)이며,
+# 백엔드 ConfigMap의 VLLM_NAMESPACE와는 별개입니다.
 
 # Dev 배포 (빌드 + 푸시 + 배포)
 ./deploy.sh dev
@@ -359,28 +361,26 @@ securityContext:
 
 ## vLLM 클러스터 아키텍처 (Dev 환경)
 
-현재 Dev 환경의 vLLM은 **LLMInferenceService (LLMIS) + Gateway** 아키텍처로 배포됩니다.
+현재 Dev 환경의 vLLM은 **KServe InferenceService** 아키텍처로 배포됩니다. LLMIS + Gateway 방식은 대안/향후 방향으로 병행 지원합니다.
 
-### 주 배포 모델: LLMInferenceService (LLMIS)
+### 주 배포 모델: KServe InferenceService
 
-- **LLMInferenceService**: `small-llm-d` (namespace: `llm-d-demo`)
-- **Deployment**: `small-llm-d-kserve` (자동 생성)
-- **Pod label**: `app.kubernetes.io/name=small-llm-d`
+- **InferenceService**: `llm-ov` (namespace: `vllm-lab-dev`)
+- **Deployment**: `llm-ov-predictor` (자동 생성)
+- **Pod label**: `app=isvc.llm-ov-predictor`
 - **모델**: `qwen2-5-7b-instruct`
-- **Gateway 패턴**: HTTP 트래픽 → Gateway → HTTPRoute → InferencePool
-- **Gateway 내부 엔드포인트**: `http://openshift-ai-inference-openshift-default.openshift-ingress.svc/llm-d-demo/small-llm-d`
-- **Gateway 외부 엔드포인트**: `http://ai-gateway.apps.compact.jooan.local/llm-d-demo/small-llm-d`
+- **추론 엔드포인트**: `http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080`
 - **API**: `/v1/completions`, `/v1/models` (OpenAI 호환)
 
-### LLMIS 이름 규칙
+### KServe 이름 규칙
 | 리소스 | 이름 패턴 | 예시 |
 |--------|-----------|------|
-| LLMInferenceService | `{name}` | `small-llm-d` |
-| Deployment | `{name}-kserve` | `small-llm-d-kserve` |
-| Pod label | `app.kubernetes.io/name={name}` | `app.kubernetes.io/name=small-llm-d` |
-| Gateway endpoint | `{gateway}/{namespace}/{name}/v1/...` | `.../llm-d-demo/small-llm-d/v1/models` |
+| InferenceService | `{name}` | `llm-ov` |
+| Deployment | `{name}-predictor` | `llm-ov-predictor` |
+| Pod label | `app=isvc.{name}-predictor` | `app=isvc.llm-ov-predictor` |
+| Service | `{name}-predictor` | `llm-ov-predictor` |
 
-`K8S_DEPLOYMENT_NAME` 환경변수는 반드시 LLMIS가 생성한 Deployment 이름(`{name}-kserve`)으로 설정해야 합니다.
+`K8S_DEPLOYMENT_NAME` 환경변수는 반드시 KServe가 생성한 Deployment 이름(`{name}-predictor`)으로 설정해야 합니다.
 
 ### 네임스페이스 분리 원칙 (중요)
 
@@ -393,22 +393,23 @@ securityContext:
 - `vllm-dependency/dev` Kustomize 오버레이는 반드시 `namespace: vllm-lab-dev`로 유지
 - `deploy.sh dev`는 두 단계: ① `vllm-dependency/dev` → `vllm-lab-dev`, ② `llmis-rbac/` → `llm-d-demo`
 
-### 레거시/대안: KServe InferenceService
+### 대안/향후 방향: LLMInferenceService (LLMIS)
 
-이전 환경에서 사용되던 KServe InferenceService의 구조는 다음과 같습니다 (참고용):
+이전 환경에서 사용되던 LLMInferenceService의 구조는 다음과 같습니다 (참고용):
 
-- **InferenceService**: `llm-ov` (namespace: `vllm-lab-dev`)
-- **KServe가 생성하는 Deployment**: `llm-ov-predictor`
-- **Pod label**: `app=isvc.llm-ov-predictor`
-- **추론 엔드포인트**: `http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080`
+- **LLMInferenceService**: `small-llm-d` (namespace: `llm-d-demo`)
+- **Deployment**: `small-llm-d-kserve` (자동 생성)
+- **Pod label**: `app.kubernetes.io/name=small-llm-d`
+- **Gateway 내부 엔드포인트**: `http://openshift-ai-inference-openshift-default.openshift-ingress.svc/llm-d-demo/small-llm-d`
+- **API**: `/v1/completions`, `/v1/models` (OpenAI 호환)
 
-#### KServe 이름 규칙 (레거시)
+#### LLMIS 이름 규칙
 | 리소스 | 이름 패턴 | 예시 |
 |--------|-----------|------|
-| InferenceService | `{name}` | `llm-ov` |
-| Deployment | `{name}-predictor` | `llm-ov-predictor` |
-| Pod label | `app=isvc.{name}-predictor` | `app=isvc.llm-ov-predictor` |
-| Service | `{name}-predictor` | `llm-ov-predictor` |
+| LLMInferenceService | `{name}` | `small-llm-d` |
+| Deployment | `{name}-kserve` | `small-llm-d-kserve` |
+| Pod label | `app.kubernetes.io/name={name}` | `app.kubernetes.io/name=small-llm-d` |
+| Gateway endpoint | `{gateway}/{namespace}/{name}/v1/...` | `.../llm-d-demo/small-llm-d/v1/models` |
 
 ---
 
@@ -434,9 +435,9 @@ NS=vllm-optimizer-dev
 BACKEND_POD=$(oc get pod -n $NS -l app=vllm-optimizer-backend -o name | head -1)
 oc exec -n $NS $BACKEND_POD -- env \
   PERF_TEST_BACKEND_URL=http://localhost:8000 \
-  VLLM_ENDPOINT=http://openshift-ai-inference-openshift-default.openshift-ingress.svc/llm-d-demo/small-llm-d \
+  VLLM_ENDPOINT=http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080 \
   VLLM_MODEL=qwen2-5-7b-instruct \
-  VLLM_NAMESPACE=llm-d-demo \
+  VLLM_NAMESPACE=vllm-lab-dev \
   OPTIMIZER_NAMESPACE=vllm-optimizer-dev \
   python3 -m pytest /app/tests/integration/performance/ -v --tb=short -m "integration"
 ```
@@ -501,8 +502,8 @@ curl --socks5-hostname 127.0.0.1:8882 -H "Authorization: Bearer $TOKEN" \
   https://thanos-querier-openshift-monitoring.apps.compact.jooan.local/api/v1/query \
   --data-urlencode 'query=vllm:num_requests_running' -k
 
-# LLM 파드 상태 확인 (LLMIS)
-oc get pods -n llm-d-demo -l app.kubernetes.io/name=small-llm-d
+# LLM 파드 상태 확인 (KServe)
+oc get pods -n vllm-lab-dev -l app=isvc.llm-ov-predictor
 ```
 
 ---
@@ -526,14 +527,14 @@ BACKEND_POD=$(oc get pod -n $NS -l app=vllm-optimizer-backend -o name | head -1)
 # 1. 배포
 ./deploy.sh dev
 
-# 2. 튜닝 실행 전 파드 UID 기록
-BEFORE_UID=$(oc get pods -n llm-d-demo -l app.kubernetes.io/name=small-llm-d -o jsonpath='{.items[*].metadata.uid}')
+# 2. 파드 UID 기록 (KServe)
+BEFORE_UID=$(oc get pods -n vllm-lab-dev -l app=isvc.llm-ov-predictor -o jsonpath='{.items[*].metadata.uid}')
 
-# 3. LLMIS annotation 확인 (재기동 트리거 방식)
-oc get llminferenceservice small-llm-d -n llm-d-demo -o jsonpath='{.spec.predictor.annotations}'
+# 3. InferenceService 상태 확인
+oc get inferenceservice llm-ov -n vllm-lab-dev -o jsonpath='{.status.conditions}'
 
 # 4. 튜닝 완료 후 파드 UID 변경 확인
-AFTER_UID=$(oc get pods -n llm-d-demo -l app.kubernetes.io/name=small-llm-d -o jsonpath='{.items[*].metadata.uid}')
+AFTER_UID=$(oc get pods -n vllm-lab-dev -l app=isvc.llm-ov-predictor -o jsonpath='{.items[*].metadata.uid}')
 [ "$BEFORE_UID" != "$AFTER_UID" ] && echo "PASS: pod restarted" || echo "FAIL: pod NOT restarted"
 
 # 5. 로그에 403 없음 확인
@@ -567,19 +568,20 @@ oc import-image vllm-optimizer-backend:latest \
 ### MetricsCollector 올-제로 메트릭
 - `curl -X POST localhost:8000/startup_metrics`로 수집기 상태 확인
 - `collector_version`이 `unknown`이면 Thanos 연결 실패 → 토큰/URL 확인
-- `pods=0`이면 `K8S_DEPLOYMENT_NAME`이 실제 Deployment 이름과 불일치 → LLMIS/KServe 패턴 확인
+- `pods=0`이면 `K8S_DEPLOYMENT_NAME`이 실제 Deployment 이름과 불일치 → KServe/LLMIS 패턴 확인
 
 ### auto_tuner 실행 후 다른 테스트 skip
 - auto_tuner가 vLLM에 추론 요청 → p99 latency 상승 → `skip_if_overloaded` 트리거
 - `skip_if_overloaded`는 최대 120초 대기 후 skip (Thanos 1분 rate window 롤오버 대기)
-- 지속 skip 시: vLLM pod 상태 확인 (`oc get pods -n llm-d-demo`)
+- 지속 skip 시: vLLM pod 상태 확인 (`oc get pods -n vllm-lab-dev -l app=isvc.llm-ov-predictor`)
 
 ### auto_tuner vLLM 파드 재기동 안 됨
-- auto_tuner는 `K8S_DEPLOYMENT_NAME`(예: `small-llm-d-kserve`) Deployment를 직접 rollout restart
+- auto_tuner는 `K8S_DEPLOYMENT_NAME`(예: `llm-ov-predictor`) Deployment를 직접 rollout restart
 - 파드가 재기동되지 않으면: 백엔드 로그에서 `Deployment 재시작 실패` 오류 확인
-- `K8S_DEPLOYMENT_NAME`이 실제 Deployment 이름과 일치하는지 확인: `oc get deployment -n llm-d-demo`
-- 수동 확인: `oc rollout restart deployment/small-llm-d-kserve -n llm-d-demo`
-- **주의**: LLMIS 이름(`small-llm-d`, `VLLM_DEPLOYMENT_NAME`)과 Deployment 이름(`small-llm-d-kserve`, `K8S_DEPLOYMENT_NAME`)은 다름. 파드 재기동에는 Deployment 이름 사용.
+- `K8S_DEPLOYMENT_NAME`이 실제 Deployment 이름과 일치하는지 확인: `oc get deployment -n vllm-lab-dev`
+- 수동 확인: `oc rollout restart deployment/llm-ov-predictor -n vllm-lab-dev`
+- **주의**: InferenceService 이름(`llm-ov`, `VLLM_DEPLOYMENT_NAME`)과 Deployment 이름(`llm-ov-predictor`, `K8S_DEPLOYMENT_NAME`)은 다름. 파드 재기동에는 Deployment 이름 사용.
+- LLMIS 사용 시: Deployment 이름은 `{name}-kserve` 패턴 (예: `small-llm-d-kserve`, namespace: `llm-d-demo`)
 
 ### IS args 아키텍처
 - auto_tuner와 vllm_config API 모두 IS `spec.predictor.model.args`를 직접 패치합니다.
