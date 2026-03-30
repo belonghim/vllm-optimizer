@@ -98,7 +98,7 @@ export default function TunerConfigForm({
 
   useEffect(() => {
     setEditedValues({});
-  }, [currentConfig]);
+  }, []);
 
   const handleCurrentValChange = (key: string, value: unknown) => {
     setEditedValues(prev => ({ ...prev, [key]: value }));
@@ -129,8 +129,8 @@ export default function TunerConfigForm({
 
       <div className="grid-form grid-form-compact" style={{ marginBottom: '20px' }}>
         <div>
-          <label className="label">Optimization Objective</label>
-          <select className="input" aria-label="Optimization Objective" value={config.objective}
+          <label className="label" htmlFor="tuner-objective">Optimization Objective</label>
+          <select id="tuner-objective" className="input" value={config.objective}
             onChange={e => onChange("objective", e.target.value)}>
             <option value="tps">Max Throughput (TPS)</option>
             <option value="latency">Min Latency</option>
@@ -139,13 +139,13 @@ export default function TunerConfigForm({
           </select>
         </div>
         <div>
-          <label className="label">Trial Count</label>
-          <input className="input" type="number" aria-label="Trial Count" min={1} max={100} value={config.n_trials}
+          <label className="label" htmlFor="tuner-trials">Trial Count</label>
+          <input id="tuner-trials" className="input" type="number" min={1} max={100} value={config.n_trials}
             onChange={e => onChange("n_trials", +e.target.value)} />
         </div>
         <div>
-          <label className="label">Eval Mode</label>
-          <select className="input" aria-label="Eval Mode" value={config.evaluation_mode}
+          <label className="label" htmlFor="tuner-eval-mode">Eval Mode</label>
+          <select id="tuner-eval-mode" className="input" value={config.evaluation_mode}
             onChange={e => onChange("evaluation_mode", e.target.value as "single" | "sweep")}>
             <option value="single">Single (basic load test)</option>
             <option value="sweep">Sweep (optimal RPS based)</option>
@@ -195,12 +195,12 @@ export default function TunerConfigForm({
                   <input className="input" type="text" value={localStorageUri}
                     onChange={e => setLocalStorageUri(e.target.value)}
                     disabled={isRunning} placeholder="oci://registry/model" aria-label="storageUri" />
-                  <button className="btn btn-primary btn-small"
-                    onClick={() => onSaveStorageUri(localStorageUri)}
-                    disabled={isRunning || localStorageUri === storageUri}
-                    style={{ whiteSpace: 'nowrap' }}>
-                    Save
-                  </button>
+                   <button type="button" className="btn btn-primary btn-small"
+                     onClick={() => onSaveStorageUri(localStorageUri)}
+                     disabled={isRunning || localStorageUri === storageUri}
+                     style={{ whiteSpace: 'nowrap' }}>
+                     Save
+                   </button>
                 </div>
               </td>
               <td className="td-desc">Model storage URI</td>
@@ -212,36 +212,36 @@ export default function TunerConfigForm({
       <div className="section-title">Evaluation Settings</div>
       <div className="grid-form grid-form-compact" style={{ marginBottom: '20px' }}>
         <div>
-          <label className="label">Eval Request Count</label>
-          <input className="input" type="number" aria-label="Eval Request Count" min={10} max={10000} step={10}
+          <label className="label" htmlFor="tuner-eval-requests">Eval Request Count</label>
+          <input id="tuner-eval-requests" className="input" type="number" min={10} max={10000} step={10}
             value={config.eval_requests} onChange={e => onChange("eval_requests", +e.target.value)} />
         </div>
         <div>
-          <label className="label">Eval Concurrency</label>
-          <input className="input" type="number" aria-label="Eval Concurrency" min={1} max={256}
+          <label className="label" htmlFor="tuner-eval-concurrency">Eval Concurrency</label>
+          <input id="tuner-eval-concurrency" className="input" type="number" min={1} max={256}
             value={config.eval_concurrency} onChange={e => onChange("eval_concurrency", +e.target.value)} />
         </div>
         <div>
-          <label className="label">Eval RPS</label>
-          <input className="input" type="number" aria-label="Eval RPS" min={1} max={1000}
+          <label className="label" htmlFor="tuner-eval-rps">Eval RPS</label>
+          <input id="tuner-eval-rps" className="input" type="number" min={1} max={1000}
             value={config.eval_rps} onChange={e => onChange("eval_rps", +e.target.value)} />
         </div>
       </div>
 
       <div className="tuner-config-actions">
-        <button className="btn btn-primary" onClick={onSubmit} disabled={isRunning}>
+        <button type="button" className="btn btn-primary" onClick={onSubmit} disabled={isRunning}>
           ▶ Start Tuning
         </button>
-        <button className="btn btn-danger" onClick={onStop} disabled={!isRunning}>
+        <button type="button" className="btn btn-danger" onClick={onStop} disabled={!isRunning}>
           ■ Stop
         </button>
         {hasBest && (
-          <button className="btn btn-green" onClick={onApplyBest}>
+          <button type="button" className="btn btn-green" onClick={onApplyBest}>
             ✓ Apply Best Params
           </button>
         )}
         {onApplyCurrentValues && currentConfig && (
-          <button className="btn btn-secondary"
+          <button type="button" className="btn btn-secondary"
             onClick={() => onApplyCurrentValues(editedValues)}
             disabled={Object.keys(editedValues).length === 0 || Object.values(resourceErrors).some(e => e)}>
             Apply Current Values

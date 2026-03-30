@@ -162,9 +162,9 @@ export default function ClusterConfigBar() {
         </div>
         <div className="config-actions">
            <StatusIndicator isDirty={isDirty} isSaved={isSaved} />
-           <button className="btn btn-primary" onClick={handleSave} disabled={!isDirty}>
-            💾 Save
-          </button>
+            <button type="button" className="btn btn-primary" onClick={handleSave} disabled={!isDirty}>
+             💾 Save
+           </button>
         </div>
       </div>
     </div>

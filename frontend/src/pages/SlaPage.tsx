@@ -94,10 +94,10 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
   }, [selectedIds]);
 
   useEffect(() => { if (isActive) loadProfiles(); }, [isActive, loadProfiles]);
-  useEffect(() => {
-    if (!isActive || !selectedProfileId) return;
-    handleProfileSelect(selectedProfileId);
-  }, [isActive, selectedIds, selectedProfileId, handleProfileSelect]);
+   useEffect(() => {
+     if (!isActive || !selectedProfileId) return;
+     handleProfileSelect(selectedProfileId);
+   }, [isActive, selectedProfileId, handleProfileSelect]);
 
   const resetForm = () => { setEditingId(null); setFormState(EMPTY_FORM); };
 
@@ -190,17 +190,17 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div className="section-title" style={{ margin: 0 }}>{currentEval?.profile.name ?? profiles.find(p => p.id === selectedProfileId)?.name} - Metrics Trend</div>
             <div className="tab-group" style={{ display: 'flex', gap: '4px' }}>
-              {([
-                { id: 'p95_latency' as const, label: 'P95 Latency' },
-                { id: 'availability' as const, label: 'Availability' },
-                { id: 'error_rate' as const, label: 'Error Rate' },
-                { id: 'min_tps' as const, label: 'TPS' }
-              ] as const).map(m => (
-                <button key={m.id} className={`btn-small ${chartMetric === m.id ? 'active' : ''}`} onClick={() => setChartMetric(m.id)}
-                  style={{ backgroundColor: chartMetric === m.id ? COLORS.cyan : 'transparent', color: chartMetric === m.id ? COLORS.bg : COLORS.text, border: `1px solid ${chartMetric === m.id ? COLORS.cyan : COLORS.border}` }}>
-                  {m.label}
-                </button>
-              ))}
+               {([
+                 { id: 'p95_latency' as const, label: 'P95 Latency' },
+                 { id: 'availability' as const, label: 'Availability' },
+                 { id: 'error_rate' as const, label: 'Error Rate' },
+                 { id: 'min_tps' as const, label: 'TPS' }
+               ] as const).map(m => (
+                 <button key={m.id} type="button" className={`btn-small ${chartMetric === m.id ? 'active' : ''}`} onClick={() => setChartMetric(m.id)}
+                   style={{ backgroundColor: chartMetric === m.id ? COLORS.cyan : 'transparent', color: chartMetric === m.id ? COLORS.bg : COLORS.text, border: `1px solid ${chartMetric === m.id ? COLORS.cyan : COLORS.border}` }}>
+                   {m.label}
+                 </button>
+               ))}
             </div>
           </div>
           {selectedIds.length === 0 ? (
@@ -221,9 +221,9 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
                   <YAxis tick={{ fontSize: 11, fill: COLORS.muted }} />
                   <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={{ fontSize: '12px' }} labelStyle={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }} formatter={(value: number | string) => [value, chartMetric]} />
                   <Legend payload={legendPayload} />
-                  <Bar dataKey="value" isAnimationActive={false}>
-                    {chartData.map((_, index) => (<Cell key={index} fill={TARGET_COLORS[index % TARGET_COLORS.length]} />))}
-                  </Bar>
+                   <Bar dataKey="value" isAnimationActive={false}>
+                     {chartData.map((item, index) => (<Cell key={item.name} fill={TARGET_COLORS[index % TARGET_COLORS.length]} />))}
+                   </Bar>
                   {slaThreshold != null && (
                     <ReferenceLine y={slaThreshold} stroke={COLORS.red} strokeWidth={2.5}
                       label={{ position: 'insideTopRight', value: `SLA: ${chartMetric === 'p95_latency' ? `${slaThreshold}ms` : chartMetric === 'min_tps' ? `${slaThreshold} req/s` : `${slaThreshold}%`}`, fill: COLORS.red, fontSize: 11, fontWeight: 'bold' }}
