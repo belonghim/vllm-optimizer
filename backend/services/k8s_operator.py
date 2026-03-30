@@ -181,6 +181,7 @@ class K8sOperator:
             spec = cast(dict[str, Any], cr_obj).get("spec", {}) if cr_obj else {}
             return self._cr_adapter.resolve_model_name(spec, is_name)
         except ApiException:
+            logger.warning("Failed to resolve model name from CR, using IS name as fallback: %s", is_name)
             return is_name
 
     def params_to_args(self, params: dict[str, Any]) -> list[str]:

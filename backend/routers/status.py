@@ -24,6 +24,11 @@ _interrupted_runs: list[dict[str, Any]] = []
 _lock = asyncio.Lock()
 
 
+def _read_file(path: str) -> str:
+    with open(path) as f:
+        return f.read()
+
+
 async def set_interrupted_runs(runs: list[dict[str, Any]]) -> None:
     """Called from lifespan to store interrupted runs detected at startup."""
     global _interrupted_runs
@@ -64,8 +69,8 @@ async def check_prometheus_health() -> bool:
         token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
         token = None
         if os.path.exists(token_path):
-            with open(token_path) as f:
-                token = f.read().strip()
+            token = await asyncio.to_thread(_read_file, token_path)
+            token = token.strip() if token else None
 
         headers = {"Authorization": f"Bearer {token}"} if token else {}
 

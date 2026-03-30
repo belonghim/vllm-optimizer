@@ -31,7 +31,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-def get_storage():
+def get_storage() -> Any:
     """Return the shared storage instance."""
     from services import shared
 
