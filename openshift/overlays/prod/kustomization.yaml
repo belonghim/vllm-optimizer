@@ -54,9 +54,31 @@ patches:
       kind: ConfigMap
       name: vllm-optimizer-config
     patch: |-
-       - op: add
-         path: /data/ALLOWED_ORIGINS
-         value: "https://vllm-optimizer.apps.example.com"
-       - op: add
-         path: /data/VLLM_ENDPOINT
-         value: "https://llm-ov-predictor.vllm-lab-prod.svc.cluster.local:8080"
+      - op: add
+        path: /data/ALLOWED_ORIGINS
+        value: "https://vllm-optimizer.apps.example.com"
+      - op: add
+        path: /data/VLLM_ENDPOINT
+        value: "https://llm-ov-predictor.vllm-lab-prod.svc.cluster.local:8080"
+      - op: add
+        path: /data/K8S_NAMESPACE
+        value: "vllm-lab-prod"
+      - op: add
+        path: /data/VLLM_NAMESPACE
+        value: "vllm-lab-prod"
+      - op: add
+        path: /data/VLLM_DEPLOYMENT_NAME
+        value: "llm-ov"
+      - op: add
+        path: /data/VLLM_CR_TYPE
+        value: "inferenceservice"
+  - target:
+      kind: PrometheusRule
+      name: vllm-optimizer-alerts
+    patch: |-
+      - op: replace
+        path: /spec/groups/2/rules/0/expr
+        value: |
+          kube_deployment_status_replicas_available{deployment="llm-ov-predictor"}
+          <
+          kube_deployment_spec_replicas{deployment="llm-ov-predictor"} * 0.5

@@ -284,3 +284,41 @@ def test_fetch_query_range_nan_inf_values_filtered():
     result = asyncio.run(_fetch_query_range(mock_client, {}, "test_metric{}", 0.0, 100.0, 10))
     assert len(result) == 1
     assert result[0] == (1020.0, 42.5)
+
+
+def test_batch_endpoint_invalid_time_range(isolated_client):
+    """Invalid time_range (not in _TIME_RANGE_CONFIG) should skip Thanos and return local cache history."""
+    response = isolated_client.post(
+        "/api/metrics/batch",
+        json={
+            "targets": [{"namespace": "llm-d-demo", "inferenceService": "small-llm-d"}],
+            "time_range": "999h",  # Invalid: not in config
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    target_result = data["results"]["llm-d-demo/small-llm-d"]
+    assert "history" in target_result
+    # With isolated_client and no prior metrics collection, history should be empty
+    assert target_result["history"] == []
+
+
+def test_batch_endpoint_null_time_range(isolated_client):
+    """Null time_range should skip Thanos and return valid response with local cache history."""
+    response = isolated_client.post(
+        "/api/metrics/batch",
+        json={
+            "targets": [{"namespace": "llm-d-demo", "inferenceService": "small-llm-d"}],
+            "time_range": None,  # Explicitly null
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "results" in data
+    assert "llm-d-demo/small-llm-d" in data["results"]
+    target_result = data["results"]["llm-d-demo/small-llm-d"]
+    assert "status" in target_result
+    assert target_result["status"] in ("collecting", "ready")
+    assert "history" in target_result
+    # With isolated_client, history from local cache should be empty
+    assert target_result["history"] == []
