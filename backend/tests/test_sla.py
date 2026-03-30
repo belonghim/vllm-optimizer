@@ -56,7 +56,7 @@ def _make_benchmark(
 
 def _evaluate(profile: SlaProfile, benchmarks: list[Benchmark]) -> list[SlaEvaluationResult]:
     from routers.sla import (
-        evaluate_benchmarks_against_sla,  # pyright: ignore[reportMissingImports, reportUnknownVariableType]
+        evaluate_benchmarks_against_sla,  # pyright: ignore[reportMissingImports, reportUnknownVariableType]  # test env: backend/ added to sys.path at runtime
     )
 
     evaluate_fn = cast(

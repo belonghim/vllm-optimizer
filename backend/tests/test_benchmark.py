@@ -107,8 +107,8 @@ def test_by_model_empty(client):
 
 
 def test_by_model_grouping(client):
-    client.post("/api/benchmark/save", json={**_BASE_PAYLOAD, "name": "run-A"})  # type: ignore
-    payload_b = {**_BASE_PAYLOAD, "name": "run-B", "config": {**_BASE_PAYLOAD["config"], "model": "model-B"}}  # type: ignore
+    client.post("/api/benchmark/save", json={**_BASE_PAYLOAD, "name": "run-A"})  # type: ignore  # dict spread type inference limitation
+    payload_b = {**_BASE_PAYLOAD, "name": "run-B", "config": {**_BASE_PAYLOAD["config"], "model": "model-B"}}  # type: ignore  # dict spread type inference limitation
     client.post("/api/benchmark/save", json=payload_b)
 
     resp = client.get("/api/benchmark/by-model")
@@ -130,7 +130,7 @@ def test_by_model_gpu_efficiency(client):
 
 def test_by_model_gpu_zero(client):
     payload = {
-        **_BASE_PAYLOAD,  # type: ignore
+        **_BASE_PAYLOAD,  # type: ignore  # dict spread type inference limitation
         "result": {**_BASE_PAYLOAD["result"], "gpu_utilization_avg": 0.0},
     }
     client.post("/api/benchmark/save", json=payload)

@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 import httpx
 import optuna
-from errors import TunerError  # pyright: ignore[reportImplicitRelativeImport]
-from models.load_test import (  # pyright: ignore[reportImplicitRelativeImport]
+from errors import TunerError  # pyright: ignore[reportImplicitRelativeImport]  # backend/ added to sys.path at runtime
+from models.load_test import (  # pyright: ignore[reportImplicitRelativeImport]  # backend/ added to sys.path at runtime
     Benchmark,
     LatencyStats,
     LoadTestConfig,
@@ -19,7 +19,7 @@ from models.load_test import (  # pyright: ignore[reportImplicitRelativeImport]
     TuningConfig,
     TuningTrial,
 )
-from services.load_engine import LoadTestEngine  # pyright: ignore[reportImplicitRelativeImport]
+from services.load_engine import LoadTestEngine  # pyright: ignore[reportImplicitRelativeImport]  # backend/ added to sys.path at runtime
 
 from .model_resolver import resolve_model_name
 
@@ -66,7 +66,7 @@ class TunerLogic:
                     storage_url,
                     engine_kwargs={"connect_args": {"check_same_thread": False}},
                 )
-                study = await asyncio.to_thread(  # type: ignore[arg-type]
+                study = await asyncio.to_thread(  # type: ignore[arg-type]  # optuna.create_study returns Study|None, pyright can't track through to_thread
                     optuna.create_study,
                     sampler=sampler,
                     pruner=pruner,
@@ -92,7 +92,7 @@ class TunerLogic:
                         }
                     )
                 try:
-                    study = optuna.create_study(sampler=sampler, pruner=pruner, **direction_kwarg)  # type: ignore[arg-type]
+                    study = optuna.create_study(sampler=sampler, pruner=pruner, **direction_kwarg)  # type: ignore[arg-type]  # direction_kwarg is dict, pyright can't verify TypedDict keys
                 except optuna.exceptions.OptunaError as e:
                     raise TunerError(
                         "Optuna study initialization failed after storage fallback",
@@ -100,7 +100,7 @@ class TunerLogic:
                     ) from e
         else:
             try:
-                study = optuna.create_study(sampler=sampler, pruner=pruner, **direction_kwarg)  # type: ignore[arg-type]
+                study = optuna.create_study(sampler=sampler, pruner=pruner, **direction_kwarg)  # type: ignore[arg-type]  # direction_kwarg is dict, pyright can't verify TypedDict keys
             except optuna.exceptions.OptunaError as e:
                 raise TunerError(
                     "Optuna study initialization failed",

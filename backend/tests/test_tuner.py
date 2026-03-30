@@ -101,7 +101,7 @@ def auto_tuner_instance(mock_k8s_clients):
     tuner._k8s_available = True  # Force K8s available for testing
     tuner._cooldown_secs = 0  # Skip cooldown in tests
     tuner._k8s_apps = mock_k8s_clients[0].return_value
-    tuner._k8s_core = mock_k8s_clients[1].return_value  # type: ignore
+    tuner._k8s_core = mock_k8s_clients[1].return_value  # type: ignore  # Mock attr assignment, _k8s_core is K8s CoreV1Api
     tuner._k8s_custom = mock_k8s_clients[2].return_value
     return tuner
 

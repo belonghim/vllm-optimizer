@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 # Import the app and metrics module from the backend
 try:
-    from ..main import app  # type: ignore
+    from ..main import app  # type: ignore  # test fallback pattern: app may not be available in all test envs
 except Exception:
     # Fallback: construct a tiny FastAPI app if main import isn't available in test env
     app = FastAPI()

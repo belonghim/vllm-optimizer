@@ -18,10 +18,10 @@ tuner_trials_total: Counter | None = None
 tuner_best_score: Gauge | None = None
 tuner_trial_duration_seconds: Histogram | None = None
 try:
-    from metrics.prometheus_metrics import (  # pyright: ignore[reportImplicitRelativeImport]
-        tuner_best_score,  # type: ignore[assignment]
-        tuner_trial_duration_seconds,  # type: ignore[assignment]
-        tuner_trials_total,  # type: ignore[assignment]
+    from metrics.prometheus_metrics import (  # pyright: ignore[reportImplicitRelativeImport]  # backend/ added to sys.path at runtime
+        tuner_best_score,  # type: ignore[assignment]  # module-level declares Counter|Gauge|Histogram|null, import is non-null
+        tuner_trial_duration_seconds,  # type: ignore[assignment]  # module-level declares Counter|Gauge|Histogram|null, import is non-null
+        tuner_trials_total,  # type: ignore[assignment]  # module-level declares Counter|Gauge|Histogram|null, import is non-null
     )
 
     _metrics_available = True
