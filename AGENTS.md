@@ -221,7 +221,7 @@ spec:
 | `REGISTRY` | 컨테이너 레지스트리 | `quay.io/joopark` |
 | `IMAGE_TAG` | 이미지 태그 | `1.0.0` |
 | `VLLM_NAMESPACE` | LLM 추론 서비스 네임스페이스 | `vllm-lab-dev` (dev), `vllm-lab-prod` (prod) |
-| `VLLM_CR_TYPE` | LLM 리소스 타입 (KServe 또는 LLMIS) | `inferenceservice` (기본) |
+| `VLLM_CR_TYPE` | LLM 리소스 타입. `inferenceservice` (KServe) 또는 `llminferenceservice` (LLMIS). **런타임에 `cr_adapter.py`의 어댑터 패턴으로 동적 전환** — auto-tuner, vllm-config, metrics, rollback 모두 두 타입 완전 지원. | `inferenceservice` (기본) |
 | `PROMETHEUS_URL` | Thanos Querier URL | `https://thanos-querier.openshift-monitoring.svc.cluster.local:9091` |
 | `K8S_NAMESPACE` | K8s Pod 조회 대상 네임스페이스 | `vllm-lab-dev` (dev), `vllm-lab-prod` (prod) |
 | `K8S_DEPLOYMENT_NAME` | LLM Deployment 이름 (KServe: `{name}-predictor`). **MetricsCollector의 pod listing 및 auto-tuner의 Deployment rollout restart에 사용.** | `llm-ov-predictor` |
@@ -362,6 +362,8 @@ securityContext:
 ## vLLM 클러스터 아키텍처 (Dev 환경)
 
 현재 Dev 환경의 vLLM은 **KServe InferenceService** 아키텍처로 배포됩니다. LLMIS + Gateway 방식은 대안/향후 방향으로 병행 지원합니다.
+
+> **CR 어댑터 패턴**: `VLLM_CR_TYPE` 환경변수로 런타임에 CR 타입을 전환한다. `backend/services/cr_adapter.py`의 `InferenceServiceAdapter`와 `LLMInferenceServiceAdapter`가 동일한 추상 인터페이스(`CRAdapter`)를 구현하므로 auto-tuner, vllm-config, metrics collector, rollback 모두 두 타입을 완전 지원한다.
 
 ### 주 배포 모델: KServe InferenceService
 
