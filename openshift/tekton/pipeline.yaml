@@ -170,9 +170,29 @@ spec:
         - name: dockerconfig
           workspace: docker-credentials
 
-    # ── 5. Kustomize 배포 ─────────────────────────────────────────────────────
+    # ── 5a. Backend 이미지 보안 스캔 (Trivy) ───────────────────────────────────
+    - name: scan-backend
+      runAfter: ["build-backend"]
+      taskRef:
+        kind: Task
+        name: trivy-image-scan
+      params:
+        - name: IMAGE
+          value: "$(params.image-registry)/vllm-optimizer-backend:$(params.image-tag)"
+
+    # ── 5b. Frontend 이미지 보안 스캔 (Trivy) ──────────────────────────────────
+    - name: scan-frontend
+      runAfter: ["build-frontend"]
+      taskRef:
+        kind: Task
+        name: trivy-image-scan
+      params:
+        - name: IMAGE
+          value: "$(params.image-registry)/vllm-optimizer-frontend:$(params.image-tag)"
+
+    # ── 6. Kustomize 배포 ─────────────────────────────────────────────────────
     - name: deploy
-      runAfter: ["build-backend", "build-frontend"]
+      runAfter: ["scan-backend", "scan-frontend"]
       taskRef:
         kind: Task
         name: kustomize-deploy
@@ -185,7 +205,7 @@ spec:
         - name: source
           workspace: source-code
 
-    # ── 6. 배포 검증 ──────────────────────────────────────────────────────────
+    # ── 7. 배포 검증 ──────────────────────────────────────────────────────────
     - name: verify-deployment
       runAfter: ["deploy"]
       taskRef:
@@ -214,37 +234,37 @@ spec:
       type: string
   workspaces:
     - name: source
-   steps:
-     - name: kustomize-apply
-       image: registry.redhat.io/openshift4/ose-cli:latest
-       script: |
-         #!/bin/bash
-         set -euo pipefail
-         cd $(workspaces.source.path)
+  steps:
+    - name: kustomize-apply
+      image: registry.redhat.io/openshift4/ose-cli:latest
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+        cd $(workspaces.source.path)
 
-         echo "=== Kustomize 빌드: $(params.OVERLAY_PATH) ==="
-         oc kustomize $(params.OVERLAY_PATH) | \
-           oc apply -n $(params.NAMESPACE) -f -
+        echo "=== Kustomize 빌드: $(params.OVERLAY_PATH) ==="
+        oc kustomize $(params.OVERLAY_PATH) | \
+          oc apply -n $(params.NAMESPACE) -f -
 
-         echo "=== 배포 상태 확인 ==="
-         oc rollout status deployment/vllm-optimizer-backend \
-           -n $(params.NAMESPACE) --timeout=5m
-         oc rollout status deployment/vllm-optimizer-frontend \
-           -n $(params.NAMESPACE) --timeout=5m
+        echo "=== 배포 상태 확인 ==="
+        oc rollout status deployment/vllm-optimizer-backend \
+          -n $(params.NAMESPACE) --timeout=5m
+        oc rollout status deployment/vllm-optimizer-frontend \
+          -n $(params.NAMESPACE) --timeout=5m
 
-         echo "✓ 배포 완료"
-       resources:
-         requests:
-           cpu: 100m
-           memory: 128Mi
-         limits:
-           cpu: 500m
-           memory: 512Mi
-       securityContext:
-         allowPrivilegeEscalation: false
-         runAsNonRoot: true
-         capabilities:
-           drop: ["ALL"]
+        echo "✓ 배포 완료"
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        capabilities:
+          drop: ["ALL"]
 
 ---
 # ── Task: 배포 검증 ────────────────────────────────────────────────────────────
@@ -262,44 +282,100 @@ spec:
     - name: TIMEOUT
       type: string
       default: "5m"
-   steps:
-     - name: verify
-       image: registry.redhat.io/openshift4/ose-cli:latest
-       script: |
-         #!/bin/bash
-         set -euo pipefail
-         IFS=',' read -ra DEPS <<< "$(params.DEPLOYMENTS)"
-         for dep in "${DEPS[@]}"; do
-           echo "=== 검증: $dep ==="
-           oc rollout status deployment/$dep \
-             -n $(params.NAMESPACE) --timeout=$(params.TIMEOUT)
-           READY=$(oc get deployment/$dep -n $(params.NAMESPACE) \
-             -o jsonpath='{.status.readyReplicas}')
-           DESIRED=$(oc get deployment/$dep -n $(params.NAMESPACE) \
-             -o jsonpath='{.spec.replicas}')
-           echo "Ready: $READY / $DESIRED"
-           [ "$READY" = "$DESIRED" ] && echo "✓ $dep OK" || (echo "✗ $dep 비정상" && exit 1)
-         done
+  steps:
+    - name: verify
+      image: registry.redhat.io/openshift4/ose-cli:latest
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+        IFS=',' read -ra DEPS <<< "$(params.DEPLOYMENTS)"
+        for dep in "${DEPS[@]}"; do
+          echo "=== 검증: $dep ==="
+          oc rollout status deployment/$dep \
+            -n $(params.NAMESPACE) --timeout=$(params.TIMEOUT)
+          READY=$(oc get deployment/$dep -n $(params.NAMESPACE) \
+            -o jsonpath='{.status.readyReplicas}')
+          DESIRED=$(oc get deployment/$dep -n $(params.NAMESPACE) \
+            -o jsonpath='{.spec.replicas}')
+          echo "Ready: $READY / $DESIRED"
+          [ "$READY" = "$DESIRED" ] && echo "✓ $dep OK" || (echo "✗ $dep 비정상" && exit 1)
+        done
 
-         # Route 접근 검증
-         ROUTE=$(oc get route vllm-optimizer -n $(params.NAMESPACE) \
-           -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
-         if [ -n "$ROUTE" ]; then
-           echo "=== Route 헬스체크: https://$ROUTE/health ==="
-           curl -sf --max-time 10 "https://$ROUTE/health" && echo "✓ Route OK"
-         fi
-       resources:
-         requests:
-           cpu: 100m
-           memory: 128Mi
-         limits:
-           cpu: 500m
-           memory: 512Mi
-       securityContext:
-         allowPrivilegeEscalation: false
-         runAsNonRoot: true
-         capabilities:
-           drop: ["ALL"]
+        # Route 접근 검증
+        ROUTE=$(oc get route vllm-optimizer -n $(params.NAMESPACE) \
+          -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
+        if [ -n "$ROUTE" ]; then
+          echo "=== Route 헬스체크: https://$ROUTE/health ==="
+          curl -sf --max-time 10 "https://$ROUTE/health" && echo "✓ Route OK"
+        fi
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        capabilities:
+          drop: ["ALL"]
+
+---
+# ── Task: Trivy 이미지 보안 스캔 ────────────────────────────────────────────────
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: trivy-image-scan
+  namespace: vllm-optimizer
+spec:
+  params:
+    - name: IMAGE
+      type: string
+      description: "스캔 대상 이미지 (registry/repo:tag)"
+    - name: SEVERITY
+      type: string
+      default: "CRITICAL,HIGH"
+      description: "실패 기준 심각도 (쉼표 구분)"
+    - name: SKIP_DB_UPDATE
+      type: string
+      default: "false"
+      description: "Air-gapped 환경에서 DB 업데이트 건너뛰기 (true/false)"
+  steps:
+    - name: trivy-scan
+      image: registry.access.redhat.com/ubi9-minimal:latest
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        echo "=== Trivy 설치 ==="
+        microdnf install -y tar gzip && microdnf clean all
+        TRIVY_VERSION="0.58.2"
+        curl -sfL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" \
+          | tar xz -C /usr/local/bin trivy
+
+        echo "=== 이미지 스캔: $(params.IMAGE) ==="
+        SCAN_ARGS="--exit-code 1 --severity $(params.SEVERITY) --no-progress"
+        if [ "$(params.SKIP_DB_UPDATE)" = "true" ]; then
+          SCAN_ARGS="$SCAN_ARGS --skip-db-update"
+          echo "⚠ Air-gapped 모드: DB 업데이트 건너뜀"
+        fi
+
+        trivy image $SCAN_ARGS "$(params.IMAGE)"
+
+        echo "✓ 스캔 통과 — CRITICAL/HIGH 취약점 없음"
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: "1"
+          memory: 2Gi
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        capabilities:
+          drop: ["ALL"]
 
 ---
 # ── PipelineRun 템플릿 (트리거용) ─────────────────────────────────────────────
