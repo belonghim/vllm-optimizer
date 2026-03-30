@@ -211,7 +211,9 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
         }
       })
       .catch((err: Error) => {
-        if (err.name !== "AbortError") return;
+        if (err.name !== "AbortError") {
+          console.error("Failed to re-fetch resolved model name", err);
+        }
       });
     return () => controller.abort();
   }, [crType, config.targets]);
