@@ -266,4 +266,78 @@ describe("ClusterConfigContext", () => {
       isDefault: false,
     });
   });
+
+  it("aborts previous resolvedModelName re-fetch when deps change", async () => {
+    vi.mocked(Storage.prototype.getItem).mockReturnValue(JSON.stringify({
+      endpoint: "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080",
+      targets: [{ namespace: "vllm-lab-dev", inferenceService: "llm-ov", isDefault: true }],
+      maxTargets: 5,
+      version: 2,
+    }));
+
+    const signals: (AbortSignal | null)[] = [];
+    const fetchMock = vi.fn((_: RequestInfo | URL, init?: RequestInit) => {
+      signals.push((init?.signal as AbortSignal | null) ?? null);
+      return Promise.resolve({
+        json: () => Promise.resolve({ resolved_model_name: "qwen2-5-7b-instruct" }),
+      } as unknown as Response);
+    });
+    vi.spyOn(global, "fetch").mockImplementation(fetchMock);
+
+    const { result } = renderHook(() => useClusterConfig(), { wrapper });
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    const previousRefetchSignal = signals[0];
+
+    act(() => {
+      result.current.updateConfig("namespace", "ns-abort");
+    });
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    expect(previousRefetchSignal?.aborted).toBe(true);
+  });
+
+  it("keeps previous resolvedModelName when re-fetch fails", async () => {
+    vi.mocked(Storage.prototype.getItem).mockReturnValue(JSON.stringify({
+      endpoint: "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080",
+      targets: [{ namespace: "vllm-lab-dev", inferenceService: "llm-ov", isDefault: true }],
+      maxTargets: 5,
+      version: 2,
+    }));
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve({ resolved_model_name: "model-initial" }),
+      } as unknown as Response)
+      .mockRejectedValueOnce(new Error("network failure"));
+    vi.spyOn(global, "fetch").mockImplementation(fetchMock);
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { result } = renderHook(() => useClusterConfig(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.resolvedModelName).toBe("model-initial");
+    });
+
+    act(() => {
+      result.current.updateConfig("namespace", "ns-error");
+    });
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    expect(result.current.resolvedModelName).toBe("model-initial");
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "Failed to re-fetch resolved model name",
+      expect.any(Error),
+    );
+  });
 });
