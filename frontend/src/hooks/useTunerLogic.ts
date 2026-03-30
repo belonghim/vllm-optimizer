@@ -134,10 +134,7 @@ export function useTunerLogic({ isActive, onRunningChange }: { isActive: boolean
 
   useEffect(() => {
     if (endpoint) {
-      setConfig(c => {
-        if (userEditedRef.current.vllm_endpoint) return c;
-        return { ...c, vllm_endpoint: c.vllm_endpoint || endpoint };
-      });
+      setConfig(c => ({ ...c, vllm_endpoint: endpoint }));
     }
   }, [endpoint]);
 
