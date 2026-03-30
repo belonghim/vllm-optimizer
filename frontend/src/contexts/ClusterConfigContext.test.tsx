@@ -173,7 +173,7 @@ describe("ClusterConfigContext", () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
     await waitFor(() => {
-      expect(result.current.endpoint).toBe("http://x");
+      expect(result.current.endpoint).toBe("http://is-predictor.ns.svc.cluster.local:8080");
     });
     expect(result.current.targets[0].namespace).toBe("ns");
     expect(result.current.targets[0].inferenceService).toBe("is");

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { API } from "../constants";
 import type { ClusterTarget, ClusterConfig } from "../types";
 import { authFetch } from "../utils/authFetch";
+import { buildDefaultEndpoint } from "../utils/endpointUtils";
 
 const STORAGE_KEY = "vllm-opt-cluster-config";
 const SCHEMA_VERSION = 2;
@@ -23,6 +24,7 @@ interface ClusterConfigContextValue {
   removeTarget: (namespace: string, inferenceService: string) => void;
   setDefaultTarget: (namespace: string, inferenceService: string) => void;
   crType: string;
+  resolvedModelName: string;
   updateCrType: (value: string) => Promise<{ configmap_updated: boolean }>;
 }
 
@@ -38,6 +40,7 @@ const ClusterConfigContext = createContext<ClusterConfigContextValue>({
   removeTarget: () => {},
   setDefaultTarget: () => {},
   crType: DEFAULT_CR_TYPE,
+  resolvedModelName: "",
   updateCrType: async () => ({ configmap_updated: true }),
 });
 
@@ -117,6 +120,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
   });
   const [isLoading, setIsLoading] = useState(true);
   const [crType, setCrType] = useState<string>(DEFAULT_CR_TYPE);
+  const [resolvedModelName, setResolvedModelName] = useState<string>("");
 
   useEffect(() => {
     const hasStoredValues = (): boolean => {
@@ -146,6 +150,8 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
         const vllmEndpoint = typeof data.vllm_endpoint === "string" ? data.vllm_endpoint : "";
         const vllmNamespace = typeof data.vllm_namespace === "string" ? data.vllm_namespace : "";
         const vllmIsName = typeof data.vllm_is_name === "string" ? data.vllm_is_name : "";
+        const resolvedCrType = typeof data.cr_type === "string" ? data.cr_type : DEFAULT_CR_TYPE;
+        const resolvedModel = typeof data.resolved_model_name === "string" ? data.resolved_model_name : "";
 
         const resolvedNamespace = vllmNamespace || DEFAULT_NAMESPACE;
         const resolvedIsName = vllmIsName || DEFAULT_INFERENCESERVICE;
@@ -160,7 +166,8 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
           version: SCHEMA_VERSION,
         };
         setConfig(apiConfig);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(apiConfig));
+        setCrType(resolvedCrType);
+        setResolvedModelName(resolvedModel);
       })
       .catch((err: Error) => {
         if (err.name === 'AbortError') return;
@@ -174,19 +181,40 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
   }, [config]);
 
   useEffect(() => {
+    const defaultTarget = config.targets.find(t => t.isDefault) || config.targets[0];
+    if (!defaultTarget) return;
+
+    const newEndpoint = buildDefaultEndpoint(
+      crType,
+      defaultTarget.namespace,
+      defaultTarget.inferenceService,
+    );
+
+    setConfig(prev => ({ ...prev, endpoint: newEndpoint }));
+  }, [crType, config.targets]);
+
+  useEffect(() => {
+    const defaultTarget = config.targets.find(t => t.isDefault) || config.targets[0];
+    if (!defaultTarget || !crType) return;
+
+    const namespace = defaultTarget.namespace;
+    const inferenceService = defaultTarget.inferenceService;
+    if (!namespace || !inferenceService) return;
+
     const controller = new AbortController();
     // No auth required — /config endpoint reads env variables with no auth middleware
     authFetch(`${API}/config`, { signal: controller.signal })
       .then(r => r.json())
       .then((data: unknown) => {
-        if (!isRecord(data)) return;
-        setCrType(typeof data.cr_type === "string" ? data.cr_type : DEFAULT_CR_TYPE);
+        if (isRecord(data) && typeof data.resolved_model_name === "string") {
+          setResolvedModelName(data.resolved_model_name);
+        }
       })
       .catch((err: Error) => {
-        if (err.name === 'AbortError') return;
+        if (err.name !== "AbortError") return;
       });
     return () => controller.abort();
-  }, []);
+  }, [crType, config.targets]);
 
   const updateCrType = useCallback(async (value: string): Promise<{ configmap_updated: boolean }> => {
     // No auth required — /config endpoint reads env variables with no auth middleware
@@ -301,9 +329,10 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
       removeTarget,
       setDefaultTarget,
       crType,
+      resolvedModelName,
       updateCrType,
     };
-  }, [config, isLoading, updateConfig, addTarget, removeTarget, setDefaultTarget, crType, updateCrType]);
+  }, [config, isLoading, updateConfig, addTarget, removeTarget, setDefaultTarget, crType, resolvedModelName, updateCrType]);
 
   return (
     <ClusterConfigContext.Provider value={value}>
