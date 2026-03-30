@@ -11,12 +11,12 @@ pytestmark = pytest.mark.slow
 def reset_runtime_config():
     """Reset runtime_config to defaults before each test."""
     runtime_config.set_vllm_namespace("vllm-lab-dev")
-    runtime_config.set_vllm_endpoint("https://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080")
+    runtime_config.set_vllm_endpoint("http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080")
     runtime_config.set_vllm_is_name("llm-ov")
     yield
     # Reset after test as well
     runtime_config.set_vllm_namespace("vllm-lab-dev")
-    runtime_config.set_vllm_endpoint("https://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080")
+    runtime_config.set_vllm_endpoint("http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080")
     runtime_config.set_vllm_is_name("llm-ov")
 
 
