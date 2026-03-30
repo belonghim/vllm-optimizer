@@ -40,5 +40,5 @@ test-sa-pod.yaml
 *.tmp
 *.png
 
-# github workflows (project uses Tekton CI)
-.github/workflows/
+# guidellm benchmark results
+guidellm_results/

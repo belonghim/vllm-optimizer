@@ -17,7 +17,7 @@
 - **Backend**: FastAPI (Python), 포트 `8000`
 - **Frontend**: React + nginx, 포트 `8080`
 - **배포 플랫폼**: OpenShift 4.x (Kubernetes 기반)
-- **CI/CD**: Tekton Pipelines (Buildah 빌드 → Quay.io 푸시 → Kustomize 배포)
+- **CI/CD**: deploy.sh (Buildah 빌드 → Quay.io 푸시 → Kustomize 배포)
 - **모니터링**: OpenShift Monitoring Stack (Thanos Querier)
 
 ### 프로젝트 포지셔닝과 차별점
@@ -155,9 +155,6 @@ vllm-optimizer/
     ├── overlays/
     │   ├── dev/kustomization.yaml   # Dev: 리소스 축소, 1 레플리카
     │   └── prod/kustomization.yaml  # Prod: 3 레플리카, 리소스 확대
-    └── tekton/
-        ├── pipeline.yaml           # CI/CD Pipeline + EventListener
-        └── performance-pipeline.yaml # 성능 테스트 전용 파이프라인
 ```
 
 ---
@@ -451,27 +448,6 @@ cd backend && python3 -m pytest tests/ -x -q -m "not integration"
 
 ---
 
-## Tekton CI/CD 파이프라인
-
-파이프라인 단계: `Git Clone → Test → Buildah 빌드 → Quay.io 푸시 → Kustomize 배포`
-
-- **Buildah** 사용 (Docker 빌드 금지 — OpenShift 표준)
-- Webhook Secret: `github-webhook-secret`
-- Push Secret: `quay-push-secret`
-
-```bash
-# Pipeline 리소스 배포
-oc apply -f openshift/tekton/pipeline.yaml -n vllm-optimizer
-
-# 수동 실행
-tkn pipeline start vllm-optimizer-pipeline -n vllm-optimizer
-
-# 로그 확인
-tkn pipelinerun logs -f -n vllm-optimizer
-```
-
----
-
 ## 디버깅 및 검증
 
 에이전트가 배포 후 검증이 필요할 때 사용하는 명령어입니다.
@@ -672,7 +648,6 @@ await playwright_browser_snapshot(); // ← 토큰 폭발, 금지!
 ## 참고 문서
 
 - [OpenShift 4.x 공식 문서](https://docs.openshift.com)
-- [Tekton Pipelines 문서](https://tekton.dev/docs/)
 - [vLLM 공식 문서](https://docs.vllm.ai)
 - [Optuna 공식 문서](https://optuna.readthedocs.io)
 - [Kustomize 문서](https://kubectl.docs.kubernetes.io/guides/introduction/kustomize/)

@@ -55,7 +55,7 @@ spec:
 ---
 # ── BuildConfig: Source-to-Image (선택사항) ────────────────────────────────────
 # Quay.io CI/CD 대신 OpenShift 내부 빌드를 원하는 경우 사용
-# 일반적으로는 Tekton Pipeline에서 빌드하므로 주석 처리
+# 일반적으로는 deploy.sh로 빌드하므로 주석 처리
 #
 # apiVersion: build.openshift.io/v1
 # kind: BuildConfig

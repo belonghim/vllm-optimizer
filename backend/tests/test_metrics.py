@@ -3,6 +3,8 @@ import time
 
 import httpx
 import pytest
+
+pytestmark = pytest.mark.slow
 from fastapi.testclient import TestClient
 from unittest.mock import AsyncMock, MagicMock, patch
 

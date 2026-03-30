@@ -310,4 +310,62 @@ describe("LoadTestNormalMode", () => {
       expect.anything()
     );
   });
+
+  it("handles network failure on Save as Benchmark gracefully", async () => {
+    mockSSEStatus = "completed";
+    mockSSEResult = {
+      total: 200,
+      success: 200,
+      failed: 0,
+      latency: { mean: 0.1, p50: 0.1, p95: 0.15, p99: 0.2 },
+      ttft: { mean: 0.05, p95: 0.08 },
+      tps: { mean: 100, total: 2000 },
+      gpu_efficiency: { value: 5.0, display: "5.0", mismatch: false },
+    };
+    // Override fetch: fail only benchmark/save, succeed for others
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("benchmark/save")) {
+        return Promise.reject(new Error("Network error"));
+      }
+      if (url.includes("/status/interrupted")) {
+        return Promise.resolve({ ok: true, json: async () => ({ interrupted_runs: [] }) });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+    render(<LoadTestNormalMode isActive={true} />);
+    await act(async () => {
+      fireEvent.click(screen.getByText("⬆ Save as Benchmark"));
+    });
+    // Component should not crash; save button should remain
+    expect(screen.getByText("⬆ Save as Benchmark")).toBeInTheDocument();
+  });
+
+  it("handles 500 error on Save as Benchmark", async () => {
+    mockSSEStatus = "completed";
+    mockSSEResult = {
+      total: 200,
+      success: 200,
+      failed: 0,
+      latency: { mean: 0.1, p50: 0.1, p95: 0.15, p99: 0.2 },
+      ttft: { mean: 0.05, p95: 0.08 },
+      tps: { mean: 100, total: 2000 },
+      gpu_efficiency: { value: 5.0, display: "5.0", mismatch: false },
+    };
+    // Override fetch: return 500 only for benchmark/save
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("benchmark/save")) {
+        return Promise.resolve({ ok: false, status: 500, json: async () => ({}) });
+      }
+      if (url.includes("/status/interrupted")) {
+        return Promise.resolve({ ok: true, json: async () => ({ interrupted_runs: [] }) });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+    render(<LoadTestNormalMode isActive={true} />);
+    await act(async () => {
+      fireEvent.click(screen.getByText("⬆ Save as Benchmark"));
+    });
+    // Component should not crash
+    expect(screen.getByText("⬆ Save as Benchmark")).toBeInTheDocument();
+  });
 });

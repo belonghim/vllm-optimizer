@@ -151,35 +151,4 @@ oc describe pod -l app=vllm-optimizer-backend -n vllm-optimizer-dev | grep -i sc
 # Expected: openshift.io/scc: restricted-v2
 ```
 
-## Tekton CI/CD Pipeline
 
-The project includes Tekton Pipelines for automated CI/CD workflows.
-
-*   **Pipeline Definition**: The main pipeline is defined in `openshift/tekton/pipeline.yaml`.
-*   **Pipeline Stages**: The pipeline typically includes stages for:
-    1.  Git Clone
-    2.  Test
-    3.  Buildah Build
-    4.  Quay.io Push
-    5.  Kustomize Deploy
-*   **Performance Pipeline**: A dedicated pipeline for performance testing is located at `openshift/tekton/performance-pipeline.yaml`.
-*   **Secrets**:
-    *   **Webhook Secret**: `github-webhook-secret` is used for triggering pipelines via GitHub webhooks.
-    *   **Push Secret**: `quay-push-secret` is used for authenticating with Quay.io to push images.
-
-### Managing Tekton Pipelines
-
-1.  **Deploy Pipeline Resources:**
-    ```bash
-    oc apply -f openshift/tekton/pipeline.yaml -n vllm-optimizer
-    ```
-
-2.  **Manually Start a Pipeline Run:**
-    ```bash
-    tkn pipeline start vllm-optimizer-pipeline -n vllm-optimizer
-    ```
-
-3.  **Monitor Pipeline Logs:**
-    ```bash
-    tkn pipelinerun logs -f -n vllm-optimizer
-    ```

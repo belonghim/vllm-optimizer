@@ -147,4 +147,53 @@ describe("TunerHistoryPanel", () => {
       expect(screen.getByText("Tuning History")).toBeInTheDocument();
     });
   });
+
+  it("shows error message on network failure fetching sessions", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.reject(new Error("Network error")))
+    );
+
+    render(<TunerHistoryPanel />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to fetch history/)).toBeInTheDocument();
+    });
+  });
+
+  it("shows error after delete fails with 500", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        if ((init as RequestInit)?.method === "DELETE") {
+          return Promise.resolve({ ok: false, status: 500 });
+        }
+        const s = url.toString();
+        if (s.includes("/tuner/sessions") && !s.match(/\/tuner\/sessions\/\d+/)) {
+          return Promise.resolve({ ok: true, json: async () => mockSessions });
+        }
+        return Promise.resolve({ ok: true, json: async () => mockSessionDetail });
+      })
+    );
+
+    render(<TunerHistoryPanel />);
+
+    await waitFor(() => {
+      expect(screen.getByText("balanced")).toBeInTheDocument();
+    });
+
+    const deleteBtn = screen.getByRole("button", { name: /delete tuning session 1/i });
+    fireEvent.click(deleteBtn);
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    const confirmBtn = screen.getByRole("button", { name: /confirm/i });
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Delete failed/i)).toBeInTheDocument();
+    });
+  });
 });

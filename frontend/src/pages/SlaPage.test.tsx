@@ -191,6 +191,45 @@ describe("SlaPage", () => {
     });
   });
 
+  describe("TC8: network failure scenarios", () => {
+    it("shows error when profile list fetch fails with network error", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(() => Promise.reject(new Error("Network error")))
+      );
+
+      render(<SlaPage isActive={true} />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Failed to load SLA profile/i)).toBeInTheDocument();
+      });
+    });
+
+    it("shows error when profile creation fails with 500", async () => {
+      const user = userEvent.setup();
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+          if ((init as RequestInit)?.method === "POST") {
+            return Promise.resolve({ ok: false, status: 500, json: async () => ({ detail: "Server error" }) });
+          }
+          return Promise.resolve({ ok: true, status: 200, json: async () => [] });
+        })
+      );
+
+      render(<SlaPage isActive={true} />);
+      await waitFor(() => screen.getByRole("button", { name: "Create Profile" }));
+
+      await user.type(screen.getByPlaceholderText(/Llama3/), "Error Profile");
+      await user.type(screen.getByPlaceholderText("99.9"), "99");
+      await user.click(screen.getByRole("button", { name: "Create Profile" }));
+
+      await waitFor(() => {
+        expect(screen.getByText(/Failed to save SLA profile/i)).toBeInTheDocument();
+      });
+    });
+  });
+
   describe("TC7: profile deletion", () => {
     it("calls DELETE /api/sla/profiles/:id when user confirms", async () => {
       const user = userEvent.setup();

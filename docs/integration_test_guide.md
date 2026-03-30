@@ -68,22 +68,7 @@ oc exec -n $NS $BACKEND_POD -- env \
   python3 -m pytest /app/tests/integration/performance/ -v --tb=short -m "integration"
 ```
 
-## 6. Tekton 성능 파이프라인
-
-`openshift/tekton/performance-pipeline.yaml`에 정의된 Tekton 파이프라인은 CI/CD 과정의 일부로 성능 통합 테스트를 자동화합니다. 이 파이프라인은 빌드 및 배포 후 vLLM Optimizer의 성능을 자동으로 검증합니다.
-
-```bash
-# Pipeline 리소스 배포
-oc apply -f openshift/tekton/performance-pipeline.yaml -n vllm-optimizer
-
-# 수동 실행
-tkn pipeline start vllm-optimizer-performance-pipeline -n vllm-optimizer
-
-# 로그 확인
-tkn pipelinerun logs -f -n vllm-optimizer
-```
-
-## 7. pytest 마커 설명
+## 6. pytest 마커 설명
 
 `pyproject.toml` 파일에 정의된 pytest 마커를 사용하여 특정 테스트 그룹을 선택적으로 실행할 수 있습니다.
 
@@ -103,7 +88,7 @@ pytest -m "performance"
 pytest -m "not slow"
 ```
 
-## 8. 문제 해결
+## 7. 문제 해결
 
 통합 테스트 실행 중 문제가 발생하면 다음 사항을 확인하십시오.
 

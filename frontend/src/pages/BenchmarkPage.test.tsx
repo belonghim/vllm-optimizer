@@ -63,6 +63,15 @@ describe("BenchmarkPage", () => {
         expect(screen.getByText(/Failed to fetch benchmarks/)).toBeInTheDocument()
       );
     });
+
+    it("shows error banner on network failure", async () => {
+      mockEnabled = false;
+      vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Network error")));
+      render(<BenchmarkPage isActive={true} />);
+      await waitFor(() =>
+        expect(screen.getByText(/Failed to fetch benchmarks/)).toBeInTheDocument()
+      );
+    });
   });
 
   describe("delete", () => {

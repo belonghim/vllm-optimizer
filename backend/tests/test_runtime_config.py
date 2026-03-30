@@ -4,6 +4,8 @@ from fastapi.testclient import TestClient
 from services.runtime_config import RuntimeConfig
 from services.shared import runtime_config
 
+pytestmark = pytest.mark.slow
+
 
 @pytest.fixture(autouse=True)
 def reset_runtime_config():
