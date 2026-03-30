@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
 import { authFetch } from "../utils/authFetch";
+import { buildDefaultEndpoint } from "../utils/endpointUtils";
 import { API } from "../constants";
 import { ERROR_MESSAGES } from "../constants/errorMessages";
 import ErrorAlert from "./ErrorAlert";
@@ -38,9 +39,13 @@ export default function ClusterConfigBar() {
 
   useEffect(() => {
     if (!isLoading) {
-      setLocalConfig({ endpoint, namespace, inferenceservice });
+      setLocalConfig({
+        endpoint: buildDefaultEndpoint(crType, namespace, inferenceservice),
+        namespace,
+        inferenceservice,
+      });
     }
-  }, [isLoading, endpoint, namespace, inferenceservice]);
+  }, [isLoading, crType, namespace, inferenceservice]);
 
   useEffect(() => {
     const isChanged = endpoint !== localConfig.endpoint || namespace !== localConfig.namespace || inferenceservice !== localConfig.inferenceservice;
@@ -52,7 +57,13 @@ export default function ClusterConfigBar() {
 
   const handleInputChange = (field: keyof LocalConfig, value: string) => {
     setError(null);
-    setLocalConfig(prev => ({ ...prev, [field]: value }));
+    setLocalConfig(prev => {
+      const next = { ...prev, [field]: value };
+      if (field === 'namespace' || field === 'inferenceservice') {
+        next.endpoint = buildDefaultEndpoint(crType, next.namespace, next.inferenceservice);
+      }
+      return next;
+    });
   };
 
   const handleCrTypeChange = async (value: string) => {
@@ -65,6 +76,10 @@ export default function ClusterConfigBar() {
         setConfigmapWarning(true);
         setTimeout(() => setConfigmapWarning(false), 3000);
       }
+      setLocalConfig(prev => ({
+        ...prev,
+        endpoint: buildDefaultEndpoint(value, prev.namespace, prev.inferenceservice),
+      }));
     } catch (err) {
        const msg = err instanceof Error ? err.message : String(err);
        if (msg.includes('409') || msg.toLowerCase().includes('auto-tuner')) {

@@ -34,7 +34,7 @@ class TestRuntimeConfigSingleton:
 
     def test_initial_vllm_endpoint_default(self):
         cfg = RuntimeConfig()
-        expected = "https://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080"
+        expected = "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080"
         assert cfg.vllm_endpoint == expected
 
     def test_initial_vllm_is_name_default(self):
