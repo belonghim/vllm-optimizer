@@ -132,7 +132,7 @@ export default function TunerCurrentConfig({
       title: "Apply Configuration",
       message: ERROR_MESSAGES.TUNER.RESTART_CONFIRM,
       onConfirm: () => {
-        void applyCurrentValues(values);
+        void applyCurrentValues(values).catch((e) => console.error("Failed to apply current values:", e));
       },
     });
   }, [applyCurrentValues]);

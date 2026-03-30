@@ -118,7 +118,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
       title: "Delete Benchmark",
       message: `Delete benchmark '${b.name}'?`,
       onConfirm: () => {
-        void deleteBenchmark(b);
+        void deleteBenchmark(b).catch((e) => console.error("Failed to delete benchmark:", e));
       },
     });
   };
@@ -173,7 +173,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
       title: "Delete Benchmarks",
       message: `Delete ${idsToDelete.length} benchmark(s)?`,
       onConfirm: () => {
-        void bulkDeleteBenchmarks(idsToDelete);
+        void bulkDeleteBenchmarks(idsToDelete).catch((e) => console.error("Failed to bulk delete benchmarks:", e));
       },
     });
   };

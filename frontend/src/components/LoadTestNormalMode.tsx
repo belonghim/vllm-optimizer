@@ -287,7 +287,7 @@ function LoadTestNormalMode({ isActive, pendingConfig, onConfigConsumed, onRunni
 
           {status === "completed" && result && !isMockEnabled && (
             <div className="loadtest-save-row">
-              <button className="btn btn-primary" onClick={saveAsBenchmark} disabled={isSaving || saveStatus === "ok"}>
+              <button className="btn btn-primary" onClick={() => saveAsBenchmark().catch((e) => console.error("Failed to save as benchmark:", e))} disabled={isSaving || saveStatus === "ok"}>
                 {saveStatus === "ok" ? "✓ Saved" : isSaving ? "Saving..." : "⬆ Save as Benchmark"}
               </button>
               {saveStatus === "error" && <span className="loadtest-save-error">✗ Save failed</span>}
