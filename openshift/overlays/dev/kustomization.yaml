@@ -55,8 +55,20 @@ patches:
         path: /data/ALLOWED_ORIGINS
         value: "https://vllm-optimizer-dev.apps.compact.jooan.local"
       - op: add
+        path: /data/K8S_NAMESPACE
+        value: "vllm-lab-dev"
+      - op: add
+        path: /data/VLLM_NAMESPACE
+        value: "vllm-lab-dev"
+      - op: add
+        path: /data/VLLM_DEPLOYMENT_NAME
+        value: "llm-ov"
+      - op: add
+        path: /data/VLLM_CR_TYPE
+        value: "inferenceservice"
+      - op: add
         path: /data/VLLM_ENDPOINT
-        value: "http://openshift-ai-inference-openshift-default.openshift-ingress.svc/llm-d-demo/small-llm-d"
+        value: "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080"
   - target:
       kind: PrometheusRule
       name: vllm-optimizer-alerts

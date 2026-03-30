@@ -35,7 +35,7 @@ class TestMultiTargetMetricsCollector:
         assert queries
         for query in queries.values():
             assert 'namespace="ns-a"' in query
-            assert 'job="kserve-llm-isvc-vllm-engine"' in query
+            assert 'job="is-a-metrics"' in query
 
     @pytest.mark.asyncio
     async def test_fetch_prometheus_metric_filters_nan_and_inf(self) -> None:

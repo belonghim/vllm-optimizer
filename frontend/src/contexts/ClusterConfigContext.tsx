@@ -7,6 +7,9 @@ import { authFetch } from "../utils/authFetch";
 const STORAGE_KEY = "vllm-opt-cluster-config";
 const SCHEMA_VERSION = 2;
 const MAX_TARGETS = 5;
+const DEFAULT_NAMESPACE = "vllm-lab-dev";
+const DEFAULT_INFERENCESERVICE = "llm-ov";
+const DEFAULT_CR_TYPE = "inferenceservice";
 
 interface ClusterConfigContextValue {
   endpoint: string;
@@ -25,8 +28,8 @@ interface ClusterConfigContextValue {
 
 const ClusterConfigContext = createContext<ClusterConfigContextValue>({
   endpoint: "",
-  namespace: "",
-  inferenceservice: "",
+  namespace: DEFAULT_NAMESPACE,
+  inferenceservice: DEFAULT_INFERENCESERVICE,
   isLoading: true,
   updateConfig: () => {},
   targets: [],
@@ -34,7 +37,7 @@ const ClusterConfigContext = createContext<ClusterConfigContextValue>({
   addTarget: () => {},
   removeTarget: () => {},
   setDefaultTarget: () => {},
-  crType: "",
+  crType: DEFAULT_CR_TYPE,
   updateCrType: async () => ({ configmap_updated: true }),
 });
 
@@ -69,12 +72,14 @@ function migrateLegacyConfig(stored: Record<string, unknown>): ClusterConfig {
     };
   }
   const targets = isClusterTargetArray(stored.targets) ? stored.targets : [];
-  return {
-    endpoint: typeof stored.endpoint === "string" ? stored.endpoint : "",
-    maxTargets: typeof stored.maxTargets === "number" ? stored.maxTargets : MAX_TARGETS,
-    version: typeof stored.version === "number" ? stored.version : SCHEMA_VERSION,
-    targets,
-  };
+    return {
+      endpoint: typeof stored.endpoint === "string" ? stored.endpoint : "",
+      maxTargets: typeof stored.maxTargets === "number" ? stored.maxTargets : MAX_TARGETS,
+      version: typeof stored.version === "number" ? stored.version : SCHEMA_VERSION,
+      targets: targets.length > 0
+        ? targets
+        : [{ namespace: DEFAULT_NAMESPACE, inferenceService: DEFAULT_INFERENCESERVICE, isDefault: true }],
+    };
 }
 
 function migrateSchema(stored: Record<string, unknown>): ClusterConfig {
@@ -105,13 +110,13 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
     }
     return {
       endpoint: "",
-      targets: [],
+      targets: [{ namespace: DEFAULT_NAMESPACE, inferenceService: DEFAULT_INFERENCESERVICE, isDefault: true }],
       maxTargets: MAX_TARGETS,
       version: SCHEMA_VERSION,
     };
   });
   const [isLoading, setIsLoading] = useState(true);
-  const [crType, setCrType] = useState<string>("");
+  const [crType, setCrType] = useState<string>(DEFAULT_CR_TYPE);
 
   useEffect(() => {
     const hasStoredValues = (): boolean => {
@@ -142,13 +147,15 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
         const vllmNamespace = typeof data.vllm_namespace === "string" ? data.vllm_namespace : "";
         const vllmIsName = typeof data.vllm_is_name === "string" ? data.vllm_is_name : "";
 
+        const resolvedNamespace = vllmNamespace || DEFAULT_NAMESPACE;
+        const resolvedIsName = vllmIsName || DEFAULT_INFERENCESERVICE;
         const apiConfig: ClusterConfig = {
           endpoint: vllmEndpoint,
-          targets: vllmNamespace ? [{
-            namespace: vllmNamespace,
-            inferenceService: vllmIsName,
+          targets: [{
+            namespace: resolvedNamespace,
+            inferenceService: resolvedIsName,
             isDefault: true,
-          }] : [],
+          }],
           maxTargets: MAX_TARGETS,
           version: SCHEMA_VERSION,
         };
@@ -173,7 +180,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
       .then(r => r.json())
       .then((data: unknown) => {
         if (!isRecord(data)) return;
-        if (typeof data.cr_type === "string") setCrType(data.cr_type);
+        setCrType(typeof data.cr_type === "string" ? data.cr_type : DEFAULT_CR_TYPE);
       })
       .catch((err: Error) => {
         if (err.name === 'AbortError') return;
@@ -284,8 +291,8 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
     const defaultTarget = config.targets.find(t => t.isDefault) || config.targets[0];
     return {
       endpoint: config.endpoint,
-      namespace: defaultTarget?.namespace || "",
-      inferenceservice: defaultTarget?.inferenceService || "",
+      namespace: defaultTarget?.namespace || DEFAULT_NAMESPACE,
+      inferenceservice: defaultTarget?.inferenceService || DEFAULT_INFERENCESERVICE,
       isLoading,
       updateConfig,
       targets: config.targets,

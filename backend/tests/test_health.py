@@ -15,11 +15,11 @@ def test_health_includes_cr_type(isolated_client: TestClient) -> None:
 
 
 def test_health_cr_type_default_value(isolated_client: TestClient) -> None:
-    """Test that cr_type defaults to 'llminferenceservice' when VLLM_CR_TYPE is not set."""
+    """Test that cr_type defaults to 'inferenceservice' when VLLM_CR_TYPE is not set."""
     response = isolated_client.get("/health")
     assert response.status_code == 200
     data = response.json()
-    assert data["cr_type"] == "llminferenceservice", f"Expected cr_type='llminferenceservice', got '{data['cr_type']}'"
+    assert data["cr_type"] == "inferenceservice", f"Expected cr_type='inferenceservice', got '{data['cr_type']}'"
 
 
 def test_health_response_structure(isolated_client: TestClient) -> None:
@@ -47,4 +47,4 @@ def test_health_deep_check_includes_cr_type(isolated_client: TestClient) -> None
     assert response.status_code in (200, 503)
     data = response.json()
     assert "cr_type" in data, "cr_type field missing from deep /health check"
-    assert data["cr_type"] == "llminferenceservice"
+    assert data["cr_type"] == "inferenceservice"

@@ -20,14 +20,20 @@ afterEach(() => {
 });
 
 describe("ClusterConfigContext", () => {
+  const defaultTarget = {
+    namespace: "vllm-lab-dev",
+    inferenceService: "llm-ov",
+    isDefault: true,
+  };
+
   const wrapper = ({ children }) => (
     <ClusterConfigProvider>{children}</ClusterConfigProvider>
   );
 
-  it("has initial state with empty targets and isLoading false after effect", async () => {
+  it("has initial state with default target and isLoading false after effect", async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
-    expect(result.current.targets).toEqual([]);
+    expect(result.current.targets).toEqual([defaultTarget]);
     expect(result.current.isLoading).toBe(true);
 
     await waitFor(() => {
@@ -35,22 +41,22 @@ describe("ClusterConfigContext", () => {
     });
   });
 
-  it("addTarget adds a target with isDefault true when targets are empty", async () => {
+  it("addTarget adds a non-default target when default target exists", async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
     await waitFor(() => {
-      expect(result.current.targets.length).toBe(0);
+      expect(result.current.targets).toEqual([defaultTarget]);
     });
 
     act(() => {
       result.current.addTarget("ns1", "svc1");
     });
 
-    expect(result.current.targets.length).toBe(1);
-    expect(result.current.targets[0]).toEqual({
+    expect(result.current.targets.length).toBe(2);
+    expect(result.current.targets[1]).toEqual({
       namespace: "ns1",
       inferenceService: "svc1",
-      isDefault: true,
+      isDefault: false,
     });
   });
 
@@ -58,7 +64,7 @@ describe("ClusterConfigContext", () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
     await waitFor(() => {
-      expect(result.current.targets).toEqual([]);
+      expect(result.current.targets).toEqual([defaultTarget]);
     });
 
     act(() => {
@@ -82,7 +88,7 @@ describe("ClusterConfigContext", () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
     await waitFor(() => {
-      expect(result.current.targets).toEqual([]);
+      expect(result.current.targets).toEqual([defaultTarget]);
     });
 
     act(() => {
@@ -90,23 +96,23 @@ describe("ClusterConfigContext", () => {
       result.current.addTarget("ns2", "svc2");
     });
 
-    expect(result.current.targets.length).toBe(2);
+    expect(result.current.targets.length).toBe(3);
     expect(result.current.targets[0].isDefault).toBe(true);
-    expect(result.current.targets[1].isDefault).toBe(false);
+    expect(result.current.targets[2].isDefault).toBe(false);
 
     act(() => {
       result.current.removeTarget("ns2", "svc2");
     });
 
-    expect(result.current.targets.length).toBe(1);
-    expect(result.current.targets[0].namespace).toBe("ns1");
+    expect(result.current.targets.length).toBe(2);
+    expect(result.current.targets[1].namespace).toBe("ns1");
   });
 
   it("removeTarget does NOT remove isDefault target (no-op)", async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
     await waitFor(() => {
-      expect(result.current.targets).toEqual([]);
+      expect(result.current.targets).toEqual([defaultTarget]);
     });
 
     act(() => {
@@ -114,22 +120,22 @@ describe("ClusterConfigContext", () => {
       result.current.addTarget("ns2", "svc2");
     });
 
-    expect(result.current.targets.length).toBe(2);
+    expect(result.current.targets.length).toBe(3);
     expect(result.current.targets[0].isDefault).toBe(true);
 
     act(() => {
-      result.current.removeTarget("ns1", "svc1");
+      result.current.removeTarget("vllm-lab-dev", "llm-ov");
     });
 
-    expect(result.current.targets.length).toBe(2);
-    expect(result.current.targets[0].namespace).toBe("ns1");
+    expect(result.current.targets.length).toBe(3);
+    expect(result.current.targets[0]).toEqual(defaultTarget);
   });
 
   it("setDefaultTarget changes default to specified target", async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
     await waitFor(() => {
-      expect(result.current.targets).toEqual([]);
+      expect(result.current.targets).toEqual([defaultTarget]);
     });
 
     act(() => {
@@ -138,14 +144,14 @@ describe("ClusterConfigContext", () => {
     });
 
     expect(result.current.targets[0].isDefault).toBe(true);
-    expect(result.current.targets[1].isDefault).toBe(false);
+    expect(result.current.targets[2].isDefault).toBe(false);
 
     act(() => {
       result.current.setDefaultTarget("ns2", "svc2");
     });
 
     expect(result.current.targets[0].isDefault).toBe(false);
-    expect(result.current.targets[1].isDefault).toBe(true);
+    expect(result.current.targets[2].isDefault).toBe(true);
   });
 
   it("exposes maxTargets constant as 5", async () => {
@@ -191,7 +197,7 @@ describe("ClusterConfigContext", () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
     await waitFor(() => {
-      expect(result.current.targets).toEqual([]);
+      expect(result.current.targets).toEqual([defaultTarget]);
     });
 
     act(() => {
@@ -199,13 +205,13 @@ describe("ClusterConfigContext", () => {
       result.current.addTarget("ns2", "svc2");
     });
 
-    expect(result.current.targets.length).toBe(2);
-    expect(result.current.targets[0]).toEqual({
+    expect(result.current.targets.length).toBe(3);
+    expect(result.current.targets[1]).toEqual({
       namespace: "ns1",
       inferenceService: "svc1",
-      isDefault: true,
+      isDefault: false,
     });
-    expect(result.current.targets[1]).toEqual({
+    expect(result.current.targets[2]).toEqual({
       namespace: "ns2",
       inferenceService: "svc2",
       isDefault: false,
@@ -216,7 +222,7 @@ describe("ClusterConfigContext", () => {
       result.current.updateConfig("inferenceservice", "svc2");
     });
 
-    expect(result.current.targets.length).toBe(1);
+    expect(result.current.targets.length).toBe(2);
     expect(result.current.targets[0]).toEqual({
       namespace: "ns2",
       inferenceService: "svc2",
@@ -228,7 +234,7 @@ describe("ClusterConfigContext", () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
     await waitFor(() => {
-      expect(result.current.targets).toEqual([]);
+      expect(result.current.targets).toEqual([defaultTarget]);
     });
 
     act(() => {
@@ -236,19 +242,24 @@ describe("ClusterConfigContext", () => {
       result.current.addTarget("ns2", "svc2");
     });
 
-    expect(result.current.targets.length).toBe(2);
+    expect(result.current.targets.length).toBe(3);
 
     act(() => {
       result.current.updateConfig("namespace", "ns3");
     });
 
-    expect(result.current.targets.length).toBe(2);
+    expect(result.current.targets.length).toBe(3);
     expect(result.current.targets[0]).toEqual({
       namespace: "ns3",
-      inferenceService: "svc1",
+      inferenceService: "llm-ov",
       isDefault: true,
     });
     expect(result.current.targets[1]).toEqual({
+      namespace: "ns1",
+      inferenceService: "svc1",
+      isDefault: false,
+    });
+    expect(result.current.targets[2]).toEqual({
       namespace: "ns2",
       inferenceService: "svc2",
       isDefault: false,

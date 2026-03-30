@@ -8,18 +8,14 @@ from services.shared import runtime_config
 @pytest.fixture(autouse=True)
 def reset_runtime_config():
     """Reset runtime_config to defaults before each test."""
-    runtime_config.set_vllm_namespace("llm-d-demo")
-    runtime_config.set_vllm_endpoint(
-        "http://openshift-ai-inference-openshift-default.openshift-ingress.svc/llm-d-demo/small-llm-d"
-    )
-    runtime_config.set_vllm_is_name("small-llm-d")
+    runtime_config.set_vllm_namespace("vllm-lab-dev")
+    runtime_config.set_vllm_endpoint("https://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080")
+    runtime_config.set_vllm_is_name("llm-ov")
     yield
     # Reset after test as well
-    runtime_config.set_vllm_namespace("llm-d-demo")
-    runtime_config.set_vllm_endpoint(
-        "http://openshift-ai-inference-openshift-default.openshift-ingress.svc/llm-d-demo/small-llm-d"
-    )
-    runtime_config.set_vllm_is_name("small-llm-d")
+    runtime_config.set_vllm_namespace("vllm-lab-dev")
+    runtime_config.set_vllm_endpoint("https://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080")
+    runtime_config.set_vllm_is_name("llm-ov")
 
 
 @pytest.fixture
@@ -32,16 +28,16 @@ def client():
 class TestRuntimeConfigSingleton:
     def test_initial_vllm_namespace_default(self):
         cfg = RuntimeConfig()
-        assert cfg.vllm_namespace == "llm-d-demo"
+        assert cfg.vllm_namespace == "vllm-lab-dev"
 
     def test_initial_vllm_endpoint_default(self):
         cfg = RuntimeConfig()
-        expected = "http://openshift-ai-inference-openshift-default.openshift-ingress.svc/llm-d-demo/small-llm-d"
+        expected = "https://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080"
         assert cfg.vllm_endpoint == expected
 
     def test_initial_vllm_is_name_default(self):
         cfg = RuntimeConfig()
-        assert cfg.vllm_is_name == "small-llm-d"
+        assert cfg.vllm_is_name == "llm-ov"
 
     def test_set_vllm_namespace(self):
         cfg = RuntimeConfig()
@@ -69,7 +65,7 @@ class TestRuntimeConfigSingleton:
 
     def test_initial_cr_type_default(self):
         cfg = RuntimeConfig()
-        assert cfg.cr_type == "llminferenceservice"
+        assert cfg.cr_type == "inferenceservice"
 
     def test_set_cr_type_inferenceservice(self):
         cfg = RuntimeConfig()
@@ -92,7 +88,7 @@ class TestRuntimeConfigSingleton:
         cfg.set_cr_type("inferenceservice")
         assert cfg.cr_type == "inferenceservice"
         cfg.reset_cr_type()
-        assert cfg.cr_type == "llminferenceservice"
+        assert cfg.cr_type == "inferenceservice"
 
 
 class TestGetConfigEndpoint:
