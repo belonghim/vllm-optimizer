@@ -57,3 +57,15 @@ patches:
       - op: add
         path: /data/VLLM_ENDPOINT
         value: "http://openshift-ai-inference-openshift-default.openshift-ingress.svc/llm-d-demo/small-llm-d"
+  - target:
+      kind: PrometheusRule
+      name: vllm-optimizer-alerts
+    patch: |-
+      - op: replace
+        path: /spec/groups/2/rules/0/expr
+        value: |
+          # NOTE: "vllm-deployment" is a placeholder — override via Kustomize patch
+          # for each environment (e.g., small-llm-d-kserve in dev, different name in prod)
+          kube_deployment_status_replicas_available{deployment="small-llm-d-kserve"}
+          <
+          kube_deployment_spec_replicas{deployment="small-llm-d-kserve"} * 0.5
