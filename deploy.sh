@@ -64,6 +64,8 @@ else
 fi
 
 VLLM_DEPLOYMENT_NAME="${VLLM_DEPLOYMENT_NAME:-small-llm-d}"
+LLMIS_NAMESPACE="${LLMIS_NAMESPACE:-llm-d-demo}"
+: "${REGISTRY:?ERROR: REGISTRY env var is required (e.g., quay.io/joopark)}"
 
 log() { echo "[$(date +%H:%M:%S)] $*"; }
 ok()  { echo "[OK] $*"; }
@@ -313,7 +315,7 @@ fi
 ## Push phase (non-dry-run)
 if [[ "$DRY_RUN" != "true" && "$SKIP_BUILD" != "true" ]]; then
   log "Logging in to registry..."
-  podman login "${REGISTRY}" || true
+  podman login "${REGISTRY}" || echo "WARNING: podman login failed (may already be authenticated)"
 
   log "Pushing backend image..."
   podman push "${REGISTRY}/vllm-optimizer-backend:${IMAGE_TAG}"
