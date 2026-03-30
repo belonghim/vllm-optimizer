@@ -12,9 +12,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/app PORT=8000 PATH=
 WORKDIR /app
 USER root
 # curl is pre-installed in ubi9/python-311; no additional packages needed for healthchecks.
-COPY requirements.txt /app/requirements.txt
 COPY --from=builder /opt/app-root /opt/app-root
 COPY . /app
+COPY requirements.txt /app/requirements.txt
 RUN echo $(date +%s)
 RUN chown -R 1001:0 /app && chmod -R g+rwX /app
 USER 1001
