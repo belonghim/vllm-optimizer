@@ -367,6 +367,26 @@ securityContext:
 - **테스트 규칙**: 새 기능의 단위 테스트는 두 CR 타입 모두에 대해 검증해야 한다. 기존 `test_cr_adapter.py`, `test_llmis_integration.py`가 LLMIS 경로를, 기본 테스트들이 KServe 경로를 검증한다.
 - **테스트 데이터 규칙**: 단위 테스트에서 특정 CR 타입 동작을 검증하지 않는 경우 중립적 이름 (`test-ns`, `test-isvc`) 사용 권장. LLMIS 어댑터 동작 검증 시에만 `small-llm-d` 등 실제 LLMIS 이름 사용.
 
+### 모델명 해석 규칙 (CR 타입별)
+
+| CR 타입 | 최우선 모델명 소스 | Fallback | 코드 위치 |
+|---------|-------------------|----------|-----------|
+| `InferenceService` (isvc) | `--served-model-name` (args에서 추출) | isvc 이름 (`fallback_name`) | `InferenceServiceAdapter.resolve_model_name()` |
+| `LLMInferenceService` (llmisvc) | `.spec.model.name` | llmisvc 이름 (`fallback_name`) | `LLMInferenceServiceAdapter.resolve_model_name()` |
+
+- **런타임 동적 해석**: `model_resolver.py`의 `resolve_model_name()`은 `/v1/models` API를 호출하여 실제 서빙 중인 모델명을 가져옴. CR spec 기반 해석(`CRAdapter.resolve_model_name`)은 API 호출 없이 spec만으로 판단.
+- auto_tuner는 반드시 `/v1/models` 동적 해석 사용 (`model="auto"` 금지).
+
+### 기본 엔드포인트 패턴 (CR 타입별)
+
+| CR 타입 | 엔드포인트 패턴 | 예시 |
+|---------|----------------|------|
+| `InferenceService` (isvc) | `http://{name}-predictor.{namespace}.svc.cluster.local:8080` | `http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080` |
+| `LLMInferenceService` (llmisvc) | `http://openshift-ai-inference-openshift-default.openshift-ingress.svc/{namespace}/{name}` | `http://openshift-ai-inference-openshift-default.openshift-ingress.svc/llm-d-demo/small-llm-d` |
+
+- isvc는 각 서비스가 고유 DNS를 가짐 (`{name}-predictor.{ns}.svc`). 포트 `8080`.
+- llmisvc는 공유 Gateway를 통해 라우팅됨 (`openshift-ingress.svc/{ns}/{name}`). 포트 생략 (기본 80).
+
 ---
 
 ## vLLM 클러스터 아키텍처 (Dev 환경)
