@@ -1,5 +1,5 @@
 import time
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -210,7 +210,9 @@ class TestGetDefaultTarget:
 
     def test_set_default_target_partial_update_namespace_only(self) -> None:
         collector = _build_collector()
-        original_is_name = collector._get_default_target().is_name  # type: ignore[union-attr]
+        default_target = collector._get_default_target()
+        assert default_target is not None
+        original_is_name = default_target.is_name
 
         collector.set_default_target(namespace="only-ns-change")
         default = collector._get_default_target()
@@ -283,3 +285,42 @@ class TestCrType:
         default = collector._get_default_target()
         assert default is not None
         assert default.cr_type == "inferenceservice"
+
+    @pytest.mark.asyncio
+    async def test_resolve_model_name_isvc_from_served_model_name(self) -> None:
+        collector = _build_collector()
+        collector._k8s_available = True
+        collector._k8s_custom = MagicMock()
+        collector._k8s_custom.get_namespaced_custom_object.return_value = {
+            "spec": {
+                "predictor": {
+                    "model": {
+                        "args": [
+                            "--served-model-name=qwen2-5-7b-instruct",
+                            "--max-num-seqs=256",
+                        ]
+                    }
+                }
+            }
+        }
+
+        model_name = await collector._resolve_model_name("vllm-lab-dev", "llm-ov", "inferenceservice")
+
+        assert model_name == "qwen2-5-7b-instruct"
+
+    @pytest.mark.asyncio
+    async def test_resolve_model_name_llmis_from_spec_model_name(self) -> None:
+        collector = _build_collector()
+        collector._k8s_available = True
+        collector._k8s_custom = MagicMock()
+        collector._k8s_custom.get_namespaced_custom_object.return_value = {
+            "spec": {
+                "model": {
+                    "name": "qwen2-5-7b-instruct",
+                }
+            }
+        }
+
+        model_name = await collector._resolve_model_name("llm-d-demo", "small-llm-d", "llminferenceservice")
+
+        assert model_name == "qwen2-5-7b-instruct"

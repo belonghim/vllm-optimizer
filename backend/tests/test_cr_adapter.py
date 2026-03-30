@@ -205,6 +205,25 @@ class TestInferenceServiceAdapter:
         adapter = InferenceServiceAdapter()
         assert adapter.check_ready({}) is False
 
+    def test_resolve_model_name_from_served_model_name_arg(self):
+        adapter = InferenceServiceAdapter()
+        spec = {
+            "predictor": {
+                "model": {
+                    "args": [
+                        "--tensor-parallel-size=1",
+                        "--served-model-name=qwen2-5-7b-instruct",
+                    ]
+                }
+            }
+        }
+        assert adapter.resolve_model_name(spec, "llm-ov") == "qwen2-5-7b-instruct"
+
+    def test_resolve_model_name_falls_back_to_is_name_for_isvc(self):
+        adapter = InferenceServiceAdapter()
+        spec = {"predictor": {"model": {"args": ["--max-num-seqs=256"]}}}
+        assert adapter.resolve_model_name(spec, "llm-ov") == "llm-ov"
+
 
 class TestLLMInferenceServiceAdapter:
     def test_api_coordinates(self):
@@ -343,6 +362,16 @@ class TestLLMInferenceServiceAdapter:
     def test_check_ready_no_conditions(self):
         adapter = LLMInferenceServiceAdapter()
         assert adapter.check_ready({}) is False
+
+    def test_resolve_model_name_from_spec_model_name_for_llmis(self):
+        adapter = LLMInferenceServiceAdapter()
+        spec = {"model": {"name": "qwen2-5-7b-instruct"}}
+        assert adapter.resolve_model_name(spec, "small-llm-d") == "qwen2-5-7b-instruct"
+
+    def test_resolve_model_name_falls_back_to_is_name_for_llmis(self):
+        adapter = LLMInferenceServiceAdapter()
+        spec = {"model": {"uri": "oci://registry.example.com/model:latest"}}
+        assert adapter.resolve_model_name(spec, "small-llm-d") == "small-llm-d"
 
 
 class TestFactory:

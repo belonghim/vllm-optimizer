@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Any, Literal, cast
+from typing import Any, Literal, Mapping, cast
 
 from fastapi import APIRouter, HTTPException, Request
 from kubernetes.client import CustomObjectsApi
@@ -37,8 +37,25 @@ ALLOWED_CONFIG_KEYS = {
     "enable_enforce_eager",
 }
 
+ConfigKey = Literal[
+    "max_num_seqs",
+    "gpu_memory_utilization",
+    "max_model_len",
+    "max_num_batched_tokens",
+    "block_size",
+    "swap_space",
+    "enable_chunked_prefill",
+    "enable_enforce_eager",
+]
 
-async def _validate_and_merge_args(adapter, custom, namespace: str, is_name: str, request_data: dict) -> dict[str, Any]:
+
+async def _validate_and_merge_args(
+    adapter,
+    custom,
+    namespace: str,
+    is_name: str,
+    request_data: Mapping[ConfigKey, str],
+) -> dict[str, Any]:
     is_obj = cast(
         dict[str, Any],
         await asyncio.to_thread(
@@ -76,18 +93,6 @@ async def _apply_patch(adapter, custom, namespace: str, is_name: str, patch_body
         name=is_name,
         body=patch_body,
     )
-
-
-ConfigKey = Literal[
-    "max_num_seqs",
-    "gpu_memory_utilization",
-    "max_model_len",
-    "max_num_batched_tokens",
-    "block_size",
-    "swap_space",
-    "enable_chunked_prefill",
-    "enable_enforce_eager",
-]
 
 
 class VllmConfigPatchRequest(BaseModel):
@@ -139,12 +144,15 @@ async def get_vllm_config(request: Request) -> dict[str, Any]:
         storage_uri = adapter.read_model_uri(spec)
         resources = adapter.read_resources(spec)
         extra_args = adapter.read_extra_args(spec)
+        resolved_model_name = adapter.resolve_model_name(spec, is_name)
         return {
             "success": True,
             "data": data,
             "storageUri": storage_uri,
             "resources": resources,
             "extraArgs": extra_args,
+            "modelName": resolved_model_name,
+            "resolvedModelName": resolved_model_name,
         }
     except K8sApiException as e:
         logger.error("[VllmConfig] Failed to read InferenceService: %s", e)

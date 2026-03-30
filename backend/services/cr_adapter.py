@@ -1,3 +1,4 @@
+# pyright: reportImportCycles=false
 import abc
 import os
 import shlex
@@ -25,6 +26,25 @@ def _split_space_args(value: str) -> list[str]:
         return shlex.split(value)
     except ValueError:
         return value.split()
+
+
+def _extract_served_model_name(args: Any) -> str | None:
+    parsed_args: list[str]
+    if isinstance(args, str):
+        parsed_args = _split_space_args(args)
+    elif isinstance(args, list):
+        parsed_args = [arg for arg in args if isinstance(arg, str)]
+    else:
+        return None
+
+    for arg in parsed_args:
+        if not arg.startswith("--served-model-name="):
+            continue
+        served_model_name = arg.split("=", 1)[1].strip()
+        if served_model_name:
+            return served_model_name
+
+    return None
 
 
 def args_list_to_config_dict(args: list[str]) -> dict[str, Any]:
@@ -158,6 +178,10 @@ class CRAdapter(abc.ABC):
     def read_extra_args(self, spec: dict[str, Any]) -> list[str]:
         raise NotImplementedError
 
+    @abc.abstractmethod
+    def resolve_model_name(self, spec: dict[str, Any], fallback_name: str) -> str:
+        raise NotImplementedError
+
 
 class InferenceServiceAdapter(CRAdapter):
     def api_group(self) -> str:
@@ -222,6 +246,10 @@ class InferenceServiceAdapter(CRAdapter):
     def read_extra_args(self, spec: dict[str, Any]) -> list[str]:
         args = spec.get("predictor", {}).get("model", {}).get("args") or []
         return [arg for arg in args if not arg.startswith(TUNING_ARG_PREFIXES)]
+
+    def resolve_model_name(self, spec: dict[str, Any], fallback_name: str) -> str:
+        args = spec.get("predictor", {}).get("model", {}).get("args") or []
+        return _extract_served_model_name(args) or fallback_name
 
 
 class LLMInferenceServiceAdapter(CRAdapter):
@@ -345,6 +373,12 @@ class LLMInferenceServiceAdapter(CRAdapter):
         value = self._get_additional_args_value(spec)
         args = _split_space_args(value)
         return [arg for arg in args if not arg.startswith(TUNING_ARG_PREFIXES)]
+
+    def resolve_model_name(self, spec: dict[str, Any], fallback_name: str) -> str:
+        model_name = spec.get("model", {}).get("name")
+        if isinstance(model_name, str) and model_name.strip():
+            return model_name
+        return fallback_name
 
 
 def get_cr_adapter(cr_type: str | None = None) -> CRAdapter:

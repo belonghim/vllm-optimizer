@@ -57,3 +57,20 @@ patches:
           - namespaceSelector:
               matchLabels:
                 kubernetes.io/metadata.name: openshift-lightspeed
+  - target:
+      kind: InferenceService
+      name: llm-ov
+    patch: |
+      apiVersion: serving.kserve.io/v1beta1
+      kind: InferenceService
+      metadata:
+        name: llm-ov
+      spec:
+        predictor:
+          model:
+            args:
+              - --served-model-name=qwen2-5-7b-instruct
+              - --max-num-seqs=256
+              - --gpu-memory-utilization=0.90
+              - --max-model-len=8192
+              - --max-num-batched-tokens=2048

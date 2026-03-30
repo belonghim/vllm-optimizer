@@ -1,3 +1,4 @@
+# pyright: reportImportCycles=false
 import asyncio
 import logging
 import math
@@ -56,6 +57,7 @@ class TargetCache:
     is_default: bool = False
     last_label_check: float = field(default_factory=time.time)
     cr_type: str = ""
+    model_name: str = ""
 
 
 class MultiTargetMetricsCollector:
@@ -77,6 +79,7 @@ class MultiTargetMetricsCollector:
         self._token: str | None = self._load_token()
         self._k8s_available: bool = False
         self._k8s_core: client.CoreV1Api | None = None
+        self._k8s_custom: client.CustomObjectsApi | None = None
         self._default_namespace = os.getenv("K8S_NAMESPACE") or os.getenv("VLLM_NAMESPACE", "llm-d-demo")
         self._default_is_name = os.getenv("VLLM_DEPLOYMENT_NAME", "small-llm-d")
         self._init_k8s()
@@ -95,7 +98,39 @@ class MultiTargetMetricsCollector:
             is_default=True,
             has_monitoring_label=None,
             cr_type=cr_type,
+            model_name=self._default_is_name,
         )
+
+    async def _resolve_model_name(self, namespace: str, is_name: str, cr_type: str) -> str:
+        if not self._k8s_available or self._k8s_custom is None:
+            return is_name
+
+        adapter = get_cr_adapter(cr_type)
+        try:
+            cr_obj = cast(
+                dict[str, Any],
+                await asyncio.to_thread(
+                    self._k8s_custom.get_namespaced_custom_object,
+                    group=adapter.api_group(),
+                    version=adapter.api_version(),
+                    namespace=namespace,
+                    plural=adapter.api_plural(),
+                    name=is_name,
+                ),
+            )
+        except client.ApiException:
+            return is_name
+        except OSError as exc:
+            logger.warning(
+                "[MultiTargetMetricsCollector] model name resolve failed (%s/%s): %s",
+                namespace,
+                is_name,
+                exc,
+            )
+            return is_name
+
+        spec = cr_obj.get("spec", {}) if isinstance(cr_obj, dict) else {}
+        return adapter.resolve_model_name(spec, is_name)
 
     def _get_default_target(self) -> TargetCache | None:
         if not self._targets:
@@ -231,12 +266,14 @@ class MultiTargetMetricsCollector:
                 # Refresh monitoring label periodically (every 5 minutes)
                 if time.time() - existing.last_label_check > 300:
                     existing.has_monitoring_label = await self.check_namespace_monitoring_label(namespace)
+                    existing.model_name = await self._resolve_model_name(namespace, is_name, existing.cr_type)
                     existing.last_label_check = time.time()
             else:
                 if len(self._targets) >= self.MAX_TARGETS:
                     return False
 
                 has_monitoring_label = await self.check_namespace_monitoring_label(namespace)
+                model_name = await self._resolve_model_name(namespace, is_name, cr_type)
                 is_first = not self._targets
                 self._targets[key] = TargetCache(
                     key=key,
@@ -245,6 +282,7 @@ class MultiTargetMetricsCollector:
                     has_monitoring_label=has_monitoring_label,
                     is_default=is_first,
                     cr_type=cr_type,
+                    model_name=model_name,
                 )
 
         await self._ensure_collect_loop()
@@ -547,6 +585,7 @@ class MultiTargetMetricsCollector:
             except config.ConfigException:
                 config.load_kube_config()
             self._k8s_core = client.CoreV1Api()
+            self._k8s_custom = client.CustomObjectsApi()
             self._k8s_available = True
         except Exception as exc:  # intentional: k8s init is optional, service runs without it
             logger.warning(
