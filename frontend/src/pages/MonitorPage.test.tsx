@@ -58,7 +58,7 @@ describe("MonitorPage", () => {
   });
 
   it("does not show error banner in mock mode", () => {
-    render(<MonitorPage />);
+    render(<MonitorPage isActive={false} />);
      expect(screen.queryByText(/Query failed/)).not.toBeInTheDocument();
   });
 
@@ -94,9 +94,9 @@ describe("buildChartLinesMap", () => {
 
   it("multiple targets returns makeMultiLines with TARGET_COLORS", () => {
     const targets = [
-      { namespace: "ns1", inferenceService: "svc1" },
-      { namespace: "ns2", inferenceService: "svc2" },
-      { namespace: "ns3", inferenceService: "svc3" },
+      { namespace: "ns1", inferenceService: "svc1", isDefault: false },
+      { namespace: "ns2", inferenceService: "svc2", isDefault: false },
+      { namespace: "ns3", inferenceService: "svc3", isDefault: false },
     ];
     const defaultKey = "ns1/svc1";
     const result = buildChartLinesMap(targets, defaultKey);

@@ -1,3 +1,4 @@
+import React from "react";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import { ClusterConfigProvider, useClusterConfig } from "./ClusterConfigContext";
@@ -12,7 +13,7 @@ beforeEach(() => {
         vllm_namespace: "",
         vllm_is_name: "",
       }),
-  });
+  } as unknown as Response);
 });
 
 afterEach(() => {
@@ -26,7 +27,7 @@ describe("ClusterConfigContext", () => {
     isDefault: true,
   };
 
-  const wrapper = ({ children }) => (
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
     <ClusterConfigProvider>{children}</ClusterConfigProvider>
   );
 
@@ -167,7 +168,7 @@ describe("ClusterConfigContext", () => {
       endpoint: "http://x",
       targets: [{ namespace: "ns", inferenceService: "is", isDefault: true }],
     });
-    Storage.prototype.getItem.mockReturnValue(legacy);
+    vi.mocked(Storage.prototype.getItem).mockReturnValue(legacy);
 
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
@@ -185,7 +186,7 @@ describe("ClusterConfigContext", () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    const calls = Storage.prototype.setItem.mock.calls.filter(
+    const calls = vi.mocked(Storage.prototype.setItem).mock.calls.filter(
       ([key]) => key === "vllm-opt-cluster-config"
     );
     expect(calls.length).toBeGreaterThan(0);

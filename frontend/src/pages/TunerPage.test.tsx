@@ -2,14 +2,20 @@ import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import TunerPage from "./TunerPage";
 
-let mockEsInstance = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let mockEsInstance: any = null;
 
 class MockEventSource {
   static CONNECTING = 0;
   static OPEN = 1;
   static CLOSED = 2;
+  url: string;
+  onmessage: ((event: MessageEvent) => void) | null;
+  onerror: ((event: Event) => void) | null;
+  readyState: number;
+  closeSpy: ReturnType<typeof vi.fn>;
 
-  constructor(url) {
+  constructor(url: string) {
     this.url = url;
     this.onmessage = null;
     this.onerror = null;

@@ -25,7 +25,7 @@ describe("MultiTargetSelector", () => {
   };
 
   beforeEach(() => {
-    useClusterConfig.mockReturnValue(mockContext);
+    vi.mocked(useClusterConfig).mockReturnValue(mockContext as any);
     vi.clearAllMocks();
   });
 
@@ -48,7 +48,7 @@ describe("MultiTargetSelector", () => {
   it("shows collecting state with dots", () => {
     const key = "llm-d-demo/small-llm-d";
     render(<MultiTargetSelector 
-      targetStatuses={{ [key]: { status: 'collecting' } }} 
+      targetStatuses={{ [key]: { status: 'collecting' as const, hasMonitoringLabel: false } }} 
       targetStates={{ [key]: { status: 'collecting' } }} 
     />);
     const dots = screen.getAllByText("...");
@@ -76,7 +76,7 @@ describe("MultiTargetSelector", () => {
       ...mockContext,
       targets: [],
     };
-    useClusterConfig.mockReturnValue(emptyMock);
+    vi.mocked(useClusterConfig).mockReturnValue(emptyMock as any);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
      expect(screen.getByText("Add a monitoring target")).toBeInTheDocument();
   });
@@ -105,7 +105,7 @@ describe("MultiTargetSelector", () => {
   });
 
   it("shows error message when target validation fails", async () => {
-    authFetch.mockResolvedValueOnce({ ok: false });
+    vi.mocked(authFetch).mockResolvedValueOnce({ ok: false } as unknown as Response);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
     fireEvent.click(screen.getByTestId("add-target-btn"));
     fireEvent.change(screen.getByPlaceholderText("Namespace"), { target: { value: "invalid-ns" } });
@@ -132,7 +132,7 @@ describe("MultiTargetSelector", () => {
         { namespace: "llm-d-prod", inferenceService: "large-llm-d", isDefault: false },
       ],
     };
-    useClusterConfig.mockReturnValue(multiMock);
+    vi.mocked(useClusterConfig).mockReturnValue(multiMock as any);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
     expect(screen.getAllByTestId("delete-btn")).toHaveLength(1);
     expect(screen.getAllByTestId("set-default-btn")).toHaveLength(1);
@@ -148,7 +148,7 @@ describe("MultiTargetSelector", () => {
       ],
       removeTarget: mockRemoveTarget,
     };
-    useClusterConfig.mockReturnValue(multiMock);
+    vi.mocked(useClusterConfig).mockReturnValue(multiMock as any);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
     fireEvent.click(screen.getByTestId("delete-btn"));
     expect(mockRemoveTarget).toHaveBeenCalledWith("llm-d-prod", "large-llm-d");
@@ -164,7 +164,7 @@ describe("MultiTargetSelector", () => {
       ],
       setDefaultTarget: mockSetDefaultTarget,
     };
-    useClusterConfig.mockReturnValue(multiMock);
+    vi.mocked(useClusterConfig).mockReturnValue(multiMock as any);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
     fireEvent.click(screen.getByTestId("set-default-btn"));
     expect(mockSetDefaultTarget).toHaveBeenCalledWith("llm-d-prod", "large-llm-d");
@@ -173,7 +173,7 @@ describe("MultiTargetSelector", () => {
   it("shows warning for namespace without monitoring label", () => {
     const targetKey = "vllm/llm-cuda";
     const statuses = {
-      [targetKey]: { hasMonitoringLabel: false }
+      [targetKey]: { status: 'ok' as const, hasMonitoringLabel: false }
     };
     const multiMock = {
       ...mockContext,
@@ -182,7 +182,7 @@ describe("MultiTargetSelector", () => {
         { namespace: "vllm", inferenceService: "llm-cuda", isDefault: false },
       ],
     };
-    useClusterConfig.mockReturnValue(multiMock);
+    vi.mocked(useClusterConfig).mockReturnValue(multiMock as any);
     render(<MultiTargetSelector targetStatuses={statuses} targetStates={{}} />);
     expect(screen.getByTestId("no-monitoring-warning")).toBeInTheDocument();
   });
@@ -202,7 +202,7 @@ describe("MultiTargetSelector", () => {
         { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true, crType: "llminferenceservice" },
       ],
     };
-    useClusterConfig.mockReturnValue(llmisMock);
+    vi.mocked(useClusterConfig).mockReturnValue(llmisMock as any);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
     expect(screen.getByTestId("llmis-badge")).toBeInTheDocument();
     expect(screen.getByTestId("llmis-badge")).toHaveTextContent("LLMIS");

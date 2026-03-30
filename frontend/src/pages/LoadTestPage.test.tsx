@@ -15,14 +15,20 @@ beforeEach(() => {
   };
 });
 
-let mockEsInstance = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let mockEsInstance: any = null;
 
 class MockEventSource {
   static CONNECTING = 0;
   static OPEN = 1;
   static CLOSED = 2;
+  url: string;
+  onmessage: ((event: MessageEvent) => void) | null;
+  onerror: ((event: Event) => void) | null;
+  readyState: number;
+  closeSpy: ReturnType<typeof vi.fn>;
 
-  constructor(url) {
+  constructor(url: string) {
     this.url = url;
     this.onmessage = null;
     this.onerror = null;
@@ -65,12 +71,12 @@ afterEach(() => {
 
 describe("LoadTestPage", () => {
   it("renders without crashing", () => {
-    render(<LoadTestPage />);
+    render(<LoadTestPage isActive={true} />);
     expect(screen.getByText("▶ Run Load Test")).toBeInTheDocument();
   });
 
   it("shows Total Requests as total_requested when available", async () => {
-    render(<LoadTestPage />);
+    render(<LoadTestPage isActive={true} />);
 
     // Start the test
     await act(async () => {
@@ -103,7 +109,7 @@ describe("LoadTestPage", () => {
   });
 
   it("does not set NaN progress when d.total is undefined", async () => {
-    render(<LoadTestPage />);
+    render(<LoadTestPage isActive={true} />);
 
     await act(async () => {
       fireEvent.click(screen.getByText("▶ Run Load Test"));
@@ -123,7 +129,7 @@ describe("LoadTestPage", () => {
   });
 
   it("sets status to completed on completed event", async () => {
-    render(<LoadTestPage />);
+    render(<LoadTestPage isActive={true} />);
 
     await act(async () => {
       fireEvent.click(screen.getByText("▶ Run Load Test"));
@@ -150,7 +156,7 @@ describe("LoadTestPage", () => {
    });
 
   it("handles error SSE event", async () => {
-    render(<LoadTestPage />);
+    render(<LoadTestPage isActive={true} />);
 
     await act(async () => {
       fireEvent.click(screen.getByText("▶ Run Load Test"));
@@ -172,12 +178,12 @@ describe("LoadTestPage", () => {
 
   describe("LoadTestPage — Save as Benchmark", () => {
     it("Save as Benchmark button absent when status is idle", () => {
-      render(<LoadTestPage />);
+      render(<LoadTestPage isActive={true} />);
       expect(screen.queryByText("⬆ Save as Benchmark")).not.toBeInTheDocument();
     });
 
     it("Save as Benchmark button present when status is completed and result exists", async () => {
-      render(<LoadTestPage />);
+      render(<LoadTestPage isActive={true} />);
       await act(async () => { fireEvent.click(screen.getByText("▶ Run Load Test")); });
       await waitFor(() => expect(mockEsInstance).not.toBeNull());
       act(() => {
@@ -206,7 +212,7 @@ describe("LoadTestPage", () => {
           .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 1, name: "m1 @ ..." }) })
       );
 
-      render(<LoadTestPage />);
+      render(<LoadTestPage isActive={true} />);
       await act(async () => { fireEvent.click(screen.getByText("▶ Run Load Test")); });
       await waitFor(() => expect(mockEsInstance).not.toBeNull());
       act(() => {
@@ -246,7 +252,7 @@ describe("LoadTestPage", () => {
       });
       vi.stubGlobal("fetch", fetch);
 
-      render(<LoadTestPage />);
+      render(<LoadTestPage isActive={true} />);
       await act(async () => { fireEvent.click(screen.getByText("▶ Run Load Test")); });
       await waitFor(() => expect(mockEsInstance).not.toBeNull());
       act(() => {
@@ -279,7 +285,7 @@ describe("LoadTestPage", () => {
       });
       vi.stubGlobal("fetch", fetch);
 
-      render(<LoadTestPage />);
+      render(<LoadTestPage isActive={true} />);
       await act(async () => { fireEvent.click(screen.getByText("▶ Run Load Test")); });
       await waitFor(() => expect(mockEsInstance).not.toBeNull());
       act(() => {
@@ -301,12 +307,12 @@ describe("LoadTestPage", () => {
     });
 
     it("hides Save as Benchmark button in initial render", () => {
-      render(<LoadTestPage />);
+      render(<LoadTestPage isActive={true} />);
       expect(screen.queryByText("⬆ Save as Benchmark")).not.toBeInTheDocument();
     });
 
     it("disables button during save", async () => {
-      let resolvePromise;
+      let resolvePromise!: (value: { ok: boolean; json: () => Promise<{ id: number }> }) => void;
       const fetch = vi.fn(url => {
         if (url.toString().endsWith('/benchmark/save')) {
           return new Promise(resolve => { resolvePromise = resolve; });
@@ -318,7 +324,7 @@ describe("LoadTestPage", () => {
       });
       vi.stubGlobal("fetch", fetch);
 
-      render(<LoadTestPage />);
+      render(<LoadTestPage isActive={true} />);
       await act(async () => { fireEvent.click(screen.getByText("▶ Run Load Test")); });
       await waitFor(() => expect(mockEsInstance).not.toBeNull());
       act(() => {
@@ -358,7 +364,7 @@ describe("LoadTestPage", () => {
       });
       vi.stubGlobal("fetch", fetch);
 
-      render(<LoadTestPage />);
+      render(<LoadTestPage isActive={true} />);
       await act(async () => { fireEvent.click(screen.getByText("▶ Run Load Test")); });
       await waitFor(() => expect(mockEsInstance).not.toBeNull());
       act(() => {
@@ -385,7 +391,7 @@ describe("LoadTestPage", () => {
 
   describe("SSE onerror reconnect behavior", () => {
     it("closes EventSource and schedules reconnect with exponential backoff", async () => {
-      render(<LoadTestPage />);
+      render(<LoadTestPage isActive={true} />);
       await act(async () => { fireEvent.click(screen.getByText("▶ Run Load Test")); });
       await waitFor(() => expect(mockEsInstance).not.toBeNull());
 
@@ -399,7 +405,7 @@ describe("LoadTestPage", () => {
     });
 
     it("shows reconnecting banner when onerror fires in CONNECTING state", async () => {
-      render(<LoadTestPage />);
+      render(<LoadTestPage isActive={true} />);
       await act(async () => { fireEvent.click(screen.getByText("▶ Run Load Test")); });
       await waitFor(() => expect(mockEsInstance).not.toBeNull());
 
@@ -411,7 +417,7 @@ describe("LoadTestPage", () => {
     });
 
     it("clears reconnecting banner when valid SSE message received", async () => {
-      render(<LoadTestPage />);
+      render(<LoadTestPage isActive={true} />);
       await act(async () => { fireEvent.click(screen.getByText("▶ Run Load Test")); });
       await waitFor(() => expect(mockEsInstance).not.toBeNull());
 

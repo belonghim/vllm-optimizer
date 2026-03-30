@@ -26,17 +26,17 @@ afterEach(() => {
 describe("BenchmarkPage", () => {
   describe("mock mode", () => {
     it("renders Model ID column header", () => {
-      render(<BenchmarkPage />);
+      render(<BenchmarkPage isActive={true} />);
       expect(screen.getByText("Model ID")).toBeInTheDocument();
     });
 
     it("renders GPU Eff. column header", () => {
-      render(<BenchmarkPage />);
+      render(<BenchmarkPage isActive={true} />);
       expect(screen.getByText("GPU Eff.")).toBeInTheDocument();
     });
 
     it("renders benchmark rows with mock data", () => {
-      render(<BenchmarkPage />);
+      render(<BenchmarkPage isActive={true} />);
       const rows = screen.getAllByRole("row");
       expect(rows.length).toBeGreaterThan(1);
     });
