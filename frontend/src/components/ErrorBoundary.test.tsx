@@ -7,6 +7,16 @@ function ThrowingComponent(): React.ReactNode {
 }
 
 describe("ErrorBoundary", () => {
+  it("renders children normally when no error", () => {
+    render(
+      <ErrorBoundary>
+        <div data-testid="child-content">Hello World</div>
+      </ErrorBoundary>
+    );
+    expect(screen.getByTestId("child-content")).toBeInTheDocument();
+    expect(screen.getByText("Hello World")).toBeInTheDocument();
+  });
+
   it("renders fallback UI when child throws", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     render(
