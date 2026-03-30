@@ -2,14 +2,14 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
 // Mock localStorage
 const localStorageMock = (() => {
-  let store = {};
+  let store: Record<string, string> = {};
   return {
-    getItem: vi.fn((key) => store[key] ?? null),
-    setItem: vi.fn((key, val) => { store[key] = val; }),
-    removeItem: vi.fn((key) => { delete store[key]; }),
+    getItem: vi.fn((key: string): string | null => store[key] ?? null),
+    setItem: vi.fn((key: string, val: string) => { store[key] = val; }),
+    removeItem: vi.fn((key: string) => { delete store[key]; }),
     clear: vi.fn(() => { store = {}; }),
     _getStore: () => store,
-    _setStore: (s) => { store = s; },
+    _setStore: (s: Record<string, string>) => { store = s; },
   };
 })();
 
@@ -21,28 +21,32 @@ Object.defineProperty(global, 'localStorage', {
 const LS_KEY = 'vllm-optimizer-chart-config';
 const DEFAULT_IDS = ['tps', 'latency', 'ttft', 'kv', 'kv_hit', 'queue', 'rps', 'gpu_util', 'gpu_mem'];
 
-// Inline the same logic as MonitorPage for unit testing
-function loadChartConfig() {
+interface StoredChartConfig {
+  order?: string[];
+  hidden?: string[];
+}
+
+function loadChartConfig(): { order: string[]; hidden: string[] } {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return { order: DEFAULT_IDS, hidden: [] };
-    const parsed = JSON.parse(raw);
+    const parsed: StoredChartConfig = JSON.parse(raw);
     const validIds = new Set(DEFAULT_IDS);
     const order = Array.isArray(parsed.order)
-      ? parsed.order.filter(id => validIds.has(id))
+      ? parsed.order.filter((id: string) => validIds.has(id))
       : DEFAULT_IDS;
     const hidden = Array.isArray(parsed.hidden)
-      ? parsed.hidden.filter(id => validIds.has(id))
+      ? parsed.hidden.filter((id: string) => validIds.has(id))
       : [];
     const inOrder = new Set(order);
-    DEFAULT_IDS.forEach(id => { if (!inOrder.has(id)) order.push(id); });
+    DEFAULT_IDS.forEach((id: string) => { if (!inOrder.has(id)) order.push(id); });
     return { order, hidden };
   } catch {
     return { order: DEFAULT_IDS, hidden: [] };
   }
 }
 
-function saveChartConfig(order, hidden) {
+function saveChartConfig(order: string[], hidden: string[]): void {
   try {
     localStorage.setItem(LS_KEY, JSON.stringify({ order, hidden }));
   } catch {
@@ -120,12 +124,12 @@ describe('saveChartConfig', () => {
     );
   });
 
-  it('handles empty arrays', () => {
-    saveChartConfig([], []);
-    const stored = JSON.parse(localStorageMock._getStore()[LS_KEY]);
-    expect(stored.order).toEqual([]);
-    expect(stored.hidden).toEqual([]);
-  });
+   it('handles empty arrays', () => {
+     saveChartConfig([], []);
+     const stored = JSON.parse(localStorageMock._getStore()[LS_KEY]!);
+     expect(stored.order).toEqual([]);
+     expect(stored.hidden).toEqual([]);
+   });
 });
 
 describe('chart config integration', () => {
