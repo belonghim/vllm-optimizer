@@ -162,6 +162,27 @@ class K8sOperator:
                 "error_type": "k8s_error",
             }
 
+    async def get_model_name(self) -> str:
+        """Resolve the model name from the InferenceService spec."""
+        if not self._k8s_available or self._k8s_custom is None:
+            return _get_vllm_is_name()
+        namespace = _get_k8s_namespace()
+        is_name = _get_vllm_is_name()
+        custom_api = cast(Any, self._k8s_custom)
+        try:
+            cr_obj = await asyncio.to_thread(
+                custom_api.get_namespaced_custom_object,
+                group=self._cr_adapter.api_group(),
+                version=self._cr_adapter.api_version(),
+                name=is_name,
+                namespace=namespace,
+                plural=self._cr_adapter.api_plural(),
+            )
+            spec = cast(dict[str, Any], cr_obj).get("spec", {}) if cr_obj else {}
+            return self._cr_adapter.resolve_model_name(spec, is_name)
+        except ApiException:
+            return is_name
+
     def params_to_args(self, params: dict[str, Any]) -> list[str]:
         args: list[str] = []
 
