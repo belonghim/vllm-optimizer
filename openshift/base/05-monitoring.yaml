@@ -130,7 +130,7 @@ spec:
         - alert: VLLMPodNotReady
           expr: |
             # NOTE: "vllm-deployment" is a placeholder — override via Kustomize patch
-            # for each environment (e.g., small-llm-d-kserve in dev, different name in prod)
+            # for each environment (e.g., llm-ov-predictor in dev, different name in prod)
             kube_deployment_status_replicas_available{deployment="vllm-deployment"}
             <
             kube_deployment_spec_replicas{deployment="vllm-deployment"} * 0.5

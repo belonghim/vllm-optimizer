@@ -52,6 +52,8 @@ else
   IMAGE_TAG="dev"
 fi
 
+# LLMIS RBAC 배포용 기본값 (llm-d-demo 네임스페이스에 RBAC 리소스 배포)
+# 백엔드 ConfigMap의 VLLM_NAMESPACE(vllm-lab-dev)와는 별개
 # Set VLLM_NAMESPACE based on environment
 if [[ "$ENV" == "dev" ]]; then
   VLLM_NAMESPACE="${VLLM_NAMESPACE:-llm-d-demo}"

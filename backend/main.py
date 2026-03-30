@@ -69,7 +69,7 @@ async def lifespan(app: FastAPI):
             verify=external_verify, timeout=httpx.Timeout(30.0, connect=10.0)
         )
         logger.info("[Lifespan] HTTP clients initialized")
-    except Exception as e:
+    except Exception as e:  # intentional: fail-open
         logger.warning("[Lifespan] HTTP client initialization failed (continuing): %s", e)
 
     # ── Storage initialization (fail-open) ──
@@ -78,7 +78,7 @@ async def lifespan(app: FastAPI):
 
         await storage.initialize()
         logger.info("[Lifespan] Storage initialized")
-    except Exception as e:
+    except Exception as e:  # intentional: fail-open
         logger.warning("[Lifespan] Storage initialization failed (continuing): %s", e)
 
     # ── Detect interrupted runs from previous lifecycle ──
@@ -90,7 +90,7 @@ async def lifespan(app: FastAPI):
         if interrupted:
             logger.warning("[Lifespan] Detected %d interrupted run(s) from previous lifecycle", len(interrupted))
             await set_interrupted_runs(interrupted)
-    except Exception as e:
+    except Exception as e:  # intentional: fail-open
         logger.warning("[Lifespan] Failed to detect interrupted runs (continuing): %s", e)
 
     try:
@@ -98,7 +98,7 @@ async def lifespan(app: FastAPI):
 
         storage_health_monitor.start()
         logger.info("[Lifespan] Storage health monitor started")
-    except Exception as e:
+    except Exception as e:  # intentional: fail-open
         logger.warning("[Lifespan] Storage health monitor start failed (continuing): %s", e)
 
     # ── Startup configuration validation ──
@@ -124,7 +124,7 @@ async def lifespan(app: FastAPI):
 
         storage_health_monitor.stop()
         logger.info("[Lifespan] Storage health monitor stopped")
-    except Exception as e:
+    except Exception as e:  # intentional: fail-open
         logger.debug("[Lifespan] Storage health monitor stop failed (non-critical): %s", e)
 
     # ── Cleanup running_state on shutdown (fail-open) ──
@@ -137,7 +137,7 @@ async def lifespan(app: FastAPI):
                 await _shutdown_storage.clear_running(row["id"])
         if running_rows:
             logger.info("[Lifespan] Cleared %d running_state row(s) on shutdown", len(running_rows))
-    except Exception as e:
+    except Exception as e:  # intentional: fail-open
         logger.debug("[Lifespan] running_state shutdown cleanup failed (non-critical): %s", e)
 
     # ── Storage shutdown (fail-open) ──
@@ -146,7 +146,7 @@ async def lifespan(app: FastAPI):
 
         await storage.close()
         logger.info("[Lifespan] Storage closed")
-    except Exception as e:
+    except Exception as e:  # intentional: fail-open
         logger.debug("[Lifespan] Storage close failed (non-critical): %s", e)
 
     # ── Close httpx clients ──
@@ -158,7 +158,7 @@ async def lifespan(app: FastAPI):
         if shared_module.external_client:
             await shared_module.external_client.aclose()
         logger.info("[Lifespan] HTTP clients closed")
-    except Exception as e:
+    except Exception as e:  # intentional: fail-open
         logger.debug("[Lifespan] HTTP client close failed (non-critical): %s", e)
 
 
@@ -241,7 +241,7 @@ async def health_check(request: Request) -> dict[str, Any] | JSONResponse:
         try:
             prom_ok = await check_prometheus_health()
             health["dependencies"]["prometheus"] = "healthy" if prom_ok else "unhealthy"
-        except Exception:
+        except Exception:  # intentional: fail-open, partial health check
             health["dependencies"]["prometheus"] = "unhealthy"
 
         try:
@@ -252,7 +252,7 @@ async def health_check(request: Request) -> dict[str, Any] | JSONResponse:
             v1 = k8s_client.CoreV1Api()
             v1.list_namespaced_pod(namespace=os.getenv("POD_NAMESPACE", "default"), limit=1)
             health["dependencies"]["kubernetes"] = "healthy"
-        except Exception:
+        except Exception:  # intentional: fail-open, partial health check
             health["dependencies"]["kubernetes"] = "unhealthy"
 
     all_healthy = all(v == "healthy" for v in health["dependencies"].values())

@@ -12,6 +12,8 @@ BACKEND_URL = os.getenv(
     "PERF_TEST_BACKEND_URL", "http://vllm-optimizer-backend.vllm-optimizer-dev.svc.cluster.local:8000"
 )
 VLLM_NAMESPACE = os.getenv("VLLM_NAMESPACE", "vllm-lab-dev")
+VLLM_CR_TYPE = os.getenv("VLLM_CR_TYPE", "inferenceservice")
+VLLM_IS_NAME = os.getenv("VLLM_IS_NAME", "llm-ov")
 VLLM_ENDPOINT = os.getenv(
     "VLLM_ENDPOINT", "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080"
 )
@@ -64,8 +66,8 @@ async def backup_restore_is_args() -> AsyncIterator[None]:
         [
             "oc",
             "get",
-            "inferenceservice",
-            "llm-ov",
+            VLLM_CR_TYPE,
+            VLLM_IS_NAME,
             "-n",
             VLLM_NAMESPACE,
             "-o",
@@ -86,8 +88,8 @@ async def backup_restore_is_args() -> AsyncIterator[None]:
                 [
                     "oc",
                     "patch",
-                    "inferenceservice",
-                    "llm-ov",
+                    VLLM_CR_TYPE,
+                    VLLM_IS_NAME,
                     "-n",
                     VLLM_NAMESPACE,
                     "--type=merge",

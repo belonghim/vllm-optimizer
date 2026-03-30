@@ -1,3 +1,5 @@
+// Test fixtures use LLMIS-style names (llm-d-demo/small-llm-d) intentionally
+// to verify MonitorPage works with both CR types (ISVC and LLMISVC).
 import { render, screen, act } from "@testing-library/react";
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import MonitorPage, { buildChartLinesMap } from "./MonitorPage";

@@ -84,7 +84,7 @@ def test_metadata_model_all_optional():
 
 def test_metadata_model_with_values():
     metadata = BenchmarkMetadata(
-        model_identifier="small-llm-d",
+        model_identifier="test-model",
         hardware_type="CPU",
         runtime="OpenVINO",
         vllm_version="0.8.0",
@@ -96,7 +96,7 @@ def test_metadata_model_with_values():
     payload = metadata.model_dump_json()
     parsed = BenchmarkMetadata.model_validate_json(payload)
 
-    assert parsed.model_identifier == "small-llm-d"
+    assert parsed.model_identifier == "test-model"
     assert parsed.hardware_type == "CPU"
     assert parsed.runtime == "OpenVINO"
     assert parsed.vllm_version == "0.8.0"
@@ -109,7 +109,7 @@ def test_metadata_model_with_values():
 async def test_benchmark_with_metadata_roundtrip(storage):
     source = _make_benchmark(
         metadata=BenchmarkMetadata(
-            model_identifier="small-llm-d",
+            model_identifier="test-model",
             hardware_type="CPU",
             runtime="OpenVINO",
             vllm_version="0.8.0",
@@ -125,7 +125,7 @@ async def test_benchmark_with_metadata_roundtrip(storage):
     loaded = await storage.get_benchmark(saved.id)
     assert loaded is not None
     assert loaded.metadata is not None
-    assert loaded.metadata.model_identifier == "small-llm-d"
+    assert loaded.metadata.model_identifier == "test-model"
     assert loaded.metadata.runtime == "OpenVINO"
     assert loaded.metadata.extra == {"env": "dev"}
 
@@ -233,7 +233,7 @@ def _benchmark_payload(metadata: dict[str, Any] | None = None) -> dict[str, Any]
 def test_patch_metadata_success(client):
     save_resp = client.post(
         "/api/benchmark/save",
-        json=_benchmark_payload(metadata={"model_identifier": "small-llm-d", "notes": "old-note", "extra": {"a": "1"}}),
+        json=_benchmark_payload(metadata={"model_identifier": "test-model", "notes": "old-note", "extra": {"a": "1"}}),
     )
     assert save_resp.status_code == 200
     benchmark_id = save_resp.json()["id"]
@@ -270,7 +270,7 @@ def test_patch_metadata_partial_update(client):
         "/api/benchmark/save",
         json=_benchmark_payload(
             metadata={
-                "model_identifier": "small-llm-d",
+                "model_identifier": "test-model",
                 "hardware_type": "CPU",
                 "runtime": "OpenVINO",
                 "notes": "before",
@@ -288,7 +288,7 @@ def test_patch_metadata_partial_update(client):
     assert patch_resp.status_code == 200
 
     metadata = patch_resp.json()["metadata"]
-    assert metadata["model_identifier"] == "small-llm-d"
+    assert metadata["model_identifier"] == "test-model"
     assert metadata["hardware_type"] == "CPU"
     assert metadata["runtime"] == "OpenVINO"
     assert metadata["notes"] == "after"

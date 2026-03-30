@@ -28,7 +28,7 @@ export const handlers = [
   })),
   http.get(`${API}/sla/profiles`, () => HttpResponse.json([])),
   http.post(`${API}/sla/profiles`, async ({ request }) => {
-    const body = await request.json();
+    const body = await request.json() as Record<string, unknown>;
     return HttpResponse.json({
       id: 1,
       created_at: Date.now() / 1000,
@@ -36,17 +36,17 @@ export const handlers = [
     });
   }),
   http.put(`${API}/sla/profiles/:id`, async ({ request, params }) => {
-    const body = await request.json();
+    const body = await request.json() as Record<string, unknown>;
     return HttpResponse.json({
       id: Number(params.id),
       ...body,
     });
   }),
-  http.delete(`${API}/sla/profiles/:id`, ({ params }) =>
+  http.delete(`${API}/sla/profiles/:id`, () =>
     HttpResponse.json({ deleted: true })
   ),
   http.post(`${API}/sla/evaluate`, async ({ request }) => {
-    const body = await request.json();
+    const body = await request.json() as { profile_id: number };
     return HttpResponse.json({
       profile: {
         id: body.profile_id,

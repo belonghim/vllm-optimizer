@@ -356,6 +356,19 @@ securityContext:
 
 ---
 
+## Dual CR 호환성 원칙
+
+`InferenceService` (KServe)와 `LLMInferenceService` (LLMIS) 두 CR 타입을 **동등하게 지원**해야 한다.
+
+### 핵심 규칙
+
+- **어댑터 패턴 준수**: `backend/services/cr_adapter.py`의 `CRAdapter` 추상 인터페이스를 통해 두 타입이 추상화된다. 새 기능 추가 시 `InferenceServiceAdapter`와 `LLMInferenceServiceAdapter` 양쪽 모두 구현 필수.
+- **환경변수 기본값**: 코드 레벨 fallback 값은 KServe 기준 (`inferenceservice`, `vllm-lab-dev`, `llm-ov`). LLMIS 전환 시 `VLLM_CR_TYPE=llminferenceservice`로 설정.
+- **테스트 규칙**: 새 기능의 단위 테스트는 두 CR 타입 모두에 대해 검증해야 한다. 기존 `test_cr_adapter.py`, `test_llmis_integration.py`가 LLMIS 경로를, 기본 테스트들이 KServe 경로를 검증한다.
+- **테스트 데이터 규칙**: 단위 테스트에서 특정 CR 타입 동작을 검증하지 않는 경우 중립적 이름 (`test-ns`, `test-isvc`) 사용 권장. LLMIS 어댑터 동작 검증 시에만 `small-llm-d` 등 실제 LLMIS 이름 사용.
+
+---
+
 ## vLLM 클러스터 아키텍처 (Dev 환경)
 
 현재 Dev 환경의 vLLM은 **KServe InferenceService** 아키텍처로 배포됩니다. LLMIS + Gateway 방식은 대안/향후 방향으로 병행 지원합니다.

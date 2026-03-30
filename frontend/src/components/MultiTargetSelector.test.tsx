@@ -1,3 +1,5 @@
+// Test fixtures use LLMIS-style names (llm-d-demo/small-llm-d) intentionally
+// to verify MultiTargetSelector works with both CR types (ISVC and LLMISVC).
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import MultiTargetSelector from "./MultiTargetSelector";

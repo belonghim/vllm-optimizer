@@ -16,7 +16,7 @@ To deploy the vLLM Optimizer, ensure you have the following tools and access con
 
 *   **OpenShift CLI (`oc`)**: Installed and configured to connect to your OpenShift 4.x cluster.
 *   **Podman**: Installed for building container images locally.
-*   **Kustomize Binary**: The `kustomize` executable should be present in the project root directory.
+*   **Kustomize**: `oc` CLI에 내장되어 있으므로 별도 바이너리가 필요하지 않습니다. `oc kustomize` 또는 `oc apply -k` 명령어를 사용하세요.
 *   **OpenShift Cluster Access**: You need appropriate permissions to create namespaces, deploy applications, and manage RBAC within your OpenShift cluster.
 *   **Quay.io Credentials**: Access to a Quay.io repository for pushing built container images. Ensure your `podman` is logged in to Quay.io or that your OpenShift cluster has image pull secrets configured for Quay.io.
 

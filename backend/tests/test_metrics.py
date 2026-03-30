@@ -78,13 +78,13 @@ def test_metrics_history_endpoint_handles_nan_gracefully(client):
 def test_metrics_batch_endpoint(isolated_client):
     response = isolated_client.post(
         "/api/metrics/batch",
-        json={"targets": [{"namespace": "llm-d-demo", "inferenceService": "small-llm-d"}]},
+        json={"targets": [{"namespace": "test-ns", "inferenceService": "test-isvc"}]},
     )
     assert response.status_code == 200
     data = response.json()
     assert "results" in data
-    assert "llm-d-demo/small-llm-d" in data["results"]
-    target_result = data["results"]["llm-d-demo/small-llm-d"]
+    assert "test-ns/test-isvc" in data["results"]
+    target_result = data["results"]["test-ns/test-isvc"]
     assert "status" in target_result
     assert target_result["status"] in ("collecting", "ready")
 
@@ -126,11 +126,11 @@ def test_metrics_batch_endpoint_multiple_targets(isolated_client):
 def test_metrics_batch_default_60_points(isolated_client):
     response = isolated_client.post(
         "/api/metrics/batch",
-        json={"targets": [{"namespace": "llm-d-demo", "inferenceService": "small-llm-d"}]},
+        json={"targets": [{"namespace": "test-ns", "inferenceService": "test-isvc"}]},
     )
     assert response.status_code == 200
     data = response.json()
-    target_result = data["results"]["llm-d-demo/small-llm-d"]
+    target_result = data["results"]["test-ns/test-isvc"]
     assert "history" in target_result
     assert len(target_result["history"]) <= 60
 
@@ -139,13 +139,13 @@ def test_metrics_batch_custom_history_points(isolated_client):
     response = isolated_client.post(
         "/api/metrics/batch",
         json={
-            "targets": [{"namespace": "llm-d-demo", "inferenceService": "small-llm-d"}],
+            "targets": [{"namespace": "test-ns", "inferenceService": "test-isvc"}],
             "history_points": 200,
         },
     )
     assert response.status_code == 200
     data = response.json()
-    target_result = data["results"]["llm-d-demo/small-llm-d"]
+    target_result = data["results"]["test-ns/test-isvc"]
     assert "history" in target_result
     assert len(target_result["history"]) <= 200
 
@@ -154,13 +154,13 @@ def test_metrics_batch_caps_at_max(isolated_client):
     response = isolated_client.post(
         "/api/metrics/batch",
         json={
-            "targets": [{"namespace": "llm-d-demo", "inferenceService": "small-llm-d"}],
+            "targets": [{"namespace": "test-ns", "inferenceService": "test-isvc"}],
             "history_points": 1000,
         },
     )
     assert response.status_code == 200
     data = response.json()
-    target_result = data["results"]["llm-d-demo/small-llm-d"]
+    target_result = data["results"]["test-ns/test-isvc"]
     assert "history" in target_result
     assert len(target_result["history"]) <= 1000
 
@@ -187,13 +187,13 @@ def test_thanos_500_error(isolated_client):
         response = isolated_client.post(
             "/api/metrics/batch",
             json={
-                "targets": [{"namespace": "llm-d-demo", "inferenceService": "small-llm-d"}],
+                "targets": [{"namespace": "test-ns", "inferenceService": "test-isvc"}],
                 "time_range": "1h",
             },
         )
     assert response.status_code == 200
     data = response.json()
-    target_result = data["results"]["llm-d-demo/small-llm-d"]
+    target_result = data["results"]["test-ns/test-isvc"]
     assert target_result["history"] == []
 
 
@@ -204,13 +204,13 @@ def test_thanos_timeout(isolated_client):
         response = isolated_client.post(
             "/api/metrics/batch",
             json={
-                "targets": [{"namespace": "llm-d-demo", "inferenceService": "small-llm-d"}],
+                "targets": [{"namespace": "test-ns", "inferenceService": "test-isvc"}],
                 "time_range": "1h",
             },
         )
     assert response.status_code == 200
     data = response.json()
-    target_result = data["results"]["llm-d-demo/small-llm-d"]
+    target_result = data["results"]["test-ns/test-isvc"]
     assert target_result["history"] == []
 
 
@@ -224,13 +224,13 @@ def test_thanos_malformed_response(isolated_client):
         response = isolated_client.post(
             "/api/metrics/batch",
             json={
-                "targets": [{"namespace": "llm-d-demo", "inferenceService": "small-llm-d"}],
+                "targets": [{"namespace": "test-ns", "inferenceService": "test-isvc"}],
                 "time_range": "1h",
             },
         )
     assert response.status_code == 200
     data = response.json()
-    target_result = data["results"]["llm-d-demo/small-llm-d"]
+    target_result = data["results"]["test-ns/test-isvc"]
     assert target_result["history"] == []
 
 
@@ -293,13 +293,13 @@ def test_batch_endpoint_invalid_time_range(isolated_client):
     response = isolated_client.post(
         "/api/metrics/batch",
         json={
-            "targets": [{"namespace": "llm-d-demo", "inferenceService": "small-llm-d"}],
+            "targets": [{"namespace": "test-ns", "inferenceService": "test-isvc"}],
             "time_range": "999h",  # Invalid: not in config
         },
     )
     assert response.status_code == 200
     data = response.json()
-    target_result = data["results"]["llm-d-demo/small-llm-d"]
+    target_result = data["results"]["test-ns/test-isvc"]
     assert "history" in target_result
     # With isolated_client and no prior metrics collection, history should be empty
     assert target_result["history"] == []
@@ -310,15 +310,15 @@ def test_batch_endpoint_null_time_range(isolated_client):
     response = isolated_client.post(
         "/api/metrics/batch",
         json={
-            "targets": [{"namespace": "llm-d-demo", "inferenceService": "small-llm-d"}],
+            "targets": [{"namespace": "test-ns", "inferenceService": "test-isvc"}],
             "time_range": None,  # Explicitly null
         },
     )
     assert response.status_code == 200
     data = response.json()
     assert "results" in data
-    assert "llm-d-demo/small-llm-d" in data["results"]
-    target_result = data["results"]["llm-d-demo/small-llm-d"]
+    assert "test-ns/test-isvc" in data["results"]
+    target_result = data["results"]["test-ns/test-isvc"]
     assert "status" in target_result
     assert target_result["status"] in ("collecting", "ready")
     assert "history" in target_result
