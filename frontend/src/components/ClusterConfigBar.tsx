@@ -145,7 +145,7 @@ export default function ClusterConfigBar() {
         </div>
         <div>
           <label htmlFor="cfg-inferenceservice">InferenceService</label>
-           <input id="cfg-inferenceservice" type="text" className="input" value={localConfig.inferenceservice} onChange={(e) => handleInputChange('inferenceservice', e.target.value)} placeholder="e.g., small-llm-d" />
+           <input id="cfg-inferenceservice" type="text" className="input" value={localConfig.inferenceservice} onChange={(e) => handleInputChange('inferenceservice', e.target.value)} placeholder="e.g., llm-ov" />
         </div>
          <div>
            <label htmlFor="cfg-cr-type">Default CR Type</label>

@@ -80,8 +80,8 @@ class MultiTargetMetricsCollector:
         self._k8s_available: bool = False
         self._k8s_core: client.CoreV1Api | None = None
         self._k8s_custom: client.CustomObjectsApi | None = None
-        self._default_namespace = os.getenv("K8S_NAMESPACE") or os.getenv("VLLM_NAMESPACE", "llm-d-demo")
-        self._default_is_name = os.getenv("VLLM_DEPLOYMENT_NAME", "small-llm-d")
+        self._default_namespace = os.getenv("K8S_NAMESPACE") or os.getenv("VLLM_NAMESPACE", "vllm-lab-dev")
+        self._default_is_name = os.getenv("VLLM_DEPLOYMENT_NAME", "llm-ov")
         self._init_k8s()
         self._register_default_target()
 
@@ -89,7 +89,7 @@ class MultiTargetMetricsCollector:
         return get_cr_adapter(target.cr_type)
 
     def _register_default_target(self) -> None:
-        cr_type = os.getenv("VLLM_CR_TYPE", "llminferenceservice")
+        cr_type = os.getenv("VLLM_CR_TYPE", "inferenceservice")
         key = self._target_key(self._default_namespace, self._default_is_name)
         self._targets[key] = TargetCache(
             key=key,

@@ -2,6 +2,57 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-30] - KServe Alignment & LLMIS Reference Cleanup
+
+**Status**: Completed
+
+KServe InferenceService를 주 배포 모델로 전환한 이후 남아있던 LLMIS 하드코딩 기본값과 잘못된 테스트 픽스처를 전수 수정.
+
+### Fixed
+- **`backend/services/multi_target_collector.py`**: 기본값 `llm-d-demo` → `vllm-lab-dev`, `small-llm-d` → `llm-ov`, `llminferenceservice` → `inferenceservice` — 환경변수 미설정 시 잘못된 LLMIS 타겟 참조 방지.
+- **`backend/routers/vllm_config.py`**: IS 이름 fallback `"small-llm-d"` → `"llm-ov"`.
+- **`backend/services/k8s_operator.py`**: IS 이름 fallback `"small-llm-d"` → `"llm-ov"`.
+- **`backend/routers/tuner.py`**: `ApplyBestResponse.deployment_name` fallback `"small-llm-d"` → `"llm-ov"`.
+- **`backend/tests/test_vllm_config.py`**: `_MOCK_IS` 픽스처를 LLMIS 구조(`spec.template.containers[].env`)에서 KServe 구조(`spec.predictor.model.args`)로 교체. 연동된 7개 테스트의 mock 데이터 및 patch body assertion을 KServe 경로로 수정 — `test_get_vllm_config_returns_data` 외 6개 테스트 실패 해소.
+- **`openshift/overlays/dev/kustomization.yaml`**: PrometheusRule `VLLMPodNotReady` 패치 내 `small-llm-d-kserve` → `llm-ov-predictor` — dev 환경의 실제 KServe Deployment 이름으로 수정.
+- **`backend/tests/integration/performance/conftest.py`**: 기본값 `VLLM_NAMESPACE=llm-d-demo` → `vllm-lab-dev`, `VLLM_ENDPOINT` LLMIS Gateway URL → KServe 서비스 URL. `backup_restore_is_args` 픽스처의 `oc get/patch llminferenceservice small-llm-d` → `oc get/patch inferenceservice llm-ov`.
+- **`frontend/src/mockData.ts`**: 3개 벤치마크 목업의 endpoint를 LLMIS Gateway URL → KServe 내부 서비스 URL로 변경.
+- **`frontend/src/components/ClusterConfigBar.tsx`**: InferenceService 입력 placeholder `"e.g., small-llm-d"` → `"e.g., llm-ov"`.
+- **`frontend/src/components/BenchmarkMetadataModal.tsx`**: 모델명 도움말 텍스트 `"default is serving name small-llm-d"` → `"e.g., qwen2-5-7b-instruct"`.
+
+### Verification
+- Backend: 403 passed, 0 failed (`not integration and not slow`)
+- Frontend: 287 passed, 0 failed
+
+---
+
+## [2026-03-30] - DX Improvements & Quality Hardening Round 8
+
+**Status**: Completed
+
+Tekton CI/CD 파이프라인 제거, DX 마찰 수정, 프론트엔드 에러 시나리오 테스트 추가, JSX→TSX 마이그레이션, 백엔드 테스트 에러 경로 보강, AGENTS.md KServe 정렬.
+
+### Removed
+- **`openshift/tekton/`**: `pipeline.yaml`, `performance-pipeline.yaml` 완전 삭제. 프로젝트는 `deploy.sh`만 사용.
+- **`docs/deployment.md`**, **`docs/integration_test_guide.md`**: Tekton CI/CD 섹션 제거.
+- **`AGENTS.md`**: Tekton 디렉토리 트리, Tekton 섹션, 참고문서 링크 제거.
+- **`.gitignore`**: `.github/workflows/` 항목 제거 (Tekton RBAC 잔재).
+
+### Fixed
+- **`frontend/tsconfig.json`**: `"types": ["vitest/globals", "node"]` 추가 — `describe`/`it`/`expect`/`vi` TypeScript 인식 오류 해소.
+- **`frontend/src/components/LoadTestNormalMode.test.tsx`** 외 3개 테스트 파일: 네트워크 실패 + HTTP 500 에러 시나리오 테스트 추가.
+
+### Changed
+- **`frontend/src/`** 12개 테스트 파일: `.test.jsx` → `.test.tsx` 마이그레이션.
+- **`backend/tests/test_benchmark.py`**: `import_guidellm_benchmark`, `patch_benchmark_metadata` 에러 경로 테스트 추가.
+- **`backend/tests/test_metrics.py`**: Thanos HTTP 500, timeout, 잘못된 응답 형식 에러 경로 테스트 추가.
+- **`.gitignore`**: `guidellm_results/` 추가.
+
+### Documentation
+- **`AGENTS.md`**: KServe InferenceService를 주 배포 모델로, LLMIS를 대안/향후 방향으로 재정렬. CR 어댑터 패턴 설명 추가.
+
+---
+
 ## [2026-03-30] - Code Quality Hardening Round 6
 
 **Status**: Completed

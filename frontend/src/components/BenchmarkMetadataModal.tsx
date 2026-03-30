@@ -47,7 +47,7 @@ export default function BenchmarkMetadataModal({ editing, onClose, onSave }: Ben
               onChange={e => updateField('model_identifier', e.target.value)}
               placeholder="e.g. llama-3.1-8b-instruct"
             />
-            <small className="help-text">Enter the actual model name (default is serving name small-llm-d)</small>
+            <small className="help-text">Enter the actual model name (e.g., qwen2-5-7b-instruct)</small>
           </div>
           <div className="form-row">
             <div className="form-group">

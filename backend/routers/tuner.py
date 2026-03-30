@@ -420,7 +420,7 @@ async def apply_best_parameters() -> ApplyBestResponse:
             success=True,
             message="Best parameters applied successfully.",
             applied_parameters=auto_tuner.best.params,
-            deployment_name=os.getenv("VLLM_DEPLOYMENT_NAME", "small-llm-d"),
+            deployment_name=os.getenv("VLLM_DEPLOYMENT_NAME", "llm-ov"),
         )
     return ApplyBestResponse(
         success=False,

@@ -104,7 +104,7 @@ export const mockBenchmarks = (): Benchmark[] => [
     timestamp: Date.now() / 1000 - 86400,
     config: {
       model: "Qwen2.5-3B",
-      endpoint: "http://openshift-ai-inference-openshift-default.openshift-ingress.svc/llm-d-demo/small-llm-d",
+      endpoint: "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080",
       total_requests: 200,
       concurrency: 20
     },
@@ -125,7 +125,7 @@ export const mockBenchmarks = (): Benchmark[] => [
     timestamp: Date.now() / 1000 - 3600,
     config: {
       model: "Llama-3.1-8B",
-      endpoint: "http://openshift-ai-inference-openshift-default.openshift-ingress.svc/llm-d-demo/small-llm-d",
+      endpoint: "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080",
       total_requests: 200,
       concurrency: 20
     },
@@ -142,7 +142,7 @@ export const mockBenchmarks = (): Benchmark[] => [
     timestamp: Date.now() / 1000 - 1800,
     config: {
       model: "Mistral-7B",
-      endpoint: "http://openshift-ai-inference-openshift-default.openshift-ingress.svc/llm-d-demo/small-llm-d",
+      endpoint: "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080",
       total_requests: 200,
       concurrency: 20
     },

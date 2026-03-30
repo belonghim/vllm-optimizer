@@ -21,7 +21,7 @@ def _get_k8s_namespace() -> str:
 
 
 def _get_vllm_is_name() -> str:
-    return runtime_config.vllm_is_name or "small-llm-d"
+    return runtime_config.vllm_is_name or "llm-ov"
 
 
 ALLOWED_RESOURCE_KEYS = {"cpu", "memory", "nvidia.com/gpu"}

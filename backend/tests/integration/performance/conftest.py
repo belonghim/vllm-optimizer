@@ -11,9 +11,9 @@ import pytest
 BACKEND_URL = os.getenv(
     "PERF_TEST_BACKEND_URL", "http://vllm-optimizer-backend.vllm-optimizer-dev.svc.cluster.local:8000"
 )
-VLLM_NAMESPACE = os.getenv("VLLM_NAMESPACE", "llm-d-demo")
+VLLM_NAMESPACE = os.getenv("VLLM_NAMESPACE", "vllm-lab-dev")
 VLLM_ENDPOINT = os.getenv(
-    "VLLM_ENDPOINT", "http://openshift-ai-inference-openshift-default.openshift-ingress.svc/llm-d-demo/small-llm-d"
+    "VLLM_ENDPOINT", "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080"
 )
 VLLM_MODEL = os.getenv("VLLM_MODEL", "qwen2-5-7b-instruct")
 OPTIMIZER_NAMESPACE = os.getenv("OPTIMIZER_NAMESPACE", "vllm-optimizer-dev")
@@ -64,8 +64,8 @@ async def backup_restore_is_args() -> AsyncIterator[None]:
         [
             "oc",
             "get",
-            "llminferenceservice",
-            "small-llm-d",
+            "inferenceservice",
+            "llm-ov",
             "-n",
             VLLM_NAMESPACE,
             "-o",
@@ -86,8 +86,8 @@ async def backup_restore_is_args() -> AsyncIterator[None]:
                 [
                     "oc",
                     "patch",
-                    "llminferenceservice",
-                    "small-llm-d",
+                    "inferenceservice",
+                    "llm-ov",
                     "-n",
                     VLLM_NAMESPACE,
                     "--type=merge",

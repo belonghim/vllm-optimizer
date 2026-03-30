@@ -34,23 +34,18 @@ def _get_vllm_config_globals(client: TestClient, method: str | None = None):
 
 _MOCK_IS = {
     "spec": {
-        "template": {
-            "containers": [
-                {
-                    "name": "main",
-                    "env": [
-                        {
-                            "name": "VLLM_ADDITIONAL_ARGS",
-                            "value": "--max-num-seqs=256 --gpu-memory-utilization=0.90 --max-model-len=8192 --max-num-batched-tokens=2048",
-                        }
-                    ],
-                    "resources": {},
-                }
-            ]
-        },
-        "model": {
-            "uri": "oci://test-registry/test-model",
-        },
+        "predictor": {
+            "model": {
+                "args": [
+                    "--max-num-seqs=256",
+                    "--gpu-memory-utilization=0.90",
+                    "--max-model-len=8192",
+                    "--max-num-batched-tokens=2048",
+                ],
+                "storageUri": "oci://test-registry/test-model",
+                "resources": {},
+            }
+        }
     }
 }
 
@@ -140,9 +135,9 @@ def test_patch_storage_uri_updates_is(client):
         assert mock_custom.patch_namespaced_custom_object.called
         call_kwargs = mock_custom.patch_namespaced_custom_object.call_args.kwargs
         body = call_kwargs["body"]
-        model_spec = body["spec"]["model"]
-        assert "uri" in model_spec
-        assert model_spec["uri"] == "oci://new-uri"
+        model_spec = body["spec"]["predictor"]["model"]
+        assert "storageUri" in model_spec
+        assert model_spec["storageUri"] == "oci://new-uri"
 
 
 def test_patch_vllm_config_rejects_uppercase_key(client):
@@ -179,34 +174,25 @@ def test_patch_tuning_args_does_not_include_storage_uri_in_body(client):
         assert mock_custom.patch_namespaced_custom_object.called
         call_kwargs = mock_custom.patch_namespaced_custom_object.call_args.kwargs
         body = call_kwargs["body"]
-        assert "template" in body["spec"]
-        assert body["spec"]["template"]["containers"][0]["name"] == "main"
-        assert "model" not in body["spec"]
+        assert "predictor" in body["spec"]
+        patched_args = body["spec"]["predictor"]["model"]["args"]
+        assert "--max-num-seqs=512" in patched_args
+        assert "storageUri" not in body["spec"]["predictor"]["model"]
 
 
 def test_get_returns_resources(client_with_vllm_config):
     mock_is_with_resources = {
         "spec": {
-            "template": {
-                "containers": [
-                    {
-                        "name": "main",
-                        "env": [
-                            {
-                                "name": "VLLM_ADDITIONAL_ARGS",
-                                "value": "--max-num-seqs=256",
-                            }
-                        ],
-                        "resources": {
-                            "requests": {"cpu": "4", "memory": "8Gi"},
-                            "limits": {"cpu": "8", "memory": "16Gi"},
-                        },
-                    }
-                ]
-            },
-            "model": {
-                "uri": "oci://test-registry/test-model",
-            },
+            "predictor": {
+                "model": {
+                    "args": ["--max-num-seqs=256"],
+                    "resources": {
+                        "requests": {"cpu": "4", "memory": "8Gi"},
+                        "limits": {"cpu": "8", "memory": "16Gi"},
+                    },
+                    "storageUri": "oci://test-registry/test-model",
+                }
+            }
         }
     }
 
@@ -247,19 +233,11 @@ def test_get_returns_empty_resources_when_absent(client_with_vllm_config):
 def test_patch_partial_update_preserves_existing_args(client: TestClient):
     mock_is = {
         "spec": {
-            "template": {
-                "containers": [
-                    {
-                        "name": "main",
-                        "env": [
-                            {
-                                "name": "VLLM_ADDITIONAL_ARGS",
-                                "value": "--max-num-seqs=256 --gpu-memory-utilization=0.90 --max-model-len=8192",
-                            }
-                        ],
-                    }
-                ]
-            },
+            "predictor": {
+                "model": {
+                    "args": ["--max-num-seqs=256", "--gpu-memory-utilization=0.90", "--max-model-len=8192"],
+                }
+            }
         }
     }
     mock_custom = MagicMock()
@@ -275,8 +253,7 @@ def test_patch_partial_update_preserves_existing_args(client: TestClient):
         assert resp.status_code == 200
 
         body = mock_custom.patch_namespaced_custom_object.call_args.kwargs["body"]
-        patched_value = body["spec"]["template"]["containers"][0]["env"][0]["value"]
-        patched_args = patched_value.split()
+        patched_args = body["spec"]["predictor"]["model"]["args"]
 
         assert "--max-num-seqs=512" in patched_args
         assert "--gpu-memory-utilization=0.90" in patched_args
@@ -307,19 +284,11 @@ def test_patch_empty_data_preserves_all_args(client: TestClient):
 def test_patch_boolean_false_removes_flag(client: TestClient):
     mock_is = {
         "spec": {
-            "template": {
-                "containers": [
-                    {
-                        "name": "main",
-                        "env": [
-                            {
-                                "name": "VLLM_ADDITIONAL_ARGS",
-                                "value": "--max-num-seqs=256 --enable-chunked-prefill --max-model-len=8192",
-                            }
-                        ],
-                    }
-                ]
-            },
+            "predictor": {
+                "model": {
+                    "args": ["--max-num-seqs=256", "--enable-chunked-prefill", "--max-model-len=8192"],
+                }
+            }
         }
     }
     mock_custom = MagicMock()
@@ -338,8 +307,7 @@ def test_patch_boolean_false_removes_flag(client: TestClient):
         assert resp.status_code == 200
 
         body = mock_custom.patch_namespaced_custom_object.call_args.kwargs["body"]
-        patched_value = body["spec"]["template"]["containers"][0]["env"][0]["value"]
-        patched_args = patched_value.split()
+        patched_args = body["spec"]["predictor"]["model"]["args"]
 
         assert "--enable-chunked-prefill" not in patched_args
         assert "--max-num-seqs=256" in patched_args
@@ -360,9 +328,9 @@ def test_patch_resources_valid(client):
         assert resp.status_code == 200
 
         body = mock_custom.patch_namespaced_custom_object.call_args.kwargs["body"]
-        container = body["spec"]["template"]["containers"][0]
-        assert "resources" in container
-        assert container["resources"]["requests"]["cpu"] == "4"
+        resources = body["spec"]["predictor"]["model"]["resources"]
+        assert "requests" in resources
+        assert resources["requests"]["cpu"] == "4"
 
 
 def test_patch_resources_invalid_key(client):
@@ -407,13 +375,10 @@ def test_patch_combined_data_and_resources(client):
         assert resp.status_code == 200
 
         body = mock_custom.patch_namespaced_custom_object.call_args.kwargs["body"]
-        container = body["spec"]["template"]["containers"][0]
-        if "env" in container:
-            env_value = container["env"][0]["value"]
-            assert "--max-num-seqs=512" in env_value
-        assert "resources" in container
-        assert container["resources"]["limits"]["cpu"] == "8"
-        assert container["resources"]["limits"]["memory"] == "16Gi"
+        model = body["spec"]["predictor"]["model"]
+        assert "--max-num-seqs=512" in model["args"]
+        assert model["resources"]["limits"]["cpu"] == "8"
+        assert model["resources"]["limits"]["memory"] == "16Gi"
 
 
 def test_get_vllm_config_resolves_model_name_for_isvc(client_with_vllm_config):
