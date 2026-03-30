@@ -74,12 +74,12 @@ describe("BenchmarkPage", () => {
 
     it("removes row after confirmed delete", async () => {
       const user = userEvent.setup();
-      vi.stubGlobal("confirm", vi.fn(() => true));
       render(<BenchmarkPage isActive={true} />);
 
       const buttons = screen.getAllByRole("button", { name: "Delete benchmark" });
       const initialRows = screen.getAllByRole("row").length;
       await user.click(buttons[0]);
+      await user.click(screen.getByRole("button", { name: "Confirm" }));
 
       await waitFor(() => {
         expect(screen.getAllByRole("row").length).toBe(initialRows - 1);
@@ -88,12 +88,12 @@ describe("BenchmarkPage", () => {
 
     it("keeps row when confirm cancelled", async () => {
       const user = userEvent.setup();
-      vi.stubGlobal("confirm", vi.fn(() => false));
       render(<BenchmarkPage isActive={true} />);
 
       const buttons = screen.getAllByRole("button", { name: "Delete benchmark" });
       const initialRows = screen.getAllByRole("row").length;
       await user.click(buttons[0]);
+      await user.click(screen.getByRole("button", { name: "Cancel" }));
 
       expect(screen.getAllByRole("row").length).toBe(initialRows);
     });

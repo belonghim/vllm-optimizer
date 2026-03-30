@@ -19,7 +19,7 @@ describe('useSessionKeepAlive', () => {
 
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(fetch).toHaveBeenCalledWith('/api/metrics/latest');
+    expect(fetch).toHaveBeenCalledWith('/api/metrics/latest', undefined);
   });
 
   it('calls heartbeat API again at 4-minute interval', async () => {

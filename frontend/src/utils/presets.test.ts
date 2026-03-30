@@ -8,7 +8,7 @@ beforeEach(() => {
 describe("loadPresets", () => {
   it("includes builtin preset Light", () => {
      const presets = loadPresets();
-     expect(presets["Light"]).toBeDefined();
+     expect(presets["Lightweight"]).toBeDefined();
    });
 
   it("includes builtin preset Standard", () => {
@@ -37,7 +37,7 @@ describe("savePreset", () => {
    });
 
   it("throws when saving over a builtin preset", () => {
-     expect(() => savePreset("Light", {})).toThrow("Cannot overwrite builtin preset");
+     expect(() => savePreset("Lightweight", {})).toThrow("Cannot overwrite builtin preset");
    });
 });
 

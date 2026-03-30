@@ -395,7 +395,7 @@ describe("LoadTestPage", () => {
       // Should close the connection (exponential backoff: close + setTimeout reconnect)
       expect(mockEsInstance.closeSpy).toHaveBeenCalled();
       // Should show the reconnecting banner
-       expect(screen.getByText(/Reconnecting\.\.\./)).toBeInTheDocument();
+       expect(screen.getByText(/Reconnecting SSE/)).toBeInTheDocument();
     });
 
     it("shows reconnecting banner when onerror fires in CONNECTING state", async () => {
@@ -406,7 +406,7 @@ describe("LoadTestPage", () => {
       mockEsInstance.readyState = 0; // CONNECTING
       act(() => { mockEsInstance.onerror(); });
 
-       expect(screen.getByText(/Reconnecting\.\.\./)).toBeInTheDocument();
+       expect(screen.getByText(/Reconnecting SSE/)).toBeInTheDocument();
        expect(screen.queryByText(/SSE connection failed/)).not.toBeInTheDocument();
     });
 
@@ -417,7 +417,7 @@ describe("LoadTestPage", () => {
 
       mockEsInstance.readyState = 0;
       act(() => { mockEsInstance.onerror(); });
-       expect(screen.getByText(/Reconnecting\.\.\./)).toBeInTheDocument();
+       expect(screen.getByText(/Reconnecting SSE/)).toBeInTheDocument();
 
       act(() => {
         mockEsInstance.onmessage({
@@ -425,7 +425,7 @@ describe("LoadTestPage", () => {
         });
       });
 
-       expect(screen.queryByText(/Reconnecting\.\.\./)).not.toBeInTheDocument();
+       expect(screen.queryByText(/Reconnecting SSE/)).not.toBeInTheDocument();
     });
   });
 

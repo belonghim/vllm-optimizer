@@ -194,9 +194,7 @@ describe("SlaPage", () => {
   describe("TC7: profile deletion", () => {
     it("calls DELETE /api/sla/profiles/:id when user confirms", async () => {
       const user = userEvent.setup();
-      vi.stubGlobal("confirm", vi.fn(() => true));
-
-       const profile = {
+      const profile = {
          id: 42,
          name: "Delete Me",
          thresholds: { availability_min: 99, p95_latency_max_ms: null, error_rate_max_pct: null, min_tps: null },
@@ -224,8 +222,9 @@ describe("SlaPage", () => {
 
       await waitFor(() => expect(screen.getAllByText("Delete Me").length).toBeGreaterThan(0));
 
-       const deleteBtn = screen.getByRole("button", { name: "Delete" });
+        const deleteBtn = screen.getByRole("button", { name: "Delete" });
       await user.click(deleteBtn);
+      await user.click(screen.getByRole("button", { name: "Confirm" }));
 
       await waitFor(() => {
         const deleteCall = fetchMock.mock.calls.find(

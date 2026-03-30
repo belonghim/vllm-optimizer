@@ -78,7 +78,7 @@ describe("MultiTargetSelector", () => {
     };
     useClusterConfig.mockReturnValue(emptyMock);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
-     expect(screen.getByText("Add monitoring targets")).toBeInTheDocument();
+     expect(screen.getByText("Add a monitoring target")).toBeInTheDocument();
   });
 
   it("renders target row with data-testid", () => {

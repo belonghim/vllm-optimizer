@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import MonitorPage, { buildChartLinesMap } from "./MonitorPage";
 import { COLORS, TARGET_COLORS } from "../constants";
@@ -27,6 +27,12 @@ beforeEach(() => {
     unobserve() {}
     disconnect() {}
   };
+  global.EventSource = class MockEventSource {
+    onopen: (() => void) | null = null;
+    onmessage: ((e: MessageEvent) => void) | null = null;
+    onerror: (() => void) | null = null;
+    close() {}
+  } as unknown as typeof EventSource;
 });
 
 afterEach(() => {
@@ -36,13 +42,15 @@ afterEach(() => {
 });
 
 describe("MonitorPage", () => {
-  it("renders without crashing", () => {
-    render(<MonitorPage />);
-     expect(screen.getByText("Monitoring Targets (1/5)")).toBeInTheDocument();
+  it("renders without crashing", async () => {
+    render(<MonitorPage isActive={true} />);
+    await act(async () => {});
+    expect(screen.getByText("Monitoring Targets (1/5)")).toBeInTheDocument();
   });
 
-  it("renders 9 chart titles", () => {
-    render(<MonitorPage />);
+  it("renders 9 chart titles", async () => {
+    render(<MonitorPage isActive={true} />);
+    await act(async () => {});
     expect(screen.getByText("Throughput (TPS)")).toBeInTheDocument();
     expect(screen.getByText("Latency (ms)")).toBeInTheDocument();
     expect(screen.getByText("TTFT (ms)")).toBeInTheDocument();
@@ -54,8 +62,9 @@ describe("MonitorPage", () => {
      expect(screen.queryByText(/Query failed/)).not.toBeInTheDocument();
   });
 
-  it("renders table with metric column headers", () => {
-    render(<MonitorPage />);
+  it("renders table with metric column headers", async () => {
+    render(<MonitorPage isActive={true} />);
+    await act(async () => {});
     expect(screen.getByText("TPS")).toBeInTheDocument();
     expect(screen.getByText("RPS")).toBeInTheDocument();
     expect(screen.getByText("GPU%")).toBeInTheDocument();

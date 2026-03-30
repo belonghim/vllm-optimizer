@@ -54,8 +54,8 @@ describe('API Integration Tests (MSW)', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('max_num_seqs')).toBeInTheDocument();
-      expect(screen.getByText('gpu_memory_utilization')).toBeInTheDocument();
+      expect(screen.getAllByText('max_num_seqs')[0]).toBeInTheDocument();
+      expect(screen.getAllByText('gpu_memory_utilization')[0]).toBeInTheDocument();
     });
   });
 
