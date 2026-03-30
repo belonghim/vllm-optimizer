@@ -39,10 +39,10 @@ interface LoadTestNormalModeProps {
 
 function LoadTestNormalMode({ isActive, pendingConfig, onConfigConsumed, onRunningChange, onEndpointChange, onModelChange }: LoadTestNormalModeProps) {
   const { COLORS } = useThemeColors();
-  const { endpoint: globalEndpoint, inferenceservice, isLoading: globalIsLoading } = useClusterConfig();
+  const { endpoint: globalEndpoint, isLoading: globalIsLoading, resolvedModelName } = useClusterConfig();
   const { isMockEnabled } = useMockData();
   const [config, setConfig] = useState<LoadTestConfigState>({
-    endpoint: "", model: inferenceservice || "auto", total_requests: 200, concurrency: 20,
+    endpoint: "", model: resolvedModelName || "auto", total_requests: 200, concurrency: 20,
     rps: 10, max_tokens: 256, prompt_template: "Hello, how are you?",
     temperature: 0.7, stream: true,
   });
@@ -81,9 +81,16 @@ function LoadTestNormalMode({ isActive, pendingConfig, onConfigConsumed, onRunni
   useEffect(() => {
     if (!isActive) return;
     if (!globalIsLoading && globalEndpoint) {
-      setConfig(c => ({ ...c, endpoint: c.endpoint || globalEndpoint }));
+      setConfig(c => ({ ...c, endpoint: globalEndpoint }));
     }
   }, [isActive, globalIsLoading, globalEndpoint]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    if (!globalIsLoading && resolvedModelName) {
+      setConfig(c => ({ ...c, model: resolvedModelName }));
+    }
+  }, [isActive, globalIsLoading, resolvedModelName]);
 
   useEffect(() => {
     if (!isActive) return;

@@ -12,22 +12,22 @@ interface LoadTestPageProps {
 }
 
 function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChange }: LoadTestPageProps) {
-  const { endpoint: globalEndpoint, inferenceservice, isLoading: globalIsLoading } = useClusterConfig();
+  const { endpoint: globalEndpoint, isLoading: globalIsLoading, resolvedModelName } = useClusterConfig();
   const [mode, setMode] = useState<'normal' | 'sweep'>('normal');
   const [sharedEndpoint, setSharedEndpoint] = useState("");
-  const [sharedModel, setSharedModel] = useState(inferenceservice || "auto");
+  const [sharedModel, setSharedModel] = useState(resolvedModelName || "auto");
 
   useEffect(() => {
     if (!globalIsLoading && globalEndpoint) {
-      setSharedEndpoint(e => e || globalEndpoint);
+      setSharedEndpoint(globalEndpoint);
     }
   }, [globalIsLoading, globalEndpoint]);
 
   useEffect(() => {
-    if (!globalIsLoading && inferenceservice) {
-      setSharedModel(m => m === "auto" ? inferenceservice : m);
+    if (!globalIsLoading && resolvedModelName) {
+      setSharedModel(resolvedModelName);
     }
-  }, [globalIsLoading, inferenceservice]);
+  }, [globalIsLoading, resolvedModelName]);
 
   return (
     <div className="flex-col-16">
