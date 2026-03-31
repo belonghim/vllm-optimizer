@@ -15,7 +15,6 @@ USER root
 COPY --from=builder /opt/app-root /opt/app-root
 COPY . /app
 COPY requirements.txt /app/requirements.txt
-RUN echo $(date +%s)
 RUN chown -R 1001:0 /app && chmod -R g+rwX /app
 USER 1001
 EXPOSE 8000
