@@ -80,7 +80,7 @@ class MultiTargetMetricsCollector:
         self._k8s_available: bool = False
         self._k8s_core: client.CoreV1Api | None = None
         self._k8s_custom: client.CustomObjectsApi | None = None
-        self._default_namespace = os.getenv("K8S_NAMESPACE") or os.getenv("VLLM_NAMESPACE", "vllm-lab-dev")
+        self._default_namespace = os.getenv("VLLM_NAMESPACE", "vllm-lab-dev")
         self._default_is_name = os.getenv("VLLM_DEPLOYMENT_NAME", "llm-ov")
         self._init_k8s()
         self._register_default_target()

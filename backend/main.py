@@ -1,8 +1,7 @@
 """
 FastAPI Application Entry Point
 
-This module creates the main FastAPI app with CORS middleware
-and mounts placeholder routers for the vLLM optimizer backend.
+This module creates the main FastAPI app and mounts routers for the vLLM optimizer backend.
 """
 
 import logging
@@ -15,7 +14,6 @@ from typing import Any
 
 import httpx
 from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from errors import OptimizerError
 from routers import alerts, benchmark, load_test, metrics, sla, status, tuner, vllm_config
@@ -103,7 +101,7 @@ async def lifespan(app: FastAPI):
 
     # ── Startup configuration validation ──
     _required_env = ["VLLM_ENDPOINT", "VLLM_MODEL"]
-    _optional_env = ["PROMETHEUS_URL", "K8S_NAMESPACE", "K8S_DEPLOYMENT_NAME"]
+    _optional_env = ["PROMETHEUS_URL", "K8S_DEPLOYMENT_NAME"]
 
     for var in _required_env:
         if not os.getenv(var):
@@ -181,23 +179,6 @@ try:
 except Exception as e:  # intentional: fail-open
     logger.debug("Startup shim route registration failed: %s", e)
 
-# Configure CORS — read from ALLOWED_ORIGINS env var (comma-separated), fall back to localhost defaults
-_default_origins = [
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:3000",
-]
-_raw = os.getenv("ALLOWED_ORIGINS", "")
-_origins = [o.strip() for o in _raw.split(",") if o.strip()] if _raw else _default_origins
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 app.add_middleware(SlowAPIMiddleware)
 
 

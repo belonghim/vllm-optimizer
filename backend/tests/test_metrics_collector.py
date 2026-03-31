@@ -17,7 +17,7 @@ def _build_collector() -> MultiTargetMetricsCollector:
 
 class TestMultiTargetMetricsCollector:
     def test_registers_default_target_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("K8S_NAMESPACE", "env-namespace")
+        monkeypatch.setenv("VLLM_NAMESPACE", "env-namespace")
         monkeypatch.setenv("VLLM_DEPLOYMENT_NAME", "env-is")
 
         collector = _build_collector()

@@ -51,12 +51,9 @@ patches:
       kind: ConfigMap
       name: vllm-optimizer-config
     patch: |-
-      - op: add
-        path: /data/ALLOWED_ORIGINS
-        value: "https://vllm-optimizer-dev.apps.compact.jooan.local"
-      - op: add
-        path: /data/K8S_NAMESPACE
-        value: "vllm-lab-dev"
+      - op: replace
+        path: /data/APP_ENV
+        value: "development"
       - op: add
         path: /data/VLLM_NAMESPACE
         value: "vllm-lab-dev"

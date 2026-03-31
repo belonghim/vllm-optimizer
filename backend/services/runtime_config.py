@@ -29,7 +29,7 @@ class RuntimeConfig:
         self._multi_target_collector = multi_target_collector
         default_cr_type = os.getenv("VLLM_CR_TYPE", "inferenceservice")
         raw_default_name = os.getenv("VLLM_DEPLOYMENT_NAME", "llm-ov-predictor")
-        self._default_namespace: str = os.getenv("VLLM_NAMESPACE", os.getenv("K8S_NAMESPACE", "vllm-lab-dev"))
+        self._default_namespace: str = os.getenv("VLLM_NAMESPACE", "vllm-lab-dev")
         self._default_endpoint: str = os.getenv(
             "VLLM_ENDPOINT",
             "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080",

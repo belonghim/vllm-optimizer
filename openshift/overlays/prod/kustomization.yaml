@@ -55,14 +55,8 @@ patches:
       name: vllm-optimizer-config
     patch: |-
       - op: add
-        path: /data/ALLOWED_ORIGINS
-        value: "https://vllm-optimizer.apps.example.com"
-      - op: add
         path: /data/VLLM_ENDPOINT
         value: "https://llm-ov-predictor.vllm-lab-prod.svc.cluster.local:8080"
-      - op: add
-        path: /data/K8S_NAMESPACE
-        value: "vllm-lab-prod"
       - op: add
         path: /data/VLLM_NAMESPACE
         value: "vllm-lab-prod"
