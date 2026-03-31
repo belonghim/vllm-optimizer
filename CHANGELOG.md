@@ -29,6 +29,37 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [2026-03-31] - Codebase Hardening: Quality, Tests, Robustness
+
+**Status**: Completed
+
+dynamic-config-sync 이후 발견된 전체 코드베이스 개선사항 종합 수정 — 테스트 커버리지 확대, 코드 품질 개선, 인프라 견고성 강화.
+
+### Added (Tests)
+- **`frontend/src/utils/endpointUtils.test.ts`**: 신규 — isvc/llmisvc 엔드포인트 빌드, 모델명 추출, URL 파싱 케이스 전수 검증
+- **`frontend/src/contexts/ClusterConfigContext.test.tsx`**: AbortController 정리, resolvedModelName 에러 핸들링, dual-fetch-on-mount 시나리오 포함 시나리오 대폭 확장
+- **`backend/tests/test_k8s_operator.py`**: 신규 — delete+create 전략, `_wait_for_deletion()`, rollback, 예외 로깅 경로 검증
+- **`backend/tests/test_event_broadcaster.py`**: 신규 — SSE broadcast, Prometheus 메트릭 증가, cleanup 검증
+- **`backend/tests/test_tuner_logic.py`**: 신규 — Optuna study 생성, trial 평가, best params 조회 검증
+
+### Fixed
+- **`frontend/src/contexts/ClusterConfigContext.tsx`**: `resolvedModelName` fetch에 `AbortController` 추가 — 의존성 변경 시 이전 요청 정리. fetch 실패 시 이전 값 보존 (에러로 덮어쓰지 않음).
+- **`frontend/src/contexts/MockDataContext.test.tsx`**: 기본값 `true` → `false` 변경 반영 — 3개 assertion 수정.
+- **`backend/routers/status.py`**: `async` 함수 내 동기 `open()` → `asyncio.to_thread()` 래핑으로 event loop 블로킹 제거.
+- **`backend/services/k8s_operator.py`**: L183 `ApiException` 묵음 처리 → `logger.warning()` 로깅 추가.
+- **`backend/routers/load_test.py`**: `get_storage()` 반환 타입 누락 → `-> BenchmarkStorage` 명시.
+
+### Changed
+- **`deploy.sh`**: 필수 환경변수(`REGISTRY`, `IMAGE_TAG`) 미설정 시 조기 종료 검증 추가. 하드코딩된 값 환경변수화.
+- **`backend/Dockerfile`**, **`frontend/Dockerfile`**: `COPY requirements.txt` / `COPY package.json` → `RUN install` → `COPY .` 순서 재정렬로 레이어 캐시 적중률 향상.
+
+### Verification
+- Frontend: 379 passed, 0 failed
+- Backend: 440 passed, 0 failed (`not integration`)
+- Final Wave: F1 APPROVE | F2 APPROVE | F3 APPROVE | F4 APPROVE
+
+---
+
 ## [2026-03-30] - KServe Alignment & LLMIS Reference Cleanup
 
 **Status**: Completed
