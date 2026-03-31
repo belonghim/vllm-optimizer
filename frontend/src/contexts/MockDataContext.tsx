@@ -20,7 +20,7 @@ interface MockDataProviderProps {
 export function MockDataProvider({ children }: MockDataProviderProps) {
   const [isMockEnabled, setIsMockEnabled] = useState(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return stored === null ? true : stored === "true";
+    return stored === null ? false : stored === "true";
   });
 
   useEffect(() => {
