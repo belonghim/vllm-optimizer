@@ -1,3 +1,5 @@
+import copy
+
 import pytest
 
 from services.cr_adapter import (
@@ -163,6 +165,63 @@ class TestInferenceServiceAdapter:
         assert "--enable-chunked-prefill" in patched_args
         assert "--max-num-seqs=256" not in patched_args
 
+    def test_apply_args_to_cr_updates_full_cr_and_cleans_server_fields(self):
+        adapter = InferenceServiceAdapter()
+        cr_obj = {
+            "apiVersion": "serving.kserve.io/v1beta1",
+            "kind": "InferenceService",
+            "metadata": {
+                "name": "llm-ov",
+                "namespace": "test-ns",
+                "resourceVersion": "123",
+                "uid": "abc",
+                "creationTimestamp": "now",
+                "generation": 2,
+                "managedFields": [{"manager": "kube"}],
+            },
+            "spec": copy.deepcopy(SAMPLE_IS_SPEC),
+            "status": {"conditions": []},
+        }
+
+        updated = adapter.apply_args_to_cr(cr_obj, {"max_num_seqs": "512"})
+        updated_args = updated["spec"]["predictor"]["model"]["args"]
+
+        assert "--max-num-seqs=512" in updated_args
+        assert "--tensor-parallel-size=1" in updated_args
+        assert "status" not in updated
+        assert "resourceVersion" not in updated["metadata"]
+        assert "uid" not in updated["metadata"]
+        assert "creationTimestamp" not in updated["metadata"]
+        assert "generation" not in updated["metadata"]
+        assert "managedFields" not in updated["metadata"]
+
+    def test_restore_cr_from_snapshot_cleans_server_fields(self):
+        adapter = InferenceServiceAdapter()
+        snapshot = {
+            "apiVersion": "serving.kserve.io/v1beta1",
+            "kind": "InferenceService",
+            "metadata": {
+                "name": "llm-ov",
+                "namespace": "test-ns",
+                "resourceVersion": "123",
+                "uid": "abc",
+                "creationTimestamp": "now",
+                "generation": 2,
+                "managedFields": [{"manager": "kube"}],
+            },
+            "spec": {"predictor": {"model": {"args": ["--max-num-seqs=64"]}}},
+            "status": {"conditions": []},
+        }
+
+        restored = adapter.restore_cr_from_snapshot(snapshot)
+        assert restored["spec"]["predictor"]["model"]["args"] == ["--max-num-seqs=64"]
+        assert "status" not in restored
+        assert "resourceVersion" not in restored["metadata"]
+        assert "uid" not in restored["metadata"]
+        assert "creationTimestamp" not in restored["metadata"]
+        assert "generation" not in restored["metadata"]
+        assert "managedFields" not in restored["metadata"]
+
     def test_read_resources(self):
         adapter = InferenceServiceAdapter()
         resources = adapter.read_resources(SAMPLE_IS_SPEC)
@@ -308,6 +367,66 @@ class TestLLMInferenceServiceAdapter:
         assert "--gpu-memory-utilization=0.80" in value
         assert "--max-model-len=8192" in value
         assert "--max-num-seqs=256" in value
+
+    def test_apply_args_to_cr_updates_existing_env_and_cleans_server_fields(self):
+        adapter = LLMInferenceServiceAdapter()
+        cr_obj = {
+            "apiVersion": "serving.kserve.io/v1alpha1",
+            "kind": "LLMInferenceService",
+            "metadata": {
+                "name": "small-llm-d",
+                "namespace": "test-ns",
+                "resourceVersion": "123",
+                "uid": "abc",
+                "creationTimestamp": "now",
+                "generation": 2,
+                "managedFields": [{"manager": "kube"}],
+            },
+            "spec": copy.deepcopy(SAMPLE_LLMIS_SPEC),
+            "status": {"conditions": []},
+        }
+
+        updated = adapter.apply_args_to_cr(cr_obj, {"max_num_seqs": "256"})
+        main_container = next(c for c in updated["spec"]["template"]["containers"] if c["name"] == "main")
+        env_map = {env["name"]: env["value"] for env in main_container["env"]}
+
+        assert "HOME" in env_map
+        assert "--max-num-seqs=256" in env_map["VLLM_ADDITIONAL_ARGS"]
+        assert "--tensor-parallel-size=1" in env_map["VLLM_ADDITIONAL_ARGS"]
+        assert "status" not in updated
+        assert "resourceVersion" not in updated["metadata"]
+        assert "uid" not in updated["metadata"]
+        assert "creationTimestamp" not in updated["metadata"]
+        assert "generation" not in updated["metadata"]
+        assert "managedFields" not in updated["metadata"]
+
+    def test_restore_cr_from_snapshot_for_llmis_cleans_server_fields(self):
+        adapter = LLMInferenceServiceAdapter()
+        snapshot = {
+            "apiVersion": "serving.kserve.io/v1alpha1",
+            "kind": "LLMInferenceService",
+            "metadata": {
+                "name": "small-llm-d",
+                "namespace": "test-ns",
+                "resourceVersion": "123",
+                "uid": "abc",
+                "creationTimestamp": "now",
+                "generation": 2,
+                "managedFields": [{"manager": "kube"}],
+            },
+            "spec": copy.deepcopy(SAMPLE_LLMIS_SPEC),
+            "status": {"conditions": []},
+        }
+
+        restored = adapter.restore_cr_from_snapshot(snapshot)
+        main_container = next(c for c in restored["spec"]["template"]["containers"] if c["name"] == "main")
+        assert any(env["name"] == "VLLM_ADDITIONAL_ARGS" for env in main_container["env"])
+        assert "status" not in restored
+        assert "resourceVersion" not in restored["metadata"]
+        assert "uid" not in restored["metadata"]
+        assert "creationTimestamp" not in restored["metadata"]
+        assert "generation" not in restored["metadata"]
+        assert "managedFields" not in restored["metadata"]
 
     def test_read_resources(self):
         adapter = LLMInferenceServiceAdapter()

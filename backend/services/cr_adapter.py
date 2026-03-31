@@ -1,5 +1,6 @@
 # pyright: reportImportCycles=false
 import abc
+import copy
 import os
 import shlex
 from typing import Any
@@ -17,6 +18,14 @@ _ARG_TO_KEY = {
 }
 _KEY_TO_ARG = {v: k for k, v in _ARG_TO_KEY.items()}
 TUNING_ARG_PREFIXES = tuple(_ARG_TO_KEY.keys())
+_SERVER_MANAGED_METADATA_FIELDS = {
+    "resourceVersion",
+    "uid",
+    "creationTimestamp",
+    "generation",
+    "managedFields",
+}
+_SERVER_MANAGED_TOP_LEVEL_FIELDS = _SERVER_MANAGED_METADATA_FIELDS | {"status"}
 
 
 def _split_space_args(value: str) -> list[str]:
@@ -97,6 +106,18 @@ def _is_ready_condition(status: dict[str, Any]) -> bool:
     return False
 
 
+def _clean_cr_for_create(cr_obj: dict[str, Any]) -> dict[str, Any]:
+    cleaned = copy.deepcopy(cr_obj)
+    metadata = cleaned.get("metadata")
+    if isinstance(metadata, dict):
+        for key in _SERVER_MANAGED_METADATA_FIELDS:
+            metadata.pop(key, None)
+
+    for key in _SERVER_MANAGED_TOP_LEVEL_FIELDS:
+        cleaned.pop(key, None)
+    return cleaned
+
+
 def deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     """Recursively merge two dicts; override takes precedence."""
     result = dict(base)
@@ -127,6 +148,16 @@ class CRAdapter(abc.ABC):
 
     @abc.abstractmethod
     def build_args_patch(self, current_spec: dict[str, Any], new_config: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def apply_args_to_cr(self, cr_obj: dict[str, Any], new_config: dict[str, Any]) -> dict[str, Any]:
+        """Apply new_config args to full CR object. Returns clean CR body for create."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def restore_cr_from_snapshot(self, snapshot: dict[str, Any]) -> dict[str, Any]:
+        """Return clean CR body from snapshot for restore/rollback."""
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -209,6 +240,20 @@ class InferenceServiceAdapter(CRAdapter):
         tuning_args = config_dict_to_args_list(current_config)
 
         return {"spec": {"predictor": {"model": {"args": static_args + tuning_args}}}}
+
+    def apply_args_to_cr(self, cr_obj: dict[str, Any], new_config: dict[str, Any]) -> dict[str, Any]:
+        patch = self.build_args_patch(cr_obj.get("spec", {}), new_config)
+        args = patch.get("spec", {}).get("predictor", {}).get("model", {}).get("args") or []
+
+        spec = cr_obj.setdefault("spec", {})
+        predictor = spec.setdefault("predictor", {})
+        model = predictor.setdefault("model", {})
+        model["args"] = args
+
+        return _clean_cr_for_create(cr_obj)
+
+    def restore_cr_from_snapshot(self, snapshot: dict[str, Any]) -> dict[str, Any]:
+        return _clean_cr_for_create(snapshot)
 
     def read_resources(self, spec: dict[str, Any]) -> dict[str, Any]:
         return spec.get("predictor", {}).get("model", {}).get("resources") or {}
@@ -309,6 +354,48 @@ class LLMInferenceServiceAdapter(CRAdapter):
                 }
             }
         }
+
+    def apply_args_to_cr(self, cr_obj: dict[str, Any], new_config: dict[str, Any]) -> dict[str, Any]:
+        patch = self.build_args_patch(cr_obj.get("spec", {}), new_config)
+        patched_env = patch.get("spec", {}).get("template", {}).get("containers", [{}])[0].get("env", [])
+        new_value = ""
+        for env in patched_env:
+            if env.get("name") == self._ADDITIONAL_ARGS_ENV_NAME:
+                new_value = env.get("value") or ""
+                break
+
+        spec = cr_obj.setdefault("spec", {})
+        template = spec.setdefault("template", {})
+        containers = template.setdefault("containers", [])
+
+        main_container = None
+        for container in containers:
+            if container.get("name") == self._MAIN_CONTAINER_NAME:
+                main_container = container
+                break
+
+        if main_container is None:
+            main_container = {"name": self._MAIN_CONTAINER_NAME, "env": []}
+            containers.append(main_container)
+
+        env_list = main_container.get("env")
+        if not isinstance(env_list, list):
+            env_list = []
+            main_container["env"] = env_list
+
+        updated = False
+        for env in env_list:
+            if env.get("name") == self._ADDITIONAL_ARGS_ENV_NAME:
+                env["value"] = new_value
+                updated = True
+                break
+        if not updated:
+            env_list.append({"name": self._ADDITIONAL_ARGS_ENV_NAME, "value": new_value})
+
+        return _clean_cr_for_create(cr_obj)
+
+    def restore_cr_from_snapshot(self, snapshot: dict[str, Any]) -> dict[str, Any]:
+        return _clean_cr_for_create(snapshot)
 
     def read_resources(self, spec: dict[str, Any]) -> dict[str, Any]:
         container = self._find_main_container(spec)

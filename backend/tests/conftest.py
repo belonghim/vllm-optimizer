@@ -183,6 +183,12 @@ class _DummyCustomObjectsApi:
     def patch_namespaced_custom_object(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
         return {}
 
+    def delete_namespaced_custom_object(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        return {}
+
+    def create_namespaced_custom_object(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        return {}
+
 
 def _ensure_kubernetes(monkeypatch: pytest.MonkeyPatch) -> None:
     """Create stub modules and patch kube client/exported helpers."""

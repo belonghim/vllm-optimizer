@@ -51,7 +51,8 @@ def mock_k8s_clients():
             "spec": {"predictor": {"model": {"args": []}}},
             "status": {"conditions": [{"type": "Ready", "status": "True"}]},
         }
-        mock_custom_api.patch_namespaced_custom_object.return_value = {}
+        mock_custom_api.delete_namespaced_custom_object.return_value = {}
+        mock_custom_api.create_namespaced_custom_object.return_value = {}
 
         mock_apps_cls.return_value = mock_apps_api
         mock_custom_cls.return_value = mock_custom_api
@@ -66,6 +67,7 @@ def auto_tuner_instance(mock_k8s_clients):
     tuner = AutoTuner(metrics_collector, load_engine)
     tuner._cooldown_secs = 0
     tuner._k8s_available = True
+    tuner._k8s_operator._wait_for_deletion = AsyncMock(return_value=None)
     return tuner
 
 
@@ -120,7 +122,7 @@ async def test_start_happy_path_two_trials_returns_best_result(auto_tuner_instan
 async def test_apply_params_handles_k8s_api_exception_during_patch(auto_tuner_instance, mock_k8s_clients):
     tuner = auto_tuner_instance
     mock_custom_api = mock_k8s_clients["custom"]
-    mock_custom_api.patch_namespaced_custom_object.side_effect = ApiException(status=403, reason="Forbidden")
+    mock_custom_api.create_namespaced_custom_object.side_effect = ApiException(status=403, reason="Forbidden")
 
     result = await tuner._apply_params(
         {

@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -14,6 +15,25 @@ from ..services.load_engine import LoadTestEngine
 from ..services.multi_target_collector import MultiTargetMetricsCollector
 
 pytestmark = pytest.mark.slow
+
+
+def _extract_tuning_args_from_created_cr(body: dict[str, Any]) -> list[str]:
+    spec = body.get("spec", {})
+    predictor_args = spec.get("predictor", {}).get("model", {}).get("args")
+    if isinstance(predictor_args, list) and predictor_args:
+        return predictor_args
+
+    containers = spec.get("template", {}).get("containers", [])
+    for container in containers:
+        if container.get("name") != "main":
+            continue
+        for env in container.get("env", []):
+            if env.get("name") == "VLLM_ADDITIONAL_ARGS":
+                return str(env.get("value") or "").split()
+
+    if isinstance(predictor_args, list):
+        return predictor_args
+    return []
 
 
 def test_stream_endpoint_exists(client):
@@ -89,7 +109,8 @@ def mock_k8s_clients():
             },
             "status": {"conditions": [{"type": "Ready", "status": "True"}]},
         }
-        mock_custom_api.return_value.patch_namespaced_custom_object = MagicMock()
+        mock_custom_api.return_value.delete_namespaced_custom_object = MagicMock()
+        mock_custom_api.return_value.create_namespaced_custom_object = MagicMock()
         yield mock_apps_api, mock_core_api, mock_custom_api
 
 
@@ -103,6 +124,7 @@ def auto_tuner_instance(mock_k8s_clients):
     tuner._k8s_apps = mock_k8s_clients[0].return_value
     tuner._k8s_core = mock_k8s_clients[1].return_value  # type: ignore  # Mock attr assignment, _k8s_core is K8s CoreV1Api
     tuner._k8s_custom = mock_k8s_clients[2].return_value
+    tuner._k8s_operator._wait_for_deletion = AsyncMock(return_value=None)
     return tuner
 
 
@@ -259,8 +281,8 @@ async def test_rollback_on_wait_for_ready_timeout(auto_tuner_instance, mock_k8s_
 
     await tuner.start(config, "http://mock:8080")
 
-    patch_calls = mock_custom_api.patch_namespaced_custom_object.call_args_list
-    assert len(patch_calls) >= 2, "Expected at least 2 IS patches (apply + rollback)"
+    create_calls = mock_custom_api.create_namespaced_custom_object.call_args_list
+    assert len(create_calls) >= 2, "Expected at least 2 IS recreates (apply + rollback)"
 
     assert tuner._last_rollback_trial == 0
 
@@ -296,9 +318,9 @@ async def test_start_reapplies_best_params_at_end(auto_tuner_instance, mock_k8s_
     last_call_args, _ = tuner._apply_params.call_args_list[-1]
     assert last_call_args[0] == tuner._best_trial.params
 
-    last_patch_call = mock_custom_api.patch_namespaced_custom_object.call_args_list[-1]
-    patch_body = last_patch_call[1]["body"]
-    patched_args = patch_body["spec"]["predictor"]["model"]["args"]
+    last_create_call = mock_custom_api.create_namespaced_custom_object.call_args_list[-1]
+    patch_body = last_create_call[1]["body"]
+    patched_args = _extract_tuning_args_from_created_cr(patch_body)
     expected_tuning_args = []
     expected_tuning_args.append(f"--max-num-seqs={tuner._best_trial.params['max_num_seqs']}")
     expected_tuning_args.append(f"--gpu-memory-utilization={tuner._best_trial.params['gpu_memory_utilization']}")
@@ -306,8 +328,7 @@ async def test_start_reapplies_best_params_at_end(auto_tuner_instance, mock_k8s_
     for expected_arg in expected_tuning_args:
         assert expected_arg in patched_args, f"Expected {expected_arg} in patched args: {patched_args}"
 
-    # IS patch should be called once per trial + once for final best params reapplication
-    assert mock_custom_api.patch_namespaced_custom_object.call_count == config.n_trials + 1
+    assert mock_custom_api.create_namespaced_custom_object.call_count == config.n_trials + 1
 
 
 @pytest.mark.asyncio
@@ -525,9 +546,9 @@ async def test_apply_params_uses_correct_configmap_keys(auto_tuner_instance, moc
 
     await tuner._apply_params(params)
 
-    mock_custom_api.patch_namespaced_custom_object.assert_called_once()
-    call_args = mock_custom_api.patch_namespaced_custom_object.call_args
-    patch_args = call_args.kwargs["body"]["spec"]["predictor"]["model"]["args"]
+    mock_custom_api.create_namespaced_custom_object.assert_called_once()
+    call_args = mock_custom_api.create_namespaced_custom_object.call_args
+    patch_args = _extract_tuning_args_from_created_cr(call_args.kwargs["body"])
 
     assert "--enable-chunked-prefill" in patch_args
 
@@ -658,9 +679,9 @@ async def test_apply_params_includes_new_configmap_keys(auto_tuner_instance, moc
 
     await tuner._apply_params(params)
 
-    mock_custom_api.patch_namespaced_custom_object.assert_called_once()
-    call_args = mock_custom_api.patch_namespaced_custom_object.call_args
-    patch_args = call_args.kwargs["body"]["spec"]["predictor"]["model"]["args"]
+    mock_custom_api.create_namespaced_custom_object.assert_called_once()
+    call_args = mock_custom_api.create_namespaced_custom_object.call_args
+    patch_args = _extract_tuning_args_from_created_cr(call_args.kwargs["body"])
 
     assert "--max-num-batched-tokens=512" in patch_args
     assert "--block-size=16" in patch_args
@@ -1038,8 +1059,8 @@ async def test_apply_params_swap_space_configmap_key(auto_tuner_instance, mock_k
 
     await tuner._apply_params(params)
 
-    call_args = mock_custom_api.patch_namespaced_custom_object.call_args
-    patch_args = call_args.kwargs["body"]["spec"]["predictor"]["model"]["args"]
+    call_args = mock_custom_api.create_namespaced_custom_object.call_args
+    patch_args = _extract_tuning_args_from_created_cr(call_args.kwargs["body"])
     assert "--swap-space=4.0" in patch_args
 
 
@@ -1099,17 +1120,17 @@ async def test_chunked_prefill_false_writes_empty_string(auto_tuner_instance, mo
 
     await tuner._apply_params(params)
 
-    call_args = mock_custom_api.patch_namespaced_custom_object.call_args
-    patch_args = call_args.kwargs["body"]["spec"]["predictor"]["model"]["args"]
+    call_args = mock_custom_api.create_namespaced_custom_object.call_args
+    patch_args = _extract_tuning_args_from_created_cr(call_args.kwargs["body"])
 
     assert "--enable-chunked-prefill" not in patch_args
 
-    mock_custom_api.patch_namespaced_custom_object.reset_mock()
+    mock_custom_api.create_namespaced_custom_object.reset_mock()
     params_true = {**params, "enable_chunked_prefill": True}
     await tuner._apply_params(params_true)
-    patch_args_true = mock_custom_api.patch_namespaced_custom_object.call_args.kwargs["body"]["spec"]["predictor"][
-        "model"
-    ]["args"]
+    patch_args_true = _extract_tuning_args_from_created_cr(
+        mock_custom_api.create_namespaced_custom_object.call_args.kwargs["body"]
+    )
     assert "--enable-chunked-prefill" in patch_args_true
 
 
@@ -1138,17 +1159,17 @@ async def test_enforce_eager_writes_correct_values(auto_tuner_instance, mock_k8s
     }
 
     await tuner._apply_params(params_false)
-    patch_args_false = mock_custom_api.patch_namespaced_custom_object.call_args.kwargs["body"]["spec"]["predictor"][
-        "model"
-    ]["args"]
+    patch_args_false = _extract_tuning_args_from_created_cr(
+        mock_custom_api.create_namespaced_custom_object.call_args.kwargs["body"]
+    )
     assert "--enforce-eager" not in patch_args_false
 
-    mock_custom_api.patch_namespaced_custom_object.reset_mock()
+    mock_custom_api.create_namespaced_custom_object.reset_mock()
     params_true = {**params_false, "enable_enforce_eager": True}
     await tuner._apply_params(params_true)
-    patch_args_true = mock_custom_api.patch_namespaced_custom_object.call_args.kwargs["body"]["spec"]["predictor"][
-        "model"
-    ]["args"]
+    patch_args_true = _extract_tuning_args_from_created_cr(
+        mock_custom_api.create_namespaced_custom_object.call_args.kwargs["body"]
+    )
     assert "--enforce-eager" in patch_args_true
 
 
@@ -1200,7 +1221,7 @@ async def test_phase_events_broadcast_in_start(auto_tuner_instance, mock_k8s_cli
 async def test_apply_params_returns_failure_when_is_patch_throws(auto_tuner_instance, mock_k8s_clients):
     tuner = auto_tuner_instance
     mock_custom_api = mock_k8s_clients[2].return_value
-    mock_custom_api.patch_namespaced_custom_object.side_effect = Exception("InferenceService not found")
+    mock_custom_api.create_namespaced_custom_object.side_effect = Exception("InferenceService not found")
 
     params = {
         "max_num_seqs": 64,
@@ -1222,16 +1243,18 @@ async def test_rollback_uses_inferenceservice_annotation(auto_tuner_instance, mo
     tuner = auto_tuner_instance
     mock_custom_api = mock_k8s_clients[2].return_value
 
-    tuner._is_args_snapshot = ["--max-num-seqs=64"]
+    tuner._is_args_snapshot = {
+        "metadata": {"name": _get_vllm_is_name(), "namespace": _get_k8s_namespace()},
+        "spec": {"predictor": {"model": {"args": ["--max-num-seqs=64"]}}},
+    }
 
     await tuner._rollback_to_snapshot(0)
 
-    mock_custom_api.patch_namespaced_custom_object.assert_called_once()
-    call_args = mock_custom_api.patch_namespaced_custom_object.call_args
-    assert call_args.kwargs["name"] == _get_vllm_is_name()
+    mock_custom_api.create_namespaced_custom_object.assert_called_once()
+    call_args = mock_custom_api.create_namespaced_custom_object.call_args
     assert call_args.kwargs["namespace"] == _get_k8s_namespace()
     patch_body = call_args.kwargs["body"]
-    assert patch_body["spec"]["predictor"]["model"]["args"] == tuner._is_args_snapshot
+    assert patch_body["spec"]["predictor"]["model"]["args"] == ["--max-num-seqs=64"]
 
 
 def test_config_has_resolved_model_name(client):
@@ -1310,7 +1333,7 @@ async def test_circuit_breaker_stops_on_consecutive_rbac_failure(auto_tuner_inst
             },
         },
     }
-    mock_custom_api.patch_namespaced_custom_object.side_effect = ApiException(status=403)
+    mock_custom_api.create_namespaced_custom_object.side_effect = ApiException(status=403)
     config = TuningConfig(n_trials=3, eval_requests=5, warmup_requests=0)
     await tuner.start(config, "http://mock:8080")
     assert tuner._cancel_event.is_set()
@@ -1362,7 +1385,7 @@ async def test_apply_params_returns_error_when_k8s_unavailable(auto_tuner_instan
 
 @pytest.mark.asyncio
 async def test_404_circuit_break_stops_tuning(auto_tuner_instance, mock_k8s_clients):
-    """A2: patch_namespaced_custom_object raises 404 → cancel + tuning_error SSE, no trials."""
+    """A2: create_namespaced_custom_object raises 404 → cancel + tuning_error SSE, no trials."""
     tuner = auto_tuner_instance
     from kubernetes.client.exceptions import ApiException
 
@@ -1383,7 +1406,7 @@ async def test_404_circuit_break_stops_tuning(auto_tuner_instance, mock_k8s_clie
         },
         "status": {"conditions": [{"type": "Ready", "status": "True"}]},
     }
-    mock_custom.patch_namespaced_custom_object.side_effect = ApiException(status=404)
+    mock_custom.create_namespaced_custom_object.side_effect = ApiException(status=404)
 
     q = await tuner.subscribe()
     config = TuningConfig(n_trials=3, eval_requests=5, warmup_requests=0)
@@ -1422,7 +1445,7 @@ async def test_non_rbac_apply_failure_broadcasts_sse(auto_tuner_instance, mock_k
         },
         "status": {"conditions": [{"type": "Ready", "status": "True"}]},
     }
-    mock_custom.patch_namespaced_custom_object.side_effect = Exception("Connection refused")
+    mock_custom.create_namespaced_custom_object.side_effect = Exception("Connection refused")
 
     q = await tuner.subscribe()
     config = TuningConfig(n_trials=2, eval_requests=5, warmup_requests=0)
@@ -1460,7 +1483,7 @@ async def test_is_ready_failure_broadcasts_warning(auto_tuner_instance, mock_k8s
         },
         "status": {"conditions": [{"type": "Ready", "status": "True"}]},
     }
-    mock_custom.patch_namespaced_custom_object.return_value = None
+    mock_custom.create_namespaced_custom_object.return_value = None
 
     q = await tuner.subscribe()
     config = TuningConfig(n_trials=1, eval_requests=5, warmup_requests=0)
@@ -1497,7 +1520,7 @@ async def test_trial_evaluation_failure_broadcasts_warning(auto_tuner_instance, 
         },
         "status": {"conditions": [{"type": "Ready", "status": "True"}]},
     }
-    mock_custom.patch_namespaced_custom_object.return_value = None
+    mock_custom.create_namespaced_custom_object.return_value = None
 
     q = await tuner.subscribe()
     config = TuningConfig(n_trials=1, eval_requests=5, warmup_requests=0)
@@ -1535,7 +1558,7 @@ async def test_storage_fallback_broadcasts_warning(auto_tuner_instance, mock_k8s
         },
         "status": {"conditions": [{"type": "Ready", "status": "True"}]},
     }
-    mock_custom.patch_namespaced_custom_object.return_value = None
+    mock_custom.create_namespaced_custom_object.return_value = None
 
     q = await tuner.subscribe()
     config = TuningConfig(n_trials=1, eval_requests=5, warmup_requests=0)
@@ -1656,7 +1679,7 @@ async def test_clear_running_called_on_exception_during_tuning(auto_tuner_instan
         "spec": {"predictor": {"model": {"args": []}}},
         "status": {"conditions": [{"type": "Ready", "status": "True"}]},
     }
-    mock_custom.patch_namespaced_custom_object.return_value = None
+    mock_custom.create_namespaced_custom_object.return_value = None
 
     from ..services import auto_tuner as _at_mod
 

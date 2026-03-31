@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import logging
 import time
 from typing import Any, cast
@@ -123,6 +124,41 @@ class K8sOperator:
 
         return result
 
+    async def _wait_for_deletion(
+        self,
+        name: str,
+        namespace: str,
+        group: str,
+        version: str,
+        plural: str,
+        cancel_event: asyncio.Event | None = None,
+        timeout: int = 60,
+        interval: int = 2,
+    ) -> None:
+        custom_api = cast(Any, self._k8s_custom)
+        deadline = asyncio.get_event_loop().time() + timeout
+        while True:
+            if cancel_event and cancel_event.is_set():
+                raise asyncio.CancelledError()
+
+            try:
+                await asyncio.to_thread(
+                    custom_api.get_namespaced_custom_object,
+                    group=group,
+                    version=version,
+                    namespace=namespace,
+                    plural=plural,
+                    name=name,
+                )
+            except ApiException as e:
+                if e.status == 404:
+                    return
+
+            if asyncio.get_event_loop().time() > deadline:
+                raise TimeoutError(f"CR {name} not deleted within {timeout}s")
+
+            await asyncio.sleep(interval)
+
     async def preflight_check(self) -> dict[str, Any]:
         if not self._k8s_available:
             return {
@@ -228,7 +264,7 @@ class K8sOperator:
                 is_name = _get_vllm_is_name()
                 custom_api = cast(Any, self._k8s_custom)
                 logger.info(f"[AutoTuner] InferenceService '{is_name}' in namespace '{namespace}'")
-                isvc = await asyncio.to_thread(
+                cr_obj = await asyncio.to_thread(
                     custom_api.get_namespaced_custom_object,
                     group=self._cr_adapter.api_group(),
                     version=self._cr_adapter.api_version(),
@@ -236,27 +272,62 @@ class K8sOperator:
                     namespace=namespace,
                     plural=self._cr_adapter.api_plural(),
                 )
-                _isvc2: dict[str, Any] = cast(dict[str, Any], isvc) if isvc else {}
-                self._is_args_snapshot = self._cr_adapter.snapshot_args(_isvc2.get("spec", {}))
+                _cr_obj: dict[str, Any] = cast(dict[str, Any], cr_obj) if cr_obj else {}
+                self._is_args_snapshot = copy.deepcopy(_cr_obj)
 
                 tuning_args = self.params_to_args(params)
                 params_config_dict = args_list_to_config_dict(tuning_args)
-                patch_body = self._cr_adapter.build_args_patch(_isvc2.get("spec", {}), params_config_dict)
+                modified_cr = self._cr_adapter.apply_args_to_cr(_cr_obj, params_config_dict)
 
                 await asyncio.to_thread(
-                    custom_api.patch_namespaced_custom_object,
+                    custom_api.delete_namespaced_custom_object,
                     group=self._cr_adapter.api_group(),
                     version=self._cr_adapter.api_version(),
                     namespace=namespace,
                     plural=self._cr_adapter.api_plural(),
                     name=is_name,
-                    body=patch_body,
+                    body={},
                 )
-                logger.info(f"[AutoTuner] InferenceService '{is_name}' args patched successfully: {tuning_args}")
+                await self._wait_for_deletion(
+                    name=is_name,
+                    namespace=namespace,
+                    group=self._cr_adapter.api_group(),
+                    version=self._cr_adapter.api_version(),
+                    plural=self._cr_adapter.api_plural(),
+                )
+
+                try:
+                    await asyncio.to_thread(
+                        custom_api.create_namespaced_custom_object,
+                        group=self._cr_adapter.api_group(),
+                        version=self._cr_adapter.api_version(),
+                        namespace=namespace,
+                        plural=self._cr_adapter.api_plural(),
+                        body=modified_cr,
+                    )
+                except Exception as create_error:
+                    logger.error("[AutoTuner] CR recreate failed, attempting rollback restore: %s", create_error)
+                    if self._is_args_snapshot is not None:
+                        try:
+                            rollback_body = self._cr_adapter.restore_cr_from_snapshot(self._is_args_snapshot)
+                            await asyncio.to_thread(
+                                custom_api.create_namespaced_custom_object,
+                                group=self._cr_adapter.api_group(),
+                                version=self._cr_adapter.api_version(),
+                                namespace=namespace,
+                                plural=self._cr_adapter.api_plural(),
+                                body=rollback_body,
+                            )
+                            logger.info("[AutoTuner] Snapshot restore create succeeded after apply failure")
+                        except Exception as rollback_error:
+                            logger.error("[AutoTuner] Snapshot restore create failed: %s", rollback_error)
+                    raise
+
+                logger.info(f"[AutoTuner] InferenceService '{is_name}' replaced successfully: {tuning_args}")
 
             return {"success": True}
         except ApiException as e:
-            logger.error(f"[AutoTuner] InferenceService args patch failed: {e}")
+            logger.error(f"[AutoTuner] InferenceService replace failed: {e}")
             if e.status == 403:
                 return {
                     "success": False,
@@ -271,7 +342,7 @@ class K8sOperator:
                     "error": f"InferenceService '{is_name}'을(를) '{namespace}'에서 찾을 수 없습니다.",
                     "error_type": "not_found",
                 }
-            return {"success": False, "error": f"InferenceService args patch failed: {e}"}
+            return {"success": False, "error": f"InferenceService replace failed: {e}"}
         except Exception as e:  # intentional: K8s operation fallback (fail-open)
             logger.error(f"[AutoTuner] 파라미터 적용 실패: {e}")
             return {"success": False, "error": str(e)}
@@ -285,15 +356,31 @@ class K8sOperator:
                 namespace = _get_k8s_namespace()
                 is_name = _get_vllm_is_name()
                 custom_api = cast(Any, self._k8s_custom)
-                patch_body = self._cr_adapter.build_rollback_patch(self._is_args_snapshot)
+
+                restore_body = self._cr_adapter.restore_cr_from_snapshot(self._is_args_snapshot)
                 await asyncio.to_thread(
-                    custom_api.patch_namespaced_custom_object,
+                    custom_api.delete_namespaced_custom_object,
                     group=self._cr_adapter.api_group(),
                     version=self._cr_adapter.api_version(),
                     namespace=namespace,
                     plural=self._cr_adapter.api_plural(),
                     name=is_name,
-                    body=patch_body,
+                    body={},
+                )
+                await self._wait_for_deletion(
+                    name=is_name,
+                    namespace=namespace,
+                    group=self._cr_adapter.api_group(),
+                    version=self._cr_adapter.api_version(),
+                    plural=self._cr_adapter.api_plural(),
+                )
+                await asyncio.to_thread(
+                    custom_api.create_namespaced_custom_object,
+                    group=self._cr_adapter.api_group(),
+                    version=self._cr_adapter.api_version(),
+                    namespace=namespace,
+                    plural=self._cr_adapter.api_plural(),
+                    body=restore_body,
                 )
             self._last_rollback_trial = trial_num
             logger.info("[AutoTuner] Rollback to snapshot completed for trial %d", trial_num)

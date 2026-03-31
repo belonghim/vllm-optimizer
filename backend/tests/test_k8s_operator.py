@@ -1,5 +1,6 @@
 import asyncio
-from unittest.mock import MagicMock, patch
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from kubernetes.client.exceptions import ApiException
@@ -20,9 +21,14 @@ def _make_cr_adapter() -> MagicMock:
     adapter.api_group.return_value = "serving.kserve.io"
     adapter.api_version.return_value = "v1beta1"
     adapter.api_plural.return_value = "inferenceservices"
-    adapter.snapshot_args.return_value = {"--max-num-seqs": "64"}
-    adapter.build_args_patch.return_value = {"spec": {"predictor": {"model": {"args": []}}}}
-    adapter.build_rollback_patch.return_value = {"spec": {"predictor": {"model": {"args": []}}}}
+    adapter.apply_args_to_cr.return_value = {
+        "metadata": {"name": "test-isvc", "namespace": "test-ns"},
+        "spec": {"predictor": {"model": {"args": ["--max-num-seqs=64"]}}},
+    }
+    adapter.restore_cr_from_snapshot.return_value = {
+        "metadata": {"name": "test-isvc", "namespace": "test-ns"},
+        "spec": {"predictor": {"model": {"args": ["--max-num-seqs=64"]}}},
+    }
     return adapter
 
 
@@ -42,17 +48,20 @@ def mock_k8s():
             "spec": {"predictor": {"model": {"args": []}}},
             "status": {},
         }
-        mock_custom.patch_namespaced_custom_object.return_value = {}
+        mock_custom.delete_namespaced_custom_object.return_value = {}
+        mock_custom.create_namespaced_custom_object.return_value = {}
         yield {"apps": mock_apps, "custom": mock_custom}
 
 
 @pytest.fixture
-def operator(mock_k8s: dict) -> K8sOperator:
-    return K8sOperator()
+def operator(mock_k8s: dict[str, Any]) -> K8sOperator:
+    op = K8sOperator()
+    op._wait_for_deletion = AsyncMock(return_value=None)
+    return op
 
 
 @pytest.mark.asyncio
-async def test_apply_params_happy_path(operator: K8sOperator, mock_k8s: dict) -> None:
+async def test_apply_params_happy_path(operator: K8sOperator, mock_k8s: dict[str, Any]) -> None:
     with (
         patch.object(k8s_operator_module, "runtime_config", _make_runtime_config()),
         patch.object(k8s_operator_module, "get_cr_adapter", return_value=_make_cr_adapter()),
@@ -64,11 +73,12 @@ async def test_apply_params_happy_path(operator: K8sOperator, mock_k8s: dict) ->
         )
 
     assert result["success"] is True
-    mock_k8s["custom"].patch_namespaced_custom_object.assert_called_once()
+    mock_k8s["custom"].delete_namespaced_custom_object.assert_called_once()
+    mock_k8s["custom"].create_namespaced_custom_object.assert_called_once()
 
 
 @pytest.mark.asyncio
-async def test_apply_params_403_returns_rbac_error(operator: K8sOperator, mock_k8s: dict) -> None:
+async def test_apply_params_403_returns_rbac_error(operator: K8sOperator, mock_k8s: dict[str, Any]) -> None:
     mock_k8s["custom"].get_namespaced_custom_object.side_effect = ApiException(status=403)
 
     with (
@@ -103,8 +113,11 @@ async def test_apply_params_k8s_unavailable_returns_error() -> None:
 
 
 @pytest.mark.asyncio
-async def test_rollback_to_snapshot_success(operator: K8sOperator, mock_k8s: dict) -> None:
-    operator._is_args_snapshot = {"--max-num-seqs": "64"}
+async def test_rollback_to_snapshot_success(operator: K8sOperator, mock_k8s: dict[str, Any]) -> None:
+    operator._is_args_snapshot = {
+        "metadata": {"name": "test-isvc", "namespace": "test-ns"},
+        "spec": {"predictor": {"model": {"args": ["--max-num-seqs=64"]}}},
+    }
 
     with (
         patch.object(k8s_operator_module, "runtime_config", _make_runtime_config()),
@@ -115,7 +128,8 @@ async def test_rollback_to_snapshot_success(operator: K8sOperator, mock_k8s: dic
 
     assert result is True
     assert operator._last_rollback_trial == 1
-    mock_k8s["custom"].patch_namespaced_custom_object.assert_called_once()
+    mock_k8s["custom"].delete_namespaced_custom_object.assert_called_once()
+    mock_k8s["custom"].create_namespaced_custom_object.assert_called_once()
 
 
 def test_params_to_args_generates_correct_flags(operator: K8sOperator) -> None:
