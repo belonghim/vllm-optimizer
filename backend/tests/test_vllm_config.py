@@ -32,6 +32,15 @@ def _get_vllm_config_globals(client: TestClient, method: str | None = None):
     return None
 
 
+def _isvc_handler_patches(mock_custom: MagicMock, **overrides):
+    patches = {
+        "_get_k8s_custom": lambda: mock_custom,
+        "get_cr_adapter": lambda: InferenceServiceAdapter(),
+    }
+    patches.update(overrides)
+    return patches
+
+
 _MOCK_IS = {
     "spec": {
         "predictor": {
@@ -58,7 +67,7 @@ def test_get_vllm_config_returns_data(client_with_vllm_config):
     if handler_globals is None:
         pytest.skip("Route /api/vllm-config not found")
 
-    with patch.dict(handler_globals, {"_get_k8s_custom": lambda: mock_custom}):
+    with patch.dict(handler_globals, _isvc_handler_patches(mock_custom)):
         resp = client_with_vllm_config.get("/api/vllm-config")
         assert resp.status_code == 200
         data = resp.json()
@@ -81,7 +90,7 @@ def test_patch_vllm_config_valid_key(client):
     if handler_globals is None:
         pytest.skip("PATCH /api/vllm-config route not found")
 
-    with patch.dict(handler_globals, {"_get_k8s_custom": lambda: mock_custom}):
+    with patch.dict(handler_globals, _isvc_handler_patches(mock_custom)):
         resp = client.patch("/api/vllm-config", json={"data": {"max_num_seqs": "512"}})
         assert resp.status_code == 200
         data = resp.json()
@@ -109,7 +118,7 @@ def test_get_vllm_config_returns_storage_uri(client_with_vllm_config):
     if handler_globals is None:
         pytest.skip("Route /api/vllm-config not found")
 
-    with patch.dict(handler_globals, {"_get_k8s_custom": lambda: mock_custom}):
+    with patch.dict(handler_globals, _isvc_handler_patches(mock_custom)):
         resp = client_with_vllm_config.get("/api/vllm-config")
         assert resp.status_code == 200
         data = resp.json()
@@ -125,7 +134,7 @@ def test_patch_storage_uri_updates_is(client):
     if handler_globals is None:
         pytest.skip("PATCH /api/vllm-config route not found")
 
-    with patch.dict(handler_globals, {"_get_k8s_custom": lambda: mock_custom}):
+    with patch.dict(handler_globals, _isvc_handler_patches(mock_custom)):
         resp = client.patch("/api/vllm-config", json={"storageUri": "oci://new-uri"})
         assert resp.status_code == 200
         data = resp.json()
@@ -167,7 +176,7 @@ def test_patch_tuning_args_does_not_include_storage_uri_in_body(client):
     if handler_globals is None:
         pytest.skip("PATCH /api/vllm-config route not found")
 
-    with patch.dict(handler_globals, {"_get_k8s_custom": lambda: mock_custom}):
+    with patch.dict(handler_globals, _isvc_handler_patches(mock_custom)):
         resp = client.patch("/api/vllm-config", json={"data": {"max_num_seqs": "512"}})
         assert resp.status_code == 200
 
@@ -203,7 +212,7 @@ def test_get_returns_resources(client_with_vllm_config):
     if handler_globals is None:
         pytest.skip("Route /api/vllm-config not found")
 
-    with patch.dict(handler_globals, {"_get_k8s_custom": lambda: mock_custom}):
+    with patch.dict(handler_globals, _isvc_handler_patches(mock_custom)):
         resp = client_with_vllm_config.get("/api/vllm-config")
         assert resp.status_code == 200
         data = resp.json()
@@ -222,7 +231,7 @@ def test_get_returns_empty_resources_when_absent(client_with_vllm_config):
     if handler_globals is None:
         pytest.skip("Route /api/vllm-config not found")
 
-    with patch.dict(handler_globals, {"_get_k8s_custom": lambda: mock_custom}):
+    with patch.dict(handler_globals, _isvc_handler_patches(mock_custom)):
         resp = client_with_vllm_config.get("/api/vllm-config")
         assert resp.status_code == 200
         data = resp.json()
@@ -248,7 +257,7 @@ def test_patch_partial_update_preserves_existing_args(client: TestClient):
     if handler_globals is None:
         pytest.skip("PATCH /api/vllm-config route not found")
 
-    with patch.dict(handler_globals, {"_get_k8s_custom": lambda: mock_custom}):
+    with patch.dict(handler_globals, _isvc_handler_patches(mock_custom)):
         resp = client.patch("/api/vllm-config", json={"data": {"max_num_seqs": "512"}})
         assert resp.status_code == 200
 
@@ -271,7 +280,7 @@ def test_patch_empty_data_preserves_all_args(client: TestClient):
     if handler_globals is None:
         pytest.skip("PATCH /api/vllm-config route not found")
 
-    with patch.dict(handler_globals, {"_get_k8s_custom": lambda: mock_custom}):
+    with patch.dict(handler_globals, _isvc_handler_patches(mock_custom)):
         resp = client.patch("/api/vllm-config", json={"data": {}})
         assert resp.status_code == 200
         payload = resp.json()
@@ -299,7 +308,7 @@ def test_patch_boolean_false_removes_flag(client: TestClient):
     if handler_globals is None:
         pytest.skip("PATCH /api/vllm-config route not found")
 
-    with patch.dict(handler_globals, {"_get_k8s_custom": lambda: mock_custom}):
+    with patch.dict(handler_globals, _isvc_handler_patches(mock_custom)):
         resp = client.patch(
             "/api/vllm-config",
             json={"data": {"enable_chunked_prefill": "false"}},
@@ -323,7 +332,7 @@ def test_patch_resources_valid(client):
     if handler_globals is None:
         pytest.skip("PATCH /api/vllm-config route not found")
 
-    with patch.dict(handler_globals, {"_get_k8s_custom": lambda: mock_custom}):
+    with patch.dict(handler_globals, _isvc_handler_patches(mock_custom)):
         resp = client.patch("/api/vllm-config", json={"resources": {"requests": {"cpu": "4"}}})
         assert resp.status_code == 200
 
@@ -350,7 +359,7 @@ def test_patch_resources_only(client):
     if handler_globals is None:
         pytest.skip("PATCH /api/vllm-config route not found")
 
-    with patch.dict(handler_globals, {"_get_k8s_custom": lambda: mock_custom}):
+    with patch.dict(handler_globals, _isvc_handler_patches(mock_custom)):
         resp = client.patch("/api/vllm-config", json={"resources": {"limits": {"memory": "32Gi"}}})
         assert resp.status_code == 200
         data = resp.json()
@@ -367,7 +376,7 @@ def test_patch_combined_data_and_resources(client):
     if handler_globals is None:
         pytest.skip("PATCH /api/vllm-config route not found")
 
-    with patch.dict(handler_globals, {"_get_k8s_custom": lambda: mock_custom}):
+    with patch.dict(handler_globals, _isvc_handler_patches(mock_custom)):
         resp = client.patch(
             "/api/vllm-config",
             json={"data": {"max_num_seqs": "512"}, "resources": {"limits": {"cpu": "8", "memory": "16Gi"}}},
@@ -400,14 +409,7 @@ def test_get_vllm_config_resolves_model_name_for_isvc(client_with_vllm_config):
     if handler_globals is None:
         pytest.skip("Route /api/vllm-config not found")
 
-    with patch.dict(
-        handler_globals,
-        {
-            "_get_k8s_custom": lambda: mock_custom,
-            "_get_vllm_is_name": lambda: "llm-ov",
-            "get_cr_adapter": lambda: InferenceServiceAdapter(),
-        },
-    ):
+    with patch.dict(handler_globals, _isvc_handler_patches(mock_custom, _get_vllm_is_name=lambda: "llm-ov")):
         resp = client_with_vllm_config.get("/api/vllm-config")
         assert resp.status_code == 200
         body = resp.json()
@@ -433,14 +435,7 @@ def test_get_vllm_config_model_name_fallback_for_isvc(client_with_vllm_config):
     if handler_globals is None:
         pytest.skip("Route /api/vllm-config not found")
 
-    with patch.dict(
-        handler_globals,
-        {
-            "_get_k8s_custom": lambda: mock_custom,
-            "_get_vllm_is_name": lambda: "llm-ov",
-            "get_cr_adapter": lambda: InferenceServiceAdapter(),
-        },
-    ):
+    with patch.dict(handler_globals, _isvc_handler_patches(mock_custom, _get_vllm_is_name=lambda: "llm-ov")):
         resp = client_with_vllm_config.get("/api/vllm-config")
         assert resp.status_code == 200
         body = resp.json()
