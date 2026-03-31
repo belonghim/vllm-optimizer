@@ -183,7 +183,7 @@ def test_thanos_500_error(isolated_client):
     )
     mock_cm = _make_async_client_mock(AsyncMock(return_value=mock_response))
 
-    with patch("routers.metrics.httpx.AsyncClient", return_value=mock_cm):
+    with patch("services.metrics_service.httpx.AsyncClient", return_value=mock_cm):
         response = isolated_client.post(
             "/api/metrics/batch",
             json={
@@ -200,7 +200,7 @@ def test_thanos_500_error(isolated_client):
 def test_thanos_timeout(isolated_client):
     mock_cm = _make_async_client_mock(AsyncMock(side_effect=httpx.TimeoutException("timed out")))
 
-    with patch("routers.metrics.httpx.AsyncClient", return_value=mock_cm):
+    with patch("services.metrics_service.httpx.AsyncClient", return_value=mock_cm):
         response = isolated_client.post(
             "/api/metrics/batch",
             json={
@@ -220,7 +220,7 @@ def test_thanos_malformed_response(isolated_client):
     mock_response.json.return_value = {"status": "success", "data": {}}
     mock_cm = _make_async_client_mock(AsyncMock(return_value=mock_response))
 
-    with patch("routers.metrics.httpx.AsyncClient", return_value=mock_cm):
+    with patch("services.metrics_service.httpx.AsyncClient", return_value=mock_cm):
         response = isolated_client.post(
             "/api/metrics/batch",
             json={

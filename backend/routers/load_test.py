@@ -25,7 +25,6 @@ from pydantic import BaseModel
 from services.load_engine import LoadTestStatus, load_engine
 from services.model_resolver import resolve_model_name
 from services.rate_limiter import limiter
-from services.shared import storage
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -139,7 +138,7 @@ class StatusResponse(BaseModel):
     is_sweeping: bool = False
 
 
-async def _run_test_background(test_id: str, config: LoadTestConfig) -> None:
+async def _run_test_background(test_id: str, config: LoadTestConfig, storage_instance: Any) -> None:
     try:
         result = await load_engine.run(config, skip_preflight=True)
         entry = {
@@ -149,7 +148,7 @@ async def _run_test_background(test_id: str, config: LoadTestConfig) -> None:
             "timestamp": time_module.time(),
         }
         try:
-            await storage.save_load_test(entry)
+            await storage_instance.save_load_test(entry)
         except OSError as e:
             logger.warning("[LoadTest] Failed to persist history (fail-open): %s", e)
     except (
@@ -172,7 +171,7 @@ async def _run_test_background(test_id: str, config: LoadTestConfig) -> None:
     },
 )
 @limiter.limit("5/minute")
-async def start_load_test(request: Request, config: LoadTestConfig) -> dict[str, Any]:
+async def start_load_test(request: Request, config: LoadTestConfig, storage=Depends(get_storage)) -> dict[str, Any]:
     """
     Start a new load test with the given configuration.
 
@@ -207,7 +206,7 @@ async def start_load_test(request: Request, config: LoadTestConfig) -> dict[str,
             ).model_dump(),
         )
 
-    active_task = asyncio.create_task(_run_test_background(test_id, config))
+    active_task = asyncio.create_task(_run_test_background(test_id, config, storage))
     await _state.set_active_test(active_task, config)
 
     return {
@@ -363,6 +362,7 @@ async def get_load_test_history(
     response: Response,
     limit: int = Query(default=10, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
+    storage=Depends(get_storage),
 ) -> list[dict[str, Any]]:
     """
     Get list of recent load test runs and their final results.

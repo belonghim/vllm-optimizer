@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-31] - architecture-hardening
+
+**Status**: Completed
+
+### Backend
+- **MetricsService 추출**: `backend/services/metrics_service.py` 신규 생성 — `_fetch_query_range`, `_build_snapshots_from_ts_data`, `_get_history_from_thanos` 로직을 라우터에서 서비스 레이어로 이관
+- **FastAPI DI 패턴 도입**: `backend/routers/metrics.py` — `Depends(get_multi_target_collector)`, `Depends(get_runtime_config)` 적용으로 라우터-싱글톤 직접 결합 제거
+- **LoadTest 라우터 DI 정리**: `backend/routers/load_test.py` — `Depends(get_storage)` 적용, 모듈 레벨 직접 임포트 제거
+- **테스트 패치 대상 업데이트**: `test_metrics.py`, `test_chaos.py`, `conftest.py` — 서비스 레이어 분리에 맞게 mock 경로 수정
+
+### Frontend
+- **ClusterConfigContext 최적화**: `stableTargetsRef` + `prevTargetsJsonRef` ref 기반 안정화 패턴으로 마운트 시 `/api/config` 중복 페치 제거 (3회 → 2회)
+- **ClusterConfigBar 심화 테스트**: 9개 테스트 케이스 — 서버 페치값 표시, Save 버튼 비활성화 상태, dirty 상태 라이프사이클, 저장 플로우 검증
+- **MSW 기반 API 에러 테스트**: `LoadTestNormalMode.api-error.test.tsx` 신규 생성 — HTTP 500/400 에러 시 ErrorAlert 표시 및 상태 복구(버튼 재활성화) 검증
+
+---
+
 ## [2026-03-31] - Frontend UX Fixes & CR Replace Strategy
 
 **Status**: Completed

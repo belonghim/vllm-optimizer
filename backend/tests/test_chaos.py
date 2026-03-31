@@ -35,7 +35,7 @@ def _benchmark_payload() -> dict[str, object]:
 
 
 def test_chaos_thanos_unavailable_returns_gracefully(isolated_client: TestClient):
-    with patch("routers.metrics.multi_target_collector.get_metrics", new=AsyncMock(return_value=None)):
+    with patch("routers.metrics._default_collector.get_metrics", new=AsyncMock(return_value=None)):
         response = isolated_client.get("/api/metrics/latest")
 
     assert response.status_code in (200, 204)

@@ -36,6 +36,8 @@ _MODULES_TO_CLEAR = [
     "routers.load_test",
     "backend.routers.metrics",
     "routers.metrics",
+    "backend.services.metrics_service",
+    "services.metrics_service",
     "backend.routers.benchmark",
     "routers.benchmark",
     "backend.routers.tuner",
