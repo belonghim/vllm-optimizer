@@ -3,6 +3,7 @@ import pytest
 from services.cr_adapter import (
     InferenceServiceAdapter,
     LLMInferenceServiceAdapter,
+    _extract_served_model_name,
     args_list_to_config_dict,
     config_dict_to_args_list,
     config_dict_to_space_str,
@@ -90,6 +91,26 @@ class TestArgHelpers:
         }
         rebuilt = config_dict_to_space_str(config, static_prefix="--tensor-parallel-size=1")
         assert rebuilt == "--tensor-parallel-size=1 --gpu-memory-utilization=0.9 --max-model-len=4096"
+
+    def test_extract_served_model_name_duplicate_uses_last_value(self):
+        parsed_args = ["--served-model-name=alias", "--served-model-name=real-model"]
+        assert _extract_served_model_name(parsed_args) == "real-model"
+
+    def test_extract_served_model_name_space_separated(self):
+        parsed_args = ["--served-model-name", "qwen3-5"]
+        assert _extract_served_model_name(parsed_args) == "qwen3-5"
+
+    def test_extract_served_model_name_missing_value_returns_none(self):
+        parsed_args = ["--served-model-name"]
+        assert _extract_served_model_name(parsed_args) is None
+
+    def test_extract_served_model_name_followed_by_flag_returns_none(self):
+        parsed_args = ["--served-model-name", "--tensor-parallel-size=4"]
+        assert _extract_served_model_name(parsed_args) is None
+
+    def test_extract_served_model_name_equals_format_regression(self):
+        parsed_args = ["--served-model-name=qwen3-5"]
+        assert _extract_served_model_name(parsed_args) == "qwen3-5"
 
 
 class TestLLMInferenceServiceAdapter:

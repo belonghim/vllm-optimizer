@@ -37,14 +37,17 @@ def _extract_served_model_name(args: Any) -> str | None:
     else:
         return None
 
-    for arg in parsed_args:
-        if not arg.startswith("--served-model-name="):
-            continue
-        served_model_name = arg.split("=", 1)[1].strip()
-        if served_model_name:
-            return served_model_name
-
-    return None
+    last_name: str | None = None
+    for i, arg in enumerate(parsed_args):
+        if arg.startswith("--served-model-name="):
+            val = arg.split("=", 1)[1].strip()
+            if val:
+                last_name = val
+        elif arg == "--served-model-name" and i + 1 < len(parsed_args):
+            val = parsed_args[i + 1].strip()
+            if val and not val.startswith("--"):
+                last_name = val
+    return last_name
 
 
 def args_list_to_config_dict(args: list[str]) -> dict[str, Any]:
