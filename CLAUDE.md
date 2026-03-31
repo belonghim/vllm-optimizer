@@ -103,11 +103,10 @@ Kustomize base + overlays (dev/prod). UBI9 container images, non-root (UID 1001)
 | `VLLM_ENDPOINT` | vLLM inference URL | required |
 | `VLLM_MODEL` | Model name | required |
 | `PROMETHEUS_URL` | Thanos Querier URL | internal SVC |
-| `K8S_NAMESPACE` | vLLM workload namespace | `vllm-lab-dev` |
+| `VLLM_NAMESPACE` | vLLM workload namespace (Pod 조회, MetricsCollector, auto-tuner 모두 사용) | `vllm-lab-dev` |
 | `VLLM_DEPLOYMENT_NAME` | InferenceService name | `llm-ov` |
 | `VLLM_CR_TYPE` | `inferenceservice` or `llminferenceservice` | `inferenceservice` |
 | `STORAGE_PATH` | SQLite DB path | `/data/app.db` |
-| `ALLOWED_ORIGINS` | CORS origins (comma-separated) | — |
 
 ## Linting & Code Style
 

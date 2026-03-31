@@ -217,10 +217,9 @@ spec:
 |--------|------|------|
 | `REGISTRY` | 컨테이너 레지스트리 | `quay.io/joopark` |
 | `IMAGE_TAG` | 이미지 태그 | `1.0.0` |
-| `VLLM_NAMESPACE` | LLM 추론 서비스 네임스페이스 | `vllm-lab-dev` (dev), `vllm-lab-prod` (prod) |
+| `VLLM_NAMESPACE` | LLM 추론 서비스 네임스페이스. **Pod 조회, MetricsCollector, auto-tuner 모두 이 변수 사용.** | `vllm-lab-dev` (dev), `vllm-lab-prod` (prod) |
 | `VLLM_CR_TYPE` | LLM 리소스 타입. `inferenceservice` (KServe) 또는 `llminferenceservice` (LLMIS). **런타임에 `cr_adapter.py`의 어댑터 패턴으로 동적 전환** — auto-tuner, vllm-config, metrics, rollback 모두 두 타입 완전 지원. | `inferenceservice` (기본) |
 | `PROMETHEUS_URL` | Thanos Querier URL | `https://thanos-querier.openshift-monitoring.svc.cluster.local:9091` |
-| `K8S_NAMESPACE` | K8s Pod 조회 대상 네임스페이스 | `vllm-lab-dev` (dev), `vllm-lab-prod` (prod) |
 | `K8S_DEPLOYMENT_NAME` | LLM Deployment 이름 (KServe: `{name}-predictor`). **MetricsCollector의 pod listing 및 auto-tuner의 Deployment rollout restart에 사용.** | `llm-ov-predictor` |
 | `VLLM_DEPLOYMENT_NAME` | InferenceService 이름. **auto-tuner의 리소스 이름 참조에 사용.** `K8S_DEPLOYMENT_NAME`과 혼동 금지. | `llm-ov` |
 | `VLLM_ENDPOINT` | LLM 추론 엔드포인트 (테스트용). KServe 서비스 내부 주소 또는 외부 주소. | `http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080` |

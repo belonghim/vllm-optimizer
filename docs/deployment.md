@@ -28,9 +28,8 @@ The vLLM Optimizer uses several environment variables for configuration. These a
 | :------------ | :---------- | :------ |
 | `REGISTRY` | The container image registry where images are stored. | `quay.io/joopark` |
 | `IMAGE_TAG` | The tag to apply to the built container images. | `1.0.0` |
-| `VLLM_NAMESPACE` | The OpenShift namespace where the vLLM service is deployed. | `vllm-lab-dev` (dev), `vllm-lab-prod` (prod) |
+| `VLLM_NAMESPACE` | The OpenShift namespace where the vLLM service is deployed. Also used for Pod querying, MetricsCollector, and auto-tuner. | `vllm-lab-dev` (dev), `vllm-lab-prod` (prod) |
 | `PROMETHEUS_URL` | The internal URL for the Thanos Querier service within OpenShift Monitoring. This is used by the backend to query metrics. | `https://thanos-querier.openshift-monitoring.svc.cluster.local:9091` |
-| `K8S_NAMESPACE` | The Kubernetes namespace where vLLM pods are to be queried. | `vllm-lab-dev` (dev), `vllm-lab-prod` (prod) |
 | `K8S_DEPLOYMENT_NAME` | **Crucial**: This must be the actual Deployment name created by KServe for your vLLM InferenceService (e.g., `llm-ov-predictor`), not the InferenceService name itself (`llm-ov`). | `llm-ov-predictor` |
 | `VLLM_DEPLOYMENT_NAME` | The KServe InferenceService name. Used by auto-tuner for IS name reference. Do not confuse with `K8S_DEPLOYMENT_NAME`. | `llm-ov` |
 | `VLLM_ENDPOINT` | The internal inference endpoint for the vLLM service, used for testing and load generation. | `http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080` |
