@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect, useMemo, useContext, useCallback } from "react";
+import { createContext, useState, useEffect, useMemo, useContext, useCallback, useRef } from "react";
 import type { ReactNode } from "react";
 import { API } from "../constants";
 import type { ClusterTarget, ClusterConfig } from "../types";
@@ -121,6 +121,14 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
   const [isLoading, setIsLoading] = useState(true);
   const [crType, setCrType] = useState<string>(DEFAULT_CR_TYPE);
   const [resolvedModelName, setResolvedModelName] = useState<string>("");
+  const stableTargetsRef = useRef<ClusterTarget[]>(config.targets);
+  const prevTargetsJsonRef = useRef(JSON.stringify(config.targets));
+  const currentTargetsJson = JSON.stringify(config.targets);
+  if (currentTargetsJson !== prevTargetsJsonRef.current) {
+    prevTargetsJsonRef.current = currentTargetsJson;
+    stableTargetsRef.current = config.targets;
+  }
+  const stableTargets = stableTargetsRef.current;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -163,7 +171,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
   }, [config]);
 
   useEffect(() => {
-    const defaultTarget = config.targets.find(t => t.isDefault) || config.targets[0];
+    const defaultTarget = stableTargets.find(t => t.isDefault) || stableTargets[0];
     if (!defaultTarget) return;
 
     const newEndpoint = buildDefaultEndpoint(
@@ -173,10 +181,10 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
     );
 
     setConfig(prev => ({ ...prev, endpoint: newEndpoint }));
-  }, [crType, config.targets]);
+  }, [crType, stableTargets]);
 
   useEffect(() => {
-    const defaultTarget = config.targets.find(t => t.isDefault) || config.targets[0];
+    const defaultTarget = stableTargets.find(t => t.isDefault) || stableTargets[0];
     if (!defaultTarget || !crType) return;
 
     const namespace = defaultTarget.namespace;
@@ -198,7 +206,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
         }
       });
     return () => controller.abort();
-  }, [crType, config.targets]);
+  }, [crType, stableTargets]);
 
   const updateCrType = useCallback(async (value: string): Promise<{ configmap_updated: boolean }> => {
     // No auth required — /config endpoint reads env variables with no auth middleware
