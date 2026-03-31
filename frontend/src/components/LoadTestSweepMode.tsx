@@ -69,6 +69,11 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [activePreset, setActivePreset] = useState<string | null>(null);
+  const [localEndpoint, setLocalEndpoint] = useState(endpoint);
+  const [localModel, setLocalModel] = useState(model);
+
+  useEffect(() => { setLocalEndpoint(endpoint); }, [endpoint]);
+  useEffect(() => { setLocalModel(model); }, [model]);
 
   useEffect(() => {
     onRunningChange?.(sweepStatus === 'running');
@@ -136,7 +141,7 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
     setSweepResult(null);
     setSweepError(null);
 
-    const body = { endpoint, model, ...sweepConfig };
+    const body = { endpoint: localEndpoint, model: localModel, ...sweepConfig };
     try {
       const resp = await authFetch(`${API}/load_test/sweep`, {
         method: 'POST',
@@ -210,6 +215,28 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
 
       <div className="panel">
         <div className="section-title">Sweep Test Settings</div>
+        <div className="grid-form grid-form-compact" style={{ marginBottom: '12px' }}>
+          <div>
+            <label htmlFor="sweep-endpoint" className="label">Endpoint</label>
+            <input
+              id="sweep-endpoint"
+              className="input" type="text" aria-label="Endpoint"
+              value={localEndpoint}
+              onChange={e => setLocalEndpoint(e.target.value)}
+              disabled={sweepStatus === 'running'}
+            />
+          </div>
+          <div>
+            <label htmlFor="sweep-model" className="label">Model</label>
+            <input
+              id="sweep-model"
+              className="input" type="text" aria-label="Model"
+              value={localModel}
+              onChange={e => setLocalModel(e.target.value)}
+              disabled={sweepStatus === 'running'}
+            />
+          </div>
+        </div>
         <div className="grid-form grid-form-compact">
           {([
             ["RPS Start", "rps_start", "number"], ["RPS End", "rps_end", "number"], ["RPS Step", "rps_step", "number"],

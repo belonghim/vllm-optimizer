@@ -19,21 +19,21 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
 
   useEffect(() => {
     if (!globalIsLoading && globalEndpoint) {
-      setSharedEndpoint(globalEndpoint);
+      setSharedEndpoint(prev => (prev === "" || prev === globalEndpoint) ? globalEndpoint : prev);
     }
   }, [globalIsLoading, globalEndpoint]);
 
   useEffect(() => {
     if (!globalIsLoading && resolvedModelName) {
-      setSharedModel(resolvedModelName);
+      setSharedModel(prev => (prev === "" || prev === "auto" || prev === resolvedModelName) ? resolvedModelName : prev);
     }
   }, [globalIsLoading, resolvedModelName]);
 
   return (
     <div className="flex-col-16">
       <div className="tabs">
-        <button className={`tab ${mode === 'normal' ? 'active' : ''}`} onClick={() => setMode('normal')}>Normal Test</button>
-        <button className={`tab ${mode === 'sweep' ? 'active' : ''}`} onClick={() => setMode('sweep')}>Sweep Test</button>
+        <button type="button" className={`tab ${mode === 'normal' ? 'active' : ''}`} onClick={() => setMode('normal')}>Normal Test</button>
+        <button type="button" className={`tab ${mode === 'sweep' ? 'active' : ''}`} onClick={() => setMode('sweep')}>Sweep Test</button>
       </div>
       {mode === 'normal'
         ? <LoadTestNormalMode
