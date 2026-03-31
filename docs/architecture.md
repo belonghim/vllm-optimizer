@@ -1,7 +1,7 @@
 ---
 title: vLLM Optimizer System Architecture
 date: 2026-03-08
-updated: 2026-03-15
+updated: 2026-04-01
 tags: [architecture, vllm, openshift]
 status: published
 ---
@@ -9,6 +9,93 @@ status: published
 # vLLM Optimizer System Architecture
 
 This document outlines the system architecture of the vLLM Optimizer, a containerized application designed for OpenShift 4.x. It provides load testing, real-time monitoring, benchmark comparison, and automated parameter tuning for vLLM services.
+
+## Quick Start
+
+### Backend
+```bash
+# Run locally
+cd backend && uvicorn main:app --reload --port 8000
+
+# Unit tests (excludes integration/slow)
+cd backend && python3 -m pytest tests/ -x -q
+
+# Single test
+cd backend && python3 -m pytest tests/test_load_test.py::test_name -x -q
+
+# Integration tests (requires OpenShift cluster)
+cd backend && python3 -m pytest tests/integration/performance/ -v --tb=short -m integration
+
+# Lint and format
+cd backend && python3 -m ruff check . --fix && python3 -m ruff format .
+```
+
+### Frontend
+```bash
+cd frontend
+npm run dev          # Vite dev server (port 5173)
+npm run build        # Production build
+npm run test         # Vitest unit tests
+npm run lint         # ESLint
+npm run type-check   # TypeScript type checking
+```
+
+### Deployment
+```bash
+./deploy.sh dev              # Build + deploy to vllm-optimizer-dev
+./deploy.sh dev --skip-build # Deploy only
+./deploy.sh dev --dry-run    # Preview changes
+```
+
+## Key Design Decisions
+
+- **Dual CR support**: `VLLM_CR_TYPE` env var switches between `inferenceservice` (KServe, default) and `llminferenceservice` (LLMIS). The `CRAdapter` pattern in `backend/services/cr_adapter.py` abstracts endpoint resolution, model name extraction, and spec patching for both types.
+- **Async-first**: All backend I/O is async (httpx, aiosqlite, K8s via `asyncio.to_thread()`).
+- **OpenShift Monitoring Stack**: Queries go to Thanos Querier (in-cluster), not an external Prometheus. `httpx.AsyncClient(verify=False)` is required for self-signed certs.
+- **No external DB**: SQLite + PVC keeps deployment simple — single PVC, no database operator.
+- **MetricsCollector singleton**: Accessed via `from services.shared import multi_target_collector`. Never instantiate directly.
+- **Auto-tuner facade**: `auto_tuner.py` is a thin facade composing K8sOperator, EventBroadcaster, and TunerLogic. Lock-free services receive locks as parameters from the facade.
+
+## Common Pitfalls
+
+### Naming Confusion
+- `VLLM_DEPLOYMENT_NAME` = InferenceService name (`llm-ov`) — used for resource references
+- `K8S_DEPLOYMENT_NAME` = Deployment name (`llm-ov-predictor`) — used for pod listing and rollout restart
+- **Do not confuse these two.** KServe auto-generates the Deployment name as `{isvc_name}-predictor`.
+
+### IS args Patching
+- `vllm_config PATCH`: dict-merge — preserves existing args, overwrites only changed keys
+- `auto_tuner._apply_params`: full replacement — intentional design, do not modify
+- boolean `false` removes the flag (e.g., `{"enable_chunked_prefill": "false"}` → removes `--enable-chunked-prefill`)
+
+### IS Resources
+- Path: `spec.predictor.model.resources.{requests,limits}`
+- `ALLOWED_RESOURCE_KEYS = {"cpu", "memory", "nvidia.com/gpu"}`
+- GPU: set in `limits` only (K8s auto-copies to `requests`)
+- Empty string value removes the key (prevents K8s scheduling issues)
+
+### model="auto" Forbidden
+- Auto-tuner must use `/v1/models` dynamic resolution via `model_resolver.resolve_model_name()`
+- Never hardcode `model="auto"` in auto-tuner code
+
+### SLA Profile 422
+- `SlaThresholds` has `at_least_one_threshold` validator — all thresholds null → 422
+- Frontend enforces this, but backend will reject if bypassed
+
+## Environment Variables
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `VLLM_ENDPOINT` | vLLM inference URL | required |
+| `VLLM_MODEL` | Model name | required |
+| `VLLM_NAMESPACE` | vLLM workload namespace (pod listing, metrics, tuner) | `vllm-lab-dev` |
+| `VLLM_DEPLOYMENT_NAME` | InferenceService name | `llm-ov` |
+| `K8S_DEPLOYMENT_NAME` | Deployment name (KServe: `{name}-predictor`) | `llm-ov-predictor` |
+| `VLLM_CR_TYPE` | `inferenceservice` or `llminferenceservice` | `inferenceservice` |
+| `PROMETHEUS_URL` | Thanos Querier URL | internal SVC |
+| `STORAGE_PATH` | SQLite DB path | `/data/app.db` |
+| `REGISTRY` | Container registry | `quay.io/joopark` |
+| `IMAGE_TAG` | Image tag | `1.0.0` |
 
 ## Overall System Topology
 
