@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-31] - Frontend UX Fixes & CR Replace Strategy
+
+**Status**: Completed
+
+6개 UX/백엔드 버그 수정 — ConfigMap 기본값 복원, Mock 토글 기본값, Sweep 프리셋 색상 표시, Sweep 엔드포인트 편집, CR 교체 전략 전환.
+
+### Fixed
+- **`frontend/src/contexts/ClusterConfigContext.tsx`**: `hasStoredValues()` 조기 반환 제거 — 이제 localStorage에 값이 있어도 항상 `/api/config`를 호출하여 ConfigMap 기본값으로 초기화. 사용자가 추가한 non-default 타겟은 functional setState로 보존.
+- **`frontend/src/contexts/MockDataContext.tsx`**: Mock 토글 기본값 수정 — localStorage에 값이 없는 첫 방문 시 `true`(ON) → `false`(OFF). `stored === null ? false : stored === "true"` 패턴 적용.
+- **`frontend/src/components/LoadTestSweepMode.tsx`**: Sweep 프리셋 버튼 활성 색상 표시 — `activePreset` 상태 추가, 선택 시 `btn btn-primary`, 미선택 시 `btn btn-outline`. 수동 편집 시 `setActivePreset(null)` 호출로 표시 해제. Sweep 설정 패널 상단에 Endpoint/Model 입력 필드 추가, `localEndpoint`/`localModel` 로컬 상태로 Settings→Results 탭 전환 시 편집값 보존.
+- **`frontend/src/pages/LoadTestPage.tsx`**: Sweep 모드 전환 시 endpoint/model 동기화 — 전역 값 변경에만 반응하고 사용자 편집값을 보존하는 조건부 useEffect 적용.
+
+### Changed
+- **`backend/services/k8s_operator.py`**: CR 적용 전략 변경 — `patch` → `delete + wait_for_deletion + create`. 전체 CR spec 스냅샷으로 롤백 안전성 강화. `_wait_for_deletion()` 메서드 추가 (timeout 60s, interval 2s). `vllm_config.py` 수동 패치는 변경 없음.
+- **`backend/services/cr_adapter.py`**: `CRAdapter` 추상 인터페이스에 `apply_args_to_cr()`, `restore_cr_from_snapshot()` 추가. `InferenceServiceAdapter`/`LLMInferenceServiceAdapter` 양쪽 구현. `_clean_cr_for_create()`로 서버 관리 필드 제거.
+
+### Tests
+- `backend/tests/test_cr_adapter.py`: 신규 — CR 어댑터 delete+create 경로 검증
+- `backend/tests/test_k8s_operator.py`: 확장 — delete/wait/create/rollback 시나리오
+- `backend/tests/test_tuner.py`, `test_auto_tuner.py`, `conftest.py`: 새 인터페이스에 맞게 갱신
+
+### Verification
+- Backend: 151 passed, 0 failed (`not integration`)
+- Final Wave: F1 APPROVE | F2 APPROVE | F3 APPROVE | F4 APPROVE
+
+---
+
 ## [2026-03-30] - KServe Alignment & LLMIS Reference Cleanup
 
 **Status**: Completed
