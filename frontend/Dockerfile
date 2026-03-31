@@ -2,7 +2,7 @@
 # Red Hat UBI9 Node.js builder for OpenShift compliance
 FROM registry.access.redhat.com/ubi9/nodejs-20 AS builder
 WORKDIR /build
-COPY package*.json . bun.lockb* .npmrc* .yarnrc* 2>/dev/null || true
+COPY package*.json ./
 # Switch to root for npm install to avoid permission issues with node_modules
 USER root
 RUN npm install
