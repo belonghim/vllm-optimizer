@@ -68,6 +68,7 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
   const [sweepHistoryLoading, setSweepHistoryLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
+  const [activePreset, setActivePreset] = useState<string | null>(null);
 
   useEffect(() => {
     onRunningChange?.(sweepStatus === 'running');
@@ -115,7 +116,7 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
     if (isActive) fetchSweepHistory();
   }, [isActive, fetchSweepHistory]);
 
-  const handleSweepConfigChange = useCallback((key: string, value: string | number | boolean) => setSweepConfig(c => ({ ...c, [key]: value })), []);
+  const handleSweepConfigChange = useCallback((key: string, value: string | number | boolean) => { setSweepConfig(c => ({ ...c, [key]: value })); setActivePreset(null); }, []);
 
   const applySweepPreset = useCallback((preset: typeof SWEEP_PRESETS[number]) => {
     setSweepConfig(c => ({
@@ -126,6 +127,7 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
       requests_per_step: preset.requests_per_step,
       concurrency: preset.concurrency,
     }));
+    setActivePreset(preset.name);
   }, []);
 
   const startSweep = async () => {
@@ -199,7 +201,7 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <span className="label label-no-mb" style={{ marginRight: '4px' }}>SWEEP PRESETS:</span>
           {SWEEP_PRESETS.map(preset => (
-            <button type="button" key={preset.name} className="btn btn-outline" title={preset.description} onClick={() => applySweepPreset(preset)}>
+            <button type="button" key={preset.name} className={activePreset === preset.name ? "btn btn-primary" : "btn btn-outline"} title={preset.description} onClick={() => applySweepPreset(preset)}>
               {preset.name}
             </button>
           ))}
