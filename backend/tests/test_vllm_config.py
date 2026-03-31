@@ -89,15 +89,15 @@ def test_patch_vllm_config_valid_key(client):
         assert "max_num_seqs" in data["updated_keys"]
 
 
-def test_patch_vllm_config_during_tuning_409(isolated_client: TestClient):
+def test_patch_vllm_config_during_tuning_409(client: TestClient):
     mock_tuner = MagicMock()
     mock_tuner.is_running = True
 
-    if _get_vllm_config_globals(isolated_client, method="PATCH") is None:
+    if _get_vllm_config_globals(client, method="PATCH") is None:
         pytest.skip("PATCH /api/vllm-config route not found")
 
     with patch("routers.tuner.auto_tuner", mock_tuner):
-        resp = isolated_client.patch("/api/vllm-config", json={"data": {"max_num_seqs": "512"}})
+        resp = client.patch("/api/vllm-config", json={"data": {"max_num_seqs": "512"}})
         assert resp.status_code == 409
 
 
@@ -445,4 +445,3 @@ def test_get_vllm_config_model_name_fallback_for_isvc(client_with_vllm_config):
         assert resp.status_code == 200
         body = resp.json()
         assert body["modelName"] == "llm-ov"
-
