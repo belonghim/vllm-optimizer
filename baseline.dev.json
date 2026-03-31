@@ -1,9 +1,0 @@
-{
-  "throughput_rps": 0,
-  "avg_latency_ms": 0,
-  "p95_latency_ms": 0,
-  "tokens_per_sec": 0,
-  "gpu_utilization_avg": 0,
-  "metrics_collection_duration_seconds": 0,
-  "_note": "Initial placeholder. Run scripts/collect_baseline.sh to populate with real data."
-}

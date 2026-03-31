@@ -42,3 +42,23 @@ test-sa-pod.yaml
 
 # guidellm benchmark results
 guidellm_results/
+
+# AI agent config (internal tooling)
+AGENTS.md
+docs/AGENTS.md
+
+# internal dev docs
+CHANGELOG.md
+
+# personal environment config
+baseline.dev.json
+.pre-commit-config.yaml
+pyrightconfig.json
+backend/pyrightconfig.json
+
+# CI/CD (personal)
+.github/workflows/ci.yml
+.github/workflows/deploy-dev.yml
+
+# test artifacts
+frontend/test-results/
