@@ -27,13 +27,29 @@ export const handlers = [
     },
   })),
   http.get(`${API}/sla/profiles`, () => HttpResponse.json([])),
+  http.post(`${API}/tuner/start`, () =>
+    HttpResponse.json({ status: 'started' })
+  ),
+  http.post(`${API}/load_test/run`, () =>
+    HttpResponse.json({ status: 'running' })
+  ),
+  http.post(`${API}/benchmark/save`, () =>
+    HttpResponse.json({ success: true })
+  ),
   http.post(`${API}/sla/profiles`, async ({ request }) => {
     const body = await request.json() as Record<string, unknown>;
     return HttpResponse.json({
       id: 1,
+      name: 'Default SLA',
+      thresholds: {
+        availability_min: 99.9,
+        p95_latency_max_ms: 500,
+        error_rate_max_pct: 1.0,
+        min_tps: null,
+      },
       created_at: Date.now() / 1000,
       ...body,
-    });
+    }, { status: 201 });
   }),
   http.put(`${API}/sla/profiles/:id`, async ({ request, params }) => {
     const body = await request.json() as Record<string, unknown>;
@@ -43,7 +59,7 @@ export const handlers = [
     });
   }),
   http.delete(`${API}/sla/profiles/:id`, () =>
-    HttpResponse.json({ deleted: true })
+    new HttpResponse(null, { status: 204 })
   ),
   http.post(`${API}/sla/evaluate`, async ({ request }) => {
     const body = await request.json() as { profile_id: number };
@@ -63,4 +79,13 @@ export const handlers = [
       warnings: [],
     });
   }),
+];
+
+export const errorHandlers = [
+  http.get(`${API}/config`, () =>
+    HttpResponse.json({ detail: 'Internal Server Error' }, { status: 500 })
+  ),
+  http.post(`${API}/tuner/start`, () =>
+    HttpResponse.json({ detail: 'Bad Request' }, { status: 400 })
+  ),
 ];
