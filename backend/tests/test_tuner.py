@@ -298,13 +298,13 @@ async def test_start_reapplies_best_params_at_end(auto_tuner_instance, mock_k8s_
 
     last_patch_call = mock_custom_api.patch_namespaced_custom_object.call_args_list[-1]
     patch_body = last_patch_call[1]["body"]
-    patched_value = patch_body["spec"]["template"]["containers"][0]["env"][0]["value"]
+    patched_args = patch_body["spec"]["predictor"]["model"]["args"]
     expected_tuning_args = []
     expected_tuning_args.append(f"--max-num-seqs={tuner._best_trial.params['max_num_seqs']}")
     expected_tuning_args.append(f"--gpu-memory-utilization={tuner._best_trial.params['gpu_memory_utilization']}")
     expected_tuning_args.append(f"--max-num-batched-tokens={tuner._best_trial.params['max_num_batched_tokens']}")
     for expected_arg in expected_tuning_args:
-        assert expected_arg in patched_value, f"Expected {expected_arg} in patched value: {patched_value}"
+        assert expected_arg in patched_args, f"Expected {expected_arg} in patched args: {patched_args}"
 
     # IS patch should be called once per trial + once for final best params reapplication
     assert mock_custom_api.patch_namespaced_custom_object.call_count == config.n_trials + 1
@@ -508,13 +508,10 @@ async def test_apply_params_uses_correct_configmap_keys(auto_tuner_instance, moc
 
     mock_custom_api.get_namespaced_custom_object.return_value = {
         "spec": {
-            "template": {
-                "containers": [
-                    {
-                        "name": "main",
-                        "env": [{"name": "VLLM_ADDITIONAL_ARGS", "value": ""}],
-                    }
-                ]
+            "predictor": {
+                "model": {
+                    "args": [],
+                }
             },
         },
     }
@@ -530,9 +527,9 @@ async def test_apply_params_uses_correct_configmap_keys(auto_tuner_instance, moc
 
     mock_custom_api.patch_namespaced_custom_object.assert_called_once()
     call_args = mock_custom_api.patch_namespaced_custom_object.call_args
-    patch_value = call_args.kwargs["body"]["spec"]["template"]["containers"][0]["env"][0]["value"]
+    patch_args = call_args.kwargs["body"]["spec"]["predictor"]["model"]["args"]
 
-    assert "--enable-chunked-prefill" in patch_value
+    assert "--enable-chunked-prefill" in patch_args
 
 
 def test_importance_returns_empty_when_no_trials(client):
@@ -642,13 +639,10 @@ async def test_apply_params_includes_new_configmap_keys(auto_tuner_instance, moc
 
     mock_custom_api.get_namespaced_custom_object.return_value = {
         "spec": {
-            "template": {
-                "containers": [
-                    {
-                        "name": "main",
-                        "env": [{"name": "VLLM_ADDITIONAL_ARGS", "value": ""}],
-                    }
-                ]
+            "predictor": {
+                "model": {
+                    "args": [],
+                }
             },
         },
     }
@@ -666,11 +660,11 @@ async def test_apply_params_includes_new_configmap_keys(auto_tuner_instance, moc
 
     mock_custom_api.patch_namespaced_custom_object.assert_called_once()
     call_args = mock_custom_api.patch_namespaced_custom_object.call_args
-    patch_value = call_args.kwargs["body"]["spec"]["template"]["containers"][0]["env"][0]["value"]
+    patch_args = call_args.kwargs["body"]["spec"]["predictor"]["model"]["args"]
 
-    assert "--max-num-batched-tokens=512" in patch_value
-    assert "--block-size=16" in patch_value
-    assert "--enable-chunked-prefill" not in patch_value
+    assert "--max-num-batched-tokens=512" in patch_args
+    assert "--block-size=16" in patch_args
+    assert "--enable-chunked-prefill" not in patch_args
 
 
 @pytest.mark.asyncio
@@ -1026,13 +1020,10 @@ async def test_apply_params_swap_space_configmap_key(auto_tuner_instance, mock_k
 
     mock_custom_api.get_namespaced_custom_object.return_value = {
         "spec": {
-            "template": {
-                "containers": [
-                    {
-                        "name": "main",
-                        "env": [{"name": "VLLM_ADDITIONAL_ARGS", "value": ""}],
-                    }
-                ]
+            "predictor": {
+                "model": {
+                    "args": [],
+                }
             },
         },
     }
@@ -1048,8 +1039,8 @@ async def test_apply_params_swap_space_configmap_key(auto_tuner_instance, mock_k
     await tuner._apply_params(params)
 
     call_args = mock_custom_api.patch_namespaced_custom_object.call_args
-    patch_value = call_args.kwargs["body"]["spec"]["template"]["containers"][0]["env"][0]["value"]
-    assert "--swap-space=4.0" in patch_value
+    patch_args = call_args.kwargs["body"]["spec"]["predictor"]["model"]["args"]
+    assert "--swap-space=4.0" in patch_args
 
 
 @pytest.mark.asyncio
@@ -1089,13 +1080,10 @@ async def test_chunked_prefill_false_writes_empty_string(auto_tuner_instance, mo
 
     mock_custom_api.get_namespaced_custom_object.return_value = {
         "spec": {
-            "template": {
-                "containers": [
-                    {
-                        "name": "main",
-                        "env": [{"name": "VLLM_ADDITIONAL_ARGS", "value": ""}],
-                    }
-                ]
+            "predictor": {
+                "model": {
+                    "args": [],
+                }
             },
         },
     }
@@ -1112,17 +1100,17 @@ async def test_chunked_prefill_false_writes_empty_string(auto_tuner_instance, mo
     await tuner._apply_params(params)
 
     call_args = mock_custom_api.patch_namespaced_custom_object.call_args
-    patch_value = call_args.kwargs["body"]["spec"]["template"]["containers"][0]["env"][0]["value"]
+    patch_args = call_args.kwargs["body"]["spec"]["predictor"]["model"]["args"]
 
-    assert "--enable-chunked-prefill" not in patch_value
+    assert "--enable-chunked-prefill" not in patch_args
 
     mock_custom_api.patch_namespaced_custom_object.reset_mock()
     params_true = {**params, "enable_chunked_prefill": True}
     await tuner._apply_params(params_true)
-    patch_value_true = mock_custom_api.patch_namespaced_custom_object.call_args.kwargs["body"]["spec"]["template"][
-        "containers"
-    ][0]["env"][0]["value"]
-    assert "--enable-chunked-prefill" in patch_value_true
+    patch_args_true = mock_custom_api.patch_namespaced_custom_object.call_args.kwargs["body"]["spec"]["predictor"][
+        "model"
+    ]["args"]
+    assert "--enable-chunked-prefill" in patch_args_true
 
 
 @pytest.mark.asyncio
@@ -1132,13 +1120,10 @@ async def test_enforce_eager_writes_correct_values(auto_tuner_instance, mock_k8s
 
     mock_custom_api.get_namespaced_custom_object.return_value = {
         "spec": {
-            "template": {
-                "containers": [
-                    {
-                        "name": "main",
-                        "env": [{"name": "VLLM_ADDITIONAL_ARGS", "value": ""}],
-                    }
-                ]
+            "predictor": {
+                "model": {
+                    "args": [],
+                }
             },
         },
     }
@@ -1153,18 +1138,18 @@ async def test_enforce_eager_writes_correct_values(auto_tuner_instance, mock_k8s
     }
 
     await tuner._apply_params(params_false)
-    patch_value_false = mock_custom_api.patch_namespaced_custom_object.call_args.kwargs["body"]["spec"]["template"][
-        "containers"
-    ][0]["env"][0]["value"]
-    assert "--enforce-eager" not in patch_value_false
+    patch_args_false = mock_custom_api.patch_namespaced_custom_object.call_args.kwargs["body"]["spec"]["predictor"][
+        "model"
+    ]["args"]
+    assert "--enforce-eager" not in patch_args_false
 
     mock_custom_api.patch_namespaced_custom_object.reset_mock()
     params_true = {**params_false, "enable_enforce_eager": True}
     await tuner._apply_params(params_true)
-    patch_value_true = mock_custom_api.patch_namespaced_custom_object.call_args.kwargs["body"]["spec"]["template"][
-        "containers"
-    ][0]["env"][0]["value"]
-    assert "--enforce-eager" in patch_value_true
+    patch_args_true = mock_custom_api.patch_namespaced_custom_object.call_args.kwargs["body"]["spec"]["predictor"][
+        "model"
+    ]["args"]
+    assert "--enforce-eager" in patch_args_true
 
 
 def test_suggest_params_includes_enforce_eager(auto_tuner_instance):
@@ -1237,7 +1222,7 @@ async def test_rollback_uses_inferenceservice_annotation(auto_tuner_instance, mo
     tuner = auto_tuner_instance
     mock_custom_api = mock_k8s_clients[2].return_value
 
-    tuner._is_args_snapshot = "--max-num-seqs=64"
+    tuner._is_args_snapshot = ["--max-num-seqs=64"]
 
     await tuner._rollback_to_snapshot(0)
 
@@ -1246,7 +1231,7 @@ async def test_rollback_uses_inferenceservice_annotation(auto_tuner_instance, mo
     assert call_args.kwargs["name"] == _get_vllm_is_name()
     assert call_args.kwargs["namespace"] == _get_k8s_namespace()
     patch_body = call_args.kwargs["body"]
-    assert patch_body["spec"]["template"]["containers"][0]["env"][0]["value"] == tuner._is_args_snapshot
+    assert patch_body["spec"]["predictor"]["model"]["args"] == tuner._is_args_snapshot
 
 
 def test_config_has_resolved_model_name(client):

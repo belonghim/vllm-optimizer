@@ -62,11 +62,12 @@ function makeSuccessResponse() {
 }
 
 function setupDefaultFetch() {
-  vi.mocked(authFetch).mockImplementation((url: string) => {
-    if (url.includes("/sla/profiles")) {
+  vi.mocked(authFetch).mockImplementation((url: RequestInfo | URL) => {
+    const urlStr = url.toString();
+    if (urlStr.includes("/sla/profiles")) {
       return Promise.resolve({ ok: true, json: async () => [] } as unknown as Response);
     }
-    if (url.includes("/metrics/batch")) {
+    if (urlStr.includes("/metrics/batch")) {
       return makeSuccessResponse();
     }
     return Promise.resolve({ ok: true, json: async () => ({}) } as unknown as Response);
@@ -99,8 +100,9 @@ describe("useMonitorLogic", () => {
   });
 
   it("sets error when batch metrics fetch returns non-ok response", async () => {
-    vi.mocked(authFetch).mockImplementation((url: string) => {
-      if (url.includes("/sla/profiles")) {
+    vi.mocked(authFetch).mockImplementation((url: RequestInfo | URL) => {
+      const urlStr = url.toString();
+      if (urlStr.includes("/sla/profiles")) {
         return Promise.resolve({ ok: true, json: async () => [] } as unknown as Response);
       }
       return Promise.resolve({
