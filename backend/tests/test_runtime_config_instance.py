@@ -21,11 +21,10 @@ def test_vllm_namespace_reads_env_var(monkeypatch):
     assert config.vllm_namespace == "my-test-ns"
 
 
-def test_vllm_namespace_falls_back_to_k8s_namespace(monkeypatch):
+def test_vllm_namespace_falls_back_to_default(monkeypatch):
     monkeypatch.delenv("VLLM_NAMESPACE", raising=False)
-    monkeypatch.setenv("K8S_NAMESPACE", "k8s-fallback")
     config = RuntimeConfig(None)
-    assert config.vllm_namespace == "k8s-fallback"
+    assert config.vllm_namespace == "vllm-lab-dev"
 
 
 def test_cr_type_defaults_to_inferenceservice(monkeypatch):
