@@ -72,8 +72,8 @@ describe("useTunerLogic", () => {
     });
 
     const fetchMock = vi.mocked(fetch as ReturnType<typeof vi.fn>);
-    const startCall = fetchMock.mock.calls.find(([url]: [string]) =>
-      url.toString().includes("/tuner/start")
+    const startCall = fetchMock.mock.calls.find(([url]) =>
+      String(url).includes("/tuner/start")
     );
     expect(startCall).toBeDefined();
     const body = JSON.parse((startCall![1] as RequestInit).body as string);
