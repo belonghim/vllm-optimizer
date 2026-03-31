@@ -123,24 +123,6 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
   const [resolvedModelName, setResolvedModelName] = useState<string>("");
 
   useEffect(() => {
-    const hasStoredValues = (): boolean => {
-      try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (!stored) return false;
-        const parsed: unknown = JSON.parse(stored);
-        if (!isRecord(parsed)) return false;
-        return !!(parsed.endpoint || (Array.isArray(parsed.targets) && parsed.targets.length > 0));
-      } catch (e) {
-        console.error('Failed to check stored cluster configuration', e);
-        return false;
-      }
-    };
-
-    if (hasStoredValues()) {
-      setIsLoading(false);
-      return;
-    }
-
     const controller = new AbortController();
     // No auth required — /config endpoint reads env variables with no auth middleware
     authFetch(`${API}/config`, { signal: controller.signal })
@@ -155,17 +137,17 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
 
         const resolvedNamespace = vllmNamespace || DEFAULT_NAMESPACE;
         const resolvedIsName = vllmIsName || DEFAULT_INFERENCESERVICE;
-        const apiConfig: ClusterConfig = {
-          endpoint: vllmEndpoint,
-          targets: [{
-            namespace: resolvedNamespace,
-            inferenceService: resolvedIsName,
-            isDefault: true,
-          }],
-          maxTargets: MAX_TARGETS,
-          version: SCHEMA_VERSION,
-        };
-        setConfig(apiConfig);
+        setConfig(prev => {
+          const nonDefaultTargets = prev.targets.filter(t => !t.isDefault);
+          return {
+            ...prev,
+            endpoint: vllmEndpoint,
+            targets: [
+              { namespace: resolvedNamespace, inferenceService: resolvedIsName, isDefault: true },
+              ...nonDefaultTargets,
+            ],
+          };
+        });
         setCrType(resolvedCrType);
         setResolvedModelName(resolvedModel);
       })
