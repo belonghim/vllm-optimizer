@@ -170,6 +170,14 @@ describe("ClusterConfigContext", () => {
     });
     vi.mocked(Storage.prototype.getItem).mockReturnValue(legacy);
 
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      json: () => Promise.resolve({
+        vllm_endpoint: "",
+        vllm_namespace: "ns",
+        vllm_is_name: "is",
+      }),
+    } as unknown as Response);
+
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
     await waitFor(() => {
@@ -287,17 +295,18 @@ describe("ClusterConfigContext", () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(result.current.isLoading).toBe(false);
     });
 
-    const previousRefetchSignal = signals[0];
+    const callCountBeforeUpdate = fetchMock.mock.calls.length;
+    const previousRefetchSignal = signals[signals.length - 1];
 
     act(() => {
       result.current.updateConfig("namespace", "ns-abort");
     });
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(callCountBeforeUpdate + 1);
     });
 
     expect(previousRefetchSignal?.aborted).toBe(true);
@@ -311,12 +320,9 @@ describe("ClusterConfigContext", () => {
       version: 2,
     }));
 
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce({
-        json: () => Promise.resolve({ resolved_model_name: "model-initial" }),
-      } as unknown as Response)
-      .mockRejectedValueOnce(new Error("network failure"));
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({ resolved_model_name: "model-initial" }),
+    } as unknown as Response);
     vi.spyOn(global, "fetch").mockImplementation(fetchMock);
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -325,13 +331,19 @@ describe("ClusterConfigContext", () => {
     await waitFor(() => {
       expect(result.current.resolvedModelName).toBe("model-initial");
     });
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    const callCountAfterMount = fetchMock.mock.calls.length;
+    fetchMock.mockRejectedValueOnce(new Error("network failure"));
 
     act(() => {
       result.current.updateConfig("namespace", "ns-error");
     });
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(callCountAfterMount + 1);
     });
 
     expect(result.current.resolvedModelName).toBe("model-initial");

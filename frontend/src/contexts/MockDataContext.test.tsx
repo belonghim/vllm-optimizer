@@ -17,9 +17,9 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
 );
 
 describe("MockDataContext", () => {
-  it("defaults to isMockEnabled=true when no stored value", () => {
+  it("defaults to isMockEnabled=false when no stored value", () => {
     const { result } = renderHook(() => useMockData(), { wrapper });
-    expect(result.current.isMockEnabled).toBe(true);
+    expect(result.current.isMockEnabled).toBe(false);
   });
 
   it("reads stored value from localStorage", () => {
@@ -30,11 +30,11 @@ describe("MockDataContext", () => {
 
   it("toggles isMockEnabled when toggleMockEnabled is called", () => {
     const { result } = renderHook(() => useMockData(), { wrapper });
-    expect(result.current.isMockEnabled).toBe(true);
+    expect(result.current.isMockEnabled).toBe(false);
     act(() => {
       result.current.toggleMockEnabled();
     });
-    expect(result.current.isMockEnabled).toBe(false);
+    expect(result.current.isMockEnabled).toBe(true);
   });
 
   it("persists toggle to localStorage", () => {
@@ -43,6 +43,6 @@ describe("MockDataContext", () => {
     act(() => {
       result.current.toggleMockEnabled();
     });
-    expect(setItemSpy).toHaveBeenCalledWith("vllm-opt-mock-enabled", "false");
+    expect(setItemSpy).toHaveBeenCalledWith("vllm-opt-mock-enabled", "true");
   });
 });
