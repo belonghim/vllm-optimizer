@@ -7,7 +7,6 @@ resources:
   - 03-backend.yaml
   - 04-frontend.yaml
   - 05-monitoring.yaml
-  - 06-imagestream.yaml
 labels:
   - pairs:
       app.kubernetes.io/part-of: vllm-optimizer
