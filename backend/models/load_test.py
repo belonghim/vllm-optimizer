@@ -288,7 +288,7 @@ class BatchMetricsRequest(BaseModel):
     """Request body for batch metrics endpoint."""
 
     targets: list[MetricsTarget] = Field(description="List of targets to query")
-    history_points: int = Field(default=60, ge=1, le=1000, description="Number of history points to return per target")
+    history_points: int = Field(default=150, ge=1, le=1000, description="Number of history points to return per target")
     time_range: str | None = Field(
         default=None, description="Time range: 6h, 24h, 7d — uses Thanos query_range instead of in-memory buffer"
     )
