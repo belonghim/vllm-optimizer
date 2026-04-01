@@ -148,8 +148,8 @@ describe("SlaPage", () => {
     });
   });
 
-  describe("TC5: 403 response triggers oauth redirect (documents current behavior)", () => {
-    it("sets window.location.href to /oauth/sign_out on 403 — this is what looks like a page refresh", async () => {
+  describe("TC5: 403 response triggers redirect to / (OpenShift OAuth)", () => {
+    it("sets window.location.href to / on 403 — this is what looks like a page refresh", async () => {
       const user = userEvent.setup();
       const fetchMock = makeDefaultFetch((url, init) => {
         if ((init as RequestInit)?.method === "POST") {
@@ -166,7 +166,7 @@ describe("SlaPage", () => {
        await user.click(screen.getByRole("button", { name: "Create Profile" }));
 
       await waitFor(() => {
-        expect(window.location.href).toBe("/oauth/sign_out");
+        expect(window.location.href).toBe("/");
       });
     });
   });

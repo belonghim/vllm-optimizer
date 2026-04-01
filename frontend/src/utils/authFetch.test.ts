@@ -25,12 +25,20 @@ describe('authFetch', () => {
     expect(window.location.href).toBe('');
   });
 
-  it('redirects to /oauth/sign_out on 403', async () => {
+  it('redirects to / on 403', async () => {
     vi.mocked(fetch).mockResolvedValue({ status: 403 } as Response);
 
     await authFetch('/api/test');
 
-    expect(window.location.href).toBe('/oauth/sign_out');
+    expect(window.location.href).toBe('/');
+  });
+
+  it('redirects to / on 401', async () => {
+    vi.mocked(fetch).mockResolvedValue({ status: 401 } as Response);
+
+    await authFetch('/api/test');
+
+    expect(window.location.href).toBe('/');
   });
 
   it('passes through non-403 errors without redirect', async () => {
@@ -43,12 +51,12 @@ describe('authFetch', () => {
     expect(window.location.href).toBe('');
   });
 
-  it('redirects to /oauth/sign_out only once on consecutive 403s', async () => {
+  it('redirects to / only once on consecutive 403s', async () => {
     vi.mocked(fetch).mockResolvedValue({ status: 403 } as Response);
 
     await authFetch('/api/first');
     await authFetch('/api/second');
 
-    expect(window.location.href).toBe('/oauth/sign_out');
+    expect(window.location.href).toBe('/');
   });
 });
