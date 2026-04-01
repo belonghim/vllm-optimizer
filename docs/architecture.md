@@ -87,7 +87,7 @@ npm run type-check   # TypeScript type checking
 | Variable | Purpose | Default |
 |---|---|---|
 | `VLLM_ENDPOINT` | vLLM inference URL | required |
-| `VLLM_MODEL` | Model name | required |
+| `VLLM_MODEL` | Model name | `OpenVINO/Phi-4-mini-instruct-int4-ov` |
 | `VLLM_NAMESPACE` | vLLM workload namespace (pod listing, metrics, tuner) | `vllm-lab-dev` |
 | `VLLM_DEPLOYMENT_NAME` | InferenceService name | `llm-ov` |
 | `K8S_DEPLOYMENT_NAME` | Deployment name (KServe: `{name}-predictor`) | `llm-ov-predictor` |
@@ -141,7 +141,7 @@ The vLLM Optimizer consists of a React-based frontend and a FastAPI backend, dep
 
 ### Frontend (React + nginx)
 
-The frontend is a React application served by nginx. It runs on port `8080` and provides a user interface with four main tabs: Load Test, Metric Monitoring, Benchmark Comparison, and Auto Tuner. nginx handles static file serving and proxies `/api/*` requests to the FastAPI backend.
+The frontend is a React application served by nginx. It runs on port `8080` and provides a user interface with five main tabs: Load Test, Metric Monitoring, Benchmark Comparison, Auto Tuner, and SLA. nginx handles static file serving and proxies `/api/*` requests to the FastAPI backend.
 
 ### Backend (FastAPI)
 

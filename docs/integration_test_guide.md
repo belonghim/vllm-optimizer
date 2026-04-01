@@ -27,7 +27,7 @@ cd backend && python3 -m pytest tests/ -x -q -m "not integration"
 - `test_metrics_collection.py`: 메트릭 수집 기능 검증
 - `test_auto_tuner.py`: 자동 튜너 기능 검증
 - `test_sse_streaming.py`: SSE 스트리밍 기능 검증
-- `test_pod_restart.py`: **자동 튜닝 시 vLLM 파드 재기동 E2E 검증** — 튜닝 실행 전/후 파드 UID 비교로 실제 재기동 확인. `/api/vllm-config` PATCH API 기능도 검증.
+- `test_auto_tuner.py`: 자동 튜너 기능 검증
 
 ## 3. 환경변수
 
@@ -37,12 +37,12 @@ cd backend && python3 -m pytest tests/ -x -q -m "not integration"
 |:-----|:-----|:--------|
 | `PERF_TEST_BACKEND_URL` | Backend URL | `http://vllm-optimizer-backend.vllm-optimizer-dev.svc.cluster.local:8000` |
 | `VLLM_ENDPOINT` | vLLM completions endpoint | `http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080` |
-| `VLLM_MODEL` | vLLM 모델명 | `Qwen2.5-Coder-3B-Instruct-int4-ov` |
+| `VLLM_MODEL` | vLLM 모델명 | `OpenVINO/Phi-4-mini-instruct-int4-ov` |
 | `VLLM_NAMESPACE` | vLLM 네임스페이스 | `vllm-lab-dev` |
 | `OPTIMIZER_NAMESPACE` | Optimizer 네임스페이스 | `vllm-optimizer-dev` |
 | `PERF_BASELINE_FILE` | Baseline JSON 경로 | `baseline.dev.json` |
-| `VLLM_POD_LABEL` | vLLM 파드 식별 레이블 (`test_pod_restart.py`) | `app=isvc.llm-ov-predictor` |
-| `POD_RESTART_TIMEOUT` | 파드 재기동 대기 최대 시간(초) (`test_pod_restart.py`) | `300` |
+| `VLLM_POD_LABEL` | vLLM 파드 식별 레이블 | `app=isvc.llm-ov-predictor` |
+| `POD_RESTART_TIMEOUT` | 파드 재기동 대기 최대 시간(초) | `300` |
 
 ## 4. Baseline 관리
 
@@ -62,7 +62,7 @@ BACKEND_POD=$(oc get pod -n $NS -l app=vllm-optimizer-backend -o name | head -1)
 oc exec -n $NS $BACKEND_POD -- env \
   PERF_TEST_BACKEND_URL=http://localhost:8000 \
   VLLM_ENDPOINT=http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080 \
-  VLLM_MODEL=Qwen2.5-Coder-3B-Instruct-int4-ov \
+  VLLM_MODEL=OpenVINO/Phi-4-mini-instruct-int4-ov \
   VLLM_NAMESPACE=vllm-lab-dev \
   OPTIMIZER_NAMESPACE=vllm-optimizer-dev \
   python3 -m pytest /app/tests/integration/performance/ -v --tb=short -m "integration"
