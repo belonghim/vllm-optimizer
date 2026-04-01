@@ -13,10 +13,6 @@ metadata:
     app.kubernetes.io/component: frontend
     app.kubernetes.io/part-of: vllm-optimizer
     app.kubernetes.io/version: "1.0.0"
-  annotations:
-    image.openshift.io/triggers: >-
-      [{"from":{"kind":"ImageStreamTag","name":"vllm-optimizer-frontend:latest","namespace":"vllm-optimizer-NAMESPACE"},
-        "fieldPath":"spec.template.spec.containers[0].image","pause":"false"}]
 spec:
   replicas: 2
   selector:
@@ -81,11 +77,11 @@ spec:
 
           resources:
             requests:
-              cpu: "50m"
-              memory: "64Mi"
+              cpu: "100m"
+              memory: "256Mi"
             limits:
-              cpu: "200m"
-              memory: "128Mi"
+              cpu: "400m"
+              memory: "1Gi"
 
           volumeMounts:
             - name: tmp-nginx
