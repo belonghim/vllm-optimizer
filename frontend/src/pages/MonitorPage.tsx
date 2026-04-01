@@ -20,7 +20,7 @@ import type { SlaThresholds, SlaProfile, HistoryPoint, TargetResultData, TargetR
 export { buildChartLinesMap } from "../components/MonitorChartGrid";
 
 const TIME_RANGES = [
-  { label: 'Live' as const, points: 60 },
+  { label: 'Live' as const, points: 150 }, // 150 points × 2s interval = 5 minutes
   { label: '1h' as const,  points: 360, timeRange: '1h' },
   { label: '6h' as const,  points: 720, timeRange: '6h' },
   { label: '24h' as const, points: 1000, timeRange: '24h' },
@@ -36,10 +36,10 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
   const [chartState, setChartState] = useState<ChartConfig>(() => loadChartConfig());
   const [slaProfiles, setSlaProfiles] = useState<SlaProfile[]>([]);
   const [selectedSlaProfileId, setSelectedSlaProfileId] = useState<number | null>(null);
-  const [timeRangePoints, setTimeRangePoints] = useState(60);
+  const [timeRangePoints, setTimeRangePoints] = useState(150);
   const [selectedRange, setSelectedRange] = useState<'Live' | '1h' | '6h' | '24h' | '7d'>('Live');
   const [initialized, setInitialized] = useState(false);
-  const timeRangePointsRef = useRef(60);
+  const timeRangePointsRef = useRef(150);
   const selectedRangeRef = useRef('Live');
   const lastViolationTime = useRef<Record<string, number>>({});
 
