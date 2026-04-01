@@ -101,8 +101,23 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
        });
 
       if (signal?.aborted) return;
+
+      // Check for auth errors before attempting to parse JSON
+      if (res.status === 401 || res.status === 403) {
+        throw new Error(`Auth error: ${res.status}`);
+      }
       if (!res.ok) throw new Error(`Batch HTTP ${res.status}`);
-      const batchData = await res.json();
+
+      let batchData: { results?: Record<string, TargetResult> };
+      try {
+        batchData = await res.json();
+      } catch {
+        throw new Error('Failed to parse metrics response as JSON');
+      }
+
+      if (!batchData.results) {
+        throw new Error('Invalid metrics response: missing results');
+      }
 
       const newStates: Record<string, TargetState> = {};
       const now = Date.now();
