@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 from services.rate_limiter import limiter
@@ -6,6 +7,8 @@ from models.load_test import (
     BatchMetricsResponse,
     ErrorResponse,
     MetricsSnapshot,
+    PerPodMetricSnapshot,
+    PerPodMetricsResponse,
     TargetedMetricsResponse,
 )
 from services.shared import multi_target_collector as _default_collector, runtime_config as _default_runtime_config
@@ -123,6 +126,151 @@ async def get_batch_metrics(
             }
 
     return BatchMetricsResponse(results=results)
+
+
+@router.post("/pods")
+@limiter.limit("120/minute")
+async def get_pod_metrics(
+    request: Request,
+    body: BatchMetricsRequest,
+    collector=Depends(get_multi_target_collector),
+) -> dict[str, PerPodMetricsResponse]:
+    """Get per-pod metrics for multiple targets.
+
+    Returns aggregated metrics plus per-pod breakdown using _build_pod_queries
+    and _fetch_prometheus_multi_result for each target.
+    """
+    import time
+
+    from models.load_test import MetricsSnapshot
+
+    results: dict[str, PerPodMetricsResponse] = {}
+
+    for target in body.targets:
+        key = f"{target.namespace}/{target.inferenceService}"
+        registered = await collector.register_target(target.namespace, target.inferenceService, cr_type=target.cr_type)
+        if not registered:
+            results[key] = PerPodMetricsResponse(
+                aggregated=MetricsSnapshot(timestamp=time.time()),
+                per_pod=[],
+                pod_names=[],
+                timestamp=time.time(),
+            )
+            continue
+
+        # Get aggregated metrics (same as /batch)
+        vllm_metrics = await collector.get_metrics(target.namespace, target.inferenceService)
+        snapshot = _convert_to_snapshot(vllm_metrics)
+
+        # Build per-pod queries and fetch results
+        queries = collector._build_pod_queries(target.namespace, target.inferenceService, target.cr_type)
+        headers: dict[str, str] = {}
+        if collector._token:
+            headers["Authorization"] = f"Bearer {collector._token}"
+
+        # Fetch all pod queries in parallel
+        fetch_tasks = [
+            collector._fetch_prometheus_multi_result(headers, query)
+            for query in queries.values()
+        ]
+        query_results = await asyncio.gather(*fetch_tasks)
+
+        # Build pod_name -> metrics mapping from all query results
+        # query_results[i] corresponds to queries[keys[i]]
+        metric_names = list(queries.keys())
+        pod_metrics: dict[str, dict[str, float | int | None]] = {}
+        for metric_name, pod_result in zip(metric_names, query_results, strict=False):
+            for pod_name, value in pod_result.items():
+                if pod_name not in pod_metrics:
+                    pod_metrics[pod_name] = {
+                        "tps": None,
+                        "rps": None,
+                        "kv_cache": None,
+                        "running": None,
+                        "waiting": None,
+                        "gpu_util": None,
+                        "gpu_mem_used": None,
+                    }
+                # Map metric name to PerPodMetricSnapshot field
+                snapshot_field = _pod_metric_to_snapshot_field(metric_name)
+                if snapshot_field and value is not None:
+                    pod_metrics[pod_name][snapshot_field] = value
+
+        # Convert to PerPodMetricSnapshot list
+        pod_names = sorted(pod_metrics.keys())
+        per_pod_snapshots = [
+            PerPodMetricSnapshot(
+                pod_name=pod_name,
+                tps=pod_metrics[pod_name].get("tps"),
+                rps=pod_metrics[pod_name].get("rps"),
+                kv_cache=pod_metrics[pod_name].get("kv_cache"),
+                running=pod_metrics[pod_name].get("running"),
+                waiting=pod_metrics[pod_name].get("waiting"),
+                gpu_util=pod_metrics[pod_name].get("gpu_util"),
+                gpu_mem_used=pod_metrics[pod_name].get("gpu_mem_used"),
+            )
+            for pod_name in pod_names
+        ]
+
+        results[key] = PerPodMetricsResponse(
+            aggregated=snapshot,
+            per_pod=per_pod_snapshots,
+            pod_names=pod_names,
+            timestamp=time.time(),
+        )
+
+    return results
+
+
+@router.post("/pods/history")
+@limiter.limit("120/minute")
+async def get_pods_history(
+    request: Request,
+    body: BatchMetricsRequest,
+    collector=Depends(get_multi_target_collector),
+) -> BatchMetricsResponse:
+    """Get per-pod history for multiple targets via Thanos.
+
+    Returns per-pod time series metrics for each target using
+    _get_history_from_thanos with per_pod=True.
+    """
+    results: dict[str, dict[str, object]] = {}
+
+    for target in body.targets:
+        key = f"{target.namespace}/{target.inferenceService}"
+        registered = await collector.register_target(target.namespace, target.inferenceService, cr_type=target.cr_type)
+        if not registered:
+            results[key] = {"data": None, "status": "max_targets_reached", "history": []}
+            continue
+
+        if body.time_range in _TIME_RANGE_CONFIG:
+            history = await _get_history_from_thanos(
+                target.namespace, target.inferenceService, target.cr_type, body.time_range, collector, per_pod=True
+            )
+        else:
+            history = []
+
+        results[key] = {
+            "data": None,
+            "status": "ready",
+            "history": history,
+        }
+
+    return BatchMetricsResponse(results=results)
+
+
+def _pod_metric_to_snapshot_field(metric_name: str) -> str | None:
+    """Map query metric name to PerPodMetricSnapshot field name."""
+    mapping = {
+        "tokens_per_second": "tps",
+        "requests_per_second": "rps",
+        "kv_cache_usage_pct": "kv_cache",
+        "running_requests": "running",
+        "waiting_requests": "waiting",
+        "gpu_utilization_pct": "gpu_util",
+        "gpu_memory_used_gb": "gpu_mem_used",
+    }
+    return mapping.get(metric_name)
 
 
 @router.get("/history", response_model=list[MetricsSnapshot])

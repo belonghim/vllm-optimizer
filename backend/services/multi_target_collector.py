@@ -395,6 +395,57 @@ class MultiTargetMetricsCollector:
                 f"histogram_quantile(0.99, sum by (le) "
                 f"(rate({prefix}e2e_request_latency_seconds_bucket{{{selector}}}[1m]))) * 1000"
             ),
+            "kv_cache_usage_pct": f"avg({prefix}kv_cache_usage_perc{{{selector}}}) * 100",
+            "kv_cache_hit_rate": (
+                f"avg({prefix}kv_cache_hit_rate{{{selector}}}) or avg({prefix}cache_config_info{{{selector}}})"
+            ),
+            "running_requests": f"sum({prefix}num_requests_running{{{selector}}})",
+            "waiting_requests": f"sum({prefix}num_requests_waiting{{{selector}}})",
+            "gpu_memory_used_gb": (
+                f"(sum({prefix}gpu_memory_usage_bytes{{{selector}}}) / 1024^3) "
+                f"or {prefix}gpu_cache_usage_perc{{{selector}}} "
+                f"or (sum(DCGM_FI_DEV_FB_USED{{{dcgm_selector}}}) / 1024)"
+            ),
+            "gpu_memory_total_gb": (
+                f"(sum({prefix}gpu_memory_total_bytes{{{selector}}}) / 1024^3) "
+                f"or ({prefix}gpu_cache_usage_perc{{{selector}}} * 0 + 1) "
+                f"or (sum(DCGM_FI_DEV_FB_USED{{{dcgm_selector}}} + DCGM_FI_DEV_FB_FREE{{{dcgm_selector}}} + DCGM_FI_DEV_FB_RESERVED{{{dcgm_selector}}}) / 1024)"
+            ),
+            "gpu_utilization_pct": (
+                f"(avg({prefix}gpu_utilization_perc{{{selector}}}) * 100) "
+                f"or (avg({prefix}gpu_utilization{{{selector}}}) * 100) "
+                f"or sum(DCGM_FI_DEV_GPU_UTIL{{{dcgm_selector}}})"
+            ),
+        }
+
+    def _build_pod_queries(self, namespace: str, is_name: str, cr_type: str | None = None) -> dict[str, str]:
+        if cr_type is None:
+            cr_type = runtime_config.cr_type
+        adapter = get_cr_adapter(cr_type)
+        prefix = adapter.metric_prefix()
+        selector = f'namespace="{namespace}", job="{adapter.prometheus_job(is_name)}"'
+        dcgm_selector = f'exported_namespace="{namespace}", exported_pod=~"{adapter.dcgm_pod_pattern(is_name)}"'
+        return {
+            "tokens_per_second": (
+                f"rate({prefix}num_generated_tokens{{{selector}}}[1m]) "
+                f"or rate({prefix}generation_tokens_total{{{selector}}}[1m])"
+            ),
+            "requests_per_second": (
+                f"rate({prefix}num_requests_finished{{{selector}}}[1m]) "
+                f"or rate({prefix}request_success_total{{{selector}}}[1m])"
+            ),
+            "mean_ttft_ms": (
+                f"histogram_quantile(0.5, rate({prefix}time_to_first_token_seconds_bucket{{{selector}}}[1m])) * 1000"
+            ),
+            "p99_ttft_ms": (
+                f"histogram_quantile(0.99, rate({prefix}time_to_first_token_seconds_bucket{{{selector}}}[1m])) * 1000"
+            ),
+            "mean_e2e_latency_ms": (
+                f"histogram_quantile(0.5, rate({prefix}e2e_request_latency_seconds_bucket{{{selector}}}[1m])) * 1000"
+            ),
+            "p99_e2e_latency_ms": (
+                f"histogram_quantile(0.99, rate({prefix}e2e_request_latency_seconds_bucket{{{selector}}}[1m])) * 1000"
+            ),
             "kv_cache_usage_pct": f"{prefix}kv_cache_usage_perc{{{selector}}} * 100",
             "kv_cache_hit_rate": (
                 f"{prefix}kv_cache_hit_rate{{{selector}}} or {prefix}cache_config_info{{{selector}}}"
@@ -404,17 +455,17 @@ class MultiTargetMetricsCollector:
             "gpu_memory_used_gb": (
                 f"({prefix}gpu_memory_usage_bytes{{{selector}}} / 1024^3) "
                 f"or {prefix}gpu_cache_usage_perc{{{selector}}} "
-                f"or (sum(DCGM_FI_DEV_FB_USED{{{dcgm_selector}}}) / 1024)"
+                f"or (DCGM_FI_DEV_FB_USED{{{dcgm_selector}}} / 1024)"
             ),
             "gpu_memory_total_gb": (
                 f"({prefix}gpu_memory_total_bytes{{{selector}}} / 1024^3) "
                 f"or ({prefix}gpu_cache_usage_perc{{{selector}}} * 0 + 1) "
-                f"or (sum(DCGM_FI_DEV_FB_USED{{{dcgm_selector}}} + DCGM_FI_DEV_FB_FREE{{{dcgm_selector}}} + DCGM_FI_DEV_FB_RESERVED{{{dcgm_selector}}}) / 1024)"
+                f"or ((DCGM_FI_DEV_FB_USED{{{dcgm_selector}}} + DCGM_FI_DEV_FB_FREE{{{dcgm_selector}}} + DCGM_FI_DEV_FB_RESERVED{{{dcgm_selector}}}) / 1024)"
             ),
             "gpu_utilization_pct": (
                 f"({prefix}gpu_utilization_perc{{{selector}}} * 100) "
                 f"or ({prefix}gpu_utilization{{{selector}}} * 100) "
-                f"or sum(DCGM_FI_DEV_GPU_UTIL{{{dcgm_selector}}})"
+                f"or DCGM_FI_DEV_GPU_UTIL{{{dcgm_selector}}}"
             ),
         }
 
@@ -517,6 +568,14 @@ class MultiTargetMetricsCollector:
             payload = cast(dict[str, Any], data.get("data", {}))
             results = cast(list[dict[str, Any]], payload.get("result", []))
             if data.get("status") == "success" and results:
+                # For aggregated queries (sum/avg), Prometheus returns exactly ONE result
+                # because the aggregation function reduces all matching series into a single value.
+                # e.g., sum(rate(vllm:requests_total[5m])) aggregates across all pods → single result
+                if len(results) > 1:
+                    logger.warning(
+                        f"Unexpected multiple results for aggregated query '{metric_name}': "
+                        f"{len(results)} results. Using first result."
+                    )
                 value = float(cast(list[Any], results[0].get("value", []))[1])
                 if math.isnan(value) or math.isinf(value):
                     return metric_name, None
@@ -524,6 +583,62 @@ class MultiTargetMetricsCollector:
         except (httpx.HTTPError, ValueError, AttributeError, TypeError):
             pass
         return metric_name, None
+
+    async def _fetch_prometheus_multi_result(
+        self,
+        headers: dict[str, str],
+        query: str,
+    ) -> dict[str, float]:
+        """
+        Fetch multiple results from Prometheus, returning a dict mapping pod names to metric values.
+
+        Unlike _fetch_prometheus_metric() which handles aggregated queries (single result),
+        this method parses ALL results from the Prometheus response, extracting the 'pod' label
+        from each result to create a pod->value mapping.
+
+        Args:
+            headers: HTTP headers for Prometheus request
+            query: Prometheus query string (should return per-pod results)
+
+        Returns:
+            Dict mapping pod names to float values. If 'pod' label is missing from a result,
+            uses "pod_0", "pod_1", etc. as fallback keys.
+        """
+        from services.shared import get_internal_client
+
+        async def _do_fetch():
+            internal_client = get_internal_client()
+            resp = await internal_client.get(
+                f"{PROMETHEUS_URL}/api/v1/query",
+                params={"query": query},
+                headers=headers,
+                timeout=5,
+            )
+            resp.raise_for_status()
+            return resp
+
+        result: dict[str, float] = {}
+        try:
+            response = await _with_retry(_do_fetch)
+            data = cast(dict[str, Any], response.json())
+            payload = cast(dict[str, Any], data.get("data", {}))
+            results = cast(list[dict[str, Any]], payload.get("result", []))
+            if data.get("status") == "success" and results:
+                logger.info(f"Multi-result query returned {len(results)} results")
+                for i, item in enumerate(results):
+                    labels = cast(dict[str, Any], item.get("metric", {}))
+                    value_list = cast(list[Any], item.get("value", []))
+                    if not value_list or len(value_list) < 2:
+                        continue
+                    value = float(value_list[1])
+                    if math.isnan(value) or math.isinf(value):
+                        continue
+                    # Extract pod label, fallback to pod_0, pod_1, etc. if missing
+                    pod_name = labels.get("pod", f"pod_{i}")
+                    result[pod_name] = round(value, 3)
+        except (httpx.HTTPError, ValueError, AttributeError, TypeError):
+            pass
+        return result
 
     async def _query_kubernetes_pods(self, namespace: str, is_name: str, cr_type: str | None = None) -> dict[str, int]:
         if cr_type is None:

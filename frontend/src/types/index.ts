@@ -47,6 +47,24 @@ export interface TargetResultData {
   availability?: number | null;
 }
 
+export interface PerPodMetricSnapshot {
+  pod_name: string;
+  tps?: number | null;
+  rps?: number | null;
+  kv_cache?: number | null;
+  running?: number | null;
+  waiting?: number | null;
+  gpu_util?: number | null;
+  gpu_mem_used?: number | null;
+}
+
+export interface PerPodMetricsResponse {
+  aggregated: TargetResultData;
+  per_pod: PerPodMetricSnapshot[];
+  pod_names: string[];
+  timestamp: number;
+}
+
 export interface TargetResult {
   status: string;
   error?: string;

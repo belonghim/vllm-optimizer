@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
 import { TARGET_COLORS } from "../constants";
 import { fmt } from "../utils/format";
 import { authFetch } from "../utils/authFetch";
-import type { ClusterTarget } from "../types";
+import type { ClusterTarget, PerPodMetricSnapshot } from "../types";
+import ExpandablePodRow from "./ExpandablePodRow";
 
 const TOTAL_COLUMNS = 13;
 
@@ -53,6 +54,8 @@ export default function MultiTargetSelector({
   const [newTarget, setNewTarget] = useState({ namespace: "", inferenceService: "", crType: contextCrType || "inferenceservice" });
   const [isValidating, setIsValidating] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [podData, setPodData] = useState<Record<string, PerPodMetricSnapshot[]>>({});
 
   const handleAdd = async () => {
     if (newTarget.namespace && newTarget.inferenceService) {
@@ -71,6 +74,49 @@ export default function MultiTargetSelector({
         setAddError("Validation error occurred");
       } finally {
         setIsValidating(false);
+      }
+    }
+  };
+
+  const toggleRowExpand = async (target: ClusterTarget) => {
+    const key = getTargetKey(target);
+    const isExpanded = expandedRows.has(key);
+    
+    if (isExpanded) {
+      setExpandedRows(prev => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    } else {
+      setExpandedRows(prev => new Set(prev).add(key));
+      
+      if (!podData[key]) {
+        try {
+          const response = await authFetch("/api/metrics/pods", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              targets: [{
+                namespace: target.namespace,
+                inferenceService: target.inferenceService,
+                cr_type: target.crType
+              }]
+            })
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data[key]?.per_pod) {
+              setPodData(prev => ({
+                ...prev,
+                [key]: data[key].per_pod
+              }));
+            }
+          }
+        } catch (err) {
+          console.error("Failed to fetch pod data:", err);
+        }
       }
     }
   };
@@ -120,94 +166,117 @@ export default function MultiTargetSelector({
                 </td>
               </tr>
             ) : (
-              targets.map((target, index) => {
-                 const key = getTargetKey(target);
-                 const state = targetStates[key];
-                 const status = state?.status || targetStatuses[key]?.status || 'collecting';
-                 const data = state?.data || state?.metrics;
-                 const hasMonitoringLabel = state?.hasMonitoringLabel !== false && targetStatuses[key]?.hasMonitoringLabel !== false;
-                 const targetColor = TARGET_COLORS[index % TARGET_COLORS.length];
+targets.map((target, index) => {
+                  const key = getTargetKey(target);
+                  const state = targetStates[key];
+                  const status = state?.status || targetStatuses[key]?.status || 'collecting';
+                  const data = state?.data || state?.metrics;
+                  const hasMonitoringLabel = state?.hasMonitoringLabel !== false && targetStatuses[key]?.hasMonitoringLabel !== false;
+                  const targetColor = TARGET_COLORS[index % TARGET_COLORS.length];
+                  const isExpanded = expandedRows.has(key);
+                  const pods = data?.pods ?? 1;
+                  const canExpand = pods > 1;
 
-                return (
-                  <tr key={key} data-testid={`target-row-${index}`}>
-                    <td className="target-name multi-target-color-cell" style={{ borderLeftColor: targetColor }}>
-                      <div style={{ color: targetColor }}>
-                        {target.inferenceService}
-                        {target.crType === "llminferenceservice" && (
-                          <span 
-                            className="tag tag-info"
-                            title="LLMInferenceService"
-                            data-testid="llmis-badge"
-                            style={{ marginLeft: "8px" }}
-                          >
-                            LLMIS
-                          </span>
-                        )}
-                        {!hasMonitoringLabel && (
-                          <span 
-                            className="multi-target-warning-icon"
-                            title="This namespace lacks the openshift.io/cluster-monitoring=true label, so metrics cannot be collected."
-                            data-testid="no-monitoring-warning"
-                          >
-                            ⚠️
-                          </span>
-                        )}
-                      </div>
-                      <div className="target-ns">{target.namespace}</div>
-                    </td>
-                    {status === 'collecting' ? (
-                      <>
-                        <td>...</td><td>...</td><td>...</td><td>...</td><td>...</td>
-                        <td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td>
-                      </>
-                    ) : !data ? (
-                      <>
-                        <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>
-                        <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>
-                      </>
-                    ) : (
-                      <>
-                        <td>{fmt(data.tps, 0)}</td>
-                        <td>{fmt(data.rps, 1)}</td>
-                        <td>{fmt(data.ttft_mean, 0)} / {fmt(data.ttft_p99, 0)}</td>
-                        <td>{fmt(data.latency_mean, 0)} / {fmt(data.latency_p99, 0)}</td>
-                        <td>{fmt(data.kv_cache, 1)}</td>
-                        <td>{fmt(data.kv_hit_rate, 1)}</td>
-                        <td>{fmt(data.gpu_util, 1)}</td>
-                        <td>{fmt(data.gpu_mem_used, 1)} / {fmt(data.gpu_mem_total, 0)}</td>
-                        <td>{data.running ?? '—'}</td>
-                        <td>{data.waiting ?? '—'}</td>
-                        <td>{data.pods_ready} / {data.pods}</td>
-                      </>
-                    )}
-                    <td className="multi-target-action-cell">
-                       {target.isDefault ? (
-                          <span className="tag tag-completed multi-target-default-tag">Default</span>
-                       ) : (
-                         <div className="multi-target-action-btns">
-                            <button
-                              className="btn btn-secondary multi-target-setdefault-btn"
-                              onClick={() => setDefaultTarget(target.namespace, target.inferenceService)}
-                              data-testid="set-default-btn"
-                               title="Set as default"
-                               aria-label={`Set ${target.inferenceService} as default monitoring target`}
-                            >
-                              ★
-                            </button>
-                            <button
-                              className="btn btn-danger multi-target-delete-btn"
-                              onClick={() => removeTarget(target.namespace, target.inferenceService)}
-                              data-testid="delete-btn"
-                              aria-label={`Remove monitoring target ${target.namespace}/${target.inferenceService}`}
-                            >
-                              ×
-                            </button>
+                 return (
+                   <Fragment key={key}>
+                     <tr data-testid={`target-row-${index}`}>
+                       <td className="target-name multi-target-color-cell" style={{ borderLeftColor: targetColor }}>
+                         <div style={{ color: targetColor }}>
+                           {target.inferenceService}
+                           {target.crType === "llminferenceservice" && (
+                             <span 
+                               className="tag tag-info"
+                               title="LLMInferenceService"
+                               data-testid="llmis-badge"
+                               style={{ marginLeft: "8px" }}
+                             >
+                               LLMIS
+                             </span>
+                           )}
+                           {!hasMonitoringLabel && (
+                             <span 
+                               className="multi-target-warning-icon"
+                               title="This namespace lacks the openshift.io/cluster-monitoring=true label, so metrics cannot be collected."
+                               data-testid="no-monitoring-warning"
+                             >
+                               ⚠️
+                             </span>
+                           )}
                          </div>
+                         <div className="target-ns">{target.namespace}</div>
+                       </td>
+                       {status === 'collecting' ? (
+                         <>
+                           <td>...</td><td>...</td><td>...</td><td>...</td><td>...</td>
+                           <td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td>
+                         </>
+                       ) : !data ? (
+                         <>
+                           <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>
+                           <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>
+                         </>
+                       ) : (
+                         <>
+                           <td>{fmt(data.tps, 0)}</td>
+                           <td>{fmt(data.rps, 1)}</td>
+                           <td>{fmt(data.ttft_mean, 0)} / {fmt(data.ttft_p99, 0)}</td>
+                           <td>{fmt(data.latency_mean, 0)} / {fmt(data.latency_p99, 0)}</td>
+                           <td>{fmt(data.kv_cache, 1)}</td>
+                           <td>{fmt(data.kv_hit_rate, 1)}</td>
+                           <td>{fmt(data.gpu_util, 1)}</td>
+                           <td>{fmt(data.gpu_mem_used, 1)} / {fmt(data.gpu_mem_total, 0)}</td>
+                           <td>{data.running ?? '—'}</td>
+                           <td>{data.waiting ?? '—'}</td>
+                           <td>
+                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                               {canExpand && (
+                                 <button
+                                   className="btn btn-secondary"
+                                   onClick={() => toggleRowExpand(target)}
+                                   style={{ padding: '2px 6px', fontSize: '12px' }}
+                                   data-testid={`expand-btn-${index}`}
+                                   aria-label={isExpanded ? `Collapse ${target.inferenceService}` : `Expand ${target.inferenceService}`}
+                                 >
+                                   {isExpanded ? '▼' : '▶'}
+                                 </button>
+                               )}
+                               <span>{data.pods_ready} / {data.pods}</span>
+                             </div>
+                           </td>
+                         </>
                        )}
-                     </td>
-                  </tr>
-                );
-              })
+                       <td className="multi-target-action-cell">
+                          {target.isDefault ? (
+                             <span className="tag tag-completed multi-target-default-tag">Default</span>
+                          ) : (
+                            <div className="multi-target-action-btns">
+                               <button
+                                 className="btn btn-secondary multi-target-setdefault-btn"
+                                 onClick={() => setDefaultTarget(target.namespace, target.inferenceService)}
+                                 data-testid="set-default-btn"
+                                  title="Set as default"
+                                  aria-label={`Set ${target.inferenceService} as default monitoring target`}
+                               >
+                                 ★
+                               </button>
+                               <button
+                                 className="btn btn-danger multi-target-delete-btn"
+                                 onClick={() => removeTarget(target.namespace, target.inferenceService)}
+                                 data-testid="delete-btn"
+                                 aria-label={`Remove monitoring target ${target.namespace}/${target.inferenceService}`}
+                               >
+                                 ×
+                               </button>
+                            </div>
+                          )}
+                        </td>
+                     </tr>
+                     {isExpanded && podData[key] && (
+                       <ExpandablePodRow pods={podData[key]} parentColor={targetColor} />
+                     )}
+                   </Fragment>
+                 );
+               })
             )}
             {isAdding && (
               <tr>

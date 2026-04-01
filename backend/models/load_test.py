@@ -238,6 +238,28 @@ class MetricsSnapshot(BaseModel):
     pods_ready: int = Field(default=0, description="Number of ready vLLM pods")
 
 
+class PerPodMetricSnapshot(BaseModel):
+    """Per-pod metrics snapshot for individual pod monitoring"""
+
+    pod_name: str
+    tps: float | None
+    rps: float | None
+    kv_cache: float | None
+    running: int | None
+    waiting: int | None
+    gpu_util: float | None
+    gpu_mem_used: float | None
+
+
+class PerPodMetricsResponse(BaseModel):
+    """Response model containing aggregated and per-pod metrics"""
+
+    aggregated: MetricsSnapshot
+    per_pod: list[PerPodMetricSnapshot]
+    pod_names: list[str]
+    timestamp: float
+
+
 class BenchmarkMetadata(BaseModel):
     model_identifier: str | None = Field(
         default=None, description="모델 식별자 (자동 수집 시 서빙 이름, 사용자가 실제 모델명으로 편집 가능)"
