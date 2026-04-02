@@ -14,7 +14,7 @@ const DEFAULT_CR_TYPE = "inferenceservice";
 const CONFIGMAP_TIMEOUT_MS = 5000;
 const POLLING_INTERVAL_MS = 300000; // 5 minutes
 
-interface ClusterConfigContextValue {
+export interface ClusterConfigContextValue {
   endpoint: string;
   namespace: string;
   inferenceservice: string;

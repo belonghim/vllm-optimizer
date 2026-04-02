@@ -14,7 +14,7 @@ import MonitorChartGrid, {
   buildChartLinesMap, loadChartConfig, saveChartConfig,
   type ChartConfig,
 } from "../components/MonitorChartGrid";
-import type { SlaThresholds, SlaProfile, HistoryPoint, TargetResultData, TargetResult, TargetState } from "../types";
+import type { SlaProfile, TargetResult, TargetState } from "../types";
 
 // Re-export for backwards compatibility (tests import from this module)
 export { buildChartLinesMap } from "../components/MonitorChartGrid";

@@ -1,7 +1,7 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import TargetSelector from "./TargetSelector";
-import { useClusterConfig } from "../contexts/ClusterConfigContext";
+import { useClusterConfig, ClusterConfigContextValue } from "../contexts/ClusterConfigContext";
 
 vi.mock("../contexts/ClusterConfigContext", () => ({
   useClusterConfig: vi.fn(),
@@ -20,7 +20,7 @@ describe("TargetSelector", () => {
   it("renders empty state when no targets", () => {
     vi.mocked(useClusterConfig).mockReturnValue({
       targets: [],
-    } as any);
+    } as unknown as ClusterConfigContextValue);
     render(<TargetSelector />);
     expect(screen.getByText("No targets available")).toBeInTheDocument();
   });
@@ -28,7 +28,7 @@ describe("TargetSelector", () => {
   it("renders trigger button with selected value", () => {
     vi.mocked(useClusterConfig).mockReturnValue({
       targets: mockTargets,
-    } as any);
+    } as unknown as ClusterConfigContextValue);
     render(<TargetSelector value={mockTargets[0]} />);
     expect(screen.getByText("llm-ov")).toBeInTheDocument();
     expect(screen.getByText("(vllm-lab-dev)")).toBeInTheDocument();
@@ -37,7 +37,7 @@ describe("TargetSelector", () => {
   it("shows placeholder when no value selected", () => {
     vi.mocked(useClusterConfig).mockReturnValue({
       targets: mockTargets,
-    } as any);
+    } as unknown as ClusterConfigContextValue);
     render(<TargetSelector />);
     expect(screen.getByText("Select a target")).toBeInTheDocument();
   });
@@ -45,7 +45,7 @@ describe("TargetSelector", () => {
   it("opens dropdown when trigger is clicked", () => {
     vi.mocked(useClusterConfig).mockReturnValue({
       targets: mockTargets,
-    } as any);
+    } as unknown as ClusterConfigContextValue);
     render(<TargetSelector />);
     fireEvent.click(screen.getByRole("button"));
     expect(screen.getByTestId("target-selector-dropdown")).toBeInTheDocument();
@@ -54,7 +54,7 @@ describe("TargetSelector", () => {
   it("shows targets grouped by CR type", () => {
     vi.mocked(useClusterConfig).mockReturnValue({
       targets: mockTargets,
-    } as any);
+    } as unknown as ClusterConfigContextValue);
     render(<TargetSelector />);
     fireEvent.click(screen.getByRole("button"));
     expect(screen.getByText("KServe (isvc)")).toBeInTheDocument();
@@ -64,7 +64,7 @@ describe("TargetSelector", () => {
   it("displays star for default target", () => {
     vi.mocked(useClusterConfig).mockReturnValue({
       targets: mockTargets,
-    } as any);
+    } as unknown as ClusterConfigContextValue);
     render(<TargetSelector />);
     fireEvent.click(screen.getByRole("button"));
     const starElement = screen.getByText("★");
@@ -76,7 +76,7 @@ describe("TargetSelector", () => {
     const onChange = vi.fn();
     vi.mocked(useClusterConfig).mockReturnValue({
       targets: mockTargets,
-    } as any);
+    } as unknown as ClusterConfigContextValue);
     render(<TargetSelector onChange={onChange} />);
     fireEvent.click(screen.getByRole("button"));
     fireEvent.click(screen.getByText("small-llm-d"));
@@ -91,7 +91,7 @@ describe("TargetSelector", () => {
   it("closes dropdown after selection", () => {
     vi.mocked(useClusterConfig).mockReturnValue({
       targets: mockTargets,
-    } as any);
+    } as unknown as ClusterConfigContextValue);
     render(<TargetSelector onChange={() => {}} />);
     fireEvent.click(screen.getByRole("button"));
     expect(screen.getByTestId("target-selector-dropdown")).toBeInTheDocument();
@@ -102,7 +102,7 @@ describe("TargetSelector", () => {
   it("supports keyboard navigation to open dropdown", () => {
     vi.mocked(useClusterConfig).mockReturnValue({
       targets: mockTargets,
-    } as any);
+    } as unknown as ClusterConfigContextValue);
     render(<TargetSelector />);
     const trigger = screen.getByRole("button");
     fireEvent.keyDown(trigger, { key: "ArrowDown" });
@@ -112,7 +112,7 @@ describe("TargetSelector", () => {
   it("closes dropdown on Escape", () => {
     vi.mocked(useClusterConfig).mockReturnValue({
       targets: mockTargets,
-    } as any);
+    } as unknown as ClusterConfigContextValue);
     render(<TargetSelector />);
     const trigger = screen.getByRole("button");
     fireEvent.keyDown(trigger, { key: "ArrowDown" });
@@ -124,7 +124,7 @@ describe("TargetSelector", () => {
   it("renders with data-testid", () => {
     vi.mocked(useClusterConfig).mockReturnValue({
       targets: mockTargets,
-    } as any);
+    } as unknown as ClusterConfigContextValue);
     render(<TargetSelector data-testid="my-selector" />);
     expect(screen.getByTestId("my-selector")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("my-selector-trigger"));

@@ -10,6 +10,7 @@ import importlib
 import inspect
 import os
 import sys
+import tempfile
 import types
 from contextlib import suppress
 from typing import Any, cast
@@ -286,6 +287,8 @@ def _install_stub_metrics_collector_modules() -> list[str]:
     from services.runtime_config import RuntimeConfig
     from services.storage import Storage
 
+    shared_storage = Storage(":memory:")
+
     for module_name, load_engine_target in (
         ("services.shared", load_engine_module),
         ("backend.services.shared", backend_load_engine_module),
@@ -296,7 +299,7 @@ def _install_stub_metrics_collector_modules() -> list[str]:
         stub_any.metrics_collector = stub_multi_target_instance
         stub_any.load_engine = load_engine_target
         stub_any.Storage = Storage
-        stub_any.storage = Storage(":memory:")
+        stub_any.storage = shared_storage
         stub_any.runtime_config = RuntimeConfig(stub_multi_target_instance)
         stub_any.internal_client = None
         stub_any.external_client = None

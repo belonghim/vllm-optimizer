@@ -105,7 +105,7 @@ function LoadTestNormalMode({ isActive, pendingConfig, onConfigConsumed, onRunni
           setInterruptedWarning(ERROR_MESSAGES.LOAD_TEST.INTERRUPTED_WARNING);
         }
       })
-      .catch(() => {});
+      .catch((error) => { console.warn('Failed to check interrupted status:', error); });
     return () => controller.abort();
   }, [isActive, isMockEnabled]);
 

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 from typing import cast
 from unittest.mock import AsyncMock, patch
 
@@ -125,7 +126,16 @@ def test_chaos_vllm_timeout_load_engine_fails_gracefully(isolated_client: TestCl
         )
         assert start_resp.status_code == 200
 
-        status_resp = isolated_client.get("/api/load_test/status")
+        # Wait for background task to start and complete
+        # Small delay ensures the background task has time to begin
+        time.sleep(0.2)
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            status_resp = isolated_client.get("/api/load_test/status")
+            if status_resp.json()["running"] is False:
+                break
+            time.sleep(0.1)
+
         history_resp = isolated_client.get("/api/load_test/history?limit=1")
 
     assert status_resp.status_code == 200

@@ -129,7 +129,7 @@ export function useTunerLogic({ isActive, onRunningChange, targetOverride }: { i
           setInterruptedWarning(ERROR_MESSAGES.TUNER.INTERRUPTED_WARNING);
         }
       })
-      .catch(() => {});
+      .catch((error) => { console.warn('Failed to check interrupted status:', error); });
     return () => controller.abort();
   }, [isActive, isMockEnabled]);
 

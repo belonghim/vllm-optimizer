@@ -3,7 +3,7 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import MultiTargetSelector from "./MultiTargetSelector";
-import { useClusterConfig } from "../contexts/ClusterConfigContext";
+import { useClusterConfig, ClusterConfigContextValue } from "../contexts/ClusterConfigContext";
 
 vi.mock("../contexts/ClusterConfigContext", () => ({
   useClusterConfig: vi.fn(),
@@ -31,7 +31,7 @@ describe("MultiTargetSelector", () => {
   };
 
   beforeEach(() => {
-    vi.mocked(useClusterConfig).mockReturnValue(mockContext as any);
+    vi.mocked(useClusterConfig).mockReturnValue(mockContext as unknown as ClusterConfigContextValue);
     vi.clearAllMocks();
   });
 
@@ -91,7 +91,7 @@ describe("MultiTargetSelector", () => {
       isvcTargets: [],
       llmisvcTargets: [],
     };
-    vi.mocked(useClusterConfig).mockReturnValue(emptyMock as any);
+    vi.mocked(useClusterConfig).mockReturnValue(emptyMock as unknown as ClusterConfigContextValue);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
     openDropdown();
     expect(screen.getByText("Add a monitoring target")).toBeInTheDocument();
@@ -155,7 +155,7 @@ describe("MultiTargetSelector", () => {
       ],
       llmisvcTargets: [],
     };
-    vi.mocked(useClusterConfig).mockReturnValue(multiMock as any);
+    vi.mocked(useClusterConfig).mockReturnValue(multiMock as unknown as ClusterConfigContextValue);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
     openDropdown();
     expect(screen.getAllByTestId("delete-btn")).toHaveLength(1);
@@ -177,7 +177,7 @@ describe("MultiTargetSelector", () => {
       llmisvcTargets: [],
       removeTarget: mockRemoveTarget,
     };
-    vi.mocked(useClusterConfig).mockReturnValue(multiMock as any);
+    vi.mocked(useClusterConfig).mockReturnValue(multiMock as unknown as ClusterConfigContextValue);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
     openDropdown();
     fireEvent.click(screen.getByTestId("delete-btn"));
@@ -199,7 +199,7 @@ describe("MultiTargetSelector", () => {
       llmisvcTargets: [],
       setDefaultTarget: mockSetDefaultTarget,
     };
-    vi.mocked(useClusterConfig).mockReturnValue(multiMock as any);
+    vi.mocked(useClusterConfig).mockReturnValue(multiMock as unknown as ClusterConfigContextValue);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
     openDropdown();
     fireEvent.click(screen.getByTestId("set-default-btn"));
@@ -223,7 +223,7 @@ describe("MultiTargetSelector", () => {
       ],
       llmisvcTargets: [],
     };
-    vi.mocked(useClusterConfig).mockReturnValue(multiMock as any);
+    vi.mocked(useClusterConfig).mockReturnValue(multiMock as unknown as ClusterConfigContextValue);
     render(<MultiTargetSelector targetStatuses={statuses} targetStates={{}} />);
     openDropdown();
     expect(screen.getByTestId("no-monitoring-warning")).toBeInTheDocument();
@@ -248,7 +248,7 @@ describe("MultiTargetSelector", () => {
         { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true, crType: "llminferenceservice" },
       ],
     };
-    vi.mocked(useClusterConfig).mockReturnValue(llmisMock as any);
+    vi.mocked(useClusterConfig).mockReturnValue(llmisMock as unknown as ClusterConfigContextValue);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
     openDropdown();
     expect(screen.getByTestId("llmis-badge")).toBeInTheDocument();
