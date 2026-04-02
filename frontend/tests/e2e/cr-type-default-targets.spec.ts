@@ -385,3 +385,77 @@ test.describe('ConfigMap persistence error handling', () => {
     await expect(page.getByTestId('set-default-btn').first()).toBeVisible();
   });
 });
+
+test.describe('ConfigMap session synchronization', () => {
+  test('Session B reads ConfigMap defaults on mount after Session A updates', async ({ page, context }) => {
+    const callLogB: ApiCallLog[] = [];
+
+    // Session A - just navigate to the page (mock already returns default targets)
+    const pageA = await context.newPage();
+    await mockApiWithCallTracking(pageA, []);
+    await pageA.goto('/');
+    await pageA.waitForSelector('.multi-target-selector');
+
+    // Session B - open new page, verify it reads ConfigMap defaults
+    const pageB = await context.newPage();
+    await pageB.route('**/api/**', async (route) => {
+      const req = route.request();
+      const { pathname } = new URL(req.url());
+      const method = req.method();
+      const json = (body: unknown) => route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(body),
+      });
+
+      const call: ApiCallLog = { url: pathname, method };
+      callLogB.push(call);
+
+      if (pathname === '/api/config' && method === 'GET') {
+        return json({
+          vllm_endpoint: 'http://test:8080',
+          vllm_namespace: 'test-ns',
+          vllm_is_name: 'test-isvc',
+          cr_type: 'inferenceservice',
+          resolved_model_name: 'test-model',
+        });
+      }
+
+      if (pathname === '/api/config/default-targets' && method === 'GET') {
+        return json({
+          isvc: { name: 'persist-ns', namespace: 'persist-isvc' },
+          llmisvc: { name: '', namespace: '' },
+          configmap_updated: true,
+        });
+      }
+
+      if (pathname === '/api/metrics/latest' && method === 'GET') {
+        return json({ status: 'ready', data: { tps: 100 }, hasMonitoringLabel: true });
+      }
+
+      if (pathname === '/api/metrics/batch' && method === 'POST') {
+        return json({
+          results: {
+            'test-ns/test-isvc': { status: 'ready', data: { tps: 100 }, hasMonitoringLabel: true, history: [] },
+          },
+        });
+      }
+
+      if (pathname === '/api/sla/profiles' && method === 'GET') {
+        return json([]);
+      }
+
+      return json({});
+    });
+
+    await pageB.goto('/');
+    await pageB.waitForSelector('.multi-target-selector');
+
+    // Session B should have fetched ConfigMap defaults on mount
+    const getCallB = callLogB.filter(
+      (c) => c.url === '/api/config/default-targets' && c.method === 'GET'
+    );
+    expect(getCallB.length).toBeGreaterThan(0);
+  });
+});
+

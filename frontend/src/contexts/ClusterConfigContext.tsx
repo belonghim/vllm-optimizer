@@ -12,6 +12,7 @@ const DEFAULT_NAMESPACE = "vllm-lab-dev";
 const DEFAULT_INFERENCESERVICE = "llm-ov";
 const DEFAULT_CR_TYPE = "inferenceservice";
 const CONFIGMAP_TIMEOUT_MS = 5000;
+const POLLING_INTERVAL_MS = 300000; // 5 minutes
 
 interface ClusterConfigContextValue {
   endpoint: string;
@@ -128,6 +129,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
   const [resolvedModelName, setResolvedModelName] = useState<string>("");
   const stableTargetsRef = useRef<ClusterTarget[]>(config.targets);
   const prevTargetsJsonRef = useRef(JSON.stringify(config.targets));
+  const configRef = useRef(config);
   const currentTargetsJson = JSON.stringify(config.targets);
   if (currentTargetsJson !== prevTargetsJsonRef.current) {
     prevTargetsJsonRef.current = currentTargetsJson;
@@ -143,7 +145,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), CONFIGMAP_TIMEOUT_MS);
 
-    // No auth required — /config endpoint reads env variables with no auth middleware
+    // No auth required — /api/config endpoint reads env variables with no auth middleware
     authFetch(`${API}/config`, { signal: controller.signal })
       .then(r => r.json())
       .then((data: unknown) => {
@@ -154,10 +156,16 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
         const resolvedCrType = typeof data.cr_type === "string" ? data.cr_type : DEFAULT_CR_TYPE;
         const resolvedModel = typeof data.resolved_model_name === "string" ? data.resolved_model_name : "";
 
-        const resolvedNamespace = vllmNamespace || DEFAULT_NAMESPACE;
-        const resolvedIsName = vllmIsName || DEFAULT_INFERENCESERVICE;
+        // Only override defaults if API returned non-empty values
+        const hasValidNamespace = vllmNamespace !== "";
+        const hasValidIsName = vllmIsName !== "";
+        
+        if (!hasValidNamespace && !hasValidIsName) return;
+
         setConfig(prev => {
           const nonDefaultTargets = prev.targets.filter(t => !t.isDefault);
+          const resolvedNamespace = vllmNamespace || DEFAULT_NAMESPACE;
+          const resolvedIsName = vllmIsName || DEFAULT_INFERENCESERVICE;
           return {
             ...prev,
             endpoint: vllmEndpoint,
@@ -183,6 +191,162 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
       clearTimeout(timeoutId);
     };
   }, []);
+
+  useEffect(() => {
+    configRef.current = config;
+  }, [config]);
+
+  // Initial fetch of ConfigMap default targets (runs once after isLoading becomes false)
+  const initialConfigMapFetchRef = useRef(false);
+  useEffect(() => {
+    if (isLoading) return;
+    if (initialConfigMapFetchRef.current) return;
+    initialConfigMapFetchRef.current = true;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), CONFIGMAP_TIMEOUT_MS);
+
+    authFetch(`${API}/config/default-targets`, { signal: controller.signal })
+      .then(r => r.json())
+      .then((data: unknown) => {
+        if (!isRecord(data)) return;
+        const isvc = isRecord(data.isvc) ? data.isvc : null;
+        const llmisvc = isRecord(data.llmisvc) ? data.llmisvc : null;
+
+        const isvcHasValue = isvc && typeof isvc.name === "string" && isvc.name !== "";
+        const llmisvcHasValue = llmisvc && typeof llmisvc.name === "string" && llmisvc.name !== "";
+
+        if (!isvcHasValue && !llmisvcHasValue) return;
+
+        setConfig(prev => {
+          let targets = prev.targets;
+
+          if (isvcHasValue && typeof isvc.name === "string" && typeof isvc.namespace === "string") {
+            const newIsvcTarget: ClusterTarget = {
+              namespace: isvc.namespace,
+              inferenceService: isvc.name,
+              isDefault: crType === "inferenceservice",
+              crType: "inferenceservice",
+            };
+            targets = targets.filter(t => t.crType !== "inferenceservice" && t.crType !== undefined);
+            targets = [newIsvcTarget, ...targets];
+          }
+
+          if (llmisvcHasValue && typeof llmisvc.name === "string" && typeof llmisvc.namespace === "string") {
+            const newLlmisvcTarget: ClusterTarget = {
+              namespace: llmisvc.namespace,
+              inferenceService: llmisvc.name,
+              isDefault: crType === "llminferenceservice",
+              crType: "llminferenceservice",
+            };
+            targets = targets.filter(t => t.crType !== "llminferenceservice" && t.crType !== undefined);
+            targets = [newLlmisvcTarget, ...targets];
+          }
+
+          return { ...prev, targets };
+        });
+      })
+      .catch((err: Error) => {
+        if (err.name !== "AbortError") {
+          console.warn("Failed to fetch ConfigMap default targets:", err);
+        }
+      })
+      .finally(() => {
+        clearTimeout(timeoutId);
+      });
+
+    return () => {
+      controller.abort();
+      clearTimeout(timeoutId);
+    };
+  }, [isLoading, crType]);
+
+  // 5-minute periodic polling to detect ConfigMap changes
+  useEffect(() => {
+    if (isLoading) return;
+
+    const pollConfigMap = () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), CONFIGMAP_TIMEOUT_MS);
+
+      authFetch(`${API}/config/default-targets`, { signal: controller.signal })
+        .then(r => r.json())
+        .then((data: unknown) => {
+          if (!isRecord(data)) return;
+          const isvc = isRecord(data.isvc) ? data.isvc : null;
+          const llmisvc = isRecord(data.llmisvc) ? data.llmisvc : null;
+
+          const isvcHasValue = isvc && typeof isvc.name === "string" && isvc.name !== "";
+          const llmisvcHasValue = llmisvc && typeof llmisvc.name === "string" && llmisvc.name !== "";
+
+          setConfig(prev => {
+            const current = configRef.current;
+            let updated = false;
+            let newTargets = [...current.targets];
+
+            if (isvcHasValue && typeof isvc.name === "string" && typeof isvc.namespace === "string") {
+              const existingIsvcIdx = newTargets.findIndex(t => t.crType === "inferenceservice");
+              const newIsvcTarget: ClusterTarget = {
+                namespace: isvc.namespace,
+                inferenceService: isvc.name,
+                isDefault: crType === "inferenceservice" ? (existingIsvcIdx < 0 ? true : current.targets[existingIsvcIdx]?.isDefault) : false,
+                crType: "inferenceservice",
+              };
+
+              if (existingIsvcIdx >= 0) {
+                if (newTargets[existingIsvcIdx].namespace !== isvc.namespace || newTargets[existingIsvcIdx].inferenceService !== isvc.name) {
+                  newTargets[existingIsvcIdx] = newIsvcTarget;
+                  updated = true;
+                }
+              } else {
+                newTargets = newTargets.filter(t => t.crType !== undefined);
+                newTargets.unshift(newIsvcTarget);
+                updated = true;
+              }
+            }
+
+            if (llmisvcHasValue && typeof llmisvc.name === "string" && typeof llmisvc.namespace === "string") {
+              const existingLlmisvcIdx = newTargets.findIndex(t => t.crType === "llminferenceservice");
+              const newLlmisvcTarget: ClusterTarget = {
+                namespace: llmisvc.namespace,
+                inferenceService: llmisvc.name,
+                isDefault: crType === "llminferenceservice" ? (existingLlmisvcIdx < 0 ? true : current.targets[existingLlmisvcIdx]?.isDefault) : false,
+                crType: "llminferenceservice",
+              };
+
+              if (existingLlmisvcIdx >= 0) {
+                if (newTargets[existingLlmisvcIdx].namespace !== llmisvc.namespace || newTargets[existingLlmisvcIdx].inferenceService !== llmisvc.name) {
+                  newTargets[existingLlmisvcIdx] = newLlmisvcTarget;
+                  updated = true;
+                }
+              } else {
+                newTargets = newTargets.filter(t => t.crType !== undefined);
+                newTargets.unshift(newLlmisvcTarget);
+                updated = true;
+              }
+            }
+
+            return updated ? { ...prev, targets: newTargets } : prev;
+          });
+        })
+        .catch((err: Error) => {
+          if (err.name !== "AbortError") {
+            console.warn("Polling failed to fetch ConfigMap default targets:", err);
+          }
+        })
+        .finally(() => {
+          clearTimeout(timeoutId);
+        });
+    };
+
+    // Initial poll immediately, then set up interval
+    pollConfigMap();
+    const intervalId = setInterval(pollConfigMap, POLLING_INTERVAL_MS);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [isLoading, crType]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config));

@@ -1,7 +1,8 @@
 import os
 
 import httpx
-
+from services.config_watcher import ConfigMapWatcher
+from services.event_broadcaster import EventBroadcaster
 from services.load_engine import load_engine  # re-export existing singleton
 from services.multi_target_collector import MultiTargetMetricsCollector
 from services.runtime_config_instance import runtime_config
@@ -15,6 +16,10 @@ runtime_config._multi_target_collector = multi_target_collector
 storage = Storage(os.getenv("STORAGE_PATH", "/data/app.db"))
 
 storage_health_monitor = StorageHealthMonitor(storage)
+
+event_broadcaster = EventBroadcaster()
+
+config_watcher = ConfigMapWatcher(event_broadcaster)
 
 # Lazy-initialized httpx clients (initialized in main.py lifespan or on-demand)
 _internal_client: httpx.AsyncClient | None = None
@@ -69,6 +74,8 @@ __all__ = [
     "load_engine",
     "storage",
     "storage_health_monitor",
+    "event_broadcaster",
+    "config_watcher",
     "internal_client",
     "external_client",
     "get_internal_client",

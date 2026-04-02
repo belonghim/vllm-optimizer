@@ -5,11 +5,13 @@ This module provides minimal fixtures to enable test discovery without
 requiring heavy dependencies or external services.
 """
 
+import asyncio
 import importlib
 import inspect
 import os
 import sys
 import types
+from contextlib import suppress
 from typing import Any, cast
 
 import pytest
@@ -178,6 +180,39 @@ class _StubMultiTargetMetricsCollector:
         cls.instances.clear()
 
 
+class _StubEventBroadcaster:
+    """Lightweight stand-in for EventBroadcaster."""
+
+    def __init__(self):
+        self._subscribers: list[asyncio.Queue[dict[str, Any]]] = []
+
+    async def subscribe(self) -> asyncio.Queue[dict[str, Any]]:
+        q: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        self._subscribers.append(q)
+        return q
+
+    async def unsubscribe(self, q: asyncio.Queue[dict[str, Any]]) -> None:
+        with suppress(ValueError):
+            self._subscribers.remove(q)
+
+    async def broadcast(self, data: dict[str, Any]) -> None:
+        for q in list(self._subscribers):
+            await q.put(data)
+
+
+class _StubConfigMapWatcher:
+    """Lightweight stand-in for ConfigMapWatcher."""
+
+    def __init__(self, broadcaster: _StubEventBroadcaster):
+        self._broadcaster = broadcaster
+
+    async def start(self) -> None:
+        pass
+
+    async def stop(self) -> None:
+        pass
+
+
 class _DummyCustomObjectsApi:
     def get_namespaced_custom_object(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
         return {"status": {"conditions": []}}
@@ -244,6 +279,8 @@ def _install_stub_metrics_collector_modules() -> list[str]:
     injected_names: list[str] = []
 
     stub_multi_target_instance = _StubMultiTargetMetricsCollector()
+    stub_event_broadcaster = _StubEventBroadcaster()
+    stub_config_watcher = _StubConfigMapWatcher(stub_event_broadcaster)
     load_engine_module = importlib.import_module("services.load_engine")
     backend_load_engine_module = importlib.import_module("backend.services.load_engine")
     from services.runtime_config import RuntimeConfig
@@ -263,6 +300,8 @@ def _install_stub_metrics_collector_modules() -> list[str]:
         stub_any.runtime_config = RuntimeConfig(stub_multi_target_instance)
         stub_any.internal_client = None
         stub_any.external_client = None
+        stub_any.event_broadcaster = stub_event_broadcaster
+        stub_any.config_watcher = stub_config_watcher
         sys.modules[module_name] = stub_module
         injected_names.append(module_name)
 

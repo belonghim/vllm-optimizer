@@ -7,15 +7,14 @@ This module creates the main FastAPI app and mounts routers for the vLLM optimiz
 import logging
 import os
 import time
-
-from logging_config import configure_logging
 from contextlib import asynccontextmanager, suppress
 from typing import Any
 
 import httpx
+from errors import OptimizerError
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from errors import OptimizerError
+from logging_config import configure_logging
 from routers import alerts, benchmark, load_test, metrics, sla, status, tuner, vllm_config
 from routers import config as config_router
 from routers.status import check_prometheus_health
@@ -99,6 +98,15 @@ async def lifespan(app: FastAPI):
     except Exception as e:  # intentional: fail-open
         logger.warning("[Lifespan] Storage health monitor start failed (continuing): %s", e)
 
+    # ── ConfigMap watcher startup (fail-open) ──
+    try:
+        from services.shared import config_watcher
+
+        await config_watcher.start()
+        logger.info("[Lifespan] ConfigMap watcher started")
+    except Exception as e:  # intentional: fail-open
+        logger.warning("[Lifespan] ConfigMap watcher start failed (continuing): %s", e)
+
     # ── Startup configuration validation ──
     _required_env = ["VLLM_ENDPOINT", "VLLM_MODEL"]
     _optional_env = ["PROMETHEUS_URL", "K8S_DEPLOYMENT_NAME"]
@@ -115,6 +123,15 @@ async def lifespan(app: FastAPI):
 
     async with _create_lifespan(app)(app):
         yield
+
+    # ── ConfigMap watcher shutdown (fail-open) ──
+    try:
+        from services.shared import config_watcher
+
+        await config_watcher.stop()
+        logger.info("[Lifespan] ConfigMap watcher stopped")
+    except Exception as e:  # intentional: fail-open
+        logger.debug("[Lifespan] ConfigMap watcher stop failed (non-critical): %s", e)
 
     # ── Storage health monitor shutdown (fail-open) ──
     try:
