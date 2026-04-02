@@ -11,6 +11,7 @@ const MAX_TARGETS = 5;
 const DEFAULT_NAMESPACE = "vllm-lab-dev";
 const DEFAULT_INFERENCESERVICE = "llm-ov";
 const DEFAULT_CR_TYPE = "inferenceservice";
+const CONFIGMAP_TIMEOUT_MS = 5000;
 
 interface ClusterConfigContextValue {
   endpoint: string;
@@ -22,10 +23,12 @@ interface ClusterConfigContextValue {
   maxTargets: number;
   addTarget: (namespace: string, inferenceService: string, crType?: string) => void;
   removeTarget: (namespace: string, inferenceService: string) => void;
-  setDefaultTarget: (namespace: string, inferenceService: string) => void;
+  setDefaultTarget: (namespace: string, inferenceService: string, crType: string) => void;
   crType: string;
   resolvedModelName: string;
   updateCrType: (value: string) => Promise<{ configmap_updated: boolean }>;
+  isvcTargets: ClusterTarget[];
+  llmisvcTargets: ClusterTarget[];
 }
 
 const ClusterConfigContext = createContext<ClusterConfigContextValue>({
@@ -42,6 +45,8 @@ const ClusterConfigContext = createContext<ClusterConfigContextValue>({
   crType: DEFAULT_CR_TYPE,
   resolvedModelName: "",
   updateCrType: async () => ({ configmap_updated: true }),
+  isvcTargets: [],
+  llmisvcTargets: [],
 });
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -130,8 +135,14 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
   }
   const stableTargets = stableTargetsRef.current;
 
+  // Derive CR-type-specific targets from flat targets array
+  const isvcTargets = useMemo(() => stableTargets.filter(t => !t.crType || t.crType === "inferenceservice"), [stableTargets]);
+  const llmisvcTargets = useMemo(() => stableTargets.filter(t => !t.crType || t.crType === "llminferenceservice"), [stableTargets]);
+
   useEffect(() => {
     const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), CONFIGMAP_TIMEOUT_MS);
+
     // No auth required — /config endpoint reads env variables with no auth middleware
     authFetch(`${API}/config`, { signal: controller.signal })
       .then(r => r.json())
@@ -162,8 +173,15 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
       .catch((err: Error) => {
         if (err.name === 'AbortError') return;
       })
-      .finally(() => setIsLoading(false));
-    return () => controller.abort();
+      .finally(() => {
+        clearTimeout(timeoutId);
+        setIsLoading(false);
+      });
+
+    return () => {
+      controller.abort();
+      clearTimeout(timeoutId);
+    };
   }, []);
 
   useEffect(() => {
@@ -289,22 +307,45 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
     });
   }, []);
 
-  const setDefaultTarget = useCallback((namespace: string, inferenceService: string): void => {
+  const setDefaultTarget = useCallback(async (namespace: string, inferenceService: string, crType: string): Promise<void> => {
     setConfig(prev => {
       const currentTargets = prev.targets;
       const target = currentTargets.find(t => t.namespace === namespace && t.inferenceService === inferenceService);
-      if (!target) return prev;
+      if (!target) {
+        const newTarget: ClusterTarget = { namespace, inferenceService, isDefault: true, crType };
+        return { ...prev, targets: [newTarget, ...currentTargets.filter(t => !(t.namespace === namespace && t.inferenceService === inferenceService))] };
+      }
 
       const newTargets = currentTargets.map((t) => ({
         ...t,
         isDefault: t.namespace === namespace && t.inferenceService === inferenceService,
       }));
 
-      return {
-        ...prev,
-        targets: newTargets,
-      };
+      return { ...prev, targets: newTargets };
     });
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), CONFIGMAP_TIMEOUT_MS);
+
+    // Build payload matching BE contract: {isvc: {name, namespace}} or {llmisvc: {name, namespace}}
+    const patchPayload = crType === "inferenceservice"
+      ? { isvc: { name: inferenceService, namespace } }
+      : { llmisvc: { name: inferenceService, namespace } };
+
+    try {
+      await authFetch(`${API}/config/default-targets`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patchPayload),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      if (err instanceof Error && err.name !== "AbortError") {
+        console.error("Failed to persist default target to ConfigMap (local state updated):", err);
+      }
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }, []);
 
   const value = useMemo((): ClusterConfigContextValue => {
@@ -323,8 +364,10 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
       crType,
       resolvedModelName,
       updateCrType,
+      isvcTargets,
+      llmisvcTargets,
     };
-  }, [config, isLoading, updateConfig, addTarget, removeTarget, setDefaultTarget, crType, resolvedModelName, updateCrType]);
+  }, [config, isLoading, updateConfig, addTarget, removeTarget, setDefaultTarget, crType, resolvedModelName, updateCrType, isvcTargets, llmisvcTargets]);
 
   return (
     <ClusterConfigContext.Provider value={value}>

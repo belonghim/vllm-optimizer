@@ -635,3 +635,127 @@ select.input option { background: var(--surface-color); }
   padding: 40px;
   letter-spacing: 0.05em;
 }
+
+/* TargetSelector */
+.target-selector {
+  position: relative;
+  display: inline-block;
+  min-width: 200px;
+}
+
+.target-selector-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-color);
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 14px;
+  text-align: left;
+}
+
+.target-selector-trigger:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px var(--accent-color-alpha);
+}
+
+.target-selector-value {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.target-selector-ns {
+  font-size: 12px;
+  color: var(--muted-color);
+}
+
+.target-selector-placeholder {
+  color: var(--muted-color);
+}
+
+.target-selector-arrow {
+  margin-left: 8px;
+  font-size: 10px;
+  color: var(--muted-color);
+}
+
+.target-selector-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-color);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 100;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.target-selector-group {
+  padding: 4px 0;
+}
+
+.target-selector-divider {
+  height: 2px;
+  background: var(--border-color);
+  margin: 4px 0;
+}
+
+.target-selector-group-header {
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted-color);
+  background: var(--bg-secondary);
+}
+
+.target-selector-option {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.target-selector-option.highlighted {
+  background: var(--bg-hover);
+}
+
+.target-selector-option.selected {
+  background: var(--accent-color-alpha);
+}
+
+.target-selector-option-star {
+  width: 16px;
+  color: var(--accent-color);
+  font-size: 12px;
+}
+
+.target-selector-option-name {
+  font-weight: 500;
+}
+
+.target-selector-option-ns {
+  margin-left: 4px;
+  font-size: 12px;
+  color: var(--muted-color);
+}
+
+.target-selector-empty .target-selector-placeholder {
+  display: block;
+  padding: 8px 12px;
+  color: var(--muted-color);
+  font-size: 14px;
+  text-align: center;
+}

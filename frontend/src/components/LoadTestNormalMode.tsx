@@ -35,9 +35,10 @@ interface LoadTestNormalModeProps {
   onRunningChange?: (running: boolean) => void;
   onEndpointChange?: (endpoint: string) => void;
   onModelChange?: (model: string) => void;
+  targetEndpoint?: string;
 }
 
-function LoadTestNormalMode({ isActive, pendingConfig, onConfigConsumed, onRunningChange, onEndpointChange, onModelChange }: LoadTestNormalModeProps) {
+function LoadTestNormalMode({ isActive, pendingConfig, onConfigConsumed, onRunningChange, onEndpointChange, onModelChange, targetEndpoint }: LoadTestNormalModeProps) {
   const { COLORS } = useThemeColors();
   const { endpoint: globalEndpoint, isLoading: globalIsLoading, resolvedModelName } = useClusterConfig();
   const { isMockEnabled } = useMockData();
@@ -80,10 +81,11 @@ function LoadTestNormalMode({ isActive, pendingConfig, onConfigConsumed, onRunni
 
   useEffect(() => {
     if (!isActive) return;
-    if (!globalIsLoading && globalEndpoint) {
-      setConfig(c => ({ ...c, endpoint: globalEndpoint }));
+    const endpointToUse = targetEndpoint || globalEndpoint;
+    if (!globalIsLoading && endpointToUse) {
+      setConfig(c => ({ ...c, endpoint: endpointToUse }));
     }
-  }, [isActive, globalIsLoading, globalEndpoint]);
+  }, [isActive, globalIsLoading, globalEndpoint, targetEndpoint]);
 
   useEffect(() => {
     if (!isActive) return;

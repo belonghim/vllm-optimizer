@@ -5,10 +5,11 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, Request
 from kubernetes import config as k8s_config
 from kubernetes.client.exceptions import ApiException
+from models.default_targets import DefaultTargetItem, DefaultTargetsPatch, DefaultTargetsResponse
 from pydantic import BaseModel
 from services.model_resolver import resolve_model_name
-from services.shared import runtime_config
 from services.rate_limiter import limiter
+from services.shared import runtime_config
 
 logger = logging.getLogger(__name__)
 
@@ -114,3 +115,81 @@ async def patch_config(request: Request, patch: ConfigPatch) -> ConfigResponse:
         cr_type=base.cr_type,
         configmap_updated=configmap_updated,
     )
+
+
+@router.get("/default-targets", response_model=DefaultTargetsResponse)
+@limiter.limit("60/minute")
+async def get_default_targets(request: Request) -> DefaultTargetsResponse:
+    import asyncio
+
+    from kubernetes import client as k8s_client
+
+    def _read_cm():
+        try:
+            k8s_config.load_incluster_config()
+        except k8s_config.ConfigException:
+            k8s_config.load_kube_config()
+        v1 = k8s_client.CoreV1Api()
+        namespace = os.getenv("POD_NAMESPACE", "vllm-optimizer-dev")
+        cm = v1.read_namespaced_config_map(name="vllm-optimizer-config", namespace=namespace)
+        return cm.data if cm.data else {}
+
+    try:
+        data = await asyncio.to_thread(_read_cm)
+    except (ApiException, OSError, AttributeError) as e:
+        logger.warning("ConfigMap read failed: %s", e)
+        data = {}
+
+    return DefaultTargetsResponse(
+        isvc=DefaultTargetItem(
+            name=data.get("DEFAULT_ISVC_NAME", ""),
+            namespace=data.get("DEFAULT_ISVC_NAMESPACE", ""),
+        ),
+        llmisvc=DefaultTargetItem(
+            name=data.get("DEFAULT_LLMISVC_NAME", ""),
+            namespace=data.get("DEFAULT_LLMISVC_NAMESPACE", ""),
+        ),
+    )
+
+
+@router.patch("/default-targets", response_model=DefaultTargetsResponse)
+@limiter.limit("60/minute")
+async def patch_default_targets(request: Request, patch: DefaultTargetsPatch) -> DefaultTargetsResponse:
+    import asyncio
+
+    from kubernetes import client as k8s_client
+
+    patch_data: dict[str, str] = {}
+    if patch.isvc is not None:
+        patch_data["DEFAULT_ISVC_NAME"] = patch.isvc.name
+        patch_data["DEFAULT_ISVC_NAMESPACE"] = patch.isvc.namespace
+    if patch.llmisvc is not None:
+        patch_data["DEFAULT_LLMISVC_NAME"] = patch.llmisvc.name
+        patch_data["DEFAULT_LLMISVC_NAMESPACE"] = patch.llmisvc.namespace
+
+    if not patch_data:
+        return await get_default_targets(request)
+
+    def _patch_cm():
+        try:
+            k8s_config.load_incluster_config()
+        except k8s_config.ConfigException:
+            k8s_config.load_kube_config()
+        v1 = k8s_client.CoreV1Api()
+        namespace = os.getenv("POD_NAMESPACE", "vllm-optimizer-dev")
+        v1.patch_namespaced_config_map(
+            name="vllm-optimizer-config",
+            namespace=namespace,
+            body={"data": patch_data},
+        )
+
+    configmap_updated = True
+    try:
+        await asyncio.to_thread(_patch_cm)
+    except (ApiException, OSError, AttributeError) as e:
+        logger.warning("ConfigMap patch failed: %s", e)
+        configmap_updated = False
+
+    result = await get_default_targets(request)
+    result.configmap_updated = configmap_updated
+    return result

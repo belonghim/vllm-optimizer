@@ -21,6 +21,7 @@ class MockEventSource {
     this.onerror = null;
     this.readyState = MockEventSource.CONNECTING;
     this.closeSpy = vi.fn();
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     mockEsInstance = this;
   }
   close() {
@@ -38,6 +39,10 @@ vi.mock("../contexts/ClusterConfigContext", () => ({
     endpoint: "http://test-endpoint",
     namespace: "test-ns",
     inferenceservice: "test-is",
+    crType: "inferenceservice",
+    targets: [{ namespace: "test-ns", inferenceService: "test-is", isDefault: true, crType: "inferenceservice" }],
+    isvcTargets: [{ namespace: "test-ns", inferenceService: "test-is", isDefault: true, crType: "inferenceservice" }],
+    llmisvcTargets: [],
   }),
 }));
 

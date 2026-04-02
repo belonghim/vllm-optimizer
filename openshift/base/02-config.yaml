@@ -22,6 +22,12 @@ data:
   OPTUNA_STORAGE_URL: "sqlite:////data/optuna.db"
   # vLLM CR type (inferenceservice or llminferenceservice)
   VLLM_CR_TYPE: "inferenceservice"
+  # Default InferenceService (KServe) target
+  DEFAULT_ISVC_NAME: ""
+  DEFAULT_ISVC_NAMESPACE: ""
+  # Default LLMInferenceService (LLMIS) target
+  DEFAULT_LLMISVC_NAME: ""
+  DEFAULT_LLMISVC_NAMESPACE: ""
   # Optional CA certificate bundle for TLS verification
   CA_BUNDLE: ""
 ---

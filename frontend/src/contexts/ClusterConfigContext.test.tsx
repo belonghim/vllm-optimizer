@@ -148,7 +148,7 @@ describe("ClusterConfigContext", () => {
     expect(result.current.targets[2].isDefault).toBe(false);
 
     act(() => {
-      result.current.setDefaultTarget("ns2", "svc2");
+      result.current.setDefaultTarget("ns2", "svc2", "inferenceservice");
     });
 
     expect(result.current.targets[0].isDefault).toBe(false);

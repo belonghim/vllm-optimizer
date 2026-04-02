@@ -1,0 +1,172 @@
+.multi-target-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.multi-target-dropdown-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 160px;
+}
+
+.dropdown-arrow {
+  font-size: 10px;
+  margin-left: 4px;
+}
+
+.multi-target-dropdown-panel {
+  margin-top: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.multi-target-section {
+  padding: 0;
+}
+
+.multi-target-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 12px;
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.multi-target-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.multi-target-section-count {
+  font-size: 10px;
+  color: var(--muted-color);
+  background-color: var(--bg-tertiary);
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+.multi-target-section-divider {
+  height: 4px;
+  background-color: var(--border-color);
+  border-top: 2px solid var(--accent-color);
+  border-bottom: 2px solid var(--accent-color);
+}
+
+.multi-target-add-form {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px dashed var(--border-color);
+  border-radius: 4px;
+  background-color: var(--bg-secondary);
+}
+
+.multi-target-action-btns {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.multi-target-setdefault-btn {
+  font-size: 9px;
+  padding: 2px 6px;
+}
+
+.default-star {
+  color: var(--accent-color);
+  margin-right: 4px;
+}
+
+.target-row-default {
+  background-color: var(--bg-hover);
+}
+
+.multi-target-color-cell {
+  border-left-width: 3px;
+  border-left-style: solid;
+}
+
+.multi-target-input-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.multi-target-btn-row {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.multi-target-input {
+  font-size: 10px;
+  padding: 3px 6px;
+  flex: 1;
+  min-width: 100px;
+}
+
+.multi-target-action-btn {
+  font-size: 9px;
+  padding: 2px 6px;
+}
+
+.multi-target-delete-btn {
+  padding: 0 6px;
+  height: 20px;
+  font-size: 12px;
+  min-width: 20px;
+  border: none;
+}
+
+.multi-target-default-tag {
+  font-size: 8px;
+}
+
+.multi-target-no-border {
+  margin-bottom: 1px;
+  border-bottom: none;
+}
+
+.multi-target-warning-icon {
+  margin-left: 6px;
+  cursor: help;
+}
+
+.multi-target-action-cell {
+  text-align: right;
+}
+
+.multi-target-empty {
+  text-align: center;
+  color: var(--muted-color);
+  padding: 20px;
+}
+
+.multi-target-overflow {
+  overflow-x: auto;
+}
+
+.multi-target-header {
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.multi-target-add-btn {
+  padding: 2px 8px;
+  font-size: 9px;
+}
+
+.multi-target-error-msg {
+  font-size: 10px;
+  color: var(--danger-color);
+  margin-top: 4px;
+}

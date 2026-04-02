@@ -28,6 +28,16 @@ export default tseslint.config(
       parserOptions: {
         ecmaFeatures: { jsx: true },
       },
+      globals: {
+        describe: 'readonly',
+        it: 'readonly',
+        expect: 'readonly',
+        beforeAll: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        afterAll: 'readonly',
+        vi: 'readonly',
+      },
     },
   },
 );

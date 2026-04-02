@@ -24,6 +24,10 @@ describe("MultiTargetSelector", () => {
     addTarget: vi.fn(),
     removeTarget: vi.fn(),
     setDefaultTarget: vi.fn(),
+    isvcTargets: [
+      { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true },
+    ],
+    llmisvcTargets: [],
   };
 
   beforeEach(() => {
@@ -31,16 +35,21 @@ describe("MultiTargetSelector", () => {
     vi.clearAllMocks();
   });
 
+  const openDropdown = () => {
+    const dropdownBtn = screen.getByTestId("dropdown-toggle-btn");
+    fireEvent.click(dropdownBtn);
+  };
+
   it("renders targets and add button", () => {
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
-     expect(screen.getByText("Monitoring Targets (1/5)")).toBeInTheDocument();
-    expect(screen.getByText("llm-d-demo")).toBeInTheDocument();
-    expect(screen.getByText("small-llm-d")).toBeInTheDocument();
+    expect(screen.getByText("Monitoring Targets (1/5)")).toBeInTheDocument();
+    expect(screen.getByTestId("dropdown-toggle-btn")).toBeInTheDocument();
     expect(screen.getByTestId("add-target-btn")).toBeInTheDocument();
   });
 
   it("renders as table with header columns", () => {
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
+    openDropdown();
     expect(document.querySelector('.monitor-table')).toBeInTheDocument();
     expect(screen.getByText("TPS")).toBeInTheDocument();
     expect(screen.getByText("RPS")).toBeInTheDocument();
@@ -53,6 +62,7 @@ describe("MultiTargetSelector", () => {
       targetStatuses={{ [key]: { status: 'collecting' as const, hasMonitoringLabel: false } }} 
       targetStates={{ [key]: { status: 'collecting' } }} 
     />);
+    openDropdown();
     const dots = screen.getAllByText("...");
     expect(dots.length).toBeGreaterThan(0);
   });
@@ -69,6 +79,7 @@ describe("MultiTargetSelector", () => {
       targetStatuses={{}}
       targetStates={{ [key]: { status: 'ready', data: mockData } }}
     />);
+    openDropdown();
     expect(screen.getByText("245")).toBeInTheDocument();
     expect(screen.getByText("1 / 1")).toBeInTheDocument();
   });
@@ -77,14 +88,18 @@ describe("MultiTargetSelector", () => {
     const emptyMock = {
       ...mockContext,
       targets: [],
+      isvcTargets: [],
+      llmisvcTargets: [],
     };
     vi.mocked(useClusterConfig).mockReturnValue(emptyMock as any);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
-     expect(screen.getByText("Add a monitoring target")).toBeInTheDocument();
+    openDropdown();
+    expect(screen.getByText("Add a monitoring target")).toBeInTheDocument();
   });
 
   it("renders target row with data-testid", () => {
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
+    openDropdown();
     expect(screen.getByTestId("target-row-0")).toBeInTheDocument();
   });
 
@@ -122,6 +137,7 @@ describe("MultiTargetSelector", () => {
 
   it("does not show delete or set-default button on default target", () => {
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
+    openDropdown();
     expect(screen.queryByTestId("delete-btn")).not.toBeInTheDocument();
     expect(screen.queryByTestId("set-default-btn")).not.toBeInTheDocument();
   });
@@ -133,9 +149,15 @@ describe("MultiTargetSelector", () => {
         { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true },
         { namespace: "llm-d-prod", inferenceService: "large-llm-d", isDefault: false },
       ],
+      isvcTargets: [
+        { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true },
+        { namespace: "llm-d-prod", inferenceService: "large-llm-d", isDefault: false },
+      ],
+      llmisvcTargets: [],
     };
     vi.mocked(useClusterConfig).mockReturnValue(multiMock as any);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
+    openDropdown();
     expect(screen.getAllByTestId("delete-btn")).toHaveLength(1);
     expect(screen.getAllByTestId("set-default-btn")).toHaveLength(1);
   });
@@ -148,10 +170,16 @@ describe("MultiTargetSelector", () => {
         { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true },
         { namespace: "llm-d-prod", inferenceService: "large-llm-d", isDefault: false },
       ],
+      isvcTargets: [
+        { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true },
+        { namespace: "llm-d-prod", inferenceService: "large-llm-d", isDefault: false },
+      ],
+      llmisvcTargets: [],
       removeTarget: mockRemoveTarget,
     };
     vi.mocked(useClusterConfig).mockReturnValue(multiMock as any);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
+    openDropdown();
     fireEvent.click(screen.getByTestId("delete-btn"));
     expect(mockRemoveTarget).toHaveBeenCalledWith("llm-d-prod", "large-llm-d");
   });
@@ -164,12 +192,18 @@ describe("MultiTargetSelector", () => {
         { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true },
         { namespace: "llm-d-prod", inferenceService: "large-llm-d", isDefault: false },
       ],
+      isvcTargets: [
+        { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true },
+        { namespace: "llm-d-prod", inferenceService: "large-llm-d", isDefault: false },
+      ],
+      llmisvcTargets: [],
       setDefaultTarget: mockSetDefaultTarget,
     };
     vi.mocked(useClusterConfig).mockReturnValue(multiMock as any);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
+    openDropdown();
     fireEvent.click(screen.getByTestId("set-default-btn"));
-    expect(mockSetDefaultTarget).toHaveBeenCalledWith("llm-d-prod", "large-llm-d");
+    expect(mockSetDefaultTarget).toHaveBeenCalledWith("llm-d-prod", "large-llm-d", "inferenceservice");
   });
 
   it("shows warning for namespace without monitoring label", () => {
@@ -183,9 +217,15 @@ describe("MultiTargetSelector", () => {
         { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true },
         { namespace: "vllm", inferenceService: "llm-cuda", isDefault: false },
       ],
+      isvcTargets: [
+        { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true },
+        { namespace: "vllm", inferenceService: "llm-cuda", isDefault: false },
+      ],
+      llmisvcTargets: [],
     };
     vi.mocked(useClusterConfig).mockReturnValue(multiMock as any);
     render(<MultiTargetSelector targetStatuses={statuses} targetStates={{}} />);
+    openDropdown();
     expect(screen.getByTestId("no-monitoring-warning")).toBeInTheDocument();
   });
 
@@ -203,9 +243,14 @@ describe("MultiTargetSelector", () => {
       targets: [
         { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true, crType: "llminferenceservice" },
       ],
+      isvcTargets: [],
+      llmisvcTargets: [
+        { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true, crType: "llminferenceservice" },
+      ],
     };
     vi.mocked(useClusterConfig).mockReturnValue(llmisMock as any);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
+    openDropdown();
     expect(screen.getByTestId("llmis-badge")).toBeInTheDocument();
     expect(screen.getByTestId("llmis-badge")).toHaveTextContent("LLMIS");
   });

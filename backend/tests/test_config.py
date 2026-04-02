@@ -189,3 +189,70 @@ class TestPatchConfig:
         runtime_config.reset_cr_type()
 
         assert runtime_config._cr_type_override is None
+
+
+class TestGetDefaultTargets:
+    def test_get_default_targets_returns_correct_structure(self, client):
+        r = client.get("/api/config/default-targets")
+        assert r.status_code == 200
+        data = r.json()
+        assert "isvc" in data
+        assert "llmisvc" in data
+        assert "name" in data["isvc"]
+        assert "namespace" in data["isvc"]
+        assert "name" in data["llmisvc"]
+        assert "namespace" in data["llmisvc"]
+
+
+class TestPatchDefaultTargets:
+    def test_patch_isvc_default_target_returns_200(self, client):
+        r = client.patch(
+            "/api/config/default-targets",
+            json={"isvc": {"name": "test-isvc", "namespace": "test-ns"}},
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert "isvc" in data
+        assert "llmisvc" in data
+        assert "configmap_updated" in data
+
+    def test_patch_llmisvc_default_target_returns_200(self, client):
+        r = client.patch(
+            "/api/config/default-targets",
+            json={"llmisvc": {"name": "test-llmisvc", "namespace": "test-ns"}},
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert "isvc" in data
+        assert "llmisvc" in data
+        assert "configmap_updated" in data
+
+    def test_patch_empty_body_returns_current_values(self, client):
+        r = client.patch("/api/config/default-targets", json={})
+        assert r.status_code == 200
+        data = r.json()
+        assert "isvc" in data
+        assert "llmisvc" in data
+
+    def test_patch_both_targets_at_once_returns_200(self, client):
+        r = client.patch(
+            "/api/config/default-targets",
+            json={
+                "isvc": {"name": "isvc-name", "namespace": "isvc-ns"},
+                "llmisvc": {"name": "llmisvc-name", "namespace": "llmisvc-ns"},
+            },
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert "isvc" in data
+        assert "llmisvc" in data
+        assert "configmap_updated" in data
+
+    def test_patch_configmap_failure_returns_200_with_flag_false(self, client):
+        r = client.patch(
+            "/api/config/default-targets",
+            json={"isvc": {"name": "test-isvc", "namespace": "test-ns"}},
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["configmap_updated"] is False

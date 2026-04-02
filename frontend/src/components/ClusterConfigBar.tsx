@@ -114,14 +114,14 @@ export default function ClusterConfigBar() {
           t.inferenceService === localConfig.inferenceservice
       );
       if (matchingNonDefault) {
-        setDefaultTarget(localConfig.namespace, localConfig.inferenceservice);
+        setDefaultTarget(localConfig.namespace, localConfig.inferenceservice, matchingNonDefault.crType || "inferenceservice");
       } else {
         updateContextConfig('namespace', localConfig.namespace);
         updateContextConfig('inferenceservice', localConfig.inferenceservice);
       }
       setIsSaved(true);
       setTimeout(() => setIsSaved(false), 2000);
-      } catch (err) {
+      } catch {
         setError(ERROR_MESSAGES.CLUSTER_CONFIG.SAVE_FAILED);
         setIsSaved(false);
       }

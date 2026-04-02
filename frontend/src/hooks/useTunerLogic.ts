@@ -6,7 +6,8 @@ import { ERROR_MESSAGES } from "../constants/errorMessages";
 import { useMockData } from "../contexts/MockDataContext";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
 import { mockTrials } from "../mockData";
-import type { SSEErrorPayload, SSEWarningPayload, TunerPhase, TunerStatus, TunerTrial, TunerConfig } from "../types";
+import { buildDefaultEndpoint } from "../utils/endpointUtils";
+import type { SSEErrorPayload, SSEWarningPayload, TunerPhase, TunerStatus, TunerTrial, TunerConfig, ClusterTarget } from "../types";
 
 const DEFAULT_CONFIG: TunerConfig = {
   objective: "balanced",
@@ -25,9 +26,9 @@ const DEFAULT_CONFIG: TunerConfig = {
   eval_requests: 100,
 };
 
-export function useTunerLogic({ isActive, onRunningChange }: { isActive: boolean; onRunningChange?: (running: boolean) => void }) {
+export function useTunerLogic({ isActive, onRunningChange, targetOverride }: { isActive: boolean; onRunningChange?: (running: boolean) => void; targetOverride?: ClusterTarget | null }) {
   const { isMockEnabled } = useMockData();
-  const { endpoint, namespace, inferenceservice } = useClusterConfig();
+  const { endpoint, namespace, inferenceservice, crType } = useClusterConfig();
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [status, setStatus] = useState<TunerStatus>({ running: false, trials_completed: 0 });
@@ -138,7 +139,7 @@ export function useTunerLogic({ isActive, onRunningChange }: { isActive: boolean
     }
   }, [endpoint]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- namespace/inferenceservice trigger re-fetch on IS change (AGENTS.md rule)
+
   useEffect(() => {
     if (!isActive || isMockEnabled) return;
     const controller = new AbortController();
@@ -160,7 +161,7 @@ export function useTunerLogic({ isActive, onRunningChange }: { isActive: boolean
       })
       .catch((err: Error) => { if (err.name === "AbortError") return; console.error("Failed to fetch vLLM config:", err); });
     return () => controller.abort();
-  }, [isActive, isMockEnabled, namespace, inferenceservice]);
+  }, [isActive, isMockEnabled]);
 
   useEffect(() => { onRunningChange?.(status.running); }, [status.running, onRunningChange]);
 
@@ -177,8 +178,13 @@ export function useTunerLogic({ isActive, onRunningChange }: { isActive: boolean
   const start = async () => {
     setError(null); setWarning(null); setBenchmarkSaved(false); setBenchmarkSavedId(null);
     try {
-      const resolvedEndpoint = endpoint || config.vllm_endpoint;
-      const payload: Record<string, unknown> = { ...config, auto_benchmark: autoBenchmark, vllm_endpoint: resolvedEndpoint, vllm_namespace: namespace, vllm_is_name: inferenceservice };
+      const targetNs = targetOverride?.namespace || namespace;
+      const targetIsName = targetOverride?.inferenceService || inferenceservice;
+      const targetCrType = targetOverride?.crType || crType;
+      const resolvedEndpoint = targetOverride
+        ? buildDefaultEndpoint(targetCrType, targetNs, targetIsName)
+        : (endpoint || config.vllm_endpoint);
+      const payload: Record<string, unknown> = { ...config, auto_benchmark: autoBenchmark, vllm_endpoint: resolvedEndpoint, vllm_namespace: targetNs, vllm_is_name: targetIsName, vllm_cr_type: targetCrType };
       if (config.evaluation_mode === "sweep") {
         const baseRps = Math.max(1, config.eval_rps);
         const sweepStep = Math.max(1, Math.floor(baseRps / 2));

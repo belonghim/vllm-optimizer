@@ -23,7 +23,6 @@ export function useMonitorLogic(isActive: boolean) {
   const [chartState, setChartState] = useState<ChartConfig>(() => loadChartConfig());
   const [slaProfiles, setSlaProfiles] = useState<SlaProfile[]>([]);
   const [selectedSlaProfileId, setSelectedSlaProfileId] = useState<number | null>(null);
-  const [timeRangePoints, setTimeRangePoints] = useState(60);
   const [selectedRange, setSelectedRange] = useState<'Live' | '1h' | '6h' | '24h' | '7d'>('Live');
   const [initialized, setInitialized] = useState(false);
   const timeRangePointsRef = useRef(60);
@@ -262,6 +261,6 @@ export function useMonitorLogic(isActive: boolean) {
     initialized, error, targets, slaProfiles, selectedSlaProfileId, setSelectedSlaProfileId,
     chartOrder, hiddenCharts, mergedHistory, targetStatuses, targetStates, chartLinesMap,
     hideChart, showChart, getSlaThreshold, fetchPodMetrics,
-    selectedRange, setSelectedRange, setTimeRangePoints, timeRangePointsRef, selectedRangeRef,
+    selectedRange, setSelectedRange, timeRangePointsRef, selectedRangeRef,
   };
 }

@@ -34,6 +34,7 @@ class MockEventSource {
     this.onerror = null;
     this.readyState = MockEventSource.CONNECTING;
     this.closeSpy = vi.fn();
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     mockEsInstance = this;
   }
   close() {
