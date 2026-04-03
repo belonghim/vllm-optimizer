@@ -6,7 +6,7 @@ import { authFetch } from "../utils/authFetch";
 import { buildDefaultEndpoint } from "../utils/endpointUtils";
 
 const STORAGE_KEY = "vllm-opt-cluster-config";
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 const MAX_TARGETS = 5;
 const DEFAULT_NAMESPACE = "vllm-lab-dev";
 const DEFAULT_INFERENCESERVICE = "llm-ov";
@@ -97,7 +97,15 @@ function migrateSchema(stored: Record<string, unknown>): ClusterConfig {
     const migrated = migrateLegacyConfig(stored);
     return { ...migrated, version: SCHEMA_VERSION };
   }
-  return migrateLegacyConfig(stored);
+  const base = migrateLegacyConfig(stored);
+  if (typeof version === "number" && version < 3) {
+    return {
+      ...base,
+      version: SCHEMA_VERSION,
+      targets: base.targets.map(t => ({ ...t, source: t.source ?? "manual" })),
+    };
+  }
+  return base;
 }
 
 interface ClusterConfigProviderProps {
@@ -130,16 +138,12 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
   const stableTargetsRef = useRef<ClusterTarget[]>(config.targets);
   const prevTargetsJsonRef = useRef(JSON.stringify(config.targets));
   const configRef = useRef(config);
-  const cmIsvcKeyRef = useRef<string | null>(null);
-  const cmLlmisvcKeyRef = useRef<string | null>(null);
   const currentTargetsJson = JSON.stringify(config.targets);
   if (currentTargetsJson !== prevTargetsJsonRef.current) {
     prevTargetsJsonRef.current = currentTargetsJson;
     stableTargetsRef.current = config.targets;
   }
   const stableTargets = stableTargetsRef.current;
-
-  const getTargetKey = (t: ClusterTarget) => `${t.namespace}/${t.inferenceService}/${t.crType || 'inferenceservice'}`;
 
   // Derive CR-type-specific targets from flat targets array
   const isvcTargets = useMemo(() => stableTargets.filter(t => t.crType === "inferenceservice" || t.crType === undefined), [stableTargets]);
@@ -174,7 +178,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
             ...prev,
             endpoint: vllmEndpoint,
             targets: [
-              { namespace: resolvedNamespace, inferenceService: resolvedIsName, isDefault: true },
+              { namespace: resolvedNamespace, inferenceService: resolvedIsName, isDefault: true, source: "manual" as const },
               ...nonDefaultTargets,
             ],
           };
@@ -226,36 +230,26 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
           let targets = prev.targets;
 
           if (isvcHasValue && typeof isvc.name === "string" && typeof isvc.namespace === "string") {
-            const cmKey = cmIsvcKeyRef.current;
-            if (cmKey) {
-              targets = targets.filter(t => getTargetKey(t) !== cmKey);
-            } else {
-              targets = targets.filter(t => t.crType !== "inferenceservice" && t.crType !== undefined);
-            }
+            targets = targets.filter(t => !(t.crType === "inferenceservice" || t.crType === undefined));
             const newIsvcTarget: ClusterTarget = {
               namespace: isvc.namespace,
               inferenceService: isvc.name,
               isDefault: crType === "inferenceservice",
               crType: "inferenceservice",
+              source: "configmap",
             };
-            cmIsvcKeyRef.current = getTargetKey(newIsvcTarget);
             targets = [newIsvcTarget, ...targets];
           }
 
           if (llmisvcHasValue && typeof llmisvc.name === "string" && typeof llmisvc.namespace === "string") {
-            const cmKey = cmLlmisvcKeyRef.current;
-            if (cmKey) {
-              targets = targets.filter(t => getTargetKey(t) !== cmKey);
-            } else {
-              targets = targets.filter(t => t.crType !== "llminferenceservice" && t.crType !== undefined);
-            }
+            targets = targets.filter(t => t.crType !== "llminferenceservice");
             const newLlmisvcTarget: ClusterTarget = {
               namespace: llmisvc.namespace,
               inferenceService: llmisvc.name,
               isDefault: crType === "llminferenceservice",
               crType: "llminferenceservice",
+              source: "configmap",
             };
-            cmLlmisvcKeyRef.current = getTargetKey(newLlmisvcTarget);
             targets = [newLlmisvcTarget, ...targets];
           }
 
@@ -307,11 +301,10 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
                 inferenceService: isvc.name,
                 isDefault: isDefaultForIsvc,
                 crType: "inferenceservice",
+                source: "configmap",
               };
-              const newKey = getTargetKey(newIsvcTarget);
-              const cmKey = cmIsvcKeyRef.current;
 
-              const cmIdx = cmKey ? newTargets.findIndex(t => getTargetKey(t) === cmKey) : -1;
+              const cmIdx = newTargets.findIndex(t => t.source === "configmap" && (t.crType === "inferenceservice" || t.crType === undefined));
               if (cmIdx >= 0) {
                 if (newTargets[cmIdx].namespace !== isvc.namespace || newTargets[cmIdx].inferenceService !== isvc.name) {
                   newTargets[cmIdx] = newIsvcTarget;
@@ -321,7 +314,6 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
                 newTargets.unshift(newIsvcTarget);
                 updated = true;
               }
-              cmIsvcKeyRef.current = newKey;
             }
 
             if (llmisvcHasValue && typeof llmisvc.name === "string" && typeof llmisvc.namespace === "string") {
@@ -331,11 +323,10 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
                 inferenceService: llmisvc.name,
                 isDefault: isDefaultForLlmisvc,
                 crType: "llminferenceservice",
+                source: "configmap",
               };
-              const newKey = getTargetKey(newLlmisvcTarget);
-              const cmKey = cmLlmisvcKeyRef.current;
 
-              const cmIdx = cmKey ? newTargets.findIndex(t => getTargetKey(t) === cmKey) : -1;
+              const cmIdx = newTargets.findIndex(t => t.source === "configmap" && t.crType === "llminferenceservice");
               if (cmIdx >= 0) {
                 if (newTargets[cmIdx].namespace !== llmisvc.namespace || newTargets[cmIdx].inferenceService !== llmisvc.name) {
                   newTargets[cmIdx] = newLlmisvcTarget;
@@ -345,7 +336,6 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
                 newTargets.unshift(newLlmisvcTarget);
                 updated = true;
               }
-              cmLlmisvcKeyRef.current = newKey;
             }
 
             return updated ? { ...prev, targets: newTargets } : prev;
@@ -465,6 +455,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
         namespace: namespace || "",
         inferenceService: inferenceService || "",
         isDefault: currentTargets.length === 0,
+        source: "manual",
         ...(crType && { crType }),
       };
 
@@ -496,13 +487,14 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
       const currentTargets = prev.targets;
       const target = currentTargets.find(t => t.namespace === namespace && t.inferenceService === inferenceService);
       if (!target) {
-        const newTarget: ClusterTarget = { namespace, inferenceService, isDefault: true, crType };
+        const newTarget: ClusterTarget = { namespace, inferenceService, isDefault: true, crType, source: "configmap" };
         return { ...prev, targets: [newTarget, ...currentTargets.filter(t => !(t.namespace === namespace && t.inferenceService === inferenceService))] };
       }
 
       const newTargets = currentTargets.map((t) => ({
         ...t,
         isDefault: t.namespace === namespace && t.inferenceService === inferenceService,
+        source: (t.namespace === namespace && t.inferenceService === inferenceService) ? "configmap" : t.source,
       }));
 
       return { ...prev, targets: newTargets };

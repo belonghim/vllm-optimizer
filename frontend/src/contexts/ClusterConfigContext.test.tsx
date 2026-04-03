@@ -58,6 +58,7 @@ describe("ClusterConfigContext", () => {
       namespace: "ns1",
       inferenceService: "svc1",
       isDefault: false,
+      source: "manual",
     });
   });
 
@@ -199,7 +200,7 @@ describe("ClusterConfigContext", () => {
     );
     expect(calls.length).toBeGreaterThan(0);
     const lastStored = JSON.parse(calls[calls.length - 1][1]);
-    expect(lastStored.version).toBe(2);
+    expect(lastStored.version).toBe(3);
   });
 
   it("updateConfig removes duplicate target when modified default matches existing non-default", async () => {
@@ -219,11 +220,13 @@ describe("ClusterConfigContext", () => {
       namespace: "ns1",
       inferenceService: "svc1",
       isDefault: false,
+      source: "manual",
     });
     expect(result.current.targets[2]).toEqual({
       namespace: "ns2",
       inferenceService: "svc2",
       isDefault: false,
+      source: "manual",
     });
 
     act(() => {
@@ -267,11 +270,13 @@ describe("ClusterConfigContext", () => {
       namespace: "ns1",
       inferenceService: "svc1",
       isDefault: false,
+      source: "manual",
     });
     expect(result.current.targets[2]).toEqual({
       namespace: "ns2",
       inferenceService: "svc2",
       isDefault: false,
+      source: "manual",
     });
   });
 
