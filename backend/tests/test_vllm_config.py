@@ -3,6 +3,7 @@ from typing import cast
 from unittest.mock import MagicMock, patch
 
 import pytest
+pytest.importorskip("optuna")
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from services.cr_adapter import InferenceServiceAdapter
@@ -35,7 +36,7 @@ def _get_vllm_config_globals(client: TestClient, method: str | None = None):
 def _isvc_handler_patches(mock_custom: MagicMock, **overrides):
     patches = {
         "_get_k8s_custom": lambda: mock_custom,
-        "get_cr_adapter": lambda: InferenceServiceAdapter(),
+        "get_cr_adapter": lambda cr_type=None: InferenceServiceAdapter(),
     }
     patches.update(overrides)
     return patches

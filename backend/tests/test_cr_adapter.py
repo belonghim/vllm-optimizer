@@ -482,7 +482,7 @@ class TestLLMInferenceServiceAdapter:
 
     def test_pod_label_selector(self):
         adapter = LLMInferenceServiceAdapter()
-        assert adapter.pod_label_selector("small-llm-d") == "app.kubernetes.io/name=small-llm-d"
+        assert adapter.pod_label_selector("small-llm-d") == "app.kubernetes.io/name=small-llm-d,app.kubernetes.io/component=inference"
 
     def test_deployment_name(self):
         adapter = LLMInferenceServiceAdapter()
