@@ -48,7 +48,7 @@ export default function MultiTargetSelector({
   targetStatuses = {},
   targetStates = {}
 }: MultiTargetSelectorProps) {
-  const { targets, maxTargets, addTarget, removeTarget, setDefaultTarget, crType: contextCrType, isvcTargets, llmisvcTargets } = useClusterConfig();
+  const { targets, maxTargets, addTarget, removeTarget, setDefaultTarget, crType: contextCrType } = useClusterConfig();
   const [isAdding, setIsAdding] = useState(false);
   const [newTarget, setNewTarget] = useState({ namespace: "", inferenceService: "", crType: contextCrType || "inferenceservice" });
   const [isValidating, setIsValidating] = useState(false);

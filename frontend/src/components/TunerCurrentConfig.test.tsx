@@ -7,7 +7,7 @@ import { ClusterConfigProvider } from "../contexts/ClusterConfigContext";
 import type { TunerConfig } from "../types";
 
 vi.mock("./TunerConfigForm", () => ({
-  default: ({ config, isRunning }: { config: TunerConfig; isRunning: boolean }) => (
+  default: ({ isRunning }: { isRunning: boolean }) => (
     <div data-testid="tuner-config-form">
       <span data-testid="is-running">{String(isRunning)}</span>
     </div>

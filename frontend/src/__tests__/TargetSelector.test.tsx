@@ -2,10 +2,9 @@ import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import TargetSelector from "../components/TargetSelector";
-import { ClusterConfigProvider, useClusterConfig } from "../contexts/ClusterConfigContext";
+import { ClusterConfigProvider } from "../contexts/ClusterConfigContext";
 import { http, HttpResponse } from "msw";
 import { server } from "../mocks/server";
-import { act } from "react";
 
 beforeEach(() => {
   vi.spyOn(Storage.prototype, "getItem").mockReturnValue(null);

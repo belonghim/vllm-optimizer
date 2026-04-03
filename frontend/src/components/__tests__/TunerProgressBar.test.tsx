@@ -1,14 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import TunerProgressBar from "../TunerProgressBar";
 
-const PHASE_LABELS = {
-  applying_config: "Updating config...",
-  restarting: "Restarting server...",
-  waiting_ready: "Waiting for ready...",
-  warmup: "Warming up...",
-  evaluating: "Evaluating performance...",
-};
-
 describe("TunerProgressBar", () => {
   const props = {
     isRunning: true,

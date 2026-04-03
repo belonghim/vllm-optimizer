@@ -36,7 +36,6 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
   const [chartState, setChartState] = useState<ChartConfig>(() => loadChartConfig());
   const [slaProfiles, setSlaProfiles] = useState<SlaProfile[]>([]);
   const [selectedSlaProfileId, setSelectedSlaProfileId] = useState<number | null>(null);
-  const [timeRangePoints, setTimeRangePoints] = useState(150);
   const [selectedRange, setSelectedRange] = useState<'Live' | '1h' | '6h' | '24h' | '7d'>('Live');
   const [initialized, setInitialized] = useState(false);
   const timeRangePointsRef = useRef(150);
@@ -290,7 +289,7 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
               data-testid="time-range-btn"
               aria-label={`Show last ${r.label}`}
               className={`btn btn-sm${selectedRange === r.label ? ' active' : ''}`}
-              onClick={() => { setTimeRangePoints(r.points); setSelectedRange(r.label); timeRangePointsRef.current = r.points; selectedRangeRef.current = r.label; }}
+              onClick={() => { setSelectedRange(r.label); timeRangePointsRef.current = r.points; selectedRangeRef.current = r.label; }}
             >
               {r.label}
             </button>

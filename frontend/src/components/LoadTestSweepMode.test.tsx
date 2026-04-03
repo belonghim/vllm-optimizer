@@ -31,12 +31,10 @@ vi.mock("./ErrorAlert", () => ({
     message ? <div data-testid="error-alert">{message}</div> : null,
 }));
 
-let mockSSEUrl: string | null = null;
 const mockSSEHandlers: Record<string, (data: unknown) => void> = {};
 
 vi.mock("../hooks/useSSE", () => ({
   useSSE: (url: string | null, handlers: Record<string, (data: unknown) => void>) => {
-    mockSSEUrl = url;
     Object.assign(mockSSEHandlers, handlers);
   },
 }));
@@ -46,7 +44,6 @@ let mockFetch: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   vi.clearAllMocks();
   Object.keys(mockSSEHandlers).forEach(key => { delete mockSSEHandlers[key]; });
-  mockSSEUrl = null;
 
   global.ResizeObserver = class ResizeObserver {
     observe() {}

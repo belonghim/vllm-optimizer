@@ -40,7 +40,7 @@ interface TunerResultsProps {
   importance: Record<string, number>;
 }
 
-export default function TunerResults({ trials, bestParams, status, isRunning, importance }: TunerResultsProps) {
+export default function TunerResults({ trials, bestParams, status, importance, isRunning: _isRunning }: TunerResultsProps) {
   const { COLORS, TOOLTIP_STYLE } = useThemeColors();
   const TUNER_TOOLTIP_STYLE = useMemo(() => ({ ...TOOLTIP_STYLE, fontSize: 11 }), [TOOLTIP_STYLE]);
   const scatterData = trials.map(t => ({

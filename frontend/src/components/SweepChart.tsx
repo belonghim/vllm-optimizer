@@ -62,7 +62,7 @@ interface CustomizedDotProps extends DotProps {
 }
 
 const CustomizedDot: React.FC<CustomizedDotProps> = (props) => {
-    const { cx, cy, stroke, payload, value, saturated } = props;
+    const { cx, cy, stroke, saturated } = props;
     const { COLORS } = useThemeColors();
 
     if (saturated) {

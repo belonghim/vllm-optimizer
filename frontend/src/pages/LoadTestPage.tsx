@@ -15,7 +15,7 @@ interface LoadTestPageProps {
 }
 
 function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChange }: LoadTestPageProps) {
-  const { endpoint: globalEndpoint, isLoading: globalIsLoading, resolvedModelName, targets, crType } = useClusterConfig();
+  const { endpoint: globalEndpoint, isLoading: globalIsLoading, resolvedModelName, crType } = useClusterConfig();
   const [mode, setMode] = useState<'normal' | 'sweep'>('normal');
   const [sharedEndpoint, setSharedEndpoint] = useState("");
   const [sharedModel, setSharedModel] = useState(resolvedModelName || "auto");
