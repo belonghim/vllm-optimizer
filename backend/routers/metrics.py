@@ -103,7 +103,10 @@ async def get_batch_metrics(
                 target.namespace, target.inferenceService, target.cr_type, body.time_range, collector
             )
         else:
-            target_cache = collector._targets.get(key)
+            from services.runtime_config_instance import runtime_config
+            cr_type = target.cr_type or runtime_config.cr_type
+            collector_key = f"{target.namespace}/{target.inferenceService}/{cr_type}"
+            target_cache = collector._targets.get(collector_key)
             n = min(body.history_points, MAX_HISTORY_POINTS)
             history = (
                 [_convert_to_snapshot(m).model_dump() for m in list(target_cache.history)[-n:]] if target_cache else []
