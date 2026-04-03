@@ -292,7 +292,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
           setConfig(prev => {
             const current = configRef.current;
             let updated = false;
-            let newTargets = [...current.targets];
+            const newTargets = [...current.targets];
 
             if (isvcHasValue && typeof isvc.name === "string" && typeof isvc.namespace === "string") {
               const isDefaultForIsvc = crType === "inferenceservice";
