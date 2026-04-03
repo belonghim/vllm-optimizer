@@ -66,38 +66,35 @@ This is the central target management component. It displays all monitoring targ
 | Title | "Monitoring Targets (N/Max)" — shows current count vs. maximum allowed |
 | + Add Button | Opens the inline add form. Disabled when max targets reached |
 
-#### Target Sections
+#### Target Table
 
-Targets are displayed directly in the component (no dropdown), grouped by type:
-
-- **InferenceService (KServe)** section — targets with `crType: "inferenceservice"`
-- **LLMInferenceService (LLMIS)** section — targets with `crType: "llminferenceservice"` (shown only when targets exist)
-- Each section shows a count badge and a table with the same columns
+All targets (both InferenceService and LLMInferenceService) are displayed in a **single unified table**.
 
 #### Target Table Columns
 
 | Column | Header | Data Displayed |
 |--------|--------|----------------|
-| 1 | Target | InferenceService name + namespace. Shows ★ for default, "LLMIS" badge for LLMInferenceService type, ⚠️ warning if namespace lacks monitoring label |
-| 2 | TPS | Tokens per second (`fmt(data.tps, 0)`) |
-| 3 | RPS | Requests per second (`fmt(data.rps, 1)`) |
-| 4 | TTFT m/p99 | Time to First Token mean / p99 in ms |
-| 5 | Lat m/p99 | Latency mean / p99 in ms |
-| 6 | KV% | KV cache usage percentage |
-| 7 | KV Hit% | KV cache hit rate percentage |
-| 8 | GPU% | GPU utilization percentage |
-| 9 | GPU Mem | GPU memory used / total in GB |
-| 10 | Run | Number of running requests |
-| 11 | Wait | Number of waiting requests |
-| 12 | Pods | Ready pods / total pods. Includes expand button (▶/▼) when pods > 1 |
-| 13 | Actions | "Set Default" button + "×" delete button (hidden for default target) |
+| 1 | Target | InferenceService name + namespace. Shows ★ for default (first row), ⚠️ warning if namespace lacks monitoring label |
+| 2 | Type | `KServe` for InferenceService, `LLMIS` badge for LLMInferenceService |
+| 3 | TPS | Tokens per second (`fmt(data.tps, 0)`) |
+| 4 | RPS | Requests per second (`fmt(data.rps, 1)`) |
+| 5 | TTFT m/p99 | Time to First Token mean / p99 in ms |
+| 6 | Lat m/p99 | Latency mean / p99 in ms |
+| 7 | KV% | KV cache usage percentage |
+| 8 | KV Hit% | KV cache hit rate percentage |
+| 9 | GPU% | GPU utilization percentage |
+| 10 | GPU Mem | GPU memory used / total in GB |
+| 11 | Run | Number of running requests |
+| 12 | Wait | Number of waiting requests |
+| 13 | Pods | Ready pods / total pods. Includes expand button (▶/▼) when pods > 1 |
+| 14 | Actions | "Set Default" button + "×" delete button (hidden for first row) |
 
 #### Special Indicators
 
 | Indicator | Condition | Meaning |
 |-----------|-----------|---------|
-| ★ (star) | `target.isDefault === true` | This is the default monitoring target |
-| LLMIS badge | `target.crType === "llminferenceservice"` | Target is an LLMInferenceService (not standard KServe) |
+| ★ (star) | First row (index 0) | This is the default monitoring target |
+| LLMIS badge | `target.crType === "llminferenceservice"` (Type column) | Target is an LLMInferenceService (not standard KServe) |
 | ⚠️ warning | `hasMonitoringLabel === false` | Namespace lacks `openshift.io/cluster-monitoring=true` label — metrics cannot be collected |
 | `...` (dots) | `status === 'collecting'` | Data is being collected, not yet available |
 | `—` (dash) | `data === null` | No data available for this metric |
