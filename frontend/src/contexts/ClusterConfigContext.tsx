@@ -419,19 +419,16 @@ const updateCrType = useCallback(async (value: string): Promise<{ configmap_upda
       if (field === 'namespace' || field === 'inferenceservice') {
         const targets: ClusterTarget[] = prev.targets.length > 0
           ? [...prev.targets]
-          : [{ namespace: "", inferenceService: "", crType: DEFAULT_CR_TYPE }];
+          : [{ namespace: "", inferenceService: "", crType }];
 
-        const defaultIdx = 0;
-        const idx = defaultIdx;
-
-        targets[idx] = {
-          ...targets[idx],
+        targets[0] = {
+          ...targets[0],
           [field === 'inferenceservice' ? 'inferenceService' : field]: value,
         };
 
-        const defaultTarget = targets[idx];
+        const defaultTarget = targets[0];
         const deduped = targets.filter((t, i) =>
-          i === idx ||
+          i === 0 ||
           !(t.namespace === defaultTarget.namespace && t.inferenceService === defaultTarget.inferenceService)
         );
 
@@ -439,7 +436,7 @@ const updateCrType = useCallback(async (value: string): Promise<{ configmap_upda
       }
       return prev;
     });
-  }, []);
+  }, [crType]);
 
   const addTarget = useCallback((namespace: string, inferenceService: string, crType?: string): void => {
     setConfig(prev => {
