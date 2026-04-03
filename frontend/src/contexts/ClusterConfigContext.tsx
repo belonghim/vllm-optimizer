@@ -405,13 +405,6 @@ const updateCrType = useCallback(async (value: string): Promise<{ configmap_upda
   const data: unknown = await res.json();
   if (isRecord(data) && typeof data.cr_type === "string") {
     setCrType(data.cr_type);
-    // Also update the default target's crType in config so the select reflects the change
-    setConfig(prev => {
-      if (prev.targets.length === 0) return prev;
-      const newTargets = [...prev.targets];
-      newTargets[0] = { ...newTargets[0], crType: data.cr_type as string };
-      return { ...prev, targets: newTargets };
-    });
   }
   const configmapUpdated = isRecord(data) && data.configmap_updated === true;
   return { configmap_updated: configmapUpdated };
@@ -526,7 +519,6 @@ const updateCrType = useCallback(async (value: string): Promise<{ configmap_upda
 
   const value = useMemo((): ClusterConfigContextValue => {
     const defaultTarget = config.targets[0];
-    const defaultCrType = defaultTarget?.crType || "inferenceservice";
     return {
       endpoint: config.endpoint,
       namespace: defaultTarget?.namespace || DEFAULT_NAMESPACE,
@@ -538,7 +530,7 @@ const updateCrType = useCallback(async (value: string): Promise<{ configmap_upda
       addTarget,
       removeTarget,
       setDefaultTarget,
-      crType: defaultCrType,
+      crType,
       resolvedModelName,
       updateCrType,
       isvcTargets,
