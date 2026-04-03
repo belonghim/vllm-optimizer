@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 
 const ISVC_TARGET_1 = { namespace: 'vllm-lab-dev', inferenceService: 'llm-ov', crType: 'inferenceservice', isDefault: true };
 const ISVC_TARGET_2 = { namespace: 'vllm-lab-prod', inferenceService: 'llm-prod', crType: 'inferenceservice', isDefault: false };
+const LLMIS_TARGET_1 = { namespace: 'llm-d-demo', inferenceService: 'small-llm-d', crType: 'llminferenceservice', isDefault: false };
 
 interface ClusterTarget {
   namespace: string;
@@ -226,6 +227,46 @@ test.describe('MultiTargetSelector Direct Display', () => {
   test('displays add button', async ({ page }) => {
     const addBtn = page.locator('[data-testid="add-target-btn"]');
     await expect(addBtn).toBeVisible();
+  });
+});
+
+test.describe('MultiTargetSelector LLMIS Metrics Display', () => {
+  test.beforeEach(async ({ page }) => {
+    await mockConfigApi(page, [ISVC_TARGET_1, LLMIS_TARGET_1]);
+    await page.goto('/');
+    await page.getByRole('tab', { name: 'Monitoring' }).click();
+    await page.waitForSelector('.multi-target-selector', { timeout: 10000 });
+  });
+
+  test('displays LLMInferenceService section when llmisvc targets exist', async ({ page }) => {
+    const llmisSection = page.locator('.multi-target-section-label', { hasText: 'LLMInferenceService' });
+    await expect(llmisSection).toBeVisible();
+  });
+
+  test('displays LLMIS badge for llminferenceservice targets', async ({ page }) => {
+    const llmisBadge = page.locator('[data-testid="llmis-badge"]');
+    await expect(llmisBadge).toBeVisible();
+    await expect(llmisBadge).toContainText('LLMIS');
+  });
+
+  test('renders metrics data for LLMIS target', async ({ page }) => {
+    const targetRow = page.locator('[data-testid^="target-row-"]').last();
+    await expect(targetRow).toBeVisible();
+    expect(await targetRow.locator('td').nth(1).textContent()).toBe('100');
+  });
+
+  test('displays both ISVC and LLMIS sections with correct counts', async ({ page }) => {
+    const isvcSection = page.locator('.multi-target-section-label', { hasText: 'InferenceService' });
+    const llmisSection = page.locator('.multi-target-section-label', { hasText: 'LLMInferenceService' });
+
+    await expect(isvcSection).toBeVisible();
+    await expect(llmisSection).toBeVisible();
+
+    const isvcCount = page.locator('.multi-target-section-count').first();
+    const llmisCount = page.locator('.multi-target-section-count').last();
+
+    await expect(isvcCount).toContainText('1');
+    await expect(llmisCount).toContainText('1');
   });
 });
 

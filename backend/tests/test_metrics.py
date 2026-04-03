@@ -174,6 +174,94 @@ def _make_async_client_mock(get_mock):
     return mock_cm
 
 
+def test_metrics_batch_endpoint_with_llmisvc_cr_type(isolated_client, monkeypatch):
+    from services.shared import multi_target_collector
+
+    call_args = []
+
+    async def mock_get_metrics(namespace, is_name, cr_type=None):
+        call_args.append({"namespace": namespace, "is_name": is_name, "cr_type": cr_type})
+        return await multi_target_collector.get_metrics.__wrapped__(namespace, is_name, cr_type)
+
+    original = multi_target_collector.get_metrics
+    async def mock_get_metrics_v2(namespace, is_name, cr_type=None):
+        call_args.append({"namespace": namespace, "is_name": is_name, "cr_type": cr_type})
+        return None
+
+    monkeypatch.setattr(multi_target_collector, "get_metrics", mock_get_metrics_v2)
+
+    response = isolated_client.post(
+        "/api/metrics/batch",
+        json={
+            "targets": [
+                {"namespace": "test-ns", "inferenceService": "llm-svc", "cr_type": "llminferenceservice"}
+            ]
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+
+    assert "test-ns/llm-svc/llminferenceservice" in data["results"]
+    assert len(call_args) >= 1
+    assert call_args[0]["cr_type"] == "llminferenceservice"
+    assert call_args[0]["namespace"] == "test-ns"
+    assert call_args[0]["is_name"] == "llm-svc"
+
+
+def test_metrics_batch_endpoint_with_inferenceservice_cr_type(isolated_client, monkeypatch):
+    from services.shared import multi_target_collector
+
+    call_args = []
+
+    async def mock_get_metrics(namespace, is_name, cr_type=None):
+        call_args.append({"namespace": namespace, "is_name": is_name, "cr_type": cr_type})
+        return None
+
+    monkeypatch.setattr(multi_target_collector, "get_metrics", mock_get_metrics)
+
+    response = isolated_client.post(
+        "/api/metrics/batch",
+        json={
+            "targets": [
+                {"namespace": "test-ns", "inferenceService": "isvc-svc", "cr_type": "inferenceservice"}
+            ]
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+
+    assert "test-ns/isvc-svc/inferenceservice" in data["results"]
+    assert len(call_args) >= 1
+    assert call_args[0]["cr_type"] == "inferenceservice"
+
+
+def test_metrics_batch_endpoint_without_cr_type_defaults(isolated_client, monkeypatch):
+    from services.shared import multi_target_collector
+
+    call_args = []
+
+    async def mock_get_metrics(namespace, is_name, cr_type=None):
+        call_args.append({"namespace": namespace, "is_name": is_name, "cr_type": cr_type})
+        return None
+
+    monkeypatch.setattr(multi_target_collector, "get_metrics", mock_get_metrics)
+
+    response = isolated_client.post(
+        "/api/metrics/batch",
+        json={
+            "targets": [
+                {"namespace": "test-ns", "inferenceService": "default-svc"}
+            ]
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+
+    assert "test-ns/default-svc/inferenceservice" in data["results"]
+    assert len(call_args) >= 1
+    assert call_args[0]["cr_type"] is None
+
+
 def test_thanos_500_error(isolated_client):
     mock_response = MagicMock()
     mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(

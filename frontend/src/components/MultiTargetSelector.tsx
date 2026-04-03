@@ -237,7 +237,7 @@ export default function MultiTargetSelector({
     );
   };
 
-  const renderSection = (sectionTargets: ClusterTarget[], sectionLabel: string) => {
+  const renderSection = (sectionTargets: ClusterTarget[], sectionLabel: string, startIndex: number) => {
     if (sectionTargets.length === 0) return null;
     return (
       <div className="multi-target-section">
@@ -264,7 +264,7 @@ export default function MultiTargetSelector({
             </tr>
           </thead>
           <tbody>
-            {sectionTargets.map((target, index) => renderTargetItem(target, index))}
+            {sectionTargets.map((target, i) => renderTargetItem(target, startIndex + i))}
           </tbody>
         </table>
       </div>
@@ -296,8 +296,8 @@ export default function MultiTargetSelector({
         </div>
       ) : (
         <>
-          {renderSection(isvcTargets, "InferenceService (KServe)")}
-          {llmisvcTargets.length > 0 && renderSection(llmisvcTargets, "LLMInferenceService (LLMIS)")}
+          {renderSection(isvcTargets, "InferenceService (KServe)", 0)}
+          {llmisvcTargets.length > 0 && renderSection(llmisvcTargets, "LLMInferenceService (LLMIS)", isvcTargets.length)}
         </>
       )}
 
