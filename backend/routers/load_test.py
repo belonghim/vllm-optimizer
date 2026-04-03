@@ -192,9 +192,9 @@ async def start_load_test(request: Request, config: LoadTestConfig, storage=Depe
 
     if config.model == "auto":
         try:
-            config.model = await asyncio.wait_for(resolve_model_name(config.endpoint), timeout=3.0)
+            config.model = await asyncio.wait_for(resolve_model_name(config.endpoint), timeout=10.0)
         except TimeoutError:
-            config.model = os.getenv("VLLM_MODEL", "auto")
+            config.model = "auto"
 
     preflight = await load_engine._preflight_check(config)
     if not preflight.get("success"):
