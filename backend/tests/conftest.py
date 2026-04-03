@@ -158,10 +158,10 @@ class _StubMultiTargetMetricsCollector:
         self.registered.append((namespace, is_name))
         return True
 
-    async def get_metrics(self, namespace: str, is_name: str) -> None:
+    async def get_metrics(self, namespace: str, is_name: str, cr_type: str | None = None) -> None:
         return None
 
-    def get_has_monitoring_label(self, namespace: str, is_name: str) -> bool:
+    def get_has_monitoring_label(self, namespace: str, is_name: str, cr_type: str | None = None) -> bool:
         return self._has_label is not None and self._has_label
 
     def get_history_dict(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:

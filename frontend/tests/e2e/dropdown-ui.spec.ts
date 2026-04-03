@@ -67,7 +67,8 @@ async function mockConfigApi(page: Page, targets: ClusterTarget[] = [ISVC_TARGET
     if (pathname === '/api/metrics/batch' && method === 'POST') {
       const results: Record<string, unknown> = {};
       for (const target of targets) {
-        const key = `${target.namespace}/${target.inferenceService}`;
+        const crType = target.crType || 'inferenceservice';
+        const key = `${target.namespace}/${target.inferenceService}/${crType}`;
         results[key] = {
           status: 'ready',
           data: {

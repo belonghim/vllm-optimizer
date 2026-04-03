@@ -83,8 +83,8 @@ def test_metrics_batch_endpoint(isolated_client):
     assert response.status_code == 200
     data = response.json()
     assert "results" in data
-    assert "test-ns/test-isvc" in data["results"]
-    target_result = data["results"]["test-ns/test-isvc"]
+    assert "test-ns/test-isvc/inferenceservice" in data["results"]
+    target_result = data["results"]["test-ns/test-isvc/inferenceservice"]
     assert "status" in target_result
     assert target_result["status"] in ("collecting", "ready")
 
@@ -119,8 +119,8 @@ def test_metrics_batch_endpoint_multiple_targets(isolated_client):
     )
     assert response.status_code == 200
     data = response.json()
-    assert "ns1/is1" in data["results"]
-    assert "ns2/is2" in data["results"]
+    assert "ns1/is1/inferenceservice" in data["results"]
+    assert "ns2/is2/inferenceservice" in data["results"]
 
 
 def test_metrics_batch_default_60_points(isolated_client):
@@ -130,7 +130,7 @@ def test_metrics_batch_default_60_points(isolated_client):
     )
     assert response.status_code == 200
     data = response.json()
-    target_result = data["results"]["test-ns/test-isvc"]
+    target_result = data["results"]["test-ns/test-isvc/inferenceservice"]
     assert "history" in target_result
     assert len(target_result["history"]) <= 60
 
@@ -145,7 +145,7 @@ def test_metrics_batch_custom_history_points(isolated_client):
     )
     assert response.status_code == 200
     data = response.json()
-    target_result = data["results"]["test-ns/test-isvc"]
+    target_result = data["results"]["test-ns/test-isvc/inferenceservice"]
     assert "history" in target_result
     assert len(target_result["history"]) <= 200
 
@@ -160,7 +160,7 @@ def test_metrics_batch_caps_at_max(isolated_client):
     )
     assert response.status_code == 200
     data = response.json()
-    target_result = data["results"]["test-ns/test-isvc"]
+    target_result = data["results"]["test-ns/test-isvc/inferenceservice"]
     assert "history" in target_result
     assert len(target_result["history"]) <= 1000
 
@@ -281,7 +281,7 @@ def test_thanos_500_error(isolated_client):
         )
     assert response.status_code == 200
     data = response.json()
-    target_result = data["results"]["test-ns/test-isvc"]
+    target_result = data["results"]["test-ns/test-isvc/inferenceservice"]
     assert target_result["history"] == []
 
 
@@ -298,7 +298,7 @@ def test_thanos_timeout(isolated_client):
         )
     assert response.status_code == 200
     data = response.json()
-    target_result = data["results"]["test-ns/test-isvc"]
+    target_result = data["results"]["test-ns/test-isvc/inferenceservice"]
     assert target_result["history"] == []
 
 
@@ -318,7 +318,7 @@ def test_thanos_malformed_response(isolated_client):
         )
     assert response.status_code == 200
     data = response.json()
-    target_result = data["results"]["test-ns/test-isvc"]
+    target_result = data["results"]["test-ns/test-isvc/inferenceservice"]
     assert target_result["history"] == []
 
 
@@ -387,7 +387,7 @@ def test_batch_endpoint_invalid_time_range(isolated_client):
     )
     assert response.status_code == 200
     data = response.json()
-    target_result = data["results"]["test-ns/test-isvc"]
+    target_result = data["results"]["test-ns/test-isvc/inferenceservice"]
     assert "history" in target_result
     # With isolated_client and no prior metrics collection, history should be empty
     assert target_result["history"] == []
@@ -405,10 +405,45 @@ def test_batch_endpoint_null_time_range(isolated_client):
     assert response.status_code == 200
     data = response.json()
     assert "results" in data
-    assert "test-ns/test-isvc" in data["results"]
-    target_result = data["results"]["test-ns/test-isvc"]
+    assert "test-ns/test-isvc/inferenceservice" in data["results"]
+    target_result = data["results"]["test-ns/test-isvc/inferenceservice"]
     assert "status" in target_result
     assert target_result["status"] in ("collecting", "ready")
     assert "history" in target_result
     # With isolated_client, history from local cache should be empty
     assert target_result["history"] == []
+
+
+def test_metrics_batch_endpoint_mixed_isvc_and_llmisvc(isolated_client, monkeypatch):
+    from services.shared import multi_target_collector
+
+    call_args = []
+
+    async def mock_get_metrics(namespace, is_name, cr_type=None):
+        call_args.append({"namespace": namespace, "is_name": is_name, "cr_type": cr_type})
+        return None
+
+    monkeypatch.setattr(multi_target_collector, "get_metrics", mock_get_metrics)
+
+    response = isolated_client.post(
+        "/api/metrics/batch",
+        json={
+            "targets": [
+                {"namespace": "ns-a", "inferenceService": "svc-isvc", "cr_type": "inferenceservice"},
+                {"namespace": "ns-b", "inferenceService": "svc-llmis", "cr_type": "llminferenceservice"},
+            ]
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+
+    assert "ns-a/svc-isvc/inferenceservice" in data["results"]
+    assert "ns-b/svc-llmis/llminferenceservice" in data["results"]
+
+    isvc_call = next(c for c in call_args if c["cr_type"] == "inferenceservice")
+    llmis_call = next(c for c in call_args if c["cr_type"] == "llminferenceservice")
+
+    assert isvc_call["namespace"] == "ns-a"
+    assert isvc_call["is_name"] == "svc-isvc"
+    assert llmis_call["namespace"] == "ns-b"
+    assert llmis_call["is_name"] == "svc-llmis"
