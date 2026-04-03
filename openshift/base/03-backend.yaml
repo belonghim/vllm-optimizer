@@ -110,6 +110,17 @@ spec:
               mountPath: /tmp
             - name: vllm-optimizer-data
               mountPath: /data
+
+      dnsConfig:
+        searches:
+          - vllm-optimizer-dev.svc.cluster.local
+          - svc.cluster.local
+          - cluster.local
+        options:
+          - name: ndots
+            value: "5"
+      dnsPolicy: ClusterFirst
+
       volumes:
         - name: tmp-dir
           emptyDir:

@@ -11,6 +11,7 @@ spec:
       runtime: vllm-openvino-runtime
       storageUri: oci://quay.io/joopark/ai1/modelcar-phi-4-mini-instruct-int4-ov
       args:
+        - --served-model-name=OpenVINO/Phi-4-mini-instruct-int4-ov
         - --max-num-seqs=256
         - --gpu-memory-utilization=0.90
         - --max-model-len=8192

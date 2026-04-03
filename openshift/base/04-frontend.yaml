@@ -148,6 +148,17 @@ spec:
             - name: tmp-session
               mountPath: /tmp
 
+      # DNS 설정: sdis.com 검색 도메인 제거 (OAuth TLS SNI 오류 해결)
+      dnsConfig:
+        searches:
+          - vllm-optimizer-dev.svc.cluster.local
+          - svc.cluster.local
+          - cluster.local
+        options:
+          - name: ndots
+            value: "5"
+      dnsPolicy: ClusterFirst
+
       volumes:
         - name: tmp-nginx
           emptyDir:
