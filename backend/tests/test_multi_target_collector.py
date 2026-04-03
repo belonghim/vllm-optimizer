@@ -225,13 +225,25 @@ class TestGetDefaultTarget:
 class TestTargetKey:
     def test_target_key_format(self) -> None:
         collector = _build_collector()
-        assert collector._target_key("my-namespace", "my-is-name") == "my-namespace/my-is-name"
+        assert collector._target_key("my-namespace", "my-is-name", "inferenceservice") == "my-namespace/my-is-name/inferenceservice"
 
     def test_target_key_used_consistently(self) -> None:
         collector = _build_collector()
         key1 = collector._target_key("ns", "is")
         key2 = collector._target_key("ns", "is")
         assert key1 == key2
+
+    def test_target_key_includes_cr_type(self) -> None:
+        collector = _build_collector()
+        assert collector._target_key("ns", "name", "inferenceservice") == "ns/name/inferenceservice"
+
+    def test_target_key_defaults_to_inferenceservice(self) -> None:
+        collector = _build_collector()
+        assert collector._target_key("ns", "name").endswith("/inferenceservice")
+
+    def test_target_key_prevents_collision(self) -> None:
+        collector = _build_collector()
+        assert collector._target_key("ns", "name", "inferenceservice") != collector._target_key("ns", "name", "llminferenceservice")
 
 
 class TestCrType:
@@ -242,7 +254,7 @@ class TestCrType:
         with patch.object(collector, "_ensure_collect_loop", new_callable=AsyncMock):
             await collector.register_target("test-ns", "test-is", cr_type="llminferenceservice")
 
-        key = collector._target_key("test-ns", "test-is")
+        key = collector._target_key("test-ns", "test-is", "llminferenceservice")
         assert collector._targets[key].cr_type == "llminferenceservice"
 
     def test_adapter_for_inferenceservice(self) -> None:

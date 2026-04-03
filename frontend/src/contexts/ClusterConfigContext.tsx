@@ -138,8 +138,8 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
   const stableTargets = stableTargetsRef.current;
 
   // Derive CR-type-specific targets from flat targets array
-  const isvcTargets = useMemo(() => stableTargets.filter(t => !t.crType || t.crType === "inferenceservice"), [stableTargets]);
-  const llmisvcTargets = useMemo(() => stableTargets.filter(t => !t.crType || t.crType === "llminferenceservice"), [stableTargets]);
+  const isvcTargets = useMemo(() => stableTargets.filter(t => t.crType === "inferenceservice" || t.crType === undefined), [stableTargets]);
+  const llmisvcTargets = useMemo(() => stableTargets.filter(t => t.crType === "llminferenceservice"), [stableTargets]);
 
   useEffect(() => {
     const controller = new AbortController();

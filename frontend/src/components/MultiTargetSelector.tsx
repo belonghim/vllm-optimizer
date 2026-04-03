@@ -121,7 +121,7 @@ export default function MultiTargetSelector({
     }
   };
 
-  const getTargetKey = (t: ClusterTarget) => `${t.namespace}/${t.inferenceService}`;
+  const getTargetKey = (t: ClusterTarget) => `${t.namespace}/${t.inferenceService}/${t.crType || 'inferenceservice'}`;
 
   const defaultTarget = targets.find(t => t.isDefault) || targets[0];
 

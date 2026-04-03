@@ -56,7 +56,7 @@ export function useMonitorLogic(isActive: boolean) {
     if (isMockEnabled) {
       const newStates: Record<string, TargetState> = {};
       targets.forEach(target => {
-        const key = `${target.namespace}/${target.inferenceService}`;
+        const key = `${target.namespace}/${target.inferenceService}/${target.crType || 'inferenceservice'}`;
         newStates[key] = {
           metrics: { ...mockMetrics() },
           history: buildGapFill(mockHistory().map(h => ({ ...h, t: h.t })), ['ttft', 'lat_p99']).slice(-450),
@@ -186,7 +186,7 @@ export function useMonitorLogic(isActive: boolean) {
     setTargetStates(prev => {
       const initialStates: Record<string, TargetState> = {};
       targets.forEach(t => {
-        const key = `${t.namespace}/${t.inferenceService}`;
+        const key = `${t.namespace}/${t.inferenceService}/${t.crType || 'inferenceservice'}`;
         initialStates[key] = prev[key] || { status: 'collecting' };
       });
       return { ...prev, ...initialStates };
@@ -228,7 +228,7 @@ export function useMonitorLogic(isActive: boolean) {
 
   const defaultKey = useMemo(() => {
     const dt = targets.find(t => t.isDefault) || targets[0];
-    return dt ? `${dt.namespace}/${dt.inferenceService}` : null;
+    return dt ? `${dt.namespace}/${dt.inferenceService}/${dt.crType || 'inferenceservice'}` : null;
   }, [targets]);
 
   const chartLinesMap = useMemo(

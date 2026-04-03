@@ -531,4 +531,51 @@ describe("ClusterConfigContext", () => {
       });
     });
   });
+
+  describe("isvcTargets and llmisvcTargets filtering", () => {
+    it("isvcTargets includes targets with crType=inferenceservice and crType=undefined", async () => {
+      vi.mocked(Storage.prototype.getItem).mockReturnValue(JSON.stringify({
+        endpoint: "http://x",
+        targets: [
+          { namespace: "ns1", inferenceService: "isvc1", isDefault: true, crType: "inferenceservice" },
+          { namespace: "ns2", inferenceService: "isvc2", isDefault: false, crType: undefined },
+          { namespace: "ns3", inferenceService: "llmisvc1", isDefault: false, crType: "llminferenceservice" },
+        ],
+        maxTargets: 5,
+        version: 2,
+      }));
+
+      const { result } = renderHook(() => useClusterConfig(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      expect(result.current.isvcTargets.length).toBe(2);
+      expect(result.current.isvcTargets.map(t => t.inferenceService)).toContain("isvc1");
+      expect(result.current.isvcTargets.map(t => t.inferenceService)).toContain("isvc2");
+    });
+
+    it("llmisvcTargets includes only targets with crType=llminferenceservice", async () => {
+      vi.mocked(Storage.prototype.getItem).mockReturnValue(JSON.stringify({
+        endpoint: "http://x",
+        targets: [
+          { namespace: "ns1", inferenceService: "isvc1", isDefault: true, crType: "inferenceservice" },
+          { namespace: "ns2", inferenceService: "isvc2", isDefault: false, crType: undefined },
+          { namespace: "ns3", inferenceService: "llmisvc1", isDefault: false, crType: "llminferenceservice" },
+        ],
+        maxTargets: 5,
+        version: 2,
+      }));
+
+      const { result } = renderHook(() => useClusterConfig(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      expect(result.current.llmisvcTargets.length).toBe(1);
+      expect(result.current.llmisvcTargets[0].inferenceService).toBe("llmisvc1");
+    });
+  });
 });

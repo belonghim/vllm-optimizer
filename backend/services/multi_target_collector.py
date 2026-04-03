@@ -90,7 +90,7 @@ class MultiTargetMetricsCollector:
 
     def _register_default_target(self) -> None:
         cr_type = os.getenv("VLLM_CR_TYPE", "inferenceservice")
-        key = self._target_key(self._default_namespace, self._default_is_name)
+        key = self._target_key(self._default_namespace, self._default_is_name, cr_type)
         self._targets[key] = TargetCache(
             key=key,
             namespace=self._default_namespace,
@@ -195,7 +195,7 @@ class MultiTargetMetricsCollector:
         old_key = default_target.key
         new_namespace = namespace if namespace is not None else default_target.namespace
         new_is_name = is_name if is_name is not None else default_target.is_name
-        new_key = self._target_key(new_namespace, new_is_name)
+        new_key = self._target_key(new_namespace, new_is_name, default_target.cr_type)
 
         default_target.namespace = new_namespace
         default_target.is_name = new_is_name
@@ -241,8 +241,8 @@ class MultiTargetMetricsCollector:
             for m in history
         ]
 
-    async def get_metrics(self, namespace: str, is_name: str) -> VLLMMetrics | None:
-        key = self._target_key(namespace, is_name)
+    async def get_metrics(self, namespace: str, is_name: str, cr_type: str | None = None) -> VLLMMetrics | None:
+        key = self._target_key(namespace, is_name, cr_type)
         async with self._lock:
             target = self._targets.get(key)
             if target is None:
@@ -257,7 +257,7 @@ class MultiTargetMetricsCollector:
     async def register_target(self, namespace: str, is_name: str, cr_type: str | None = None) -> bool:
         if cr_type is None:
             cr_type = runtime_config.cr_type
-        key = self._target_key(namespace, is_name)
+        key = self._target_key(namespace, is_name, cr_type)
         async with self._lock:
             existing = self._targets.get(key)
             if existing is not None:
@@ -288,8 +288,8 @@ class MultiTargetMetricsCollector:
         await self._ensure_collect_loop()
         return True
 
-    async def remove_target(self, namespace: str, is_name: str) -> bool:
-        key = self._target_key(namespace, is_name)
+    async def remove_target(self, namespace: str, is_name: str, cr_type: str | None = None) -> bool:
+        key = self._target_key(namespace, is_name, cr_type)
         async with self._lock:
             removed = self._targets.pop(key, None)
             should_stop = not self._targets
@@ -677,13 +677,15 @@ class MultiTargetMetricsCollector:
             "pod_ready": ready,
         }
 
-    def get_has_monitoring_label(self, namespace: str, is_name: str) -> bool:
-        key = self._target_key(namespace, is_name)
+    def get_has_monitoring_label(self, namespace: str, is_name: str, cr_type: str | None = None) -> bool:
+        key = self._target_key(namespace, is_name, cr_type)
         target = self._targets.get(key)
         return target.has_monitoring_label is not None and target.has_monitoring_label if target else False
 
-    def _target_key(self, namespace: str, is_name: str) -> str:
-        return f"{namespace}/{is_name}"
+    def _target_key(self, namespace: str, is_name: str, cr_type: str | None = None) -> str:
+        if cr_type is None:
+            cr_type = runtime_config.cr_type
+        return f"{namespace}/{is_name}/{cr_type}"
 
     def _load_token(self) -> str | None:
         token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"

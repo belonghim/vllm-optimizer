@@ -68,7 +68,7 @@ describe("MultiTargetSelector", () => {
   });
 
   it("shows metric values when data is available", () => {
-    const key = "llm-d-demo/small-llm-d";
+    const key = "llm-d-demo/small-llm-d/inferenceservice";
     const mockData = {
       tps: 245, rps: 12.5, ttft_mean: 85, ttft_p99: 120,
       latency_mean: 300, latency_p99: 450, kv_cache: 45.2,
@@ -207,7 +207,7 @@ describe("MultiTargetSelector", () => {
   });
 
   it("shows warning for namespace without monitoring label", () => {
-    const targetKey = "vllm/llm-cuda";
+    const targetKey = "vllm/llm-cuda/inferenceservice";
     const statuses = {
       [targetKey]: { status: 'ok' as const, hasMonitoringLabel: false }
     };
@@ -265,5 +265,26 @@ describe("MultiTargetSelector", () => {
     await waitFor(() => {
       expect(mockContext.addTarget).toHaveBeenCalledWith("llm-d-demo", "llm-svc", "llminferenceservice");
     });
+  });
+
+  it("renders ISVC and LLMISVC targets with different keys", () => {
+    const multiMock = {
+      ...mockContext,
+      targets: [
+        { namespace: "ns", inferenceService: "svc", isDefault: true },
+        { namespace: "ns", inferenceService: "svc", isDefault: false, crType: "llminferenceservice" },
+      ],
+      isvcTargets: [
+        { namespace: "ns", inferenceService: "svc", isDefault: true },
+      ],
+      llmisvcTargets: [
+        { namespace: "ns", inferenceService: "svc", isDefault: false, crType: "llminferenceservice" },
+      ],
+    };
+    vi.mocked(useClusterConfig).mockReturnValue(multiMock as unknown as ClusterConfigContextValue);
+    render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
+    openDropdown();
+    expect(screen.getByTestId("llmis-badge")).toBeInTheDocument();
+    expect(screen.getByTestId("llmis-badge")).toHaveTextContent("LLMIS");
   });
 });

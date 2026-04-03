@@ -143,4 +143,42 @@ describe("useMonitorLogic", () => {
     });
     expect(result.current.hiddenCharts).not.toContain("latency");
   });
+
+  it("generates different keys for ISVC and LLMISVC targets with same namespace/name", async () => {
+    vi.mocked(authFetch).mockImplementation((url: RequestInfo | URL) => {
+      const urlStr = url.toString();
+      if (urlStr.includes("/sla/profiles")) {
+        return Promise.resolve({ ok: true, json: async () => [] } as unknown as Response);
+      }
+      if (urlStr.includes("/metrics/batch")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            results: {
+              "ns/svc/inferenceservice": {
+                status: "ready",
+                data: { tps: 10, latency_p99: 100 },
+                history: [],
+                hasMonitoringLabel: true,
+              },
+              "ns/svc/llminferenceservice": {
+                status: "ready",
+                data: { tps: 20, latency_p99: 80 },
+                history: [],
+                hasMonitoringLabel: true,
+              },
+            },
+          }),
+        } as unknown as Response);
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) } as unknown as Response);
+    });
+
+    const { result: result1 } = renderHook(() => useMonitorLogic(true));
+    await waitFor(() => {
+      expect(result1.current.initialized).toBe(true);
+    });
+    const keys1 = Object.keys(result1.current.targetStates || {});
+    expect(keys1).toContain("test-ns/test-is/inferenceservice");
+  });
 });
