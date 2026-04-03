@@ -7,6 +7,11 @@ export const handlers = [
     vllm_endpoint: 'http://mock-endpoint:8080',
     vllm_namespace: 'test-ns',
     vllm_is_name: 'test-model',
+    cr_type: 'inferenceservice',
+  })),
+  http.get(`${API}/config/default-targets`, () => HttpResponse.json({
+    isvc: { name: "test-model", namespace: "test-ns" },
+    llmisvc: { name: "test-llm-model", namespace: "test-ns" },
   })),
   http.get(`${API}/metrics/latest`, () => HttpResponse.json({ tps: 10, kv_cache: 50 })),
   http.post(`${API}/metrics/batch`, () => HttpResponse.json({ results: {} })),

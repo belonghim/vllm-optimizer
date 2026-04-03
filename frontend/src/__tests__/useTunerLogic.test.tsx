@@ -173,6 +173,12 @@ describe("useTunerLogic", () => {
             resolved_model_name: "",
           })
         ),
+        http.get("/api/config/default-targets", () =>
+          HttpResponse.json({
+            isvc: { name: "", namespace: "" },
+            llmisvc: { name: "", namespace: "" },
+          })
+        ),
         http.get("/api/tuner/status", () =>
           HttpResponse.json({ running: false, trials_completed: 0 })
         ),

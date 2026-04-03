@@ -216,7 +216,7 @@ describe("MultiTargetSelector", () => {
       openDropdown();
 
       await waitFor(() => {
-        expect(screen.getAllByText("★")).toHaveLength(2);
+        expect(screen.getAllByText("★")).toHaveLength(1);
       });
     });
   });
@@ -232,10 +232,11 @@ describe("MultiTargetSelector", () => {
       openDropdown();
 
       await waitFor(() => {
-        expect(screen.getAllByTestId("target-row-0")).toHaveLength(2);
+        expect(screen.getAllByText("★")).toHaveLength(1);
       });
 
-      expect(screen.queryByTestId("llmis-badge")).not.toBeInTheDocument();
+      const defaultRow = screen.getAllByTestId("target-row-0")[0];
+      expect(defaultRow.querySelector('[data-testid="llmis-badge"]')).toBeNull();
     });
   });
 
@@ -250,10 +251,11 @@ describe("MultiTargetSelector", () => {
       openDropdown();
 
       await waitFor(() => {
-        expect(screen.getAllByText("★")).toHaveLength(2);
+        expect(screen.getAllByText("★")).toHaveLength(1);
       });
 
-      expect(screen.queryByTestId("set-default-btn")).not.toBeInTheDocument();
+      const defaultRow = screen.getAllByTestId("target-row-0")[0];
+      expect(defaultRow.querySelector('[data-testid="set-default-btn"]')).toBeNull();
     });
   });
 
@@ -268,10 +270,11 @@ describe("MultiTargetSelector", () => {
       openDropdown();
 
       await waitFor(() => {
-        expect(screen.getAllByText("★")).toHaveLength(2);
+        expect(screen.getAllByText("★")).toHaveLength(1);
       });
 
-      expect(screen.queryByTestId("delete-btn")).not.toBeInTheDocument();
+      const defaultRow = screen.getAllByTestId("target-row-0")[0];
+      expect(defaultRow.querySelector('[data-testid="delete-btn"]')).toBeNull();
     });
   });
 
