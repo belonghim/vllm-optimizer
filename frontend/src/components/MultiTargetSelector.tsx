@@ -55,7 +55,6 @@ export default function MultiTargetSelector({
   const [addError, setAddError] = useState<string | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [podData, setPodData] = useState<Record<string, PerPodMetricSnapshot[]>>({});
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   const handleAdd = async () => {
     if (newTarget.namespace && newTarget.inferenceService) {
@@ -122,8 +121,6 @@ export default function MultiTargetSelector({
   };
 
   const getTargetKey = (t: ClusterTarget) => `${t.namespace}/${t.inferenceService}/${t.crType || 'inferenceservice'}`;
-
-  const defaultTarget = targets.find(t => t.isDefault) || targets[0];
 
   const renderTargetItem = (target: ClusterTarget, index: number) => {
     const key = getTargetKey(target);
@@ -279,15 +276,6 @@ export default function MultiTargetSelector({
       <div className="section-title multi-target-header">
         <span>Monitoring Targets ({targets.length}/{maxTargets})</span>
         <div className="multi-target-header-actions">
-          <button
-            type="button"
-            className="btn btn-primary multi-target-dropdown-btn"
-            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            data-testid="dropdown-toggle-btn"
-          >
-            {defaultTarget ? `${defaultTarget.inferenceService}` : "Select Target"}
-            <span className="dropdown-arrow">{isDropdownOpen ? '▲' : '▼'}</span>
-          </button>
           {!isAdding && (
             <button
               type="button"
@@ -302,20 +290,15 @@ export default function MultiTargetSelector({
         </div>
       </div>
 
-      {isDropdownOpen && (
-        <div className="multi-target-dropdown-panel">
-          {targets.length === 0 ? (
-            <div className="multi-target-empty">
-              Add a monitoring target
-            </div>
-          ) : (
-            <>
-              {renderSection(isvcTargets, "InferenceService (KServe)")}
-              <div className="multi-target-section-divider" />
-              {renderSection(llmisvcTargets, "LLMInferenceService (LLMIS)")}
-            </>
-          )}
+      {targets.length === 0 ? (
+        <div className="multi-target-empty">
+          Add a monitoring target
         </div>
+      ) : (
+        <>
+          {renderSection(isvcTargets, "InferenceService (KServe)")}
+          {llmisvcTargets.length > 0 && renderSection(llmisvcTargets, "LLMInferenceService (LLMIS)")}
+        </>
       )}
 
       {isAdding && (

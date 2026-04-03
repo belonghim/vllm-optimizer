@@ -35,21 +35,14 @@ describe("MultiTargetSelector", () => {
     vi.clearAllMocks();
   });
 
-  const openDropdown = () => {
-    const dropdownBtn = screen.getByTestId("dropdown-toggle-btn");
-    fireEvent.click(dropdownBtn);
-  };
-
   it("renders targets and add button", () => {
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
     expect(screen.getByText("Monitoring Targets (1/5)")).toBeInTheDocument();
-    expect(screen.getByTestId("dropdown-toggle-btn")).toBeInTheDocument();
     expect(screen.getByTestId("add-target-btn")).toBeInTheDocument();
   });
 
   it("renders as table with header columns", () => {
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
-    openDropdown();
     expect(document.querySelector('.monitor-table')).toBeInTheDocument();
     expect(screen.getByText("TPS")).toBeInTheDocument();
     expect(screen.getByText("RPS")).toBeInTheDocument();
@@ -62,7 +55,6 @@ describe("MultiTargetSelector", () => {
       targetStatuses={{ [key]: { status: 'collecting' as const, hasMonitoringLabel: false } }} 
       targetStates={{ [key]: { status: 'collecting' } }} 
     />);
-    openDropdown();
     const dots = screen.getAllByText("...");
     expect(dots.length).toBeGreaterThan(0);
   });
@@ -79,7 +71,6 @@ describe("MultiTargetSelector", () => {
       targetStatuses={{}}
       targetStates={{ [key]: { status: 'ready', data: mockData } }}
     />);
-    openDropdown();
     expect(screen.getByText("245")).toBeInTheDocument();
     expect(screen.getByText("1 / 1")).toBeInTheDocument();
   });
@@ -93,13 +84,11 @@ describe("MultiTargetSelector", () => {
     };
     vi.mocked(useClusterConfig).mockReturnValue(emptyMock as unknown as ClusterConfigContextValue);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
-    openDropdown();
     expect(screen.getByText("Add a monitoring target")).toBeInTheDocument();
   });
 
   it("renders target row with data-testid", () => {
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
-    openDropdown();
     expect(screen.getByTestId("target-row-0")).toBeInTheDocument();
   });
 
@@ -137,7 +126,6 @@ describe("MultiTargetSelector", () => {
 
   it("does not show delete or set-default button on default target", () => {
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
-    openDropdown();
     expect(screen.queryByTestId("delete-btn")).not.toBeInTheDocument();
     expect(screen.queryByTestId("set-default-btn")).not.toBeInTheDocument();
   });
@@ -157,7 +145,6 @@ describe("MultiTargetSelector", () => {
     };
     vi.mocked(useClusterConfig).mockReturnValue(multiMock as unknown as ClusterConfigContextValue);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
-    openDropdown();
     expect(screen.getAllByTestId("delete-btn")).toHaveLength(1);
     expect(screen.getAllByTestId("set-default-btn")).toHaveLength(1);
   });
@@ -179,7 +166,6 @@ describe("MultiTargetSelector", () => {
     };
     vi.mocked(useClusterConfig).mockReturnValue(multiMock as unknown as ClusterConfigContextValue);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
-    openDropdown();
     fireEvent.click(screen.getByTestId("delete-btn"));
     expect(mockRemoveTarget).toHaveBeenCalledWith("llm-d-prod", "large-llm-d");
   });
@@ -201,7 +187,6 @@ describe("MultiTargetSelector", () => {
     };
     vi.mocked(useClusterConfig).mockReturnValue(multiMock as unknown as ClusterConfigContextValue);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
-    openDropdown();
     fireEvent.click(screen.getByTestId("set-default-btn"));
     expect(mockSetDefaultTarget).toHaveBeenCalledWith("llm-d-prod", "large-llm-d", "inferenceservice");
   });
@@ -225,7 +210,6 @@ describe("MultiTargetSelector", () => {
     };
     vi.mocked(useClusterConfig).mockReturnValue(multiMock as unknown as ClusterConfigContextValue);
     render(<MultiTargetSelector targetStatuses={statuses} targetStates={{}} />);
-    openDropdown();
     expect(screen.getByTestId("no-monitoring-warning")).toBeInTheDocument();
   });
 
@@ -250,7 +234,6 @@ describe("MultiTargetSelector", () => {
     };
     vi.mocked(useClusterConfig).mockReturnValue(llmisMock as unknown as ClusterConfigContextValue);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
-    openDropdown();
     expect(screen.getByTestId("llmis-badge")).toBeInTheDocument();
     expect(screen.getByTestId("llmis-badge")).toHaveTextContent("LLMIS");
   });
@@ -283,7 +266,6 @@ describe("MultiTargetSelector", () => {
     };
     vi.mocked(useClusterConfig).mockReturnValue(multiMock as unknown as ClusterConfigContextValue);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
-    openDropdown();
     expect(screen.getByTestId("llmis-badge")).toBeInTheDocument();
     expect(screen.getByTestId("llmis-badge")).toHaveTextContent("LLMIS");
   });

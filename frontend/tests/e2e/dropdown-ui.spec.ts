@@ -198,7 +198,7 @@ test.describe('TargetSelector Dropdown UI', () => {
   });
 });
 
-test.describe('MultiTargetSelector Dropdown UI', () => {
+test.describe('MultiTargetSelector Direct Display', () => {
   test.beforeEach(async ({ page }) => {
     await mockConfigApi(page, [ISVC_TARGET_1]);
     await page.goto('/');
@@ -206,18 +206,9 @@ test.describe('MultiTargetSelector Dropdown UI', () => {
     await page.waitForSelector('.multi-target-selector', { timeout: 10000 });
   });
 
-  test('displays dropdown toggle button', async ({ page }) => {
-    const dropdownBtn = page.locator('[data-testid="dropdown-toggle-btn"]');
-    await expect(dropdownBtn).toBeVisible();
-    await expect(dropdownBtn).toContainText(ISVC_TARGET_1.inferenceService);
-  });
-
-  test('opens dropdown panel on click', async ({ page }) => {
-    const dropdownBtn = page.locator('[data-testid="dropdown-toggle-btn"]');
-    await dropdownBtn.click();
-
-    const dropdownPanel = page.locator('.multi-target-dropdown-panel');
-    await expect(dropdownPanel).toBeVisible();
+  test('displays target table directly without dropdown', async ({ page }) => {
+    const table = page.locator('.monitor-table');
+    await expect(table).toBeVisible();
   });
 
   test('displays default marker (★) for default target', async ({ page }) => {
@@ -232,17 +223,9 @@ test.describe('MultiTargetSelector Dropdown UI', () => {
     await expect(targetRow.locator('.target-ns')).toContainText(ISVC_TARGET_1.namespace);
   });
 
-  test('displays arrow direction based on dropdown state', async ({ page }) => {
-    const dropdownBtn = page.locator('[data-testid="dropdown-toggle-btn"]');
-    const arrow = dropdownBtn.locator('.dropdown-arrow');
-
-    await expect(arrow).toContainText('▼');
-
-    await dropdownBtn.click();
-    await expect(arrow).toContainText('▲');
-
-    await dropdownBtn.click();
-    await expect(arrow).toContainText('▼');
+  test('displays add button', async ({ page }) => {
+    const addBtn = page.locator('[data-testid="add-target-btn"]');
+    await expect(addBtn).toBeVisible();
   });
 });
 

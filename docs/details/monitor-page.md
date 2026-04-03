@@ -64,16 +64,15 @@ This is the central target management component. It displays all monitoring targ
 | Element | Description |
 |---------|-------------|
 | Title | "Monitoring Targets (N/Max)" — shows current count vs. maximum allowed |
-| Default Target Dropdown | Button showing the current default target's InferenceService name. Clicking opens a dropdown panel with all targets grouped by type |
 | + Add Button | Opens the inline add form. Disabled when max targets reached |
 
-#### Dropdown Panel
+#### Target Sections
 
-When the default target dropdown button is clicked, a panel appears showing:
+Targets are displayed directly in the component (no dropdown), grouped by type:
 
 - **InferenceService (KServe)** section — targets with `crType: "inferenceservice"`
-- **LLMInferenceService (LLMIS)** section — targets with `crType: "llminferenceservice"`
-- Each section shows a count badge and a table with the same columns as the main view
+- **LLMInferenceService (LLMIS)** section — targets with `crType: "llminferenceservice"` (shown only when targets exist)
+- Each section shows a count badge and a table with the same columns
 
 #### Target Table Columns
 

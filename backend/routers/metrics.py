@@ -96,8 +96,8 @@ async def get_batch_metrics(
             results[key] = {"data": None, "status": "max_targets_reached"}
             continue
 
-        vllm_metrics = await collector.get_metrics(target.namespace, target.inferenceService)
-        has_monitoring_label = collector.get_has_monitoring_label(target.namespace, target.inferenceService)
+        vllm_metrics = await collector.get_metrics(target.namespace, target.inferenceService, cr_type=target.cr_type)
+        has_monitoring_label = collector.get_has_monitoring_label(target.namespace, target.inferenceService, cr_type=target.cr_type)
 
         if body.time_range in _TIME_RANGE_CONFIG:
             history = await _get_history_from_thanos(
