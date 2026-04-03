@@ -166,6 +166,11 @@ class MultiTargetMetricsCollector:
     def missing_metrics(self) -> list[str]:
         return self._missing_metrics
 
+    def get_target(self, namespace: str, is_name: str, cr_type: str | None = None) -> "TargetCache | None":
+        """Resolve target cache entry using the canonical key format."""
+        key = self._target_key(namespace, is_name, cr_type)
+        return self._targets.get(key)
+
     def record_start_request(self, interval: float) -> None:
         self._start_requests.append(interval)
 

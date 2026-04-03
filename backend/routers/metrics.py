@@ -103,10 +103,9 @@ async def get_batch_metrics(
                 target.namespace, target.inferenceService, target.cr_type, body.time_range, collector
             )
         else:
-            from services.runtime_config_instance import runtime_config
-            cr_type = target.cr_type or runtime_config.cr_type
-            collector_key = f"{target.namespace}/{target.inferenceService}/{cr_type}"
-            target_cache = collector._targets.get(collector_key)
+            target_cache = collector.get_target(
+                target.namespace, target.inferenceService, cr_type=target.cr_type
+            )
             n = min(body.history_points, MAX_HISTORY_POINTS)
             history = (
                 [_convert_to_snapshot(m).model_dump() for m in list(target_cache.history)[-n:]] if target_cache else []
@@ -286,7 +285,7 @@ async def get_metrics_history(
     collector=Depends(get_multi_target_collector),
 ) -> list[MetricsSnapshot]:
     if namespace is not None and is_name is not None:
-        target = collector._targets.get(f"{namespace}/{is_name}")
+        target = collector.get_target(namespace, is_name)
         if target is None:
             return []
         n = last_n if last_n is not None else 60

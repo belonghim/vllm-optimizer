@@ -263,7 +263,7 @@ class TestPodsEndpointIntegration:
 
         # Register a target and set up its latest metrics
         await collector.register_target("test-ns", "test-is")
-        target = collector._targets.get("test-ns/test-is")
+        target = collector.get_target("test-ns", "test-is")
         from backend.services.multi_target_collector import VLLMMetrics
         target.latest = VLLMMetrics(
             timestamp=1234567890.0,
