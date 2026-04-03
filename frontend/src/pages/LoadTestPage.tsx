@@ -74,7 +74,7 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
         : <LoadTestSweepMode
             isActive={isActive}
             onRunningChange={onRunningChange}
-            endpoint={sharedEndpoint}
+            endpoint={targetEndpoint || sharedEndpoint}
             model={sharedModel}
           />
       }

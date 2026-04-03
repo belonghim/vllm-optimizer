@@ -191,10 +191,7 @@ async def start_load_test(request: Request, config: LoadTestConfig, storage=Depe
     test_id = str(uuid.uuid4())
 
     if config.model == "auto":
-        try:
-            config.model = await asyncio.wait_for(resolve_model_name(config.endpoint), timeout=10.0)
-        except TimeoutError:
-            config.model = "auto"
+        config.model = await resolve_model_name(config.endpoint)
 
     preflight = await load_engine._preflight_check(config)
     if not preflight.get("success"):
@@ -278,10 +275,7 @@ async def start_sweep(request: Request, config: SweepConfig) -> dict[str, Any]:
     await _state.mark_sweep_started()
 
     if config.model == "auto":
-        try:
-            config.model = await asyncio.wait_for(resolve_model_name(config.endpoint), timeout=3.0)
-        except TimeoutError:
-            config.model = os.getenv("VLLM_MODEL", "auto")
+        config.model = await resolve_model_name(config.endpoint)
 
     async def run_sweep_task():
         """Background task that executes a sweep load test across concurrency levels."""

@@ -134,10 +134,10 @@ export function useTunerLogic({ isActive, onRunningChange, targetOverride }: { i
   }, [isActive, isMockEnabled]);
 
   useEffect(() => {
-    if (endpoint) {
+    if (endpoint && !targetOverride) {
       setConfig(c => ({ ...c, vllm_endpoint: endpoint }));
     }
-  }, [endpoint]);
+  }, [endpoint, targetOverride]);
 
   useEffect(() => {
     if (targetOverride) {
