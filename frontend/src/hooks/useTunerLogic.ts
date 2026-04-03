@@ -141,6 +141,7 @@ export function useTunerLogic({ isActive, onRunningChange, targetOverride }: { i
 
   useEffect(() => {
     if (targetOverride) {
+      userEditedRef.current = {};
       const newEndpoint = buildDefaultEndpoint(targetOverride.crType, targetOverride.namespace, targetOverride.inferenceService);
       setConfig(c => ({ ...c, vllm_endpoint: newEndpoint }));
     }

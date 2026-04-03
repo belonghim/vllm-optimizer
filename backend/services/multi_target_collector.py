@@ -675,6 +675,7 @@ class MultiTargetMetricsCollector:
             return {}
 
         items = pods.items or []
+        items = [p for p in items if "router-scheduler" not in (p.metadata.name or "")]
         ready = sum(
             1
             for pod in items
