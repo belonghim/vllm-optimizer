@@ -269,10 +269,7 @@ class TunerLogic:
         broadcaster: _Broadcaster | None = None,
         model_resolver=resolve_model_name,
     ) -> tuple[float, float, float]:
-        try:
-            model_name = await asyncio.wait_for(model_resolver(endpoint), timeout=3.0)
-        except (TimeoutError, httpx.HTTPError, ValueError):
-            model_name = os.getenv("VLLM_MODEL", "auto")
+        model_name = await model_resolver(endpoint)
         if not model_name or model_name == "auto":
             raise ValueError(f"Cannot resolve model name from {endpoint}. Set VLLM_MODEL env var.")
         _trial_id = trial.number if trial is not None and hasattr(trial, "number") else trial_num
@@ -476,10 +473,7 @@ async def save_auto_benchmark_for_tuner(
 ) -> int | None:
     if tuner._best_trial is None or tuner._config is None:
         return None
-    try:
-        model_name = await asyncio.wait_for(model_resolver(tuner._vllm_endpoint), timeout=3.0)
-    except (TimeoutError, httpx.HTTPError, ValueError):
-        model_name = os.getenv("VLLM_MODEL", "qwen2-5-7b-instruct")
+    model_name = await model_resolver(tuner._vllm_endpoint, fallback="qwen2-5-7b-instruct")
     benchmark = Benchmark(
         name=f"auto-tune-{time.strftime('%Y%m%d-%H%M%S')}",
         config=LoadTestConfig(
