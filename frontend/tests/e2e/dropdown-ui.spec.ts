@@ -216,7 +216,7 @@ test.describe('MultiTargetSelector Direct Display', () => {
   test('displays default marker (★) for default target', async ({ page }) => {
     const defaultRow = page.locator('[data-testid^="target-row-"]').first();
     await expect(defaultRow).toBeVisible();
-    await expect(defaultRow.locator('.default-star')).toContainText('★');
+    await expect(defaultRow.locator('.multi-target-default-star')).toContainText('★');
   });
 
   test('displays namespace under target name', async ({ page }) => {
@@ -268,6 +268,32 @@ test.describe('MultiTargetSelector LLMIS Metrics Display', () => {
 
     await expect(isvcCount).toContainText('1');
     await expect(llmisCount).toContainText('1');
+  });
+
+  test('sends correct cr_type in batch metrics request', async ({ page }) => {
+    const batchRequests: Array<{ targets: Array<{ cr_type?: string }> }> = [];
+
+    page.on('request', (request) => {
+      if (request.url().includes('/api/metrics/batch') && request.method() === 'POST') {
+        try {
+          const postData = request.postDataJSON();
+          batchRequests.push(postData);
+        } catch {
+        }
+      }
+    });
+
+    await page.goto('/');
+    await page.getByRole('tab', { name: 'Monitoring' }).click();
+    await page.waitForSelector('.multi-target-selector', { timeout: 10000 });
+
+    await page.waitForTimeout(2000);
+
+    const batchCall = batchRequests.find(r =>
+      r.targets.some(t => t.cr_type === 'llminferenceservice')
+    );
+    expect(batchCall).toBeDefined();
+    expect(batchCall!.targets.some(t => t.cr_type === 'inferenceservice')).toBe(true);
   });
 });
 

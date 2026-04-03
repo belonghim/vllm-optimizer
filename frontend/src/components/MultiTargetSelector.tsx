@@ -136,10 +136,10 @@ export default function MultiTargetSelector({
 
     return (
       <Fragment key={key}>
-        <tr data-testid={`target-row-${index}`} className={isDefault ? "target-row-default" : ""}>
+        <tr data-testid={`target-row-${index}`} className={isDefault ? "multi-target-row-default" : ""}>
           <td className="target-name multi-target-color-cell" style={{ borderLeftColor: targetColor }}>
             <div style={{ color: targetColor }}>
-              {isDefault && <span className="default-star">★</span>}
+              {isDefault && <span className="multi-target-default-star">★</span>}
               {target.inferenceService}
               {target.crType === "llminferenceservice" && (
                 <span

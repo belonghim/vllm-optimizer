@@ -304,6 +304,13 @@ class TestInferenceServiceAdapter:
         spec = {"predictor": {"model": {"args": ["--max-num-seqs=256"]}}}
         assert adapter.resolve_model_name(spec, "llm-ov") == "llm-ov"
 
+    def test_read_extra_args_returns_non_tuning_args(self):
+        adapter = InferenceServiceAdapter()
+        result = adapter.read_extra_args(SAMPLE_IS_SPEC)
+        assert "--tensor-parallel-size=1" in result
+        assert "--max-num-seqs=256" not in result
+        assert "--gpu-memory-utilization=0.80" not in result
+
 
 class TestLLMInferenceServiceAdapter:
     def test_api_coordinates(self):
@@ -512,6 +519,44 @@ class TestLLMInferenceServiceAdapter:
         adapter = LLMInferenceServiceAdapter()
         spec = {"model": {"uri": "oci://registry.example.com/model:latest"}}
         assert adapter.resolve_model_name(spec, "small-llm-d") == "small-llm-d"
+
+    def test_read_extra_args_returns_non_tuning_args(self):
+        adapter = LLMInferenceServiceAdapter()
+        result = adapter.read_extra_args(SAMPLE_LLMIS_SPEC)
+        assert "--tensor-parallel-size=1" in result
+        assert "--gpu-memory-utilization=0.80" not in result
+        assert "--max-model-len=8192" not in result
+
+    def test_read_extra_args_empty(self):
+        adapter = LLMInferenceServiceAdapter()
+        spec = {"template": {"containers": [{"name": "main", "env": [{"name": "VLLM_ADDITIONAL_ARGS", "value": ""}]}]}}
+        assert adapter.read_extra_args(spec) == []
+
+    def test_apply_args_to_cr_creates_main_container_when_missing(self):
+        adapter = LLMInferenceServiceAdapter()
+        cr_obj = {
+            "apiVersion": "serving.kserve.io/v1alpha1",
+            "kind": "LLMInferenceService",
+            "metadata": {"name": "test-svc", "namespace": "test-ns"},
+            "spec": {"template": {"containers": []}},
+        }
+
+        updated = adapter.apply_args_to_cr(cr_obj, {"max_num_seqs": "128"})
+        main_container = next(c for c in updated["spec"]["template"]["containers"] if c["name"] == "main")
+        assert any(env["name"] == "VLLM_ADDITIONAL_ARGS" for env in main_container["env"])
+
+    def test_apply_args_to_cr_handles_env_as_none(self):
+        adapter = LLMInferenceServiceAdapter()
+        cr_obj = {
+            "apiVersion": "serving.kserve.io/v1alpha1",
+            "kind": "LLMInferenceService",
+            "metadata": {"name": "test-svc", "namespace": "test-ns"},
+            "spec": {"template": {"containers": [{"name": "main", "env": None}]}},
+        }
+
+        updated = adapter.apply_args_to_cr(cr_obj, {"max_num_seqs": "128"})
+        main_container = next(c for c in updated["spec"]["template"]["containers"] if c["name"] == "main")
+        assert any(env["name"] == "VLLM_ADDITIONAL_ARGS" for env in main_container["env"])
 
 
 class TestFactory:
