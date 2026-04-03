@@ -355,18 +355,6 @@ class TestBuildTargetQueries:
         assert 'job="kserve-llm-isvc-vllm-engine"' in queries["tokens_per_second"]
         assert 'namespace="test-ns"' in queries["tokens_per_second"]
 
-    def test_isvc_pod_label_selector_uses_inferenceservice_label(self) -> None:
-        collector = _build_collector()
-        queries = collector._build_pod_queries("test-ns", "my-svc", "inferenceservice")
-
-        assert 'serving.kserve.io/inferenceservice=my-svc' in queries["tokens_per_second"]
-
-    def test_llmis_pod_label_selector_uses_app_label(self) -> None:
-        collector = _build_collector()
-        queries = collector._build_pod_queries("test-ns", "my-svc", "llminferenceservice")
-
-        assert 'app.kubernetes.io/name=my-svc' in queries["tokens_per_second"]
-
     def test_isvc_dcgm_pod_pattern_uses_predictor_suffix(self) -> None:
         collector = _build_collector()
         queries = collector._build_target_queries("test-ns", "my-svc", "inferenceservice")

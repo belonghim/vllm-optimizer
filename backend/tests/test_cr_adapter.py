@@ -482,7 +482,7 @@ class TestLLMInferenceServiceAdapter:
 
     def test_pod_label_selector(self):
         adapter = LLMInferenceServiceAdapter()
-        assert adapter.pod_label_selector("small-llm-d") == "kserve.io/component=workload"
+        assert adapter.pod_label_selector("small-llm-d") == "serving.kserve.io/llminferenceservice=small-llm-d"
 
     def test_deployment_name(self):
         adapter = LLMInferenceServiceAdapter()

@@ -441,7 +441,7 @@ class LLMInferenceServiceAdapter(CRAdapter):
         }
 
     def pod_label_selector(self, name: str) -> str:
-        return "kserve.io/component=workload"
+        return f"serving.kserve.io/llminferenceservice={name}"
 
     def deployment_name(self, name: str) -> str:
         return f"{name}-kserve"
