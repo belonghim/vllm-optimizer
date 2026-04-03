@@ -271,9 +271,41 @@ def _ensure_kubernetes(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(client_module, "V1Deployment", _DummyV1Deployment, raising=False)
 
 
+# Modules that are replaced with stubs by _install_stub_metrics_collector_modules.
+# These need cache clearing from parent __dict__ to ensure fresh stub is used.
+_STUB_REPLACEMENT_MODULES = [
+    "services.shared",
+    "backend.services.shared",
+]
+
+
 def _clear_modules() -> None:
+    """Clear cached module references from both sys.modules and parent package __dict__.
+
+    This is necessary because Python caches submodule imports in parent packages.
+    When `from services.shared import storage` runs, it caches `shared` in
+    `services.__dict__['shared']`. Even after removing `services.shared` from
+    sys.modules, `from services import shared` would still find the cached OLD
+    module object in `services.__dict__`, returning the wrong (uninitialized)
+    module instead of the fresh stub.
+    """
+    # First, clear from sys.modules
     for module_name in _MODULES_TO_CLEAR:
         sys.modules.pop(module_name, None)
+
+    # Then, clear cached attribute references for stub replacement modules.
+    # Only clear modules that are actually replaced with stubs - clearing
+    # all parent __dict__ entries (like services.auto_tuner) would cause
+    # unnecessary re-imports that break test isolation.
+    for module_name in _STUB_REPLACEMENT_MODULES:
+        parts = module_name.split(".")
+        if len(parts) < 2:
+            continue
+        parent_name = ".".join(parts[:-1])
+        child_name = parts[-1]
+        parent = sys.modules.get(parent_name)
+        if parent and hasattr(parent, "__dict__"):
+            parent.__dict__.pop(child_name, None)
 
 
 def _install_stub_metrics_collector_modules() -> list[str]:
