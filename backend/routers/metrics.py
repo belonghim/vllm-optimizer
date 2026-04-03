@@ -89,7 +89,8 @@ async def get_batch_metrics(
     results: dict[str, dict[str, object]] = {}
 
     for target in body.targets:
-        key = f"{target.namespace}/{target.inferenceService}"
+        cr_type = target.cr_type or "inferenceservice"
+        key = f"{target.namespace}/{target.inferenceService}/{cr_type}"
         registered = await collector.register_target(target.namespace, target.inferenceService, cr_type=target.cr_type)
         if not registered:
             results[key] = {"data": None, "status": "max_targets_reached"}
@@ -149,7 +150,8 @@ async def get_pod_metrics(
     results: dict[str, PerPodMetricsResponse] = {}
 
     for target in body.targets:
-        key = f"{target.namespace}/{target.inferenceService}"
+        cr_type = target.cr_type or "inferenceservice"
+        key = f"{target.namespace}/{target.inferenceService}/{cr_type}"
         registered = await collector.register_target(target.namespace, target.inferenceService, cr_type=target.cr_type)
         if not registered:
             results[key] = PerPodMetricsResponse(
@@ -239,7 +241,8 @@ async def get_pods_history(
     results: dict[str, dict[str, object]] = {}
 
     for target in body.targets:
-        key = f"{target.namespace}/{target.inferenceService}"
+        cr_type = target.cr_type or "inferenceservice"
+        key = f"{target.namespace}/{target.inferenceService}/{cr_type}"
         registered = await collector.register_target(target.namespace, target.inferenceService, cr_type=target.cr_type)
         if not registered:
             results[key] = {"data": None, "status": "max_targets_reached", "history": []}
