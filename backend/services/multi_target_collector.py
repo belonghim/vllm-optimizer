@@ -675,7 +675,8 @@ class MultiTargetMetricsCollector:
             1
             for pod in items
             if pod.status.phase == "Running"
-            and all(container.ready for container in (pod.status.container_statuses or []))
+            and pod.status.container_statuses
+            and all(cs.ready for cs in pod.status.container_statuses)
         )
         return {
             "pod_count": len(items),

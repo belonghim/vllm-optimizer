@@ -374,3 +374,128 @@ class TestBuildTargetQueries:
 
         assert set(isvc_queries.keys()) == set(llmis_queries.keys())
         assert len(isvc_queries) == 13
+
+
+class TestQueryKubernetesPods:
+    """Tests for _query_kubernetes_pods K8s API interaction."""
+
+    @pytest.mark.asyncio
+    async def test_returns_count_and_ready_for_running_pods(self) -> None:
+        collector = _build_collector()
+        collector._k8s_available = True
+        collector._k8s_core = MagicMock()
+
+        mock_pod = MagicMock()
+        mock_pod.status.phase = "Running"
+        mock_container = MagicMock()
+        mock_container.ready = True
+        mock_pod.status.container_statuses = [mock_container]
+
+        mock_pod_list = MagicMock()
+        mock_pod_list.items = [mock_pod]
+        collector._k8s_core.list_namespaced_pod.return_value = mock_pod_list
+
+        with patch("services.cr_adapter.get_cr_adapter") as mock_adapter:
+            adapter = MagicMock()
+            adapter.pod_label_selector.return_value = "app=test"
+            mock_adapter.return_value = adapter
+
+            result = await collector._query_kubernetes_pods("test-ns", "test-svc", "inferenceservice")
+
+        assert result == {"pod_count": 1, "pod_ready": 1}
+
+    @pytest.mark.asyncio
+    async def test_empty_container_statuses_not_counted_as_ready(self) -> None:
+        collector = _build_collector()
+        collector._k8s_available = True
+        collector._k8s_core = MagicMock()
+
+        mock_pod = MagicMock()
+        mock_pod.status.phase = "Running"
+        mock_pod.status.container_statuses = []
+
+        mock_pod_list = MagicMock()
+        mock_pod_list.items = [mock_pod]
+        collector._k8s_core.list_namespaced_pod.return_value = mock_pod_list
+
+        with patch("services.cr_adapter.get_cr_adapter") as mock_adapter:
+            adapter = MagicMock()
+            adapter.pod_label_selector.return_value = "app=test"
+            mock_adapter.return_value = adapter
+
+            result = await collector._query_kubernetes_pods("test-ns", "test-svc", "inferenceservice")
+
+        assert result == {"pod_count": 1, "pod_ready": 0}
+
+    @pytest.mark.asyncio
+    async def test_none_container_statuses_not_counted_as_ready(self) -> None:
+        collector = _build_collector()
+        collector._k8s_available = True
+        collector._k8s_core = MagicMock()
+
+        mock_pod = MagicMock()
+        mock_pod.status.phase = "Running"
+        mock_pod.status.container_statuses = None
+
+        mock_pod_list = MagicMock()
+        mock_pod_list.items = [mock_pod]
+        collector._k8s_core.list_namespaced_pod.return_value = mock_pod_list
+
+        with patch("services.cr_adapter.get_cr_adapter") as mock_adapter:
+            adapter = MagicMock()
+            adapter.pod_label_selector.return_value = "app=test"
+            mock_adapter.return_value = adapter
+
+            result = await collector._query_kubernetes_pods("test-ns", "test-svc", "inferenceservice")
+
+        assert result == {"pod_count": 1, "pod_ready": 0}
+
+    @pytest.mark.asyncio
+    async def test_pending_pod_not_counted_as_ready(self) -> None:
+        collector = _build_collector()
+        collector._k8s_available = True
+        collector._k8s_core = MagicMock()
+
+        mock_pod = MagicMock()
+        mock_pod.status.phase = "Pending"
+        mock_container = MagicMock()
+        mock_container.ready = True
+        mock_pod.status.container_statuses = [mock_container]
+
+        mock_pod_list = MagicMock()
+        mock_pod_list.items = [mock_pod]
+        collector._k8s_core.list_namespaced_pod.return_value = mock_pod_list
+
+        with patch("services.cr_adapter.get_cr_adapter") as mock_adapter:
+            adapter = MagicMock()
+            adapter.pod_label_selector.return_value = "app=test"
+            mock_adapter.return_value = adapter
+
+            result = await collector._query_kubernetes_pods("test-ns", "test-svc", "inferenceservice")
+
+        assert result == {"pod_count": 1, "pod_ready": 0}
+
+    @pytest.mark.asyncio
+    async def test_uses_correct_label_selector_per_cr_type(self) -> None:
+        """Verify _query_kubernetes_pods passes the correct label selector for each CR type."""
+        from services.cr_adapter import InferenceServiceAdapter, LLMInferenceServiceAdapter
+
+        collector = _build_collector()
+        collector._k8s_available = True
+        collector._k8s_core = MagicMock()
+
+        mock_pod_list = MagicMock()
+        mock_pod_list.items = []
+        collector._k8s_core.list_namespaced_pod.return_value = mock_pod_list
+
+        await collector._query_kubernetes_pods("ns", "my-svc", "inferenceservice")
+        collector._k8s_core.list_namespaced_pod.assert_called_with(
+            namespace="ns",
+            label_selector=InferenceServiceAdapter().pod_label_selector("my-svc"),
+        )
+
+        await collector._query_kubernetes_pods("ns", "my-svc", "llminferenceservice")
+        collector._k8s_core.list_namespaced_pod.assert_called_with(
+            namespace="ns",
+            label_selector=LLMInferenceServiceAdapter().pod_label_selector("my-svc"),
+        )
