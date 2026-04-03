@@ -1,9 +1,9 @@
 ---
 title: "Monitoring Runbook - vLLM Optimizer Prometheus Integration"
 date: 2026-02-24
-updated: 2026-03-08
+updated: 2026-04-04
 author: GPS Consultant
-tags: [monitoring, prometheus, vllm, runbook]
+tags: [monitoring, prometheus, vllm, runbook, llmisvc]
 status: published
 aliases: []
 ---
@@ -13,6 +13,80 @@ aliases: []
 This runbook provides operating procedures for the Prometheus-based monitoring integration of the vLLM Optimizer backend on OpenShift. It covers verification, troubleshooting, and maintenance of the `/api/metrics` endpoint and the associated ServiceMonitor configuration.
 
 **Scope**: Tasks 4–9 of the vLLM monitoring integration — exposing metrics, wiring the MetricsCollector, testing, OpenShift alignment, and documentation.
+
+## Multi-Target Monitoring
+
+The backend supports monitoring multiple targets simultaneously, including both `InferenceService` (KServe) and `LLMInferenceService` (LLMIS) CR types.
+
+### Target Registration
+
+Targets are registered via the `/api/metrics/latest` endpoint:
+
+```bash
+# Register an InferenceService target
+curl "http://localhost:8000/api/metrics/latest?namespace=vllm-lab-dev&is_name=llm-ov&cr_type=inferenceservice"
+
+# Register an LLMInferenceService target
+curl "http://localhost:8000/api/metrics/latest?namespace=llm-d-demo&is_name=gemma-4&cr_type=llminferenceservice"
+```
+
+### Batch Metrics Query
+
+Query multiple targets in a single request:
+
+```bash
+curl -X POST http://localhost:8000/api/metrics/batch \
+  -H "Content-Type: application/json" \
+  -d '{
+    "targets": [
+      {"namespace": "vllm-lab-dev", "inferenceService": "llm-ov", "cr_type": "inferenceservice"},
+      {"namespace": "llm-d-demo", "inferenceService": "gemma-4", "cr_type": "llminferenceservice"}
+    ]
+  }'
+```
+
+### Per-Pod Metrics
+
+Get per-pod breakdown for a target:
+
+```bash
+curl -X POST http://localhost:8000/api/metrics/pods \
+  -H "Content-Type: application/json" \
+  -d '{
+    "targets": [
+      {"namespace": "llm-d-demo", "inferenceService": "gemma-4", "cr_type": "llminferenceservice"}
+    ]
+  }'
+```
+
+### Pod Label Selectors by CR Type
+
+| CR Type | Pod Label Selector | Purpose |
+|---------|-------------------|---------|
+| `inferenceservice` | `serving.kserve.io/inferenceservice={name}` | Selects KServe predictor pods |
+| `llminferenceservice` | `app.kubernetes.io/name={name},kserve.io/component=workload` | Selects LLMIS workload pods (decode/prefill), excludes router-scheduler |
+
+### DCGM Pod Pattern Filtering
+
+GPU metrics from DCGM exporter use pod name pattern matching to filter results:
+
+| CR Type | DCGM Pod Pattern | Matches |
+|---------|-----------------|---------|
+| `inferenceservice` | `{name}-predictor.*` | KServe predictor pods |
+| `llminferenceservice` | `{name}-kserve(?!-router-scheduler).*` | decode + prefill pods, excludes router-scheduler (no GPU) |
+
+The negative lookahead `(?!-router-scheduler)` ensures router-scheduler pods (which have no GPU resources) are excluded from DCGM metric queries.
+
+### CR Type Differences
+
+| Aspect | InferenceService | LLMInferenceService |
+|--------|-----------------|---------------------|
+| API Group | `serving.kserve.io` | `serving.kserve.io` |
+| API Plural | `inferenceservices` | `llminferenceservices` |
+| Metric Prefix | `vllm:` | `kserve_vllm:` |
+| Prometheus Job | `{name}-metrics` | `kserve-llm-isvc-vllm-engine` |
+| Pod Selector | `serving.kserve.io/inferenceservice={name}` | `app.kubernetes.io/name={name},kserve.io/component=workload` |
+| DCGM Pattern | `{name}-predictor.*` | `{name}-kserve(?!-router-scheduler).*` |
 
 ## Architecture Overview
 

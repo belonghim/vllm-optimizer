@@ -1,7 +1,7 @@
 ---
 title: OpenShift Deployment Guide
 date: 2026-03-08
-updated: 2026-03-08
+updated: 2026-04-04
 tags: [deployment, openshift, kustomize]
 status: published
 ---
@@ -87,6 +87,7 @@ The `deploy.sh` script simplifies the build, push, and deployment process.
         ```bash
         ./deploy.sh dev --skip-build
         ```
+        *   **Note on `--skip-build`**: Even when `--skip-build` is used, the digest-based rollout check still runs. This means if the image in the registry differs from what's currently deployed, a rollout will be triggered.
 
 4.  **Deploy to Production Environment:**
     For production, ensure `IMAGE_TAG` is set to the desired version.

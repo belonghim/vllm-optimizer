@@ -1,8 +1,8 @@
 ---
 title: "vLLM Optimizer Troubleshooting Guide"
 date: 2026-03-08
-updated: 2026-03-15
-tags: [troubleshooting, openshift, debugging]
+updated: 2026-04-04
+tags: [troubleshooting, openshift, debugging, llmisvc]
 status: published
 ---
 
@@ -227,6 +227,9 @@ These commands can help diagnose issues in your OpenShift cluster.
 -   **InferenceService args 조회**: `oc get inferenceservice llm-ov -n vllm-lab-dev -o jsonpath='{.spec.predictor.model.args}'`
 -   **Deployment Rollout 상태 확인**: `oc rollout status deployment/llm-ov-predictor -n vllm-lab-dev`
 -   **vllm-config API 조회**: `curl http://localhost:8000/api/vllm-config`
+-   **LLMIS Pod Labels 확인**: `oc get pods -n <namespace> -l app.kubernetes.io/name=<name> --show-labels`
+-   **LLMIS Workload Pods만 조회**: `oc get pods -n <namespace> -l "app.kubernetes.io/name=<name>,kserve.io/component=workload"`
+-   **LLMIS Pod GPU Resources 확인**: `oc get pod -n <namespace> <pod-name> -o jsonpath='{.spec.containers[*].resources}'`
 
 ---
 
@@ -313,3 +316,40 @@ oc rollout status deployment/llm-ov-predictor -n vllm-lab-dev
    ```
 
 **Fix**: 이 문제는 v2026-03-21 릴리즈에서 수정되었습니다. `asyncio.Event`를 사용한 협력적 취소 메커니즘이 구현되어, Stop 버튼 클릭 시 즉시 응답합니다.
+
+### 15. LLMIS Pod Count Shows 0
+
+**Symptom**: The monitoring dashboard shows 0 pods for an `LLMInferenceService` target, even though the pods are running.
+
+**Cause**: The pod label selector may be incorrect. LLMInferenceService pods use `app.kubernetes.io/name={name},kserve.io/component=workload` as their label selector. If the selector is missing the `kserve.io/component=workload` part, it may include router-scheduler pods; if it uses a non-existent label like `app.kubernetes.io/component=inference`, it will match 0 pods.
+
+**Diagnosis**:
+1. Verify actual pod labels:
+   ```bash
+   oc get pods -n <namespace> -l app.kubernetes.io/name=<name> --show-labels
+   ```
+2. Check which pods match the workload selector:
+   ```bash
+   oc get pods -n <namespace> -l "app.kubernetes.io/name=<name>,kserve.io/component=workload"
+   ```
+
+**Fix**: Ensure `LLMInferenceServiceAdapter.pod_label_selector()` returns `app.kubernetes.io/name={name},kserve.io/component=workload`. This selector matches decode and prefill pods while excluding router-scheduler pods.
+
+### 16. LLMIS Shows Wrong Pods (nvidia-dcgm-exporter) in Per-Pod View
+
+**Symptom**: The per-pod metrics view shows unexpected pod names like `nvidia-dcgm-exporter-xxx` instead of the actual LLMIS workload pods.
+
+**Cause**: The DCGM pod pattern used for filtering per-pod Prometheus results was too broad, matching all pods with the `{name}-kserve` prefix including unrelated pods.
+
+**Diagnosis**:
+1. Check the DCGM pod pattern in the query:
+   ```bash
+   # The pattern should exclude router-scheduler pods
+   oc get pods -n <namespace> | grep -E "<name>-kserve"
+   ```
+2. Verify which pods have GPU resources:
+   ```bash
+   oc get pod -n <namespace> <pod-name> -o jsonpath='{.spec.containers[*].resources}'
+   ```
+
+**Fix**: The `dcgm_pod_pattern` for LLMInferenceService uses a negative lookahead pattern: `{name}-kserve(?!-router-scheduler).*`. This matches decode and prefill pods but excludes router-scheduler pods (which have no GPU). Additionally, per-pod Prometheus results are filtered using `re.search()` against this pattern.
