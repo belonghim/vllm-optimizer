@@ -363,7 +363,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
   }, [config]);
 
   useEffect(() => {
-    const defaultTarget = stableTargets.find(t => t.isDefault) || stableTargets[0];
+    const defaultTarget = stableTargets[0];
     if (!defaultTarget) return;
 
     const newEndpoint = buildDefaultEndpoint(
@@ -376,7 +376,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
   }, [crType, stableTargets]);
 
   useEffect(() => {
-    const defaultTarget = stableTargets.find(t => t.isDefault) || stableTargets[0];
+    const defaultTarget = stableTargets[0];
     if (!defaultTarget || !crType) return;
 
     const namespace = defaultTarget.namespace;
@@ -400,20 +400,29 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
     return () => controller.abort();
   }, [crType, stableTargets]);
 
-  const updateCrType = useCallback(async (value: string): Promise<{ configmap_updated: boolean }> => {
-    // No auth required — /config endpoint reads env variables with no auth middleware
-    const res = await authFetch(`${API}/config`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cr_type: value }),
+const updateCrType = useCallback(async (value: string): Promise<{ configmap_updated: boolean }> => {
+  // No auth required — /config endpoint reads env variables with no auth middleware
+  const res = await authFetch(`${API}/config`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cr_type: value }),
+  });
+  if (res.status === 409) throw new Error('Auto-tuner is running. Cannot change CR type.');
+  if (!res.ok) throw new Error(`Failed to update CR type: ${res.status}`);
+  const data: unknown = await res.json();
+  if (isRecord(data) && typeof data.cr_type === "string") {
+    setCrType(data.cr_type);
+    // Also update the default target's crType in config so the select reflects the change
+    setConfig(prev => {
+      if (prev.targets.length === 0) return prev;
+      const newTargets = [...prev.targets];
+      newTargets[0] = { ...newTargets[0], crType: data.cr_type as string };
+      return { ...prev, targets: newTargets };
     });
-    if (res.status === 409) throw new Error('Auto-tuner is running. Cannot change CR type.');
-    if (!res.ok) throw new Error(`Failed to update CR type: ${res.status}`);
-    const data: unknown = await res.json();
-    if (isRecord(data) && typeof data.cr_type === "string") setCrType(data.cr_type);
-    const configmapUpdated = isRecord(data) && data.configmap_updated === true;
-    return { configmap_updated: configmapUpdated };
-  }, []);
+  }
+  const configmapUpdated = isRecord(data) && data.configmap_updated === true;
+  return { configmap_updated: configmapUpdated };
+}, []);
 
   const updateConfig = useCallback((field: string, value: string): void => {
     setConfig(prev => {
@@ -525,7 +534,8 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
   }, []);
 
   const value = useMemo((): ClusterConfigContextValue => {
-    const defaultTarget = config.targets.find(t => t.isDefault) || config.targets[0];
+    const defaultTarget = config.targets[0];
+    const defaultCrType = defaultTarget?.crType || "inferenceservice";
     return {
       endpoint: config.endpoint,
       namespace: defaultTarget?.namespace || DEFAULT_NAMESPACE,
@@ -537,7 +547,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
       addTarget,
       removeTarget,
       setDefaultTarget,
-      crType,
+      crType: defaultCrType,
       resolvedModelName,
       updateCrType,
       isvcTargets,

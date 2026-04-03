@@ -19,11 +19,6 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
   <ClusterConfigProvider>{children}</ClusterConfigProvider>
 );
 
-const openDropdown = () => {
-  const dropdownBtn = screen.getByTestId("dropdown-toggle-btn");
-  fireEvent.click(dropdownBtn);
-};
-
 describe("MultiTargetSelector", () => {
   describe("Rendering", () => {
     it("renders header with target count", async () => {
@@ -46,32 +41,20 @@ describe("MultiTargetSelector", () => {
       expect(screen.getByText("+ Add")).toBeInTheDocument();
     });
 
-    it("renders default target from context", async () => {
+    it("renders default target from context directly in table", async () => {
       render(<MultiTargetSelector />, { wrapper });
 
       await waitFor(() => {
-        expect(screen.getByTestId("dropdown-toggle-btn")).toBeInTheDocument();
-      });
-
-      openDropdown();
-
-      await waitFor(() => {
-        expect(screen.getAllByTestId("target-row-0")).toHaveLength(2);
+        expect(screen.getAllByTestId("target-row-0")).toHaveLength(1);
       });
     });
 
-    it("renders table headers", async () => {
+    it("renders table headers directly", async () => {
       render(<MultiTargetSelector />, { wrapper });
 
       await waitFor(() => {
-        expect(screen.getByTestId("dropdown-toggle-btn")).toBeInTheDocument();
-      });
-
-      openDropdown();
-
-      await waitFor(() => {
-        expect(screen.getAllByText("Target")).toHaveLength(2);
-        expect(screen.getAllByText("TPS")).toHaveLength(2);
+        expect(screen.getByText("Target")).toBeInTheDocument();
+        expect(screen.getByText("TPS")).toBeInTheDocument();
       });
     });
   });
@@ -210,71 +193,49 @@ describe("MultiTargetSelector", () => {
       render(<MultiTargetSelector />, { wrapper });
 
       await waitFor(() => {
-        expect(screen.getByTestId("dropdown-toggle-btn")).toBeInTheDocument();
+        expect(screen.getAllByTestId("target-row-0")).toHaveLength(1);
       });
 
-      openDropdown();
-
-      await waitFor(() => {
-        expect(screen.getAllByText("★")).toHaveLength(1);
-      });
+      expect(screen.getAllByText("★")).toHaveLength(1);
     });
   });
 
   describe("CR Type Badge", () => {
-    it("does not show LLMIS badge for default inferenceservice target", async () => {
+    it("shows KServe badge for inferenceservice target", async () => {
       render(<MultiTargetSelector />, { wrapper });
 
       await waitFor(() => {
-        expect(screen.getByTestId("dropdown-toggle-btn")).toBeInTheDocument();
+        expect(screen.getAllByTestId("target-row-0")).toHaveLength(1);
       });
 
-      openDropdown();
-
-      await waitFor(() => {
-        expect(screen.getAllByText("★")).toHaveLength(1);
-      });
-
-      const defaultRow = screen.getAllByTestId("target-row-0")[0];
-      expect(defaultRow.querySelector('[data-testid="llmis-badge"]')).toBeNull();
+      // With new behavior, isvc target shows KServe badge
+      expect(screen.getByTestId("isvc-badge")).toBeInTheDocument();
     });
   });
 
   describe("Set Default Target", () => {
-    it("set default button is not shown for already default target", async () => {
+    it("shows set default button for non-default targets", async () => {
       render(<MultiTargetSelector />, { wrapper });
 
       await waitFor(() => {
-        expect(screen.getByTestId("dropdown-toggle-btn")).toBeInTheDocument();
+        expect(screen.getAllByTestId("target-row-0")).toHaveLength(1);
       });
 
-      openDropdown();
-
-      await waitFor(() => {
-        expect(screen.getAllByText("★")).toHaveLength(1);
-      });
-
-      const defaultRow = screen.getAllByTestId("target-row-0")[0];
-      expect(defaultRow.querySelector('[data-testid="set-default-btn"]')).toBeNull();
+      // With new behavior, set-default button shows for non-default targets
+      expect(screen.getByTestId("set-default-btn")).toBeInTheDocument();
     });
   });
 
   describe("Delete Target", () => {
-    it("delete button is not shown for default target", async () => {
+    it("shows delete button for non-default targets", async () => {
       render(<MultiTargetSelector />, { wrapper });
 
       await waitFor(() => {
-        expect(screen.getByTestId("dropdown-toggle-btn")).toBeInTheDocument();
+        expect(screen.getAllByTestId("target-row-0")).toHaveLength(1);
       });
 
-      openDropdown();
-
-      await waitFor(() => {
-        expect(screen.getAllByText("★")).toHaveLength(1);
-      });
-
-      const defaultRow = screen.getAllByTestId("target-row-0")[0];
-      expect(defaultRow.querySelector('[data-testid="delete-btn"]')).toBeNull();
+      // With new behavior, delete button shows for non-default targets
+      expect(screen.getByTestId("delete-btn")).toBeInTheDocument();
     });
   });
 
@@ -283,13 +244,7 @@ describe("MultiTargetSelector", () => {
       render(<MultiTargetSelector />, { wrapper });
 
       await waitFor(() => {
-        expect(screen.getByTestId("dropdown-toggle-btn")).toBeInTheDocument();
-      });
-
-      openDropdown();
-
-      await waitFor(() => {
-        expect(screen.getAllByTestId("target-row-0")).toHaveLength(2);
+        expect(screen.getAllByTestId("target-row-0")).toHaveLength(1);
       });
 
       expect(screen.queryByTestId("expand-btn-0")).not.toBeInTheDocument();
@@ -301,13 +256,7 @@ describe("MultiTargetSelector", () => {
       render(<MultiTargetSelector />, { wrapper });
 
       await waitFor(() => {
-        expect(screen.getByTestId("dropdown-toggle-btn")).toBeInTheDocument();
-      });
-
-      openDropdown();
-
-      await waitFor(() => {
-        expect(screen.getAllByTestId("target-row-0")).toHaveLength(2);
+        expect(screen.getAllByTestId("target-row-0")).toHaveLength(1);
       });
 
       expect(screen.queryByTestId("no-monitoring-warning")).not.toBeInTheDocument();
@@ -319,13 +268,7 @@ describe("MultiTargetSelector", () => {
       render(<MultiTargetSelector />, { wrapper });
 
       await waitFor(() => {
-        expect(screen.getByTestId("dropdown-toggle-btn")).toBeInTheDocument();
-      });
-
-      openDropdown();
-
-      await waitFor(() => {
-        expect(screen.getAllByTestId("target-row-0")).toHaveLength(2);
+        expect(screen.getAllByTestId("target-row-0")).toHaveLength(1);
       });
 
       expect(screen.getAllByText("...").length).toBeGreaterThan(0);

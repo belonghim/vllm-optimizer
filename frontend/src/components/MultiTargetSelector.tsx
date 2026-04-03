@@ -141,16 +141,6 @@ export default function MultiTargetSelector({
             <div style={{ color: targetColor }}>
               {isDefault && <span className="multi-target-default-star">★</span>}
               {target.inferenceService}
-              {target.crType === "llminferenceservice" && (
-                <span
-                  className="tag tag-info"
-                  title="LLMInferenceService"
-                  data-testid="llmis-badge"
-                  style={{ marginLeft: "8px" }}
-                >
-                  LLMIS
-                </span>
-              )}
               {!hasMonitoringLabel && (
                 <span
                   className="multi-target-warning-icon"
@@ -162,6 +152,13 @@ export default function MultiTargetSelector({
               )}
             </div>
             <div className="target-ns">{target.namespace}</div>
+          </td>
+          <td>
+            {target.crType === "llminferenceservice" ? (
+              <span className="tag tag-info" title="LLMInferenceService" data-testid="llmis-badge">LLMIS</span>
+            ) : (
+              <span className="tag tag-idle" title="InferenceService" data-testid="isvc-badge">KServe</span>
+            )}
           </td>
           {status === 'collecting' ? (
             <>
@@ -237,40 +234,6 @@ export default function MultiTargetSelector({
     );
   };
 
-  const renderSection = (sectionTargets: ClusterTarget[], sectionLabel: string, startIndex: number) => {
-    if (sectionTargets.length === 0) return null;
-    return (
-      <div className="multi-target-section">
-        <div className="multi-target-section-header">
-          <span className="multi-target-section-label">{sectionLabel}</span>
-          <span className="multi-target-section-count">{sectionTargets.length}</span>
-        </div>
-        <table className="monitor-table">
-          <thead>
-            <tr>
-              <th>Target</th>
-              <th>TPS</th>
-              <th>RPS</th>
-              <th>TTFT m/p99</th>
-              <th>Lat m/p99</th>
-              <th>KV%</th>
-              <th>KV Hit%</th>
-              <th>GPU%</th>
-              <th>GPU Mem</th>
-              <th>Run</th>
-              <th>Wait</th>
-              <th>Pods</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {sectionTargets.map((target, i) => renderTargetItem(target, startIndex + i))}
-          </tbody>
-        </table>
-      </div>
-    );
-  };
-
   return (
     <div className="multi-target-selector panel multi-target-no-border">
       <div className="section-title multi-target-header">
@@ -295,10 +258,29 @@ export default function MultiTargetSelector({
           Add a monitoring target
         </div>
       ) : (
-        <>
-          {renderSection(isvcTargets, "InferenceService (KServe)", 0)}
-          {llmisvcTargets.length > 0 && renderSection(llmisvcTargets, "LLMInferenceService (LLMIS)", isvcTargets.length)}
-        </>
+        <table className="monitor-table">
+          <thead>
+            <tr>
+              <th>Target</th>
+              <th>Type</th>
+              <th>TPS</th>
+              <th>RPS</th>
+              <th>TTFT m/p99</th>
+              <th>Lat m/p99</th>
+              <th>KV%</th>
+              <th>KV Hit%</th>
+              <th>GPU%</th>
+              <th>GPU Mem</th>
+              <th>Run</th>
+              <th>Wait</th>
+              <th>Pods</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {targets.map((target, i) => renderTargetItem(target, i))}
+          </tbody>
+        </table>
       )}
 
       {isAdding && (
