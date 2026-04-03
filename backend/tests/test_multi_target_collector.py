@@ -336,3 +336,53 @@ class TestCrType:
         model_name = await collector._resolve_model_name("llm-d-demo", "small-llm-d", "llminferenceservice")
 
         assert model_name == "qwen2-5-7b-instruct"
+
+
+class TestBuildTargetQueries:
+    def test_isvc_uses_vllm_metric_prefix(self) -> None:
+        collector = _build_collector()
+        queries = collector._build_target_queries("test-ns", "my-svc", "inferenceservice")
+
+        assert all("vllm:" in q for q in queries.values())
+        assert 'job="my-svc-metrics"' in queries["tokens_per_second"]
+        assert 'namespace="test-ns"' in queries["tokens_per_second"]
+
+    def test_llmis_uses_kserve_vllm_metric_prefix(self) -> None:
+        collector = _build_collector()
+        queries = collector._build_target_queries("test-ns", "my-svc", "llminferenceservice")
+
+        assert all("kserve_vllm:" in q for q in queries.values())
+        assert 'job="kserve-llm-isvc-vllm-engine"' in queries["tokens_per_second"]
+        assert 'namespace="test-ns"' in queries["tokens_per_second"]
+
+    def test_isvc_pod_label_selector_uses_inferenceservice_label(self) -> None:
+        collector = _build_collector()
+        queries = collector._build_pod_queries("test-ns", "my-svc", "inferenceservice")
+
+        assert 'serving.kserve.io/inferenceservice=my-svc' in queries["tokens_per_second"]
+
+    def test_llmis_pod_label_selector_uses_app_label(self) -> None:
+        collector = _build_collector()
+        queries = collector._build_pod_queries("test-ns", "my-svc", "llminferenceservice")
+
+        assert 'app.kubernetes.io/name=my-svc' in queries["tokens_per_second"]
+
+    def test_isvc_dcgm_pod_pattern_uses_predictor_suffix(self) -> None:
+        collector = _build_collector()
+        queries = collector._build_target_queries("test-ns", "my-svc", "inferenceservice")
+
+        assert 'my-svc-predictor.*' in queries["gpu_memory_used_gb"]
+
+    def test_llmis_dcgm_pod_pattern_uses_kserve_suffix(self) -> None:
+        collector = _build_collector()
+        queries = collector._build_target_queries("test-ns", "my-svc", "llminferenceservice")
+
+        assert 'my-svc-kserve.*' in queries["gpu_memory_used_gb"]
+
+    def test_query_keys_are_identical_between_cr_types(self) -> None:
+        collector = _build_collector()
+        isvc_queries = collector._build_target_queries("ns", "svc", "inferenceservice")
+        llmis_queries = collector._build_target_queries("ns", "svc", "llminferenceservice")
+
+        assert set(isvc_queries.keys()) == set(llmis_queries.keys())
+        assert len(isvc_queries) == 13
