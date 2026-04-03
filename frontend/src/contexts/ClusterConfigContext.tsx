@@ -286,10 +286,14 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
 
             if (isvcHasValue && typeof isvc.name === "string" && typeof isvc.namespace === "string") {
               const existingIsvcIdx = newTargets.findIndex(t => t.crType === "inferenceservice");
+              const isDefaultForIsvc = crType === "inferenceservice";
+
+              newTargets = newTargets.filter(t => t.crType !== "inferenceservice" && t.crType !== undefined);
+
               const newIsvcTarget: ClusterTarget = {
                 namespace: isvc.namespace,
                 inferenceService: isvc.name,
-                isDefault: crType === "inferenceservice" ? (existingIsvcIdx < 0 ? true : current.targets[existingIsvcIdx]?.isDefault) : false,
+                isDefault: isDefaultForIsvc,
                 crType: "inferenceservice",
               };
 
@@ -299,7 +303,6 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
                   updated = true;
                 }
               } else {
-                newTargets = newTargets.filter(t => t.crType !== undefined);
                 newTargets.unshift(newIsvcTarget);
                 updated = true;
               }
@@ -307,10 +310,14 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
 
             if (llmisvcHasValue && typeof llmisvc.name === "string" && typeof llmisvc.namespace === "string") {
               const existingLlmisvcIdx = newTargets.findIndex(t => t.crType === "llminferenceservice");
+              const isDefaultForLlmisvc = crType === "llminferenceservice";
+
+              newTargets = newTargets.filter(t => t.crType !== "llminferenceservice" && t.crType !== undefined);
+
               const newLlmisvcTarget: ClusterTarget = {
                 namespace: llmisvc.namespace,
                 inferenceService: llmisvc.name,
-                isDefault: crType === "llminferenceservice" ? (existingLlmisvcIdx < 0 ? true : current.targets[existingLlmisvcIdx]?.isDefault) : false,
+                isDefault: isDefaultForLlmisvc,
                 crType: "llminferenceservice",
               };
 
@@ -320,7 +327,6 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
                   updated = true;
                 }
               } else {
-                newTargets = newTargets.filter(t => t.crType !== undefined);
                 newTargets.unshift(newLlmisvcTarget);
                 updated = true;
               }
@@ -339,8 +345,6 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
         });
     };
 
-    // Initial poll immediately, then set up interval
-    pollConfigMap();
     const intervalId = setInterval(pollConfigMap, POLLING_INTERVAL_MS);
 
     return () => {
