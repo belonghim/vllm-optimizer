@@ -72,7 +72,7 @@ export function buildChartLinesMap(
 ): ChartLinesMap {
   const makeMultiLines = (metricKey: string) =>
     targets.map((t, i) => ({
-      key: `${t.namespace}/${t.inferenceService}_${metricKey}`,
+      key: `${t.namespace}/${t.inferenceService}/${t.crType || 'inferenceservice'}_${metricKey}`,
       label: t.inferenceService,
       color: TARGET_COLORS[i % TARGET_COLORS.length],
     }));

@@ -139,11 +139,21 @@ export function useTunerLogic({ isActive, onRunningChange, targetOverride }: { i
     }
   }, [endpoint]);
 
+  useEffect(() => {
+    if (targetOverride) {
+      const newEndpoint = buildDefaultEndpoint(targetOverride.crType, targetOverride.namespace, targetOverride.inferenceService);
+      setConfig(c => ({ ...c, vllm_endpoint: newEndpoint }));
+    }
+  }, [targetOverride]);
+
 
   useEffect(() => {
     if (!isActive || isMockEnabled) return;
     const controller = new AbortController();
-    authFetch(`${API}/vllm-config`, { signal: controller.signal })
+    const query = targetOverride
+      ? `?namespace=${encodeURIComponent(targetOverride.namespace)}&is_name=${encodeURIComponent(targetOverride.inferenceService)}&cr_type=${encodeURIComponent(targetOverride.crType)}`
+      : "";
+    authFetch(`${API}/vllm-config${query}`, { signal: controller.signal })
       .then((r) => {
         if (!r.ok) return r.json().then((errData) => { throw new Error(errData.detail || `HTTP ${r.status}`); });
         return r.json();
@@ -161,7 +171,7 @@ export function useTunerLogic({ isActive, onRunningChange, targetOverride }: { i
       })
       .catch((err: Error) => { if (err.name === "AbortError") return; console.error("Failed to fetch vLLM config:", err); });
     return () => controller.abort();
-  }, [isActive, isMockEnabled]);
+  }, [isActive, isMockEnabled, targetOverride]);
 
   useEffect(() => { onRunningChange?.(status.running); }, [status.running, onRunningChange]);
 
