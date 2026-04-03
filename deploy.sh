@@ -326,12 +326,13 @@ if [[ "$DRY_RUN" != "true" && "$SKIP_BUILD" != "true" ]]; then
   
   # Wait a moment for registry to index the new blobs
   sleep 2
-  
-  # After push: perform digest-based rollout checks
-  compare_and_rollout "vllm-optimizer-backend" "${REGISTRY}/vllm-optimizer-backend:${IMAGE_TAG}" "${NAMESPACE}"
-  compare_and_rollout "vllm-optimizer-frontend" "${REGISTRY}/vllm-optimizer-frontend:${IMAGE_TAG}" "${NAMESPACE}"
 else
   warn "[DRY-RUN] Skipping image push"
+fi
+
+if [[ "$DRY_RUN" != "true" ]]; then
+  compare_and_rollout "vllm-optimizer-backend" "${REGISTRY}/vllm-optimizer-backend:${IMAGE_TAG}" "${NAMESPACE}"
+  compare_and_rollout "vllm-optimizer-frontend" "${REGISTRY}/vllm-optimizer-frontend:${IMAGE_TAG}" "${NAMESPACE}"
 fi
 
 if [[ "$DRY_RUN" != "true" ]]; then

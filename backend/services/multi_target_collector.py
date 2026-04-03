@@ -642,7 +642,7 @@ class MultiTargetMetricsCollector:
                         continue
                     # Extract pod label, fallback to pod_0, pod_1, etc. if missing
                     pod_name = labels.get("pod", f"pod_{i}")
-                    if pod_name_pattern and not re.match(pod_name_pattern, pod_name):
+                    if pod_name_pattern and not re.search(pod_name_pattern, pod_name):
                         continue
                     result[pod_name] = round(value, 3)
         except (httpx.HTTPError, ValueError, AttributeError, TypeError):
