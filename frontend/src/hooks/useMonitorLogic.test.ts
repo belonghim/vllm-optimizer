@@ -8,7 +8,7 @@ vi.mock("../contexts/MockDataContext", () => ({
 }));
 
 const MOCK_TARGETS = vi.hoisted(() => [
-  { namespace: "test-ns", inferenceService: "test-is", isDefault: true },
+  { namespace: "test-ns", inferenceService: "test-is", crType: "inferenceservice" },
 ]);
 
 vi.mock("../contexts/ClusterConfigContext", () => ({

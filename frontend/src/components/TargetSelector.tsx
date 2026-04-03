@@ -12,7 +12,7 @@ interface TargetOption {
   value: string;
   label: string;
   target: ClusterTarget;
-  isDefault: boolean;
+  isFirstTarget: boolean;
 }
 
 export default function TargetSelector({
@@ -25,14 +25,15 @@ export default function TargetSelector({
   const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const groupedTargets = targets.reduce<Record<string, TargetOption[]>>((acc, target) => {
+  const groupedTargets = targets.reduce<Record<string, TargetOption[]>>((acc, target, index) => {
     const crType = target.crType || "inferenceservice";
-    const label = target.isDefault ? `★ ${target.inferenceService}` : target.inferenceService;
+    const isFirstTarget = index === 0;
+    const label = isFirstTarget ? `★ ${target.inferenceService}` : target.inferenceService;
     const option: TargetOption = {
       value: `${target.namespace}/${target.inferenceService}/${crType}`,
       label,
       target,
-      isDefault: target.isDefault,
+      isFirstTarget,
     };
     if (!acc[crType]) {
       acc[crType] = [];
@@ -160,7 +161,7 @@ export default function TargetSelector({
                     tabIndex={0}
                     data-testid={testId ? `${testId}-option-${optionIndex}` : `target-selector-option-${optionIndex}`}
                   >
-                    <span className="target-selector-option-star">{option.isDefault ? "★" : ""}</span>
+                    <span className="target-selector-option-star">{option.isFirstTarget ? "★" : ""}</span>
                     <span className="target-selector-option-name">{option.target.inferenceService}</span>
                     <span className="target-selector-option-ns"> ({option.target.namespace})</span>
                   </div>

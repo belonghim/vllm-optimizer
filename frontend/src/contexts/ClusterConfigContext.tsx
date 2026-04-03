@@ -61,8 +61,7 @@ function isClusterTargetArray(value: unknown): value is ClusterTarget[] {
       isRecord(item) &&
       typeof item.namespace === "string" &&
       typeof item.inferenceService === "string" &&
-      typeof item.isDefault === "boolean" &&
-      (item.crType === undefined || typeof item.crType === "string")
+      typeof item.crType === "string"
   );
 }
 
@@ -76,7 +75,7 @@ function migrateLegacyConfig(stored: Record<string, unknown>): ClusterConfig {
       targets: [{
         namespace: typeof namespace === "string" ? namespace : "",
         inferenceService: typeof inferenceservice === "string" ? inferenceservice : "",
-        isDefault: true,
+        crType: DEFAULT_CR_TYPE,
       }],
     };
   }
@@ -87,7 +86,7 @@ function migrateLegacyConfig(stored: Record<string, unknown>): ClusterConfig {
       version: typeof stored.version === "number" ? stored.version : SCHEMA_VERSION,
       targets: targets.length > 0
         ? targets
-        : [{ namespace: DEFAULT_NAMESPACE, inferenceService: DEFAULT_INFERENCESERVICE, isDefault: true }],
+        : [{ namespace: DEFAULT_NAMESPACE, inferenceService: DEFAULT_INFERENCESERVICE, crType: DEFAULT_CR_TYPE }],
     };
 }
 
@@ -127,7 +126,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
     }
     return {
       endpoint: "",
-      targets: [{ namespace: DEFAULT_NAMESPACE, inferenceService: DEFAULT_INFERENCESERVICE, isDefault: true }],
+      targets: [{ namespace: DEFAULT_NAMESPACE, inferenceService: DEFAULT_INFERENCESERVICE, crType: DEFAULT_CR_TYPE }],
       maxTargets: MAX_TARGETS,
       version: SCHEMA_VERSION,
     };
@@ -171,14 +170,14 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
         if (!hasValidNamespace && !hasValidIsName) return;
 
         setConfig(prev => {
-          const nonDefaultTargets = prev.targets.filter(t => !t.isDefault);
+          const nonDefaultTargets = prev.targets.slice(1);
           const resolvedNamespace = vllmNamespace || DEFAULT_NAMESPACE;
           const resolvedIsName = vllmIsName || DEFAULT_INFERENCESERVICE;
           return {
             ...prev,
             endpoint: vllmEndpoint,
             targets: [
-              { namespace: resolvedNamespace, inferenceService: resolvedIsName, isDefault: true, source: "manual" as const },
+              { namespace: resolvedNamespace, inferenceService: resolvedIsName, crType: resolvedCrType, source: "manual" as const },
               ...nonDefaultTargets,
             ],
           };
@@ -234,7 +233,6 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
             const newIsvcTarget: ClusterTarget = {
               namespace: isvc.namespace,
               inferenceService: isvc.name,
-              isDefault: crType === "inferenceservice",
               crType: "inferenceservice",
               source: "configmap",
             };
@@ -246,7 +244,6 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
             const newLlmisvcTarget: ClusterTarget = {
               namespace: llmisvc.namespace,
               inferenceService: llmisvc.name,
-              isDefault: crType === "llminferenceservice",
               crType: "llminferenceservice",
               source: "configmap",
             };
@@ -295,11 +292,9 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
             const newTargets = [...current.targets];
 
             if (isvcHasValue && typeof isvc.name === "string" && typeof isvc.namespace === "string") {
-              const isDefaultForIsvc = crType === "inferenceservice";
               const newIsvcTarget: ClusterTarget = {
                 namespace: isvc.namespace,
                 inferenceService: isvc.name,
-                isDefault: isDefaultForIsvc,
                 crType: "inferenceservice",
                 source: "configmap",
               };
@@ -317,11 +312,9 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
             }
 
             if (llmisvcHasValue && typeof llmisvc.name === "string" && typeof llmisvc.namespace === "string") {
-              const isDefaultForLlmisvc = crType === "llminferenceservice";
               const newLlmisvcTarget: ClusterTarget = {
                 namespace: llmisvc.namespace,
                 inferenceService: llmisvc.name,
-                isDefault: isDefaultForLlmisvc,
                 crType: "llminferenceservice",
                 source: "configmap",
               };
@@ -433,10 +426,10 @@ const updateCrType = useCallback(async (value: string): Promise<{ configmap_upda
       if (field === 'namespace' || field === 'inferenceservice') {
         const targets: ClusterTarget[] = prev.targets.length > 0
           ? [...prev.targets]
-          : [{ namespace: "", inferenceService: "", isDefault: true }];
+          : [{ namespace: "", inferenceService: "", crType: DEFAULT_CR_TYPE }];
 
-        const defaultIdx = targets.findIndex(t => t.isDefault);
-        const idx = defaultIdx >= 0 ? defaultIdx : 0;
+        const defaultIdx = 0;
+        const idx = defaultIdx;
 
         targets[idx] = {
           ...targets[idx],
@@ -463,9 +456,8 @@ const updateCrType = useCallback(async (value: string): Promise<{ configmap_upda
       const newTarget: ClusterTarget = {
         namespace: namespace || "",
         inferenceService: inferenceService || "",
-        isDefault: currentTargets.length === 0,
+        crType: crType || DEFAULT_CR_TYPE,
         source: "manual",
-        ...(crType && { crType }),
       };
 
       return {
@@ -480,7 +472,7 @@ const updateCrType = useCallback(async (value: string): Promise<{ configmap_upda
       const currentTargets = prev.targets;
       const target = currentTargets.find(t => t.namespace === namespace && t.inferenceService === inferenceService);
 
-      if (target && target.isDefault) return prev;
+      if (target && currentTargets.indexOf(target) === 0) return prev;
 
       const newTargets = currentTargets.filter(t => !(t.namespace === namespace && t.inferenceService === inferenceService));
 
@@ -496,15 +488,14 @@ const updateCrType = useCallback(async (value: string): Promise<{ configmap_upda
       const currentTargets = prev.targets;
       const target = currentTargets.find(t => t.namespace === namespace && t.inferenceService === inferenceService);
       if (!target) {
-        const newTarget: ClusterTarget = { namespace, inferenceService, isDefault: true, crType, source: "configmap" };
+        const newTarget: ClusterTarget = { namespace, inferenceService, crType, source: "configmap" };
         return { ...prev, targets: [newTarget, ...currentTargets.filter(t => !(t.namespace === namespace && t.inferenceService === inferenceService))] };
       }
 
-      const newTargets = currentTargets.map((t) => ({
-        ...t,
-        isDefault: t.namespace === namespace && t.inferenceService === inferenceService,
-        source: (t.namespace === namespace && t.inferenceService === inferenceService) ? "configmap" : t.source,
-      }));
+      const targetIdx = currentTargets.findIndex(t => t.namespace === namespace && t.inferenceService === inferenceService);
+      if (targetIdx < 0) return prev;
+      const defaultTarget = currentTargets[targetIdx];
+      const newTargets = [defaultTarget, ...currentTargets.filter((_, i) => i !== targetIdx)];
 
       return { ...prev, targets: newTargets };
     });

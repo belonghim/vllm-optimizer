@@ -113,7 +113,11 @@ describe("ClusterConfigContext CR-type targets", () => {
       await result.current.setDefaultTarget("ns-new", "svc-new", "inferenceservice");
     });
 
-    expect(result.current.targets.some(t => t.namespace === "ns-new" && t.inferenceService === "svc-new" && t.isDefault)).toBe(true);
+    expect(result.current.targets[0]).toMatchObject({
+      namespace: "ns-new",
+      inferenceService: "svc-new",
+      crType: "inferenceservice",
+    });
   });
 
   it("setDefaultTarget handles timeout gracefully", async () => {
@@ -129,7 +133,11 @@ describe("ClusterConfigContext CR-type targets", () => {
       await result.current.setDefaultTarget("ns-timeout", "svc-timeout", "inferenceservice");
     });
 
-    expect(result.current.targets.some(t => t.namespace === "ns-timeout" && t.inferenceService === "svc-timeout" && t.isDefault)).toBe(true);
+    expect(result.current.targets[0]).toMatchObject({
+      namespace: "ns-timeout",
+      inferenceService: "svc-timeout",
+      crType: "inferenceservice",
+    });
   });
 
   it("setDefaultTarget logs error when API fails with non-AbortError", async () => {
@@ -191,7 +199,7 @@ describe("ClusterConfigContext CR-type targets", () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    const defaultTarget = result.current.targets.find(t => t.isDefault);
+    const defaultTarget = result.current.targets[0];
     if (!defaultTarget) return;
 
     act(() => {
@@ -199,7 +207,7 @@ describe("ClusterConfigContext CR-type targets", () => {
     });
 
     // Default target should still exist
-    expect(result.current.targets.some(t => t.isDefault)).toBe(true);
+    expect(result.current.targets[0]).toEqual(defaultTarget);
   });
 
   it("addTarget respects MAX_TARGETS limit", async () => {
@@ -288,7 +296,7 @@ describe("ClusterConfigContext ConfigMap sync on mount", () => {
       endpoint: "http://local-storage-endpoint",
       maxTargets: 5,
       targets: [
-        { namespace: "local-ns", inferenceService: "local-svc", isDefault: true },
+          { namespace: "local-ns", inferenceService: "local-svc", crType: "inferenceservice" },
       ],
     }));
 

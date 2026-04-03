@@ -18,14 +18,14 @@ import { authFetch } from "../utils/authFetch";
 describe("MultiTargetSelector", () => {
   const mockContext = {
     targets: [
-      { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true },
+      { namespace: "llm-d-demo", inferenceService: "small-llm-d", crType: "inferenceservice" },
     ],
     maxTargets: 5,
     addTarget: vi.fn(),
     removeTarget: vi.fn(),
     setDefaultTarget: vi.fn(),
     isvcTargets: [
-      { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true },
+      { namespace: "llm-d-demo", inferenceService: "small-llm-d", crType: "inferenceservice" },
     ],
     llmisvcTargets: [],
   };
@@ -50,7 +50,7 @@ describe("MultiTargetSelector", () => {
   });
 
   it("shows collecting state with dots", () => {
-    const key = "llm-d-demo/small-llm-d";
+    const key = "llm-d-demo/small-llm-d/inferenceservice";
     render(<MultiTargetSelector 
       targetStatuses={{ [key]: { status: 'collecting' as const, hasMonitoringLabel: false } }} 
       targetStates={{ [key]: { status: 'collecting' } }} 
@@ -134,12 +134,12 @@ describe("MultiTargetSelector", () => {
     const multiMock = {
       ...mockContext,
       targets: [
-        { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true },
-        { namespace: "llm-d-prod", inferenceService: "large-llm-d", isDefault: false },
+        { namespace: "llm-d-demo", inferenceService: "small-llm-d", crType: "inferenceservice" },
+        { namespace: "llm-d-prod", inferenceService: "large-llm-d", crType: "inferenceservice" },
       ],
       isvcTargets: [
-        { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true },
-        { namespace: "llm-d-prod", inferenceService: "large-llm-d", isDefault: false },
+        { namespace: "llm-d-demo", inferenceService: "small-llm-d", crType: "inferenceservice" },
+        { namespace: "llm-d-prod", inferenceService: "large-llm-d", crType: "inferenceservice" },
       ],
       llmisvcTargets: [],
     };
@@ -154,12 +154,12 @@ describe("MultiTargetSelector", () => {
     const multiMock = {
       ...mockContext,
       targets: [
-        { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true },
-        { namespace: "llm-d-prod", inferenceService: "large-llm-d", isDefault: false },
+        { namespace: "llm-d-demo", inferenceService: "small-llm-d", crType: "inferenceservice" },
+        { namespace: "llm-d-prod", inferenceService: "large-llm-d", crType: "inferenceservice" },
       ],
       isvcTargets: [
-        { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true },
-        { namespace: "llm-d-prod", inferenceService: "large-llm-d", isDefault: false },
+        { namespace: "llm-d-demo", inferenceService: "small-llm-d", crType: "inferenceservice" },
+        { namespace: "llm-d-prod", inferenceService: "large-llm-d", crType: "inferenceservice" },
       ],
       llmisvcTargets: [],
       removeTarget: mockRemoveTarget,
@@ -175,12 +175,12 @@ describe("MultiTargetSelector", () => {
     const multiMock = {
       ...mockContext,
       targets: [
-        { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true },
-        { namespace: "llm-d-prod", inferenceService: "large-llm-d", isDefault: false },
+        { namespace: "llm-d-demo", inferenceService: "small-llm-d", crType: "inferenceservice" },
+        { namespace: "llm-d-prod", inferenceService: "large-llm-d", crType: "inferenceservice" },
       ],
       isvcTargets: [
-        { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true },
-        { namespace: "llm-d-prod", inferenceService: "large-llm-d", isDefault: false },
+        { namespace: "llm-d-demo", inferenceService: "small-llm-d", crType: "inferenceservice" },
+        { namespace: "llm-d-prod", inferenceService: "large-llm-d", crType: "inferenceservice" },
       ],
       llmisvcTargets: [],
       setDefaultTarget: mockSetDefaultTarget,
@@ -199,12 +199,12 @@ describe("MultiTargetSelector", () => {
     const multiMock = {
       ...mockContext,
       targets: [
-        { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true },
-        { namespace: "vllm", inferenceService: "llm-cuda", isDefault: false },
+        { namespace: "llm-d-demo", inferenceService: "small-llm-d", crType: "inferenceservice" },
+        { namespace: "vllm", inferenceService: "llm-cuda", crType: "inferenceservice" },
       ],
       isvcTargets: [
-        { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true },
-        { namespace: "vllm", inferenceService: "llm-cuda", isDefault: false },
+        { namespace: "llm-d-demo", inferenceService: "small-llm-d", crType: "inferenceservice" },
+        { namespace: "vllm", inferenceService: "llm-cuda", crType: "inferenceservice" },
       ],
       llmisvcTargets: [],
     };
@@ -225,11 +225,11 @@ describe("MultiTargetSelector", () => {
     const llmisMock = {
       ...mockContext,
       targets: [
-        { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true, crType: "llminferenceservice" },
+        { namespace: "llm-d-demo", inferenceService: "small-llm-d", crType: "llminferenceservice" },
       ],
       isvcTargets: [],
       llmisvcTargets: [
-        { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: true, crType: "llminferenceservice" },
+        { namespace: "llm-d-demo", inferenceService: "small-llm-d", crType: "llminferenceservice" },
       ],
     };
     vi.mocked(useClusterConfig).mockReturnValue(llmisMock as unknown as ClusterConfigContextValue);
@@ -254,14 +254,14 @@ describe("MultiTargetSelector", () => {
     const multiMock = {
       ...mockContext,
       targets: [
-        { namespace: "ns", inferenceService: "svc", isDefault: true },
-        { namespace: "ns", inferenceService: "svc", isDefault: false, crType: "llminferenceservice" },
+        { namespace: "ns", inferenceService: "svc", crType: "inferenceservice" },
+        { namespace: "ns", inferenceService: "svc", crType: "llminferenceservice" },
       ],
       isvcTargets: [
-        { namespace: "ns", inferenceService: "svc", isDefault: true },
+        { namespace: "ns", inferenceService: "svc", crType: "inferenceservice" },
       ],
       llmisvcTargets: [
-        { namespace: "ns", inferenceService: "svc", isDefault: false, crType: "llminferenceservice" },
+        { namespace: "ns", inferenceService: "svc", crType: "llminferenceservice" },
       ],
     };
     vi.mocked(useClusterConfig).mockReturnValue(multiMock as unknown as ClusterConfigContextValue);

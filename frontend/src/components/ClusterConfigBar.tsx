@@ -109,7 +109,7 @@ export default function ClusterConfigBar() {
         updateContextConfig('endpoint', localConfig.endpoint);
 
       const matchingNonDefault = targets.find(
-        t => !t.isDefault &&
+        (t, i) => i > 0 &&
           t.namespace === localConfig.namespace &&
           t.inferenceService === localConfig.inferenceservice
       );

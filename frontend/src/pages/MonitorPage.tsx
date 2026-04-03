@@ -238,7 +238,7 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
   }, [targetStates]);
 
   const defaultKey = useMemo(() => {
-    const dt = targets.find(t => t.isDefault) || targets[0];
+    const dt = targets[0];
     return dt ? `${dt.namespace}/${dt.inferenceService}/${dt.crType || 'inferenceservice'}` : null;
   }, [targets]);
 
@@ -322,4 +322,3 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
   );
 }
 export default MonitorPage;
-

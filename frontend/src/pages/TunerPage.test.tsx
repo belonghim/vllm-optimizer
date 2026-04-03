@@ -40,8 +40,8 @@ vi.mock("../contexts/ClusterConfigContext", () => ({
     namespace: "test-ns",
     inferenceservice: "test-is",
     crType: "inferenceservice",
-    targets: [{ namespace: "test-ns", inferenceService: "test-is", isDefault: true, crType: "inferenceservice" }],
-    isvcTargets: [{ namespace: "test-ns", inferenceService: "test-is", isDefault: true, crType: "inferenceservice" }],
+    targets: [{ namespace: "test-ns", inferenceService: "test-is", crType: "inferenceservice" }],
+    isvcTargets: [{ namespace: "test-ns", inferenceService: "test-is", crType: "inferenceservice" }],
     llmisvcTargets: [],
   }),
 }));

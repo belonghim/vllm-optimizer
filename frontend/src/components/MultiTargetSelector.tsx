@@ -132,14 +132,14 @@ export default function MultiTargetSelector({
     const isExpanded = expandedRows.has(key);
     const pods = data?.pods ?? 1;
     const canExpand = pods > 1;
-    const isDefault = target.isDefault;
+    const isFirstTarget = index === 0;
 
     return (
       <Fragment key={key}>
-        <tr data-testid={`target-row-${index}`} className={isDefault ? "multi-target-row-default" : ""}>
+        <tr data-testid={`target-row-${index}`} className={isFirstTarget ? "multi-target-row-default" : ""}>
           <td className="target-name multi-target-color-cell" style={{ borderLeftColor: targetColor }}>
             <div style={{ color: targetColor }}>
-              {isDefault && <span className="multi-target-default-star">★</span>}
+              {isFirstTarget && <span className="multi-target-default-star">★</span>}
               {target.inferenceService}
               {!hasMonitoringLabel && (
                 <span
@@ -202,7 +202,7 @@ export default function MultiTargetSelector({
             </>
           )}
           <td className="multi-target-action-cell">
-            {!isDefault && (
+            {!isFirstTarget && (
               <div className="multi-target-action-btns">
                 <button
                   type="button"

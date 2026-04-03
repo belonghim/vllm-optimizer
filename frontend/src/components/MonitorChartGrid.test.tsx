@@ -168,14 +168,14 @@ describe("loadChartConfig / saveChartConfig", () => {
 
 describe("buildChartLinesMap", () => {
   it("single target returns detailed multi-line definitions with COLORS", () => {
-    const targets = [{ namespace: "ns1", inferenceService: "svc1", isDefault: true }];
-    const defaultKey = "ns1/svc1";
+    const targets = [{ namespace: "ns1", inferenceService: "svc1", crType: "inferenceservice" }];
+    const defaultKey = "ns1/svc1/inferenceservice";
     const result = buildChartLinesMap(targets, defaultKey);
 
     expect(result.latency).toHaveLength(3);
-    expect(result.latency[0]).toEqual({ key: "ns1/svc1_lat_p99_fill", color: COLORS.red, label: "P99 (idle)", dash: true });
-    expect(result.latency[1]).toEqual({ key: "ns1/svc1_lat_p99", color: COLORS.red, label: "Latency P99" });
-    expect(result.latency[2]).toEqual({ key: "ns1/svc1_lat_mean", color: COLORS.accent, label: "Latency mean" });
+    expect(result.latency[0]).toEqual({ key: "ns1/svc1/inferenceservice_lat_p99_fill", color: COLORS.red, label: "P99 (idle)", dash: true });
+    expect(result.latency[1]).toEqual({ key: "ns1/svc1/inferenceservice_lat_p99", color: COLORS.red, label: "Latency P99" });
+    expect(result.latency[2]).toEqual({ key: "ns1/svc1/inferenceservice_lat_mean", color: COLORS.accent, label: "Latency mean" });
 
     expect(result.ttft).toHaveLength(3);
     expect(result.ttft[1].color).toBe(COLORS.cyan);
@@ -184,14 +184,14 @@ describe("buildChartLinesMap", () => {
     expect(result.queue[0].label).toBe("Running");
     expect(result.queue[1].label).toBe("Waiting");
 
-    expect(result.tps).toEqual([{ key: "ns1/svc1_tps", color: COLORS.accent, label: "TPS" }]);
+    expect(result.tps).toEqual([{ key: "ns1/svc1/inferenceservice_tps", color: COLORS.accent, label: "TPS" }]);
   });
 
   it("multiple targets returns makeMultiLines with TARGET_COLORS", () => {
     const targets = [
-      { namespace: "ns1", inferenceService: "svc1", isDefault: false },
-      { namespace: "ns2", inferenceService: "svc2", isDefault: false },
-      { namespace: "ns3", inferenceService: "svc3", isDefault: false },
+      { namespace: "ns1", inferenceService: "svc1", crType: "inferenceservice" },
+      { namespace: "ns2", inferenceService: "svc2", crType: "inferenceservice" },
+      { namespace: "ns3", inferenceService: "svc3", crType: "llminferenceservice" },
     ];
     const defaultKey = "ns1/svc1";
     const result = buildChartLinesMap(targets, defaultKey);

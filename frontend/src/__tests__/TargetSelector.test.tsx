@@ -60,7 +60,6 @@ describe("TargetSelector", () => {
       const nonExistentTarget = {
         namespace: "non-existent",
         inferenceService: "non-existent",
-        isDefault: true,
         crType: "inferenceservice",
       };
 

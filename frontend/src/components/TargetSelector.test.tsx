@@ -9,8 +9,8 @@ vi.mock("../contexts/ClusterConfigContext", () => ({
 
 describe("TargetSelector", () => {
   const mockTargets = [
-    { namespace: "vllm-lab-dev", inferenceService: "llm-ov", isDefault: true, crType: "inferenceservice" },
-    { namespace: "llm-d-demo", inferenceService: "small-llm-d", isDefault: false, crType: "llminferenceservice" },
+    { namespace: "vllm-lab-dev", inferenceService: "llm-ov", crType: "inferenceservice" },
+    { namespace: "llm-d-demo", inferenceService: "small-llm-d", crType: "llminferenceservice" },
   ];
 
   beforeEach(() => {
@@ -83,7 +83,6 @@ describe("TargetSelector", () => {
     expect(onChange).toHaveBeenCalledWith({
       namespace: "llm-d-demo",
       inferenceService: "small-llm-d",
-      isDefault: false,
       crType: "llminferenceservice",
     });
   });

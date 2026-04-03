@@ -24,7 +24,7 @@ describe("ClusterConfigContext", () => {
   const defaultTarget = {
     namespace: "vllm-lab-dev",
     inferenceService: "llm-ov",
-    isDefault: true,
+    crType: "inferenceservice",
   };
 
   const wrapper = ({ children }: { children: React.ReactNode }) => (
@@ -42,7 +42,7 @@ describe("ClusterConfigContext", () => {
     });
   });
 
-  it("addTarget adds a non-default target when default target exists", async () => {
+  it("addTarget appends target when initial target exists", async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
     await waitFor(() => {
@@ -57,7 +57,7 @@ describe("ClusterConfigContext", () => {
     expect(result.current.targets[1]).toEqual({
       namespace: "ns1",
       inferenceService: "svc1",
-      isDefault: false,
+      crType: "inferenceservice",
       source: "manual",
     });
   });
@@ -86,7 +86,7 @@ describe("ClusterConfigContext", () => {
     expect(result.current.targets.length).toBe(5);
   });
 
-  it("removeTarget removes non-default target by (namespace, inferenceService) key", async () => {
+  it("removeTarget removes non-first target by (namespace, inferenceService) key", async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
     await waitFor(() => {
@@ -99,8 +99,8 @@ describe("ClusterConfigContext", () => {
     });
 
     expect(result.current.targets.length).toBe(3);
-    expect(result.current.targets[0].isDefault).toBe(true);
-    expect(result.current.targets[2].isDefault).toBe(false);
+    expect(result.current.targets[0]).toEqual(defaultTarget);
+    expect(result.current.targets[2]).toMatchObject({ namespace: "ns2", inferenceService: "svc2", crType: "inferenceservice" });
 
     act(() => {
       result.current.removeTarget("ns2", "svc2");
@@ -110,7 +110,7 @@ describe("ClusterConfigContext", () => {
     expect(result.current.targets[1].namespace).toBe("ns1");
   });
 
-  it("removeTarget does NOT remove isDefault target (no-op)", async () => {
+  it("removeTarget does NOT remove first target (no-op)", async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
     await waitFor(() => {
@@ -123,7 +123,7 @@ describe("ClusterConfigContext", () => {
     });
 
     expect(result.current.targets.length).toBe(3);
-    expect(result.current.targets[0].isDefault).toBe(true);
+    expect(result.current.targets[0]).toEqual(defaultTarget);
 
     act(() => {
       result.current.removeTarget("vllm-lab-dev", "llm-ov");
@@ -145,15 +145,15 @@ describe("ClusterConfigContext", () => {
       result.current.addTarget("ns2", "svc2");
     });
 
-    expect(result.current.targets[0].isDefault).toBe(true);
-    expect(result.current.targets[2].isDefault).toBe(false);
+    expect(result.current.targets[0]).toEqual(defaultTarget);
+    expect(result.current.targets[2]).toMatchObject({ namespace: "ns2", inferenceService: "svc2", crType: "inferenceservice" });
 
     act(() => {
       result.current.setDefaultTarget("ns2", "svc2", "inferenceservice");
     });
 
-    expect(result.current.targets[0].isDefault).toBe(false);
-    expect(result.current.targets[2].isDefault).toBe(true);
+    expect(result.current.targets[0]).toMatchObject({ namespace: "ns2", inferenceService: "svc2", crType: "inferenceservice" });
+    expect(result.current.targets[1]).toMatchObject({ namespace: "vllm-lab-dev", inferenceService: "llm-ov", crType: "inferenceservice" });
   });
 
   it("exposes maxTargets constant as 5", async () => {
@@ -167,7 +167,7 @@ describe("ClusterConfigContext", () => {
   it("migrates versionless config and preserves fields", async () => {
     const legacy = JSON.stringify({
       endpoint: "http://x",
-      targets: [{ namespace: "ns", inferenceService: "is", isDefault: true }],
+      targets: [{ namespace: "ns", inferenceService: "is", crType: "inferenceservice" }],
     });
     vi.mocked(Storage.prototype.getItem).mockReturnValue(legacy);
 
@@ -219,13 +219,13 @@ describe("ClusterConfigContext", () => {
     expect(result.current.targets[1]).toEqual({
       namespace: "ns1",
       inferenceService: "svc1",
-      isDefault: false,
+      crType: "inferenceservice",
       source: "manual",
     });
     expect(result.current.targets[2]).toEqual({
       namespace: "ns2",
       inferenceService: "svc2",
-      isDefault: false,
+      crType: "inferenceservice",
       source: "manual",
     });
 
@@ -238,7 +238,7 @@ describe("ClusterConfigContext", () => {
     expect(result.current.targets[0]).toEqual({
       namespace: "ns2",
       inferenceService: "svc2",
-      isDefault: true,
+      crType: "inferenceservice",
     });
   });
 
@@ -264,18 +264,18 @@ describe("ClusterConfigContext", () => {
     expect(result.current.targets[0]).toEqual({
       namespace: "ns3",
       inferenceService: "llm-ov",
-      isDefault: true,
+      crType: "inferenceservice",
     });
     expect(result.current.targets[1]).toEqual({
       namespace: "ns1",
       inferenceService: "svc1",
-      isDefault: false,
+      crType: "inferenceservice",
       source: "manual",
     });
     expect(result.current.targets[2]).toEqual({
       namespace: "ns2",
       inferenceService: "svc2",
-      isDefault: false,
+      crType: "inferenceservice",
       source: "manual",
     });
   });
@@ -283,7 +283,7 @@ describe("ClusterConfigContext", () => {
   it("aborts previous resolvedModelName re-fetch when deps change", async () => {
     vi.mocked(Storage.prototype.getItem).mockReturnValue(JSON.stringify({
       endpoint: "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080",
-      targets: [{ namespace: "vllm-lab-dev", inferenceService: "llm-ov", isDefault: true }],
+      targets: [{ namespace: "vllm-lab-dev", inferenceService: "llm-ov", crType: "inferenceservice" }],
       maxTargets: 5,
       version: 2,
     }));
@@ -324,7 +324,7 @@ describe("ClusterConfigContext", () => {
   it("keeps previous resolvedModelName when re-fetch fails", async () => {
     vi.mocked(Storage.prototype.getItem).mockReturnValue(JSON.stringify({
       endpoint: "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080",
-      targets: [{ namespace: "vllm-lab-dev", inferenceService: "llm-ov", isDefault: true }],
+      targets: [{ namespace: "vllm-lab-dev", inferenceService: "llm-ov", crType: "inferenceservice" }],
       maxTargets: 5,
       version: 2,
     }));
@@ -394,7 +394,7 @@ describe("ClusterConfigContext", () => {
     it("ConfigMap values override localStorage default target", async () => {
       vi.mocked(Storage.prototype.getItem).mockReturnValue(JSON.stringify({
         endpoint: "http://local-predictor.local-ns.svc.cluster.local:8080",
-        targets: [{ namespace: "local-ns", inferenceService: "local-is", isDefault: true }],
+        targets: [{ namespace: "local-ns", inferenceService: "local-is", crType: "inferenceservice" }],
         maxTargets: 5,
         version: 2,
       }));
@@ -443,7 +443,7 @@ describe("ClusterConfigContext", () => {
         expect(result.current.isLoading).toBe(false);
       });
 
-      const defaultTarget = result.current.targets.find(t => t.isDefault);
+      const defaultTarget = result.current.targets[0];
       expect(defaultTarget?.namespace).toBe("vllm-lab-dev");
       expect(defaultTarget?.inferenceService).toBe("llm-ov");
     });
@@ -472,7 +472,7 @@ describe("ClusterConfigContext", () => {
       );
 
       // Should still have default target from initial config
-      const defaultTarget = result.current.targets.find(t => t.isDefault);
+      const defaultTarget = result.current.targets[0];
       expect(defaultTarget?.namespace).toBe("vllm-lab-dev");
       expect(defaultTarget?.inferenceService).toBe("llm-ov");
     });
@@ -538,13 +538,13 @@ describe("ClusterConfigContext", () => {
   });
 
   describe("isvcTargets and llmisvcTargets filtering", () => {
-    it("isvcTargets includes targets with crType=inferenceservice and crType=undefined", async () => {
+    it("isvcTargets includes targets with crType=inferenceservice", async () => {
       vi.mocked(Storage.prototype.getItem).mockReturnValue(JSON.stringify({
         endpoint: "http://x",
         targets: [
-          { namespace: "ns1", inferenceService: "isvc1", isDefault: true, crType: "inferenceservice" },
-          { namespace: "ns2", inferenceService: "isvc2", isDefault: false, crType: undefined },
-          { namespace: "ns3", inferenceService: "llmisvc1", isDefault: false, crType: "llminferenceservice" },
+          { namespace: "ns1", inferenceService: "isvc1", crType: "inferenceservice" },
+          { namespace: "ns2", inferenceService: "isvc2", crType: "inferenceservice" },
+          { namespace: "ns3", inferenceService: "llmisvc1", crType: "llminferenceservice" },
         ],
         maxTargets: 5,
         version: 2,
@@ -565,9 +565,9 @@ describe("ClusterConfigContext", () => {
       vi.mocked(Storage.prototype.getItem).mockReturnValue(JSON.stringify({
         endpoint: "http://x",
         targets: [
-          { namespace: "ns1", inferenceService: "isvc1", isDefault: true, crType: "inferenceservice" },
-          { namespace: "ns2", inferenceService: "isvc2", isDefault: false, crType: undefined },
-          { namespace: "ns3", inferenceService: "llmisvc1", isDefault: false, crType: "llminferenceservice" },
+          { namespace: "ns1", inferenceService: "isvc1", crType: "inferenceservice" },
+          { namespace: "ns2", inferenceService: "isvc2", crType: "inferenceservice" },
+          { namespace: "ns3", inferenceService: "llmisvc1", crType: "llminferenceservice" },
         ],
         maxTargets: 5,
         version: 2,

@@ -45,7 +45,6 @@ describe("useTunerLogic", () => {
       const targetOverride: ClusterTarget = {
         namespace: "test-ns",
         inferenceService: "test-isvc",
-        isDefault: false,
         crType: "inferenceservice",
       };
 
@@ -86,7 +85,6 @@ describe("useTunerLogic", () => {
       const targetOverride: ClusterTarget = {
         namespace: "override-ns",
         inferenceService: "override-isvc",
-        isDefault: false,
         crType: "inferenceservice",
       };
 
@@ -135,7 +133,6 @@ describe("useTunerLogic", () => {
       const targetOverride: ClusterTarget = {
         namespace: "llmis-ns",
         inferenceService: "llmis-svc",
-        isDefault: false,
         crType: "llminferenceservice",
       };
 
@@ -235,7 +232,6 @@ describe("useTunerLogic", () => {
       const targetOverride: ClusterTarget = {
         namespace: "isvc-ns",
         inferenceService: "isvc-name",
-        isDefault: false,
         crType: "inferenceservice",
       };
 
