@@ -137,6 +137,8 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
   });
   const [isLoading, setIsLoading] = useState(true);
   const [crType, setCrType] = useState<string>(DEFAULT_CR_TYPE);
+  // Ref to access latest crType inside stable callbacks (updateConfig) without
+  // changing their identity and causing downstream re-renders.
   const crTypeRef = useRef(crType);
   const [resolvedModelName, setResolvedModelName] = useState<string>("");
   const stableTargetsRef = useRef<ClusterTarget[]>(config.targets);
