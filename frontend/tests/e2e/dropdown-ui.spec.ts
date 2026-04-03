@@ -271,15 +271,15 @@ test.describe('MultiTargetSelector LLMIS Metrics Display', () => {
   });
 
   test('sends correct cr_type in batch metrics request', async ({ page }) => {
-    const batchRequests: Array<{ targets: Array<{ cr_type?: string }> }> = [];
-
-    page.on('request', (request) => {
-      if (request.url().includes('/api/metrics/batch') && request.method() === 'POST') {
-        try {
-          const postData = request.postDataJSON();
-          batchRequests.push(postData);
-        } catch {
-        }
+    const batchCallPromise = page.waitForResponse(async (response) => {
+      if (!response.url().includes('/api/metrics/batch')) return false;
+      const request = response.request();
+      if (request.method() !== 'POST') return false;
+      try {
+        const postData = request.postDataJSON();
+        return postData.targets?.some((t: { cr_type?: string }) => t.cr_type === 'llminferenceservice');
+      } catch {
+        return false;
       }
     });
 
@@ -287,13 +287,10 @@ test.describe('MultiTargetSelector LLMIS Metrics Display', () => {
     await page.getByRole('tab', { name: 'Monitoring' }).click();
     await page.waitForSelector('.multi-target-selector', { timeout: 10000 });
 
-    await page.waitForTimeout(2000);
+    const response = await batchCallPromise;
+    const postData = response.request().postDataJSON();
 
-    const batchCall = batchRequests.find(r =>
-      r.targets.some(t => t.cr_type === 'llminferenceservice')
-    );
-    expect(batchCall).toBeDefined();
-    expect(batchCall!.targets.some(t => t.cr_type === 'inferenceservice')).toBe(true);
+    expect(postData.targets.some((t: { cr_type?: string }) => t.cr_type === 'inferenceservice')).toBe(true);
   });
 });
 
