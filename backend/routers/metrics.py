@@ -12,6 +12,7 @@ from models.load_test import (
     TargetedMetricsResponse,
 )
 from services.shared import multi_target_collector as _default_collector, runtime_config as _default_runtime_config
+from services.cr_adapter import get_cr_adapter
 from services.metrics_service import (
     _convert_to_snapshot,
     _fetch_query_range,
@@ -172,9 +173,13 @@ async def get_pod_metrics(
         if collector._token:
             headers["Authorization"] = f"Bearer {collector._token}"
 
+        cr_type = target.cr_type or "inferenceservice"
+        adapter = get_cr_adapter(cr_type)
+        pod_name_pattern = adapter.dcgm_pod_pattern(target.inferenceService)
+
         # Fetch all pod queries in parallel
         fetch_tasks = [
-            collector._fetch_prometheus_multi_result(headers, query)
+            collector._fetch_prometheus_multi_result(headers, query, pod_name_pattern)
             for query in queries.values()
         ]
         query_results = await asyncio.gather(*fetch_tasks)

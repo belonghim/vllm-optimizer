@@ -2,7 +2,7 @@ import asyncio
 import logging
 from typing import Any, Literal, Mapping, cast
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from kubernetes.client import CustomObjectsApi
 from kubernetes.client.exceptions import ApiException as K8sApiException
 from pydantic import BaseModel
@@ -118,15 +118,20 @@ def _get_k8s_custom() -> CustomObjectsApi | None:
 
 @router.get("")
 @limiter.limit("30/minute")
-async def get_vllm_config(request: Request) -> dict[str, Any]:
+async def get_vllm_config(
+    request: Request,
+    namespace: str | None = Query(default=None),
+    is_name: str | None = Query(default=None),
+    cr_type: str | None = Query(default=None),
+) -> dict[str, Any]:
     """Get current vLLM InferenceService configuration."""
     _custom = await asyncio.to_thread(_get_k8s_custom)
     if _custom is None:
         raise HTTPException(status_code=503, detail="Kubernetes not available")
     _api = _custom
-    namespace = _get_k8s_namespace()
-    is_name = _get_vllm_is_name()
-    adapter = get_cr_adapter()
+    namespace = namespace or _get_k8s_namespace()
+    is_name = is_name or _get_vllm_is_name()
+    adapter = get_cr_adapter(cr_type)
     try:
         is_obj = cast(
             dict[str, Any],
