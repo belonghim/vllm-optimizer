@@ -454,7 +454,7 @@ class LLMInferenceServiceAdapter(CRAdapter):
         return "kserve_vllm:"
 
     def dcgm_pod_pattern(self, name: str) -> str:
-        return f"{name}-kserve.*"
+        return f"{name}-kserve(?!-router-scheduler).*"
 
     def check_ready(self, status: dict[str, Any]) -> bool:
         return _is_ready_condition(status)

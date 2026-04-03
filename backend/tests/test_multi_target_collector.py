@@ -365,7 +365,7 @@ class TestBuildTargetQueries:
         collector = _build_collector()
         queries = collector._build_target_queries("test-ns", "my-svc", "llminferenceservice")
 
-        assert 'my-svc-kserve.*' in queries["gpu_memory_used_gb"]
+        assert 'my-svc-kserve(?!-router-scheduler).*' in queries["gpu_memory_used_gb"]
 
     def test_query_keys_are_identical_between_cr_types(self) -> None:
         collector = _build_collector()

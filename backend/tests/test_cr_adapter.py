@@ -494,7 +494,7 @@ class TestLLMInferenceServiceAdapter:
 
     def test_dcgm_pod_pattern(self):
         adapter = LLMInferenceServiceAdapter()
-        assert adapter.dcgm_pod_pattern("small-llm-d") == "small-llm-d-kserve.*"
+        assert adapter.dcgm_pod_pattern("small-llm-d") == "small-llm-d-kserve(?!-router-scheduler).*"
 
     def test_check_ready_true(self):
         adapter = LLMInferenceServiceAdapter()
