@@ -134,19 +134,12 @@ export function useTunerLogic({ isActive, onRunningChange, targetOverride }: { i
   }, [isActive, isMockEnabled]);
 
   useEffect(() => {
-    if (endpoint && !targetOverride) {
-      setConfig(c => ({ ...c, vllm_endpoint: endpoint }));
-    }
-  }, [endpoint, targetOverride]);
-
-  useEffect(() => {
-    if (targetOverride) {
-      userEditedRef.current = {};
-      const newEndpoint = buildDefaultEndpoint(targetOverride.crType, targetOverride.namespace, targetOverride.inferenceService);
-      setConfig(c => ({ ...c, vllm_endpoint: newEndpoint }));
-    }
-  }, [targetOverride]);
-
+    userEditedRef.current = {};
+    const newEndpoint = targetOverride
+      ? buildDefaultEndpoint(targetOverride.crType, targetOverride.namespace, targetOverride.inferenceService)
+      : endpoint;
+    setConfig({ ...DEFAULT_CONFIG, vllm_endpoint: newEndpoint || "" });
+  }, [targetOverride, endpoint]);
 
   useEffect(() => {
     if (!isActive || isMockEnabled) return;
@@ -163,9 +156,36 @@ export function useTunerLogic({ isActive, onRunningChange, targetOverride }: { i
         if (!data?.success || !data?.data) return;
         const fetchedData = data.data as Record<string, unknown>;
         setConfig((prev) => {
-          const next = { ...prev } as Record<string, unknown>;
+          const next = { ...prev } as Record<string, any>;
           Object.entries(fetchedData).forEach(([key, value]) => {
-            if (key in next && !userEditedRef.current[key]) next[key] = value;
+            if (value === undefined || value === null) return;
+
+            if (key in next && !userEditedRef.current[key]) {
+              next[key] = value;
+            }
+
+            const numVal = typeof value === 'string' ? parseFloat(value) : value;
+            if (typeof numVal !== 'number' || isNaN(numVal)) return;
+
+            if (key === "max_num_seqs") {
+              if (!userEditedRef.current.max_num_seqs_min) next.max_num_seqs_min = numVal;
+              if (!userEditedRef.current.max_num_seqs_max) next.max_num_seqs_max = numVal;
+            } else if (key === "gpu_memory_utilization") {
+              if (!userEditedRef.current.gpu_memory_min) next.gpu_memory_min = numVal;
+              if (!userEditedRef.current.gpu_memory_max) next.gpu_memory_max = numVal;
+            } else if (key === "max_model_len") {
+              if (!userEditedRef.current.max_model_len_min) next.max_model_len_min = numVal;
+              if (!userEditedRef.current.max_model_len_max) next.max_model_len_max = numVal;
+            } else if (key === "max_num_batched_tokens") {
+              if (!userEditedRef.current.max_num_batched_tokens_min) next.max_num_batched_tokens_min = numVal;
+              if (!userEditedRef.current.max_num_batched_tokens_max) next.max_num_batched_tokens_max = numVal;
+            } else if (key === "block_size") {
+              if (!userEditedRef.current.block_size_options) next.block_size_options = [numVal];
+            } else if (key === "swap_space") {
+              if (!userEditedRef.current.swap_space_min) next.swap_space_min = numVal;
+              if (!userEditedRef.current.swap_space_max) next.swap_space_max = numVal;
+              if (!userEditedRef.current.include_swap_space && numVal > 0) next.include_swap_space = true;
+            }
           });
           return next as unknown as TunerConfig;
         });

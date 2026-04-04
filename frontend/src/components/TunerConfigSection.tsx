@@ -1,6 +1,6 @@
 import TunerStatusPanel from "./TunerStatusPanel";
 import TunerCurrentConfig from "./TunerCurrentConfig";
-import type { TunerStatus, TunerConfig, TunerPhase } from "../types";
+import type { TunerStatus, TunerConfig, TunerPhase, ClusterTarget } from "../types";
 
 interface TunerConfigSectionProps {
   isActive: boolean;
@@ -14,6 +14,7 @@ interface TunerConfigSectionProps {
   benchmarkSaved: boolean;
   benchmarkSavedId: number | null;
   currentPhase: TunerPhase | null;
+  targetOverride?: ClusterTarget | null;
   onDismissInterrupted: () => void;
   onAutoBenchmarkChange: (v: boolean) => void;
   onTabChange?: (tab: string) => void;
@@ -27,7 +28,7 @@ interface TunerConfigSectionProps {
 
 export default function TunerConfigSection({
   isActive, status, config, error, warning, applyStatus, interruptedWarning,
-  autoBenchmark, benchmarkSaved, benchmarkSavedId, currentPhase,
+  autoBenchmark, benchmarkSaved, benchmarkSavedId, currentPhase, targetOverride,
   onDismissInterrupted, onAutoBenchmarkChange, onTabChange,
   onConfigChange, onStart, onStop, onApplyBest, onError, onApplySuccess,
 }: TunerConfigSectionProps) {
@@ -49,6 +50,7 @@ export default function TunerConfigSection({
         isActive={isActive}
         isRunning={status.running}
         config={config}
+        targetOverride={targetOverride}
         onChange={onConfigChange}
         onSubmit={onStart}
         onStop={onStop}

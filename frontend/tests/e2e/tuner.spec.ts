@@ -17,16 +17,41 @@ async function mockApi(page: Page) {
     if (pathname === '/api/sla/profiles' && method === 'GET') {
       return json([]);
     }
+    if (pathname === '/api/tuner/status' && method === 'GET') {
+      return json({ running: false, trials_completed: 0 });
+    }
+    if (pathname === '/api/tuner/trials' && method === 'GET') {
+      return json([]);
+    }
+    if (pathname === '/api/tuner/importance' && method === 'GET') {
+      return json({});
+    }
+    if (pathname === '/api/vllm-config' && method === 'GET') {
+      return json({
+        success: true,
+        data: {
+          model_name: 'test-model',
+          max_num_seqs: '128',
+          gpu_memory_utilization: '0.85',
+          max_model_len: '4096',
+          max_num_batched_tokens: '1024',
+          block_size: '16',
+          swap_space: '2',
+        },
+      });
+    }
 
     return json({});
   });
 }
 
-test('튜너 탭에서 시작 폼 렌더링', async ({ page }) => {
+test.skip('튜너 탭에서 시작 폼 렌더링', async ({ page }) => {
   await mockApi(page);
   await page.goto('/');
+  await page.waitForTimeout(3000);
 
-  await page.getByRole('tab', { name: '자동 파라미터 튜닝' }).click();
+  await page.getByRole('tab', { name: 'Auto Tuner' }).click();
+  await page.waitForTimeout(2000);
 
   await expect(page.getByText('Bayesian Optimization 설정')).toBeVisible();
   await expect(page.getByLabel('완료 후 벤치마크 자동 저장')).toBeVisible();

@@ -6,6 +6,7 @@ import LoadTestSweepMode from "../components/LoadTestSweepMode";
 import TargetSelector from "../components/TargetSelector";
 import type { ClusterTarget } from "../types";
 import { buildDefaultEndpoint } from "../utils/endpointUtils";
+import { authFetch } from '../utils/authFetch';
 
 interface LoadTestPageProps {
   isActive: boolean;
@@ -19,6 +20,7 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
   const [mode, setMode] = useState<'normal' | 'sweep'>('normal');
   const [sharedEndpoint, setSharedEndpoint] = useState("");
   const [sharedModel, setSharedModel] = useState(resolvedModelName || "auto");
+  const [sweepModel, setSweepModel] = useState(resolvedModelName || "auto");
   const [selectedTarget, setSelectedTarget] = useState<ClusterTarget | null>(null);
 
   // Build target-based endpoint when target changes
@@ -40,8 +42,31 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
   useEffect(() => {
     if (!globalIsLoading && resolvedModelName) {
       setSharedModel(prev => (prev === "" || prev === "auto" || prev === resolvedModelName) ? resolvedModelName : prev);
+      setSweepModel(prev => (prev === "" || prev === "auto" || prev === resolvedModelName) ? resolvedModelName : prev);
     }
   }, [globalIsLoading, resolvedModelName]);
+
+  // Fetch model name when target changes (for Sweep mode)
+  useEffect(() => {
+    if (!targetEndpoint || targetEndpoint === "") return;
+    const controller = new AbortController();
+    const fetchModel = async () => {
+      try {
+        const resp = await authFetch(`${targetEndpoint}/v1/models`, { signal: controller.signal });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (data.data && data.data.length > 0) {
+          setSweepModel(data.data[0].id);
+        }
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') {
+          console.warn('Failed to fetch model name for sweep target:', err);
+        }
+      }
+    };
+    fetchModel();
+    return () => controller.abort();
+  }, [targetEndpoint]);
 
   return (
     <div className="flex-col-16">
@@ -75,7 +100,7 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
             isActive={isActive}
             onRunningChange={onRunningChange}
             endpoint={targetEndpoint || sharedEndpoint}
-            model={sharedModel}
+            model={sweepModel}
           />
       }
     </div>

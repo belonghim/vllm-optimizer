@@ -30,7 +30,7 @@ test('부하 테스트 탭에서 기본 폼 요소가 보임', async ({ page }) 
   await mockApi(page);
   await page.goto('/');
 
-  await page.getByRole('tab', { name: '부하 테스트' }).click();
+  await page.getByRole('tab', { name: 'Load Test' }).click();
 
   await expect(page.getByLabel('vLLM Endpoint')).toBeVisible();
   await expect(page.getByRole('button', { name: '▶ Run Load Test' })).toBeVisible();

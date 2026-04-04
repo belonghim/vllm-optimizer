@@ -6,12 +6,13 @@ import { useMockData } from "../contexts/MockDataContext";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
 import TunerConfigForm from "./TunerConfigForm";
 import ConfirmDialog from "./ConfirmDialog";
-import type { TunerPhase, TunerConfig } from "../types";
+import type { TunerPhase, TunerConfig, ClusterTarget } from "../types";
 
 interface TunerCurrentConfigProps {
   isActive: boolean;
   isRunning: boolean;
   config: TunerConfig;
+  targetOverride?: ClusterTarget | null;
   onChange: (field: string, value: string | number | boolean | number[]) => void;
   onSubmit: () => void;
   onStop: () => void;
@@ -27,6 +28,7 @@ export default function TunerCurrentConfig({
   isActive,
   isRunning,
   config,
+  targetOverride,
   onChange,
   onSubmit,
   onStop,
@@ -60,7 +62,11 @@ export default function TunerCurrentConfig({
     if (isMockEnabled) return;
 
     const controller = new AbortController();
-    authFetch(`${API}/vllm-config`, { signal: controller.signal })
+    const query = targetOverride
+      ? `?namespace=${encodeURIComponent(targetOverride.namespace)}&is_name=${encodeURIComponent(targetOverride.inferenceService)}&cr_type=${encodeURIComponent(targetOverride.crType)}`
+      : "";
+
+    authFetch(`${API}/vllm-config${query}`, { signal: controller.signal })
       .then(r => {
         if (!r.ok) {
           return r.json().then(errData => {
@@ -85,7 +91,7 @@ export default function TunerCurrentConfig({
         onError(`${ERROR_MESSAGES.TUNER.CONFIG_FETCH_ERROR_PREFIX}${err.message}`);
       });
     return () => controller.abort();
-  }, [isActive, isMockEnabled, namespace, inferenceservice, onError]);
+  }, [isActive, isMockEnabled, namespace, inferenceservice, targetOverride, onError]);
 
   const applyCurrentValues = useCallback(async (values: Record<string, unknown>) => {
     try {
@@ -108,7 +114,11 @@ export default function TunerCurrentConfig({
       if (Object.keys(dataPayload).length > 0) patchBody.data = dataPayload;
       if (Object.keys(resourcesPayload).length > 0) patchBody.resources = resourcesPayload;
 
-      const res = await authFetch(`${API}/vllm-config`, {
+      const query = targetOverride
+        ? `?namespace=${encodeURIComponent(targetOverride.namespace)}&is_name=${encodeURIComponent(targetOverride.inferenceService)}&cr_type=${encodeURIComponent(targetOverride.crType)}`
+        : "";
+
+      const res = await authFetch(`${API}/vllm-config${query}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patchBody),
@@ -124,7 +134,7 @@ export default function TunerCurrentConfig({
       console.error('Failed to apply current values:', err);
       onError(`${ERROR_MESSAGES.TUNER.APPLY_CURRENT_FAILED_PREFIX}${(err as Error).message}`);
     }
-  }, [onError, onApplySuccess]);
+  }, [onError, onApplySuccess, targetOverride]);
 
   const handleApplyCurrentValues = useCallback((values: Record<string, unknown>) => {
     setConfirmState({
@@ -139,7 +149,10 @@ export default function TunerCurrentConfig({
 
   const handleSaveStorageUri = useCallback(async (newUri: string) => {
     try {
-      const res = await authFetch(`${API}/vllm-config`, {
+      const query = targetOverride
+        ? `?namespace=${encodeURIComponent(targetOverride.namespace)}&is_name=${encodeURIComponent(targetOverride.inferenceService)}&cr_type=${encodeURIComponent(targetOverride.crType)}`
+        : "";
+      const res = await authFetch(`${API}/vllm-config${query}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ storageUri: newUri }),
@@ -154,7 +167,7 @@ export default function TunerCurrentConfig({
       console.error('Failed to save storage URI:', err);
       onError(`${ERROR_MESSAGES.TUNER.STORAGE_URI_UPDATE_FAILED_PREFIX}${(err as Error).message}`);
     }
-  }, [onError]);
+  }, [onError, targetOverride]);
 
   return (
     <>

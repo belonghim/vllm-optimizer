@@ -33,9 +33,11 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
         />
       </div>
       <TunerConfigSection
+        key={selectedTarget ? `${selectedTarget.namespace}/${selectedTarget.inferenceService}` : 'default'}
         isActive={isActive}
         status={status}
         config={config}
+        targetOverride={selectedTarget}
         error={error}
         warning={warning}
         applyStatus={applyStatus}
