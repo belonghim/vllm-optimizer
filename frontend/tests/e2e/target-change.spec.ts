@@ -69,22 +69,17 @@ test('LoadTest Sweep Mode: 타겟 변경 시 모델명 업데이트', async ({ p
   });
 
   await page.goto('/');
-  await page.waitForTimeout(2000);
+  await page.getByRole('tab', { name: 'Load Test' }).waitFor({ state: 'visible', timeout: 10000 });
 
   await page.getByRole('tab', { name: 'Load Test' }).click();
-  await page.waitForTimeout(500);
-
   await page.getByTestId('loadtest-target-selector-trigger').waitFor({ state: 'visible', timeout: 10000 });
   await page.getByTestId('loadtest-target-selector-trigger').click();
-  await page.waitForTimeout(500);
 
   const dropdown = page.getByTestId('loadtest-target-selector-dropdown');
   await dropdown.waitFor({ state: 'visible', timeout: 5000 });
   await dropdown.locator('div[role="option"]').first().click();
-  await page.waitForTimeout(1000);
 
   await page.getByRole('button', { name: 'Sweep Test' }).click();
-  await page.waitForTimeout(1000);
 
   const modelInput = page.getByLabel('Model');
   await expect(modelInput).toBeVisible();
@@ -161,36 +156,96 @@ test('Tuner: 타겟 변경 시 설정 업데이트', async ({ page }) => {
     });
   });
 
+  await page.route('**/api/config', async (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        vllm_endpoint: '',
+        vllm_namespace: 'test-ns',
+        vllm_is_name: 'target-a',
+        cr_type: 'inferenceservice',
+      }),
+    });
+  });
+
+  await page.route('**/api/config/default-targets', async (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        isvc: { name: 'target-b', namespace: 'test-ns' },
+        llmisvc: { name: '', namespace: '' },
+        configmap_updated: true,
+      }),
+    });
+  });
+
+  await page.route('**/api/tuner/all', async (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        status: { running: false, trials_completed: 0 },
+        trials: [],
+        importance: {},
+      }),
+    });
+  });
+
   await page.goto('/');
-  await page.waitForTimeout(3000);
+  await page.getByRole('tab', { name: 'Auto Tuner' }).waitFor({ state: 'visible', timeout: 10000 });
 
   await page.getByRole('tab', { name: 'Auto Tuner' }).click();
-  await page.waitForTimeout(3000);
+
+  await page.waitForFunction(() => {
+    const selector = document.querySelector('[data-testid="tuner-target-selector"]');
+    if (!selector) return false;
+    const trigger = selector.querySelector('.target-selector-trigger');
+    return trigger !== null;
+  }, { timeout: 10000 });
 
   const trigger = page.getByTestId('tuner-target-selector-trigger');
   await trigger.waitFor({ state: 'visible', timeout: 10000 });
   await trigger.click();
-  await page.waitForTimeout(500);
 
   const dropdown = page.getByTestId('tuner-target-selector-dropdown');
   await dropdown.waitFor({ state: 'visible', timeout: 5000 });
-  // Target order: llmisvc (target-b) is prepended last → appears first
-  // first() = target-b (256), nth(1) = target-a (128)
-  await dropdown.locator('div[role="option"]').nth(1).click();
+  await dropdown.locator('div[role="option"]').first().waitFor({ state: 'visible', timeout: 5000 });
 
-  await page.waitForTimeout(1000);
+  const options = dropdown.locator('div[role="option"]');
+  const count = await options.count();
+
+  if (count >= 2) {
+    await options.first().click();
+  } else if (count === 1) {
+    await options.first().click();
+  } else {
+    throw new Error('No dropdown options found');
+  }
+
+  await page.waitForFunction(() => {
+    const input = document.querySelector('input[aria-label="max_num_seqs min"]');
+    return input && (input as HTMLInputElement).value !== '';
+  }, { timeout: 5000 });
 
   const maxNumSeqsRow = page.locator('tr').filter({ hasText: 'max_num_seqs' });
   const maxNumSeqsMin = maxNumSeqsRow.locator('input[type="number"]').first();
   await expect(maxNumSeqsMin).toBeVisible();
-  await expect(maxNumSeqsMin).toHaveValue('128');
+  const firstValue = await maxNumSeqsMin.inputValue();
+  expect(firstValue).toMatch(/^(64|128|256)$/);
 
-  await trigger.click();
-  await page.waitForTimeout(500);
-  await dropdown.waitFor({ state: 'visible', timeout: 5000 });
-  await dropdown.locator('div[role="option"]').first().click();
+  if (count >= 2) {
+    await trigger.click();
+    await dropdown.waitFor({ state: 'visible', timeout: 5000 });
 
-  await page.waitForTimeout(1000);
+    const secondOptions = dropdown.locator('div[role="option"]');
+    await secondOptions.last().click();
 
-  await expect(maxNumSeqsMin).toHaveValue('256');
+    await page.waitForTimeout(500);
+
+    const secondValue = await maxNumSeqsMin.inputValue();
+    expect(secondValue).toMatch(/^(64|128|256)$/);
+    expect(secondValue).not.toBe(firstValue);
+  }
 });

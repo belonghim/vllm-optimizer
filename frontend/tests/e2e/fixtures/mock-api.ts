@@ -86,6 +86,15 @@ export async function setupMockApi(page: Page) {
       return json({});
     }
 
+    // DESIGN DECISION: Catch-all returns json({}) instead of route.continue()
+    // WHY: Test isolation - all routes are mocked, ensuring tests are deterministic
+    // and don't depend on a real backend service.
+    // TRADE-OFF: Real backend passthrough is not available by default.
+    // OVERRIDE: If a test needs to hit the real backend for a specific endpoint,
+    // add a route handler BEFORE this catch-all that calls route.continue():
+    //   await page.route('**/api/specific-endpoint', async (route) => {
+    //     await route.continue();
+    //   });
     return json({});
   });
 }
