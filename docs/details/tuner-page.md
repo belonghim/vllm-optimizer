@@ -51,7 +51,7 @@ Displays status messages, warnings, and controls at the top of the tuning sectio
 
 #### 2.2 TunerCurrentConfig
 
-Contains the tuning configuration form and control buttons.
+Contains the tuning configuration form and control buttons. Also fetches current vLLM config from the API on mount, handles "Apply Current Values" with confirmation dialog, and manages storage URI updates. Also fetches current vLLM config from the API on mount, handles "Apply Current Values" with confirmation dialog, and manages storage URI updates.
 
 **Configuration Fields**:
 
@@ -148,7 +148,7 @@ Shown when `bestParams` exists.
 
 **Source**: `frontend/src/components/TunerHistoryPanel.tsx`
 
-Displays historical tuning runs. Allows users to review past tuning sessions and their results.
+Displays historical tuning sessions in a table with columns: Date, Objective, Trials, Best TPS, Best P99, Delete. Users can select up to 2 sessions and click "Compare Selected" to view a side-by-side comparison of best parameters. Sessions can be deleted with confirmation. Fetches sessions from `/api/tuner/sessions` on mount.
 
 ---
 
@@ -227,10 +227,11 @@ The core business logic for the TunerPage.
 | TargetSelector | `components/TargetSelector.tsx` | Target selection dropdown |
 | TunerConfigSection | `components/TunerConfigSection.tsx` | Config + status container |
 | TunerStatusPanel | `components/TunerStatusPanel.tsx` | Status messages and controls |
-| TunerCurrentConfig | `components/TunerCurrentConfig.tsx` | Configuration form |
+| TunerCurrentConfig | `components/TunerCurrentConfig.tsx` | Config fetcher, apply-current, storage URI editor |
+| TunerConfigForm | `components/TunerConfigForm.tsx` | Configuration form with fields and controls |
 | TunerResults | `components/TunerResults.tsx` | Results display |
-| TunerHistoryPanel | `components/TunerHistoryPanel.tsx` | Historical runs |
-| TunerProgressBar | `components/TunerProgressBar.tsx` | Progress visualization |
+| TunerHistoryPanel | `components/TunerHistoryPanel.tsx` | Historical runs with session comparison |
+| ConfirmDialog | `components/ConfirmDialog.tsx` | Confirmation dialog for apply-current action |
 | MetricCard | `components/MetricCard.tsx` | Metric display cards |
 | ErrorAlert | `components/ErrorAlert.tsx` | Error display |
 | LoadingSpinner | `components/LoadingSpinner.tsx` | Loading indicator |

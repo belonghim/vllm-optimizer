@@ -220,6 +220,18 @@ For each target in the batch response:
 | MockDataContext | `contexts/MockDataContext.tsx` | Provides `isMockEnabled` |
 | ThemeContext | `contexts/ThemeContext.tsx` | Provides `COLORS` for chart theming |
 
+## Related Hooks
+
+| Module | File | Role |
+|--------|------|------|
+| useMonitorLogic | `hooks/useMonitorLogic.ts` | Alternative hook-based monitor logic (not used by MonitorPage, which has inline logic) |
+
+## Related Hooks
+
+| Module | File | Role |
+|--------|------|------|
+| useMonitorLogic | `hooks/useMonitorLogic.ts` | Alternative hook-based monitor logic (not used by MonitorPage, which has inline logic) |
+
 ## Related Utilities
 
 | Utility | File | Role |

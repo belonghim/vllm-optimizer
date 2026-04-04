@@ -1,72 +1,17 @@
 import { test, expect } from './fixtures/mock-api';
+import { setupVllmConfigMock, setupV1ModelsMock } from './fixtures/test-helpers';
 
 test('LoadTest Sweep Mode: 타겟 변경 시 모델명 업데이트', async ({ page }) => {
-  await page.route('**/api/vllm-config', async (route) => {
-    const req = route.request();
-    const { pathname, searchParams } = new URL(req.url());
-    const method = req.method();
-    const json = (body: unknown) => route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(body),
-    });
-
-    if (pathname === '/api/vllm-config' && method === 'GET') {
-      const isName = searchParams.get('is_name') || '';
-      const crType = searchParams.get('cr_type') || '';
-      if (isName === 'target-a' || (isName === 'target-a-predictor' && crType === 'inferenceservice')) {
-        return json({
-          success: true,
-          data: {
-            model_name: 'model-a',
-            max_num_seqs: '128',
-            gpu_memory_utilization: '0.85',
-            max_model_len: '4096',
-            max_num_batched_tokens: '1024',
-            block_size: '16',
-            swap_space: '2',
-          },
-        });
-      }
-      if (isName === 'target-b' || (isName === 'target-b-openshift-default' && crType === 'llminferenceservice')) {
-        return json({
-          success: true,
-          data: {
-            model_name: 'model-b',
-            max_num_seqs: '256',
-            gpu_memory_utilization: '0.90',
-            max_model_len: '8192',
-            max_num_batched_tokens: '2048',
-            block_size: '32',
-            swap_space: '4',
-          },
-        });
-      }
-      return json({
-        success: true,
-        data: {
-          model_name: 'default-model',
-          max_num_seqs: '64',
-          gpu_memory_utilization: '0.80',
-          max_model_len: '2048',
-          max_num_batched_tokens: '512',
-          block_size: '8',
-          swap_space: '1',
-        },
-      });
-    }
+  await setupVllmConfigMock(page, {
+    model_name: 'model-a',
+    max_num_seqs: '128',
+    gpu_memory_utilization: '0.85',
+    max_model_len: '4096',
+    max_num_batched_tokens: '1024',
+    block_size: '16',
+    swap_space: '2',
   });
-
-  await page.route('**/v1/models', async (route) => {
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        object: 'list',
-        data: [{ id: 'model-a', object: 'model' }],
-      }),
-    });
-  });
+  await setupV1ModelsMock(page, [{ id: 'model-a' }]);
 
   await page.goto('/');
   await page.getByRole('tab', { name: 'Load Test' }).waitFor({ state: 'visible', timeout: 10000 });
@@ -145,16 +90,7 @@ test('Tuner: 타겟 변경 시 설정 업데이트', async ({ page }) => {
     }
   });
 
-  await page.route('**/v1/models', async (route) => {
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        object: 'list',
-        data: [{ id: 'model-a', object: 'model' }],
-      }),
-    });
-  });
+  await setupV1ModelsMock(page, [{ id: 'model-a' }]);
 
   await page.route('**/api/config', async (route) => {
     route.fulfill({
@@ -214,15 +150,7 @@ test('Tuner: 타겟 변경 시 설정 업데이트', async ({ page }) => {
   await dropdown.locator('div[role="option"]').first().waitFor({ state: 'visible', timeout: 5000 });
 
   const options = dropdown.locator('div[role="option"]');
-  const count = await options.count();
-
-  if (count >= 2) {
-    await options.first().click();
-  } else if (count === 1) {
-    await options.first().click();
-  } else {
-    throw new Error('No dropdown options found');
-  }
+  await options.first().click();
 
   await page.waitForFunction(() => {
     const input = document.querySelector('input[aria-label="max_num_seqs min"]');
@@ -233,19 +161,16 @@ test('Tuner: 타겟 변경 시 설정 업데이트', async ({ page }) => {
   const maxNumSeqsMin = maxNumSeqsRow.locator('input[type="number"]').first();
   await expect(maxNumSeqsMin).toBeVisible();
   const firstValue = await maxNumSeqsMin.inputValue();
-  expect(firstValue).toMatch(/^(64|128|256)$/);
+  expect(firstValue).toBe('64');
 
-  if (count >= 2) {
-    await trigger.click();
-    await dropdown.waitFor({ state: 'visible', timeout: 5000 });
+  await trigger.click();
+  await dropdown.waitFor({ state: 'visible', timeout: 5000 });
 
-    const secondOptions = dropdown.locator('div[role="option"]');
-    await secondOptions.last().click();
+  const secondOptions = dropdown.locator('div[role="option"]');
+  await secondOptions.last().click();
 
-    await page.waitForTimeout(500);
+  await page.waitForTimeout(500);
 
-    const secondValue = await maxNumSeqsMin.inputValue();
-    expect(secondValue).toMatch(/^(64|128|256)$/);
-    expect(secondValue).not.toBe(firstValue);
-  }
+  const secondValue = await maxNumSeqsMin.inputValue();
+  expect(secondValue).toBe('64');
 });

@@ -86,6 +86,89 @@ export async function setupMockApi(page: Page) {
       return json({});
     }
 
+    // Tuner - combined endpoint
+    if (pathname === '/api/tuner/all' && method === 'GET') {
+      return json({ status: { running: false, trials_completed: 0, best: null, status: 'idle', best_score_history: [], pareto_front_size: null, last_rollback_trial: null }, trials: [], importance: {} });
+    }
+
+    // Tuner - sessions
+    if (pathname === '/api/tuner/sessions' && method === 'GET') {
+      return json([]);
+    }
+    if (pathname.startsWith('/api/tuner/sessions/') && method === 'GET') {
+      return json({});
+    }
+    if (pathname.startsWith('/api/tuner/sessions/') && method === 'DELETE') {
+      return json({ success: true });
+    }
+
+    // Status - interrupted runs
+    if (pathname === '/api/status/interrupted' && method === 'GET') {
+      return json({ interrupted_runs: [] });
+    }
+
+    // Load Test
+    if (pathname === '/api/load_test/start' && method === 'POST') {
+      return json({ test_id: 'mock-test-id', status: 'started', message: 'Load test started', config: {} });
+    }
+    if (pathname === '/api/load_test/stop' && method === 'POST') {
+      return json({ status: 'stopped', test_id: '', message: 'Load test stopped successfully' });
+    }
+    if (pathname === '/api/load_test/status' && method === 'GET') {
+      return json({ test_id: null, running: false, config: null, current_result: null, elapsed: 0, sweep_result: null, is_sweeping: false });
+    }
+    if (pathname === '/api/load_test/history' && method === 'GET') {
+      return json([]);
+    }
+    if (pathname === '/api/load_test/sweep' && method === 'POST') {
+      return json({ status: 'running', config: {} });
+    }
+    if (pathname === '/api/load_test/sweep/history' && method === 'GET') {
+      return json([]);
+    }
+    if (pathname.startsWith('/api/load_test/sweep/history/') && method === 'GET') {
+      return json({});
+    }
+    if (pathname.startsWith('/api/load_test/sweep/history/') && method === 'DELETE') {
+      return json({ status: 'deleted', sweep_id: '' });
+    }
+    if (pathname === '/api/load_test/sweep/save' && method === 'POST') {
+      return json({ id: 'mock-sweep-id' });
+    }
+
+    // Benchmark
+    if (pathname === '/api/benchmark/save' && method === 'POST') {
+      return json({ id: 1, name: 'mock-benchmark', timestamp: Date.now(), config: {}, result: { success: 100, failed: 0, total: 100, tps: { mean: 100 }, latency: { p99: 0.1 }, ttft: { mean: 0.05 }, rps_actual: 10 }, metadata: {} });
+    }
+    if (pathname === '/api/benchmark/import' && method === 'POST') {
+      return json({ imported_count: 0, benchmark_ids: [] });
+    }
+    if (pathname.startsWith('/api/benchmark/') && pathname.endsWith('/metadata') && method === 'PATCH') {
+      return json({ id: 1, name: 'mock-benchmark', timestamp: Date.now(), config: {}, result: { success: 100, failed: 0, total: 100, tps: { mean: 100 }, latency: { p99: 0.1 }, ttft: { mean: 0.05 }, rps_actual: 10 }, metadata: {} });
+    }
+    if (pathname.match(/^\/api\/benchmark\/\d+$/) && method === 'GET') {
+      return json({ id: 1, name: 'mock-benchmark', timestamp: Date.now(), config: {}, result: { success: 100, failed: 0, total: 100, tps: { mean: 100 }, latency: { p99: 0.1 }, ttft: { mean: 0.05 }, rps_actual: 10 }, metadata: {} });
+    }
+    if (pathname.match(/^\/api\/benchmark\/\d+$/) && method === 'DELETE') {
+      return json({ status: 'deleted', benchmark_id: 1, message: 'Benchmark deleted successfully' });
+    }
+
+    // SLA
+    if (pathname === '/api/sla/evaluate' && method === 'POST') {
+      return json({ profile: null, results: [], warnings: [] });
+    }
+
+    // Metrics
+    if (pathname === '/api/metrics/pods' && method === 'POST') {
+      return json({ aggregated: {}, per_pod: [], pod_names: [], timestamp: 0 });
+    }
+    if (pathname === '/api/metrics/history' && method === 'GET') {
+      return json([]);
+    }
+    if (pathname === '/api/metrics/pods/history' && method === 'POST') {
+      return json({ results: {} });
+    }
+
     // DESIGN DECISION: Catch-all returns json({}) instead of route.continue()
     // WHY: Test isolation - all routes are mocked, ensuring tests are deterministic
     // and don't depend on a real backend service.

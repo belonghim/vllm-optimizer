@@ -232,12 +232,14 @@ Detailed latency breakdown table:
 
 Visualizes the sweep results showing the relationship between RPS and latency/throughput.
 
-#### 4.7 Save to Benchmark
+#### 4.7 Save Sweep Result
 
 | Element | Condition | Description |
 |---------|-----------|-------------|
 | Save Button | `sweepStatus === 'completed'` | "⬆ Save to Benchmark" |
 | POST | Endpoint | `/api/load_test/sweep/save` |
+
+**Note**: Despite the button label "Save to Benchmark", this saves the sweep result to sweep history, not to the benchmark store.
 
 #### 4.8 Sweep Save History
 
@@ -291,7 +293,9 @@ Visualizes the sweep results showing the relationship between RPS and latency/th
 | Component | File | Role |
 |-----------|------|------|
 | TargetSelector | `components/TargetSelector.tsx` | Target selection dropdown |
-| LoadTestConfig | `components/LoadTestConfig.tsx` | Configuration form |
+| LoadTestNormalMode | `components/LoadTestNormalMode.tsx` | Normal mode container (config, results, chart) |
+| LoadTestSweepMode | `components/LoadTestSweepMode.tsx` | Sweep mode container (config, results, chart) |
+| LoadTestConfig | `components/LoadTestConfig.tsx` | Configuration form with presets |
 | LoadTestParamForm | `components/LoadTestParamForm.tsx` | Parameter input form |
 | LoadTestPresetSelector | `components/LoadTestPresetSelector.tsx` | Preset selection |
 | MetricCard | `components/MetricCard.tsx` | Metric display cards |

@@ -131,9 +131,9 @@ Modal dialog for editing benchmark metadata.
 | `selected.length >= 2` | Comparison chart appears below the table |
 
 **Visualization**:
-- Compares selected benchmarks across multiple metrics
+- Compares selected benchmarks across 3 metrics (TPS, P99 Latency, GPU Efficiency)
 - Uses `calcGpuEfficiency()` to compute GPU efficiency for each benchmark
-- Displays: TPS, TTFT (ms), P99 Latency (ms), RPS, GPU Efficiency
+- GPU Efficiency chart only shows benchmarks where `metricsTargetMatched` is true
 - Color-codes each benchmark using `TARGET_COLORS`
 
 **Data transformation**:
@@ -148,6 +148,16 @@ BenchmarkItem → {
   metricsTargetMatched: boolean
 }
 ```
+
+**Rendered charts** (3 total):
+- TPS Comparison (BarChart)
+- P99 Latency Comparison (BarChart)
+- GPU Efficiency Comparison (BarChart, filtered to `metricsTargetMatched` only)
+
+**Rendered charts** (3 total):
+- TPS Comparison (BarChart)
+- P99 Latency Comparison (BarChart)
+- GPU Efficiency Comparison (BarChart, filtered to `metricsTargetMatched` only)
 
 ---
 
