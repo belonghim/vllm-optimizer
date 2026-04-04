@@ -43,6 +43,9 @@ interface TunerResultsProps {
 export default function TunerResults({ trials, bestParams, status, importance, isRunning: _isRunning }: TunerResultsProps) {
   const { COLORS, TOOLTIP_STYLE } = useThemeColors();
   const TUNER_TOOLTIP_STYLE = useMemo(() => ({ ...TOOLTIP_STYLE, fontSize: 11 }), [TOOLTIP_STYLE]);
+
+  if (!trials) return null;
+
   const scatterData = trials.map(t => ({
     x: t.tps, y: t.p99_latency, name: `Trial ${t.id}`,
     best: bestParams?.params && JSON.stringify(t.params) === JSON.stringify(bestParams.params),
@@ -52,7 +55,7 @@ export default function TunerResults({ trials, bestParams, status, importance, i
   return (
     <>
       {trials.length > 0 && (
-        <div className="panel" style={{ marginBottom: '1rem' }}>
+      <div className="panel" style={{ marginBottom: '1rem' }}>
           <div className="section-title">Export Results</div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button

@@ -42,7 +42,16 @@ export default function TargetSelector({
     return acc;
   }, {});
 
-  const allOptions = Object.entries(groupedTargets).flatMap(([, options]) => options);
+  // Track group order based on first appearance in targets array
+  const groupOrder = targets.reduce<string[]>((order, target) => {
+    const crType = target.crType || "inferenceservice";
+    if (!order.includes(crType)) {
+      order.push(crType);
+    }
+    return order;
+  }, []);
+
+  const allOptions = groupOrder.flatMap((crType) => groupedTargets[crType]);
   const selectedValue = value
     ? `${value.namespace}/${value.inferenceService}/${value.crType || "inferenceservice"}`
     : "";
@@ -134,13 +143,13 @@ export default function TargetSelector({
 
       {isOpen && (
         <div className="target-selector-dropdown" role="listbox" data-testid={`${testId || "target-selector"}-dropdown`}>
-          {Object.entries(groupedTargets).map(([crType, options], groupIndex) => (
+          {groupOrder.map((crType, groupIndex) => (
             <div key={crType} className="target-selector-group">
               {groupIndex > 0 && <div className="target-selector-divider" />}
               <div className="target-selector-group-header">
                 {crType === "inferenceservice" ? "KServe (isvc)" : "LLMIS (llmisvc)"}
               </div>
-              {options.map((option, optionIndex) => {
+              {groupedTargets[crType].map((option, optionIndex) => {
                 const globalIndex = allOptions.findIndex((o) => o.value === option.value);
                 const isHighlighted = highlightedIndex === globalIndex;
                 const isSelected = option.value === selectedValue;
