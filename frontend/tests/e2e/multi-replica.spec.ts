@@ -1,61 +1,46 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from './fixtures/mock-api';
 
-const TEST_NAMESPACE = 'test-ns';
-const TEST_MODEL = 'test-model';
-
-interface MultiPodMockData {
-  aggregated: {
-    tps: number;
-    rps: number;
-    kv_cache: number;
-    running: number;
-    waiting: number;
-    gpu_util: number;
-    gpu_mem_used: number;
-    pods: number;
-    pods_ready: number;
-  };
-  per_pod: Array<{
-    pod_name: string;
-    tps: number | null;
-    rps: number | null;
-    kv_cache: number | null;
-    running: number | null;
-    waiting: number | null;
-    gpu_util: number | null;
-    gpu_mem_used: number | null;
-  }>;
-}
-
-async function mockMultiPodApi(page: Page) {
-  await page.route('**/api/**', async (route) => {
-    const req = route.request();
-    const { pathname } = new URL(req.url());
-    const method = req.method();
-    const json = (body: unknown) => route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(body),
+test.describe('Multi-replica display', () => {
+  test.beforeEach(async ({ page, mockApi }) => {
+    // Override batch metrics endpoint with multi-replica data
+    await page.route('**/api/metrics/batch', async (route) => {
+      if (route.request().method() === 'POST') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            results: {
+              'test-ns/test-model': {
+                status: 'ready',
+                data: {
+                  tps: 150.0,
+                  rps: 15.0,
+                  kv_cache: 65.0,
+                  running: 8,
+                  waiting: 4,
+                  gpu_util: 70.0,
+                  gpu_mem_used: 14.0,
+                  gpu_mem_total: 16.0,
+                  pods: 2,
+                  pods_ready: 2,
+                },
+                hasMonitoringLabel: true,
+                history: [],
+              },
+            },
+          }),
+        });
+      }
     });
 
-    if (pathname === '/api/config' && method === 'GET') {
-      return json({
-        vllm_endpoint: 'http://mock-endpoint:8080',
-        vllm_namespace: TEST_NAMESPACE,
-        vllm_is_name: TEST_MODEL,
-      });
-    }
-
-    if (pathname === '/api/sla/profiles' && method === 'GET') {
-      return json([]);
-    }
-
-    if (pathname === '/api/metrics/batch' && method === 'POST') {
-      return json({
-        results: {
-          'test-ns/test-model': {
-            status: 'ready',
-            data: {
+    // Override pods endpoint with per-pod breakdown
+    await page.route('**/api/metrics/pods', async (route) => {
+      if (route.request().method() === 'POST') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            aggregated: {
               tps: 150.0,
               rps: 15.0,
               kv_cache: 65.0,
@@ -63,66 +48,50 @@ async function mockMultiPodApi(page: Page) {
               waiting: 4,
               gpu_util: 70.0,
               gpu_mem_used: 14.0,
-              gpu_mem_total: 16.0,
               pods: 2,
               pods_ready: 2,
             },
-            hasMonitoringLabel: true,
-            history: [],
-          },
-        },
-      });
-    }
+            per_pod: [
+              {
+                pod_name: 'test-model-pod-0',
+                tps: 100.0,
+                rps: 10.0,
+                kv_cache: 50.0,
+                running: 3,
+                waiting: 2,
+                gpu_util: 60.0,
+                gpu_mem_used: 12.0,
+              },
+              {
+                pod_name: 'test-model-pod-1',
+                tps: 200.0,
+                rps: 20.0,
+                kv_cache: 80.0,
+                running: 5,
+                waiting: 2,
+                gpu_util: 80.0,
+                gpu_mem_used: 16.0,
+              },
+            ],
+          }),
+        });
+      }
+    });
 
-    if (pathname === '/api/metrics/pods' && method === 'POST') {
-      const mockPodData: Record<string, MultiPodMockData> = {
-        'test-ns/test-model': {
-          aggregated: {
-            tps: 150.0,
-            rps: 15.0,
-            kv_cache: 65.0,
-            running: 8,
-            waiting: 4,
-            gpu_util: 70.0,
-            gpu_mem_used: 14.0,
-            pods: 2,
-            pods_ready: 2,
-          },
-          per_pod: [
-            {
-              pod_name: 'test-model-pod-0',
-              tps: 100.0,
-              rps: 10.0,
-              kv_cache: 50.0,
-              running: 3,
-              waiting: 2,
-              gpu_util: 60.0,
-              gpu_mem_used: 12.0,
-            },
-            {
-              pod_name: 'test-model-pod-1',
-              tps: 200.0,
-              rps: 20.0,
-              kv_cache: 80.0,
-              running: 5,
-              waiting: 2,
-              gpu_util: 80.0,
-              gpu_mem_used: 16.0,
-            },
-          ],
-        },
-      };
-
-      return json(mockPodData['test-ns/test-model'] || { aggregated: {}, per_pod: [], pod_names: [], timestamp: Date.now() / 1000 });
-    }
-
-    return json({});
-  });
-}
-
-test.describe('Multi-replica display', () => {
-  test.beforeEach(async ({ page }) => {
-    await mockMultiPodApi(page);
+    // Override config with test namespace/model
+    await page.route('**/api/config', async (route) => {
+      if (route.request().method() === 'GET') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            vllm_endpoint: 'http://mock-endpoint:8080',
+            vllm_namespace: 'test-ns',
+            vllm_is_name: 'test-model',
+          }),
+        });
+      }
+    });
   });
 
   test('displays aggregated metrics for multi-replica', async ({ page }) => {
