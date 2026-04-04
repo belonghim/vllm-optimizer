@@ -90,6 +90,149 @@ export async function setupMockApi(page: Page) {
   });
 }
 
+/**
+ * Sets up route mocks for multi-replica display tests.
+ *
+ * Use this helper when testing multi-replica metrics display.
+ * It overrides the default empty mocks from setupMockApi with realistic
+ * multi-replica data including aggregated metrics and per-pod breakdowns.
+ *
+ * Unlike plain mockApi (which returns empty defaults), this provides:
+ * - Batch metrics with multi-replica aggregated data
+ * - Per-pod breakdown data for pod-level metrics
+ * - Config with specific namespace/model for testing
+ *
+ * @example
+ * test.beforeEach(async ({ page }) => {
+ *   await setupMultiReplicaMocks(page);
+ * });
+ *
+ * @example
+ * // Custom values:
+ * await setupMultiReplicaMocks(page, { namespace: 'prod', tps: 200 });
+ */
+export interface MultiReplicaMockOptions {
+  namespace?: string;
+  inferenceService?: string;
+  tps?: number;
+  rps?: number;
+  kvCache?: number;
+  running?: number;
+  waiting?: number;
+  gpuUtil?: number;
+  gpuMemUsed?: number;
+  gpuMemTotal?: number;
+  pods?: number;
+  podsReady?: number;
+}
+
+export async function setupMultiReplicaMocks(page: Page, options: MultiReplicaMockOptions = {}) {
+  const {
+    namespace = 'test-ns',
+    inferenceService = 'test-model',
+    tps = 150,
+    rps = 15,
+    kvCache = 65,
+    running = 8,
+    waiting = 4,
+    gpuUtil = 70,
+    gpuMemUsed = 14,
+    gpuMemTotal = 16,
+    pods = 2,
+    podsReady = 2,
+  } = options;
+
+  const targetKey = `${namespace}/${inferenceService}/inferenceservice`;
+
+  await page.route('**/api/metrics/batch', async (route) => {
+    if (route.request().method() === 'POST') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          results: {
+            [targetKey]: {
+              status: 'ready',
+              data: {
+                tps,
+                rps,
+                kv_cache: kvCache,
+                running,
+                waiting,
+                gpu_util: gpuUtil,
+                gpu_mem_used: gpuMemUsed,
+                gpu_mem_total: gpuMemTotal,
+                pods,
+                pods_ready: podsReady,
+              },
+              hasMonitoringLabel: true,
+              history: [],
+            },
+          },
+        }),
+      });
+    }
+  });
+
+  await page.route('**/api/metrics/pods', async (route) => {
+    if (route.request().method() === 'POST') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          aggregated: {
+            tps,
+            rps,
+            kv_cache: kvCache,
+            running,
+            waiting,
+            gpu_util: gpuUtil,
+            gpu_mem_used: gpuMemUsed,
+            pods,
+            pods_ready: podsReady,
+          },
+          per_pod: [
+            {
+              pod_name: `${inferenceService}-pod-0`,
+              tps: tps * 0.67,
+              rps: rps * 0.67,
+              kv_cache: kvCache * 0.77,
+              running: Math.floor(running * 0.375),
+              waiting: Math.floor(waiting * 0.5),
+              gpu_util: gpuUtil * 0.86,
+              gpu_mem_used: gpuMemUsed * 0.86,
+            },
+            {
+              pod_name: `${inferenceService}-pod-1`,
+              tps: tps * 1.33,
+              rps: rps * 1.33,
+              kv_cache: kvCache * 1.23,
+              running: Math.ceil(running * 0.625),
+              waiting: Math.ceil(waiting * 0.5),
+              gpu_util: gpuUtil * 1.14,
+              gpu_mem_used: gpuMemTotal,
+            },
+          ],
+        }),
+      });
+    }
+  });
+
+  await page.route('**/api/config', async (route) => {
+    if (route.request().method() === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          vllm_endpoint: 'http://mock-endpoint:8080',
+          vllm_namespace: namespace,
+          vllm_is_name: inferenceService,
+        }),
+      });
+    }
+  });
+}
+
 export const test = base.extend<{ mockApi: void }>({
   mockApi: async ({ page }, next) => {
     await setupMockApi(page);

@@ -1,6 +1,6 @@
 import { test, expect } from './fixtures/mock-api';
 
-test('LoadTest Sweep Mode: 타겟 변경 시 모델명 업데이트', async ({ page, mockApi }) => {
+test('LoadTest Sweep Mode: 타겟 변경 시 모델명 업데이트', async ({ page }) => {
   await page.route('**/api/vllm-config', async (route) => {
     const req = route.request();
     const { pathname, searchParams } = new URL(req.url());
@@ -12,7 +12,6 @@ test('LoadTest Sweep Mode: 타겟 변경 시 모델명 업데이트', async ({ p
     });
 
     if (pathname === '/api/vllm-config' && method === 'GET') {
-      const ns = searchParams.get('namespace') || '';
       const isName = searchParams.get('is_name') || '';
       const crType = searchParams.get('cr_type') || '';
       if (isName === 'target-a' || (isName === 'target-a-predictor' && crType === 'inferenceservice')) {
@@ -94,7 +93,7 @@ test('LoadTest Sweep Mode: 타겟 변경 시 모델명 업데이트', async ({ p
   expect(modelValue).toBe('model-a');
 });
 
-test('Tuner: 타겟 변경 시 설정 업데이트', async ({ page, mockApi }) => {
+test('Tuner: 타겟 변경 시 설정 업데이트', async ({ page }) => {
   await page.route('**/api/vllm-config', async (route) => {
     const req = route.request();
     const { pathname, searchParams } = new URL(req.url());
@@ -106,7 +105,6 @@ test('Tuner: 타겟 변경 시 설정 업데이트', async ({ page, mockApi }) =
     });
 
     if (pathname === '/api/vllm-config' && method === 'GET') {
-      const ns = searchParams.get('namespace') || '';
       const isName = searchParams.get('is_name') || '';
       const crType = searchParams.get('cr_type') || '';
       if (isName === 'target-a' || (isName === 'target-a-predictor' && crType === 'inferenceservice')) {
