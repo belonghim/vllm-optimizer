@@ -17,6 +17,14 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
         secure: false,
+        errorHandler: (err, req, res) => {
+          if (err.code === 'ECONNREFUSED') {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({}));
+          } else {
+            throw err;
+          }
+        },
       }
     }
   },
