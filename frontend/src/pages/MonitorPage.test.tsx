@@ -108,12 +108,12 @@ describe("buildChartLinesMap", () => {
     expect(result.latency).toHaveLength(3);
     expect(result.gpu_util).toHaveLength(3);
 
-    expect(result.tps[0]).toEqual({ key: "ns1/svc1_tps", label: "svc1", color: TARGET_COLORS[0] });
-    expect(result.tps[1]).toEqual({ key: "ns2/svc2_tps", label: "svc2", color: TARGET_COLORS[1] });
-    expect(result.tps[2]).toEqual({ key: "ns3/svc3_tps", label: "svc3", color: TARGET_COLORS[2] });
+    expect(result.tps[0]).toEqual({ key: "ns1/svc1/inferenceservice_tps", label: "svc1", color: TARGET_COLORS[0] });
+    expect(result.tps[1]).toEqual({ key: "ns2/svc2/inferenceservice_tps", label: "svc2", color: TARGET_COLORS[1] });
+    expect(result.tps[2]).toEqual({ key: "ns3/svc3/llminferenceservice_tps", label: "svc3", color: TARGET_COLORS[2] });
 
-    expect(result.latency[0].key).toBe("ns1/svc1_lat_p99");
-    expect(result.latency[1].key).toBe("ns2/svc2_lat_p99");
+    expect(result.latency[0].key).toBe("ns1/svc1/inferenceservice_lat_p99");
+    expect(result.latency[1].key).toBe("ns2/svc2/inferenceservice_lat_p99");
   });
 
   it("empty targets returns object with empty arrays", () => {
