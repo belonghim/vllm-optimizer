@@ -1,7 +1,7 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from './fixtures/mock-api';
 
-async function mockApi(page: Page) {
-  await page.route('**/api/**', async (route) => {
+test('LoadTest Sweep Mode: 타겟 변경 시 모델명 업데이트', async ({ page, mockApi }) => {
+  await page.route('**/api/vllm-config', async (route) => {
     const req = route.request();
     const { pathname, searchParams } = new URL(req.url());
     const method = req.method();
@@ -10,22 +10,6 @@ async function mockApi(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify(body),
     });
-
-    if (pathname === '/api/config' && method === 'GET') {
-      return json({
-        resolved_model_name: 'initial-model',
-        vllm_endpoint: 'http://initial:8080',
-        vllm_namespace: 'initial-ns',
-        vllm_is_name: 'initial-isvc',
-      });
-    }
-
-    if (pathname === '/api/config/default-targets' && method === 'GET') {
-      return json({
-        isvc: { name: 'target-a', namespace: 'test-ns' },
-        llmisvc: { name: 'target-b', namespace: 'test-ns' },
-      });
-    }
 
     if (pathname === '/api/vllm-config' && method === 'GET') {
       const ns = searchParams.get('namespace') || '';
@@ -72,22 +56,6 @@ async function mockApi(page: Page) {
         },
       });
     }
-
-    if (pathname === '/api/sla/profiles' && method === 'GET') {
-      return json([]);
-    }
-
-    if (pathname === '/api/tuner/status' && method === 'GET') {
-      return json({ running: false, trials_completed: 0 });
-    }
-    if (pathname === '/api/tuner/trials' && method === 'GET') {
-      return json([]);
-    }
-    if (pathname === '/api/tuner/importance' && method === 'GET') {
-      return json({});
-    }
-
-    return json({});
   });
 
   await page.route('**/v1/models', async (route) => {
@@ -100,10 +68,7 @@ async function mockApi(page: Page) {
       }),
     });
   });
-}
 
-test('LoadTest Sweep Mode: 타겟 변경 시 모델명 업데이트', async ({ page }) => {
-  await mockApi(page);
   await page.goto('/');
   await page.waitForTimeout(2000);
 
@@ -129,8 +94,75 @@ test('LoadTest Sweep Mode: 타겟 변경 시 모델명 업데이트', async ({ p
   expect(modelValue).toBe('model-a');
 });
 
-test('Tuner: 타겟 변경 시 설정 업데이트', async ({ page }) => {
-  await mockApi(page);
+test('Tuner: 타겟 변경 시 설정 업데이트', async ({ page, mockApi }) => {
+  await page.route('**/api/vllm-config', async (route) => {
+    const req = route.request();
+    const { pathname, searchParams } = new URL(req.url());
+    const method = req.method();
+    const json = (body: unknown) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+
+    if (pathname === '/api/vllm-config' && method === 'GET') {
+      const ns = searchParams.get('namespace') || '';
+      const isName = searchParams.get('is_name') || '';
+      const crType = searchParams.get('cr_type') || '';
+      if (isName === 'target-a' || (isName === 'target-a-predictor' && crType === 'inferenceservice')) {
+        return json({
+          success: true,
+          data: {
+            model_name: 'model-a',
+            max_num_seqs: '128',
+            gpu_memory_utilization: '0.85',
+            max_model_len: '4096',
+            max_num_batched_tokens: '1024',
+            block_size: '16',
+            swap_space: '2',
+          },
+        });
+      }
+      if (isName === 'target-b' || (isName === 'target-b-openshift-default' && crType === 'llminferenceservice')) {
+        return json({
+          success: true,
+          data: {
+            model_name: 'model-b',
+            max_num_seqs: '256',
+            gpu_memory_utilization: '0.90',
+            max_model_len: '8192',
+            max_num_batched_tokens: '2048',
+            block_size: '32',
+            swap_space: '4',
+          },
+        });
+      }
+      return json({
+        success: true,
+        data: {
+          model_name: 'default-model',
+          max_num_seqs: '64',
+          gpu_memory_utilization: '0.80',
+          max_model_len: '2048',
+          max_num_batched_tokens: '512',
+          block_size: '8',
+          swap_space: '1',
+        },
+      });
+    }
+  });
+
+  await page.route('**/v1/models', async (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        object: 'list',
+        data: [{ id: 'model-a', object: 'model' }],
+      }),
+    });
+  });
+
   await page.goto('/');
   await page.waitForTimeout(3000);
 

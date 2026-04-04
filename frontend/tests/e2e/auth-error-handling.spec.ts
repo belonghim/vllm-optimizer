@@ -1,90 +1,49 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from './fixtures/mock-api';
 
-async function mockApiWithError(page: Page, status: number, body?: string, contentType = 'application/json') {
-  await page.route('**/api/**', async (route) => {
-    const req = route.request();
-    const { pathname } = new URL(req.url());
-
-    if (pathname === '/api/metrics/batch' && req.method() === 'POST') {
+test('auth error - 401 Unauthorized redirects to /', async ({ page, mockApi }) => {
+  await page.route('**/api/metrics/batch', async (route) => {
+    if (route.request().method() === 'POST') {
       return route.fulfill({
-        status,
-        contentType,
-        body: body || JSON.stringify({ detail: 'Unauthorized' }),
-      });
-    }
-
-    if (pathname === '/api/config' && req.method() === 'GET') {
-      return route.fulfill({
-        status: 200,
+        status: 401,
         contentType: 'application/json',
-        body: JSON.stringify({ vllm_endpoint: '', vllm_namespace: '', vllm_is_name: '' }),
+        body: JSON.stringify({ detail: 'Unauthorized' }),
       });
     }
-
-    if (pathname === '/api/sla/profiles' && req.method() === 'GET') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify([]),
-      });
-    }
-
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({}),
-    });
+    await route.continue();
   });
-}
 
-test('auth error - 401 Unauthorized redirects to /', async ({ page }) => {
-  await mockApiWithError(page, 401);
   await page.goto('/metrics');
 
   await expect(page).toHaveURL('/');
 });
 
-test('auth error - 403 Forbidden redirects to /', async ({ page }) => {
-  await mockApiWithError(page, 403);
+test('auth error - 403 Forbidden redirects to /', async ({ page, mockApi }) => {
+  await page.route('**/api/metrics/batch', async (route) => {
+    if (route.request().method() === 'POST') {
+      return route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({ detail: 'Forbidden' }),
+      });
+    }
+    await route.continue();
+  });
+
   await page.goto('/metrics');
 
   await expect(page).toHaveURL('/');
 });
 
-test('auth error - non-JSON 500 error does not crash app', async ({ page }) => {
-  await page.route('**/api/**', async (route) => {
-    const req = route.request();
-    const { pathname } = new URL(req.url());
-
-    if (pathname === '/api/config' && req.method() === 'GET') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ vllm_endpoint: '', vllm_namespace: '', vllm_is_name: '' }),
-      });
-    }
-
-    if (pathname === '/api/sla/profiles' && req.method() === 'GET') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify([]),
-      });
-    }
-
-    if (pathname === '/api/load_test/start' && req.method() === 'POST') {
+test('auth error - non-JSON 500 error does not crash app', async ({ page, mockApi }) => {
+  await page.route('**/api/load_test/start', async (route) => {
+    if (route.request().method() === 'POST') {
       return route.fulfill({
         status: 500,
         contentType: 'text/html',
         body: '<html><body>Internal Server Error</body></html>',
       });
     }
-
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({}),
-    });
+    await route.continue();
   });
 
   await page.goto('/');
