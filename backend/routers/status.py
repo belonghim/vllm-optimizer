@@ -10,9 +10,7 @@ import os
 from typing import Any
 
 import httpx
-
 from fastapi import APIRouter, Request
-from services.shared import runtime_config
 from services.rate_limiter import limiter
 
 logger = logging.getLogger(__name__)

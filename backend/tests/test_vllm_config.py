@@ -3,6 +3,7 @@ from typing import cast
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 pytest.importorskip("optuna")
 from fastapi import FastAPI
 from fastapi.testclient import TestClient

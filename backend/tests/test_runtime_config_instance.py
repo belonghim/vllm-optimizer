@@ -1,5 +1,4 @@
 import pytest
-
 import services.runtime_config_instance as rci
 from services.runtime_config import RuntimeConfig
 

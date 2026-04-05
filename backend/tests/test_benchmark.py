@@ -1,16 +1,14 @@
 import asyncio
-import io
 import json
 from typing import Any
 
 import pytest
-from fastapi.testclient import TestClient
 
 
 @pytest.fixture
 def client(isolated_client, monkeypatch):
-    from services.storage import Storage
     from routers.benchmark import get_storage
+    from services.storage import Storage
 
     test_storage = Storage(":memory:")
 

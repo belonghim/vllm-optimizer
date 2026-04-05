@@ -10,7 +10,6 @@ import importlib
 import inspect
 import os
 import sys
-import tempfile
 import types
 from contextlib import suppress
 from typing import Any, cast
@@ -493,8 +492,14 @@ def _mock_auto_tuner_preflight() -> Any:
 
 
 @pytest.fixture
+def vllm_metrics_text() -> str:
+    import pathlib
+
+    return (pathlib.Path(__file__).parent / "fixtures" / "vllm_metrics_sample.txt").read_text()
+
+
+@pytest.fixture
 def sample_fixture():
-    """A minimal fixture for testing."""
     return {"test": "value"}
 
 

@@ -59,6 +59,7 @@ class TargetCache:
     last_label_check: float = field(default_factory=time.time)
     cr_type: str = ""
     model_name: str = ""
+    prev_counters: dict[str, dict[str, float]] = field(default_factory=dict)
 
 
 class MultiTargetMetricsCollector:
@@ -91,7 +92,7 @@ class MultiTargetMetricsCollector:
 
     def _register_default_target(self) -> None:
         cr_type = os.getenv("VLLM_CR_TYPE", "inferenceservice")
-        key = self._target_key(self._default_namespace, self._default_is_name, cr_type)
+        key = self.build_target_key(self._default_namespace, self._default_is_name, cr_type)
         self._targets[key] = TargetCache(
             key=key,
             namespace=self._default_namespace,
@@ -133,6 +134,50 @@ class MultiTargetMetricsCollector:
         spec = cr_obj.get("spec", {}) if isinstance(cr_obj, dict) else {}
         return adapter.resolve_model_name(spec, is_name)
 
+    def _compute_rates(
+        self,
+        pod_ip: str,
+        target: TargetCache,
+        raw_counters: dict[str, float],
+        now: float,
+    ) -> dict[str, float]:
+        rates: dict[str, float] = {}
+        if pod_ip not in target.prev_counters:
+            target.prev_counters[pod_ip] = {}
+        prev = target.prev_counters[pod_ip]
+        for metric_name, current_value in raw_counters.items():
+            ts_key = metric_name + "_ts"
+            if metric_name not in prev:
+                prev[metric_name] = current_value
+                prev[ts_key] = now
+                rates[metric_name] = 0.0
+            else:
+                prev_val = prev[metric_name]
+                prev_ts = prev[ts_key]
+                elapsed = now - prev_ts
+                if elapsed <= 0:
+                    rates[metric_name] = 0.0
+                    continue
+                delta = current_value - prev_val
+                if delta < 0:
+                    prev[metric_name] = current_value
+                    prev[ts_key] = now
+                    rates[metric_name] = 0.0
+                    continue
+                prev[metric_name] = current_value
+                prev[ts_key] = now
+                rates[metric_name] = delta / elapsed
+        return rates
+
+    def _compute_histogram_stats(self, raw_histograms: dict[str, float]) -> dict[str, float]:
+        ttft_sum = raw_histograms.get("ttft_sum", 0.0)
+        ttft_count = raw_histograms.get("ttft_count", 0.0)
+        latency_sum = raw_histograms.get("latency_sum", 0.0)
+        latency_count = raw_histograms.get("latency_count", 0.0)
+        mean_ttft_ms = (ttft_sum / ttft_count) * 1000 if ttft_count > 0 else 0.0
+        mean_e2e_latency_ms = (latency_sum / latency_count) * 1000 if latency_count > 0 else 0.0
+        return {"mean_ttft_ms": mean_ttft_ms, "mean_e2e_latency_ms": mean_e2e_latency_ms}
+
     def _get_default_target(self) -> TargetCache | None:
         if not self._targets:
             return None
@@ -169,8 +214,11 @@ class MultiTargetMetricsCollector:
 
     def get_target(self, namespace: str, is_name: str, cr_type: str | None = None) -> "TargetCache | None":
         """Resolve target cache entry using the canonical key format."""
-        key = self._target_key(namespace, is_name, cr_type)
-        return self._targets.get(key)
+        key = self.build_target_key(namespace, is_name, cr_type)
+        result = self._targets.get(key)
+        if result is None:
+            logger.warning("Target not found: key=%s (registered: %s)", key, list(self._targets.keys()))
+        return result
 
     def record_start_request(self, interval: float) -> None:
         self._start_requests.append(interval)
@@ -201,7 +249,7 @@ class MultiTargetMetricsCollector:
         old_key = default_target.key
         new_namespace = namespace if namespace is not None else default_target.namespace
         new_is_name = is_name if is_name is not None else default_target.is_name
-        new_key = self._target_key(new_namespace, new_is_name, default_target.cr_type)
+        new_key = self.build_target_key(new_namespace, new_is_name, default_target.cr_type)
 
         default_target.namespace = new_namespace
         default_target.is_name = new_is_name
@@ -248,7 +296,7 @@ class MultiTargetMetricsCollector:
         ]
 
     async def get_metrics(self, namespace: str, is_name: str, cr_type: str | None = None) -> VLLMMetrics | None:
-        key = self._target_key(namespace, is_name, cr_type)
+        key = self.build_target_key(namespace, is_name, cr_type)
         async with self._lock:
             target = self._targets.get(key)
             if target is None:
@@ -263,7 +311,7 @@ class MultiTargetMetricsCollector:
     async def register_target(self, namespace: str, is_name: str, cr_type: str | None = None) -> bool:
         if cr_type is None:
             cr_type = runtime_config.cr_type
-        key = self._target_key(namespace, is_name, cr_type)
+        key = self.build_target_key(namespace, is_name, cr_type)
         async with self._lock:
             existing = self._targets.get(key)
             if existing is not None:
@@ -295,7 +343,7 @@ class MultiTargetMetricsCollector:
         return True
 
     async def remove_target(self, namespace: str, is_name: str, cr_type: str | None = None) -> bool:
-        key = self._target_key(namespace, is_name, cr_type)
+        key = self.build_target_key(namespace, is_name, cr_type)
         async with self._lock:
             removed = self._targets.pop(key, None)
             should_stop = not self._targets
@@ -502,6 +550,12 @@ class MultiTargetMetricsCollector:
         return labels_obj.get("openshift.io/cluster-monitoring") == "true"
 
     async def _collect_target(self, target: TargetCache) -> None:
+        if os.getenv("METRICS_SOURCE", "thanos") == "direct":
+            await self._collect_target_direct(target)
+        else:
+            await self._collect_target_thanos(target)
+
+    async def _collect_target_thanos(self, target: TargetCache) -> None:
         metrics = VLLMMetrics(timestamp=time.time())
 
         prom_data = await self._query_prometheus(target.namespace, target.is_name, target.cr_type)
@@ -512,6 +566,113 @@ class MultiTargetMetricsCollector:
         k8s_data = await self._query_kubernetes_pods(target.namespace, target.is_name, target.cr_type)
         metrics.pod_count = k8s_data.get("pod_count", 0)
         metrics.pod_ready = k8s_data.get("pod_ready", 0)
+
+        if target.is_default:
+            update_metrics(metrics)
+
+        target.latest = metrics
+        target.history.append(metrics)
+
+    async def _collect_target_direct(self, target: TargetCache) -> None:
+        from services.metrics_constants import COUNTER_METRIC_MAP
+
+        adapter = self._adapter_for(target)
+
+        if not self._k8s_available or self._k8s_core is None:
+            return
+
+        try:
+            pods = cast(
+                client.V1PodList,
+                await asyncio.to_thread(
+                    self._k8s_core.list_namespaced_pod,
+                    namespace=target.namespace,
+                    label_selector=adapter.pod_label_selector(target.is_name),
+                ),
+            )
+        except Exception as exc:
+            logger.warning(
+                "[MultiTargetMetricsCollector] direct scrape pod list failed (%s): %s",
+                target.key,
+                exc,
+            )
+            return
+
+        items = pods.items or []
+        running_pods = [pod for pod in items if pod.status and pod.status.phase == "Running" and pod.status.pod_ip]
+
+        if not running_pods:
+            return
+
+        port = adapter.metrics_port()
+        now = time.time()
+
+        scrape_results = await asyncio.gather(
+            *(self._scrape_pod_metrics(pod.status.pod_ip, port) for pod in running_pods),
+            return_exceptions=True,
+        )
+
+        counter_fields = {v for v in COUNTER_METRIC_MAP.values() if not v.startswith("_")}
+        agg_gauges: dict[str, list[float]] = {}
+        agg_hist: dict[str, float] = {}
+        all_counter_raws: dict[str, dict[str, float]] = {}
+
+        for pod, result in zip(running_pods, scrape_results, strict=False):
+            if isinstance(result, Exception) or not result:
+                continue
+            pod_ip: str = pod.status.pod_ip
+            pod_counters: dict[str, float] = {}
+            for k, v in cast(dict[str, float], result).items():
+                if k in counter_fields:
+                    pod_counters[k] = v
+                elif k in (
+                    "running_requests",
+                    "waiting_requests",
+                    "kv_cache_usage_pct",
+                    "gpu_utilization_pct",
+                    "gpu_memory_used_gb",
+                ):
+                    agg_gauges.setdefault(k, []).append(v)
+                elif k.endswith(("_sum", "_count")):
+                    agg_hist[k] = agg_hist.get(k, 0.0) + v
+            all_counter_raws[pod_ip] = pod_counters
+
+        metrics = VLLMMetrics(timestamp=now)
+        metrics.pod_count = len(items)
+        metrics.pod_ready = sum(
+            1
+            for pod in items
+            if pod.status
+            and pod.status.phase == "Running"
+            and pod.status.container_statuses
+            and all(cs.ready for cs in (pod.status.container_statuses or []))
+        )
+
+        tps = 0.0
+        rps = 0.0
+        for pod_ip, counter_raws in all_counter_raws.items():
+            rates = self._compute_rates(pod_ip, target, counter_raws, now)
+            tps += rates.get("tokens_per_second", 0.0)
+            rps += rates.get("requests_per_second", 0.0)
+        metrics.tokens_per_second = tps
+        metrics.requests_per_second = rps
+
+        if "running_requests" in agg_gauges:
+            metrics.running_requests = int(sum(agg_gauges["running_requests"]))
+        if "waiting_requests" in agg_gauges:
+            metrics.waiting_requests = int(sum(agg_gauges["waiting_requests"]))
+        if "kv_cache_usage_pct" in agg_gauges:
+            vals = agg_gauges["kv_cache_usage_pct"]
+            metrics.kv_cache_usage_pct = (sum(vals) / len(vals)) * 100
+        if "gpu_utilization_pct" in agg_gauges:
+            vals = agg_gauges["gpu_utilization_pct"]
+            metrics.gpu_utilization_pct = sum(vals) / len(vals)
+        if "gpu_memory_used_gb" in agg_gauges:
+            metrics.gpu_memory_used_gb = sum(agg_gauges["gpu_memory_used_gb"])
+
+        hist_stats = self._compute_histogram_stats(agg_hist)
+        metrics.mean_ttft_ms = hist_stats.get("mean_ttft_ms", 0.0)
+        metrics.mean_e2e_latency_ms = hist_stats.get("mean_e2e_latency_ms", 0.0)
 
         if target.is_default:
             update_metrics(metrics)
@@ -688,11 +849,11 @@ class MultiTargetMetricsCollector:
         }
 
     def get_has_monitoring_label(self, namespace: str, is_name: str, cr_type: str | None = None) -> bool:
-        key = self._target_key(namespace, is_name, cr_type)
+        key = self.build_target_key(namespace, is_name, cr_type)
         target = self._targets.get(key)
         return target.has_monitoring_label is not None and target.has_monitoring_label if target else False
 
-    def _target_key(self, namespace: str, is_name: str, cr_type: str | None = None) -> str:
+    def build_target_key(self, namespace: str, is_name: str, cr_type: str | None = None) -> str:
         if cr_type is None:
             cr_type = runtime_config.cr_type
         return f"{namespace}/{is_name}/{cr_type}"
@@ -719,3 +880,70 @@ class MultiTargetMetricsCollector:
                 "[MultiTargetMetricsCollector] K8s init failed (monitoring label/pods disabled): %s",
                 exc,
             )
+
+    async def _scrape_pod_metrics(self, pod_ip: str, port: int) -> dict[str, float]:
+        from services.metrics_constants import COUNTER_METRIC_MAP, GAUGE_METRIC_MAP, HISTOGRAM_METRIC_MAP
+
+        try:
+            async with httpx.AsyncClient(verify=False, timeout=5) as http:
+                resp = await http.get(f"http://{pod_ip}:{port}/metrics")
+                resp.raise_for_status()
+                text = resp.text
+        except httpx.HTTPError as exc:
+            logger.warning("[MultiTargetMetricsCollector] pod scrape failed (%s:%d): %s", pod_ip, port, exc)
+            return {}
+
+        hist_suffixes: dict[str, tuple[str, str]] = {}
+        for base, alias in HISTOGRAM_METRIC_MAP.items():
+            hist_suffixes[f"{base}_sum"] = (alias, "sum")
+            hist_suffixes[f"{base}_count"] = (alias, "count")
+
+        gauge_acc: dict[str, float] = {}
+        counter_acc: dict[str, float] = {}
+        hist_acc: dict[str, float] = {}
+
+        for line in text.splitlines():
+            if not line or line.startswith("#"):
+                continue
+
+            brace_pos = line.find("{")
+            if brace_pos != -1:
+                metric_name = line[:brace_pos]
+                rest = line[line.rfind("}") + 1 :].strip()
+            else:
+                parts = line.split(None, 1)
+                if len(parts) < 2:
+                    continue
+                metric_name, rest = parts[0], parts[1]
+
+            value_str = rest.split()[0] if rest else ""
+            if not value_str:
+                continue
+            try:
+                value = float(value_str)
+            except ValueError:
+                continue
+            if math.isnan(value) or math.isinf(value):
+                continue
+
+            if metric_name in GAUGE_METRIC_MAP:
+                gauge_acc[metric_name] = gauge_acc.get(metric_name, 0.0) + value
+            elif metric_name.endswith("_created"):
+                pass
+            elif metric_name in COUNTER_METRIC_MAP:
+                counter_acc[metric_name] = counter_acc.get(metric_name, 0.0) + value
+            elif metric_name in hist_suffixes:
+                alias, suffix = hist_suffixes[metric_name]
+                key = f"{alias}_{suffix}"
+                hist_acc[key] = hist_acc.get(key, 0.0) + value
+
+        result: dict[str, float] = {}
+        for metric_name, field_name in GAUGE_METRIC_MAP.items():
+            if metric_name in gauge_acc:
+                result[field_name] = result.get(field_name, 0.0) + gauge_acc[metric_name]
+        for metric_name, field_name in COUNTER_METRIC_MAP.items():
+            if metric_name in counter_acc:
+                result[field_name] = result.get(field_name, 0.0) + counter_acc[metric_name]
+        result.update(hist_acc)
+
+        return result

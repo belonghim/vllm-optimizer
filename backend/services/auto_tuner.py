@@ -1,12 +1,9 @@
 import asyncio
 import logging
 import os
-import time
 from typing import Any, Literal
 
-import httpx
 import optuna
-from errors import TunerError
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
 from models.load_test import SweepConfig, TuningConfig, TuningTrial

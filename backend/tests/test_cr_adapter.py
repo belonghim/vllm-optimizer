@@ -1,7 +1,6 @@
 import copy
 
 import pytest
-
 from services.cr_adapter import (
     InferenceServiceAdapter,
     LLMInferenceServiceAdapter,
@@ -12,7 +11,6 @@ from services.cr_adapter import (
     get_cr_adapter,
     space_str_to_config_dict,
 )
-
 
 SAMPLE_IS_SPEC = {
     "predictor": {
@@ -482,7 +480,10 @@ class TestLLMInferenceServiceAdapter:
 
     def test_pod_label_selector(self):
         adapter = LLMInferenceServiceAdapter()
-        assert adapter.pod_label_selector("small-llm-d") == "app.kubernetes.io/name=small-llm-d,kserve.io/component=workload"
+        assert (
+            adapter.pod_label_selector("small-llm-d")
+            == "app.kubernetes.io/name=small-llm-d,kserve.io/component=workload"
+        )
 
     def test_deployment_name(self):
         adapter = LLMInferenceServiceAdapter()
@@ -494,7 +495,7 @@ class TestLLMInferenceServiceAdapter:
 
     def test_dcgm_pod_pattern(self):
         adapter = LLMInferenceServiceAdapter()
-        assert adapter.dcgm_pod_pattern("small-llm-d") == "small-llm-d-kserve(?!-router-scheduler).*"
+        assert adapter.dcgm_pod_pattern("small-llm-d") == "small-llm-d-kserve.*"
 
     def test_check_ready_true(self):
         adapter = LLMInferenceServiceAdapter()

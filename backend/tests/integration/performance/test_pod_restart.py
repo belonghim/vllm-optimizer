@@ -76,9 +76,7 @@ def test_pod_restart_on_tuner_apply(
         "warmup_requests": 0,
         "objective": "tps",
     }
-    vllm_endpoint = os.getenv(
-        "VLLM_ENDPOINT", "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080"
-    )
+    vllm_endpoint = os.getenv("VLLM_ENDPOINT", "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080")
     resp = http_client.post("/api/tuner/start", json={**config, "vllm_endpoint": vllm_endpoint}, timeout=30)
     assert resp.status_code == 200, f"Failed to start tuner: {resp.text}"
     assert resp.json().get("success"), f"Tuner start failed: {resp.json()}"

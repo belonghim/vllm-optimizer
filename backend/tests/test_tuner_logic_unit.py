@@ -4,7 +4,9 @@ import optuna
 import pytest
 
 from ..models.load_test import TuningConfig
-from ..services.tuner_logic import TunerLogic  # pyright: ignore[reportImplicitRelativeImport]  # test env: backend/ added to sys.path at runtime
+from ..services.tuner_logic import (
+    TunerLogic,  # pyright: ignore[reportImplicitRelativeImport]  # test env: backend/ added to sys.path at runtime
+)
 
 
 def _make_load_engine() -> MagicMock:

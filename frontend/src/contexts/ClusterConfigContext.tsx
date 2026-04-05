@@ -237,28 +237,18 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
         if (!isvcHasValue && !llmisvcHasValue) return;
 
         setConfig(prev => {
-          const targets = [...prev.targets];
+          let targets = [...prev.targets];
 
           if (isvcHasValue && typeof isvc.name === "string" && typeof isvc.namespace === "string") {
-            const cmIdx = targets.findIndex(t => t.source === "configmap" && t.crType === "inferenceservice");
             const newIsvcTarget = createConfigMapTarget(isvc.namespace, isvc.name, "inferenceservice");
-
-            if (cmIdx >= 0) {
-              targets[cmIdx] = newIsvcTarget;
-            } else {
-              targets.unshift(newIsvcTarget);
-            }
+            targets = targets.filter(t => t.crType !== "inferenceservice");
+            targets.unshift(newIsvcTarget);
           }
 
           if (llmisvcHasValue && typeof llmisvc.name === "string" && typeof llmisvc.namespace === "string") {
-            const cmIdx = targets.findIndex(t => t.source === "configmap" && t.crType === "llminferenceservice");
             const newLlmisvcTarget = createConfigMapTarget(llmisvc.namespace, llmisvc.name, "llminferenceservice");
-
-            if (cmIdx >= 0) {
-              targets[cmIdx] = newLlmisvcTarget;
-            } else {
-              targets.unshift(newLlmisvcTarget);
-            }
+            targets = targets.filter(t => t.crType !== "llminferenceservice");
+            targets.unshift(newLlmisvcTarget);
           }
 
           return { ...prev, targets };

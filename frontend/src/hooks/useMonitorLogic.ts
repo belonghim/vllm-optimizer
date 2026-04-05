@@ -12,6 +12,7 @@ import {
   type ChartConfig,
 } from "../components/MonitorChartGrid";
 import type { PerPodMetricsResponse, SlaProfile, TargetResult, TargetState } from "../types";
+import { getTargetKey } from "../utils/targetKey";
 
 export function useMonitorLogic(isActive: boolean) {
   const { isMockEnabled } = useMockData();
@@ -56,7 +57,7 @@ export function useMonitorLogic(isActive: boolean) {
     if (isMockEnabled) {
       const newStates: Record<string, TargetState> = {};
       targets.forEach(target => {
-        const key = `${target.namespace}/${target.inferenceService}/${target.crType || 'inferenceservice'}`;
+        const key = getTargetKey(target);
         newStates[key] = {
           metrics: { ...mockMetrics() },
           history: buildGapFill(mockHistory().map(h => ({ ...h, t: h.t })), ['ttft', 'lat_p99']).slice(-450),
@@ -186,7 +187,7 @@ export function useMonitorLogic(isActive: boolean) {
     setTargetStates(prev => {
       const initialStates: Record<string, TargetState> = {};
       targets.forEach(t => {
-        const key = `${t.namespace}/${t.inferenceService}/${t.crType || 'inferenceservice'}`;
+        const key = getTargetKey(t);
         initialStates[key] = prev[key] || { status: 'collecting' };
       });
       return { ...prev, ...initialStates };
@@ -228,7 +229,7 @@ export function useMonitorLogic(isActive: boolean) {
 
   const defaultKey = useMemo(() => {
     const dt = targets[0];
-    return dt ? `${dt.namespace}/${dt.inferenceService}/${dt.crType || 'inferenceservice'}` : null;
+    return dt ? getTargetKey(dt) : null;
   }, [targets]);
 
   const chartLinesMap = useMemo(

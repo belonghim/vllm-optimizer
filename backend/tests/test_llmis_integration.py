@@ -5,9 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
 from services.cr_adapter import LLMInferenceServiceAdapter
-
 
 _MOCK_LLMIS = {
     "spec": {

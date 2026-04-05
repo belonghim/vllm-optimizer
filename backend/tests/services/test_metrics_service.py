@@ -41,7 +41,7 @@ class TestFetchQueryRangeMultiResult:
 
         with patch("services.metrics_service.with_retry", AsyncMock(return_value=mock_response)):
             result = await _fetch_query_range_multi_result(
-                mock_client, {}, "rate(vllm:num_tokens{namespace=\"test\"}[1m])", 1234567890.0, 1234567892.0, 10
+                mock_client, {}, 'rate(vllm:num_tokens{namespace="test"}[1m])', 1234567890.0, 1234567892.0, 10
             )
 
         assert isinstance(result, dict)
@@ -71,7 +71,7 @@ class TestFetchQueryRangeMultiResult:
 
         with patch("services.metrics_service.with_retry", AsyncMock(return_value=mock_response)):
             result = await _fetch_query_range_multi_result(
-                mock_client, {}, "vllm:gpu_util{namespace=\"test\"}", 1234567890.0, 1234567892.0, 10
+                mock_client, {}, 'vllm:gpu_util{namespace="test"}', 1234567890.0, 1234567892.0, 10
             )
 
         assert len(result) == 2
@@ -93,7 +93,7 @@ class TestFetchQueryRangeMultiResult:
 
         with patch("services.metrics_service.with_retry", AsyncMock(return_value=mock_response)):
             result = await _fetch_query_range_multi_result(
-                mock_client, {}, "vllm:nonexistent{namespace=\"test\"}", 1234567890.0, 1234567892.0, 10
+                mock_client, {}, 'vllm:nonexistent{namespace="test"}', 1234567890.0, 1234567892.0, 10
             )
 
         assert result == {}
@@ -118,7 +118,7 @@ class TestFetchQueryRangeMultiResult:
 
         with patch("services.metrics_service.with_retry", AsyncMock(return_value=mock_response)):
             result = await _fetch_query_range_multi_result(
-                mock_client, {}, "rate(vllm:num_tokens{namespace=\"test\"}[1m])", 1234567890.0, 1234567892.0, 10
+                mock_client, {}, 'rate(vllm:num_tokens{namespace="test"}[1m])', 1234567890.0, 1234567892.0, 10
             )
 
         assert len(result) == 2
@@ -135,11 +135,7 @@ class TestFetchQueryRange:
         mock_response = MagicMock()
         mock_response.json.return_value = {
             "status": "success",
-            "data": {
-                "result": [
-                    {"values": [[1234567890.0, "10.5"], [1234567891.0, "11.5"]]}
-                ]
-            },
+            "data": {"result": [{"values": [[1234567890.0, "10.5"], [1234567891.0, "11.5"]]}]},
         }
         mock_response.raise_for_status = MagicMock()
 
@@ -148,7 +144,7 @@ class TestFetchQueryRange:
 
         with patch("services.metrics_service.with_retry", AsyncMock(return_value=mock_response)):
             result = await _fetch_query_range(
-                mock_client, {}, "sum(rate(vllm:num_tokens{namespace=\"test\"}[1m]))", 1234567890.0, 1234567892.0, 10
+                mock_client, {}, 'sum(rate(vllm:num_tokens{namespace="test"}[1m]))', 1234567890.0, 1234567892.0, 10
             )
 
         assert isinstance(result, list)
@@ -278,9 +274,7 @@ class TestGetHistoryFromThanos:
             for target in body.targets:
                 key = f"{target.namespace}/{target.inferenceService}"
 
-                queries = mock_collector._build_pod_queries(
-                    target.namespace, target.inferenceService, target.cr_type
-                )
+                queries = mock_collector._build_pod_queries(target.namespace, target.inferenceService, target.cr_type)
 
                 pod_series_list = []
                 for f in queries.keys():

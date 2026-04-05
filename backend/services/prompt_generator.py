@@ -5,6 +5,7 @@ No external dependencies — uses only Python stdlib.
 """
 
 import random
+
 from models.load_test import SyntheticPromptConfig
 
 _WORD_POOL = [

@@ -181,9 +181,7 @@ class TestFetchPrometheusMetric:
         mock_response = MagicMock()
         mock_response.json.return_value = {
             "status": "success",
-            "data": {
-                "result": []
-            },
+            "data": {"result": []},
         }
         mock_response.raise_for_status = MagicMock()
 

@@ -1,4 +1,3 @@
-import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -7,7 +6,6 @@ from kubernetes.client.exceptions import ApiException
 
 from ..models.load_test import TuningConfig, TuningTrial
 from ..services import auto_tuner as auto_tuner_module
-from ..services import model_resolver as model_resolver_module
 from ..services.auto_tuner import AutoTuner
 
 
@@ -222,14 +220,13 @@ async def test_save_auto_benchmark_uses_env_fallback_when_model_resolution_unava
     with (
         patch.object(auto_tuner_module, "resolve_model_name", new=AsyncMock(side_effect=connect_error)) as resolve_mock,
         patch.object(auto_tuner_module.storage, "save_benchmark", new=save_benchmark_mock),
-        patch.dict(os.environ, {"VLLM_MODEL": "env-model-fallback"}, clear=False),
     ):
         benchmark_id = await tuner._save_auto_benchmark()
 
     assert benchmark_id == 777
     resolve_mock.assert_awaited_once_with("http://mock-vllm:8080")
     saved_benchmark = save_benchmark_mock.call_args.args[0]
-    assert saved_benchmark.config.model == "env-model-fallback"
+    assert saved_benchmark.config.model == "unknown"
 
 
 @pytest.mark.asyncio

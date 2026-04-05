@@ -108,7 +108,7 @@ async def lifespan(app: FastAPI):
         logger.warning("[Lifespan] ConfigMap watcher start failed (continuing): %s", e)
 
     # ── Startup configuration validation ──
-    _required_env = ["VLLM_ENDPOINT", "VLLM_MODEL"]
+    _required_env = ["VLLM_ENDPOINT"]
     _optional_env = ["PROMETHEUS_URL", "K8S_DEPLOYMENT_NAME"]
 
     for var in _required_env:

@@ -3,6 +3,7 @@ LLMIS (LLMInferenceService) 어댑터 경로 테스트.
 
 KServe InferenceServiceAdapter 테스트는 test_vllm_config.py에 유지.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest

@@ -4,8 +4,8 @@ from fastapi import APIRouter, HTTPException, Query, Request, Response
 from models.load_test import Benchmark
 from models.sla import SlaEvaluateResponse, SlaEvaluationResult, SlaProfile, SlaVerdict
 from pydantic import BaseModel
-from services.shared import storage
 from services.rate_limiter import limiter
+from services.shared import storage
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

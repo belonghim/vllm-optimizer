@@ -14,9 +14,7 @@ BACKEND_URL = os.getenv(
 VLLM_NAMESPACE = os.getenv("VLLM_NAMESPACE", "vllm-lab-dev")
 VLLM_CR_TYPE = os.getenv("VLLM_CR_TYPE", "inferenceservice")
 VLLM_IS_NAME = os.getenv("VLLM_IS_NAME", "llm-ov")
-VLLM_ENDPOINT = os.getenv(
-    "VLLM_ENDPOINT", "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080"
-)
+VLLM_ENDPOINT = os.getenv("VLLM_ENDPOINT", "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080")
 VLLM_MODEL = os.getenv("VLLM_MODEL", "OpenVINO/Phi-4-mini-instruct-int4-ov")
 OPTIMIZER_NAMESPACE = os.getenv("OPTIMIZER_NAMESPACE", "vllm-optimizer-dev")
 

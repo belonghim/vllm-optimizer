@@ -6,7 +6,6 @@ import logging
 import os
 
 import httpx
-
 from services.retry_helper import with_retry
 
 logger = logging.getLogger(__name__)

@@ -7,7 +7,6 @@ from typing import Any
 
 import aiosqlite
 import pytest
-from fastapi.testclient import TestClient
 from models.load_test import (
     Benchmark,
     BenchmarkMetadata,

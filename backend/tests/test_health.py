@@ -1,8 +1,5 @@
 """Tests for /health endpoint."""
 
-import os
-
-import pytest
 from fastapi.testclient import TestClient
 
 

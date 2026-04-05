@@ -7,9 +7,8 @@ from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from prometheus_client import Counter, Gauge, Histogram
-
     from models.load_test import TuningConfig, TuningTrial
+    from prometheus_client import Counter, Gauge, Histogram
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +68,7 @@ class EventBroadcaster:
         self._persistence_warning_sent = False
 
     async def emit_trial_metrics(
-        self, trial_start: float, status: str, best_trial: "TuningTrial | None", config: "TuningConfig | None"
+        self, trial_start: float, status: str, best_trial: TuningTrial | None, config: TuningConfig | None
     ) -> None:
         try:
             if _metrics_available:

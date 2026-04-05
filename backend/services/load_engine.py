@@ -12,15 +12,16 @@ import os
 import sqlite3
 import statistics
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any, Callable
+from typing import Any
 from urllib.parse import urlparse
 
 import httpx
 import numpy as np
 import psutil
-from models.load_test import LoadTestConfig, RequestResult, SweepConfig, SweepStepResult, SweepResult
+from models.load_test import LoadTestConfig, RequestResult, SweepConfig, SweepResult, SweepStepResult
 from services.prompt_generator import generate_prompt
 
 logger = logging.getLogger(__name__)
@@ -389,7 +390,7 @@ class LoadTestEngine:
                 if config.endpoint_type == "chat":
                     return await self._dispatch_chat_completions(config, payload, external_client, t0, request_id)
                 return await self._dispatch_completions(config, payload, external_client, t0, request_id)
-            except (httpx.HTTPError, json.JSONDecodeError, asyncio.TimeoutError, KeyError) as e:
+            except (TimeoutError, httpx.HTTPError, json.JSONDecodeError, KeyError) as e:
                 return RequestResult(
                     req_id=request_id,
                     success=False,
@@ -559,7 +560,7 @@ class LoadTestEngine:
         for fut in asyncio.as_completed(remaining_tasks):
             try:
                 result = await fut
-            except (httpx.HTTPError, json.JSONDecodeError, asyncio.TimeoutError, KeyError) as e:
+            except (TimeoutError, httpx.HTTPError, json.JSONDecodeError, KeyError) as e:
                 result = RequestResult(
                     req_id=-1,
                     success=False,

@@ -8,15 +8,16 @@ Converts GuideLLM GenerativeBenchmarksReport JSON (version 1) to vllm-optimizer 
 - Sets metadata.source = "guidellm"
 """
 
-import time
 import logging
+import time
+
 from models.load_test import (
     Benchmark,
+    BenchmarkMetadata,
+    LatencyStats,
     LoadTestConfig,
     LoadTestResult,
-    LatencyStats,
     TpsStats,
-    BenchmarkMetadata,
 )
 
 logger = logging.getLogger(__name__)

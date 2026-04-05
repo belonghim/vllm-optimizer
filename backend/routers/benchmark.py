@@ -12,9 +12,9 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Res
 from models.load_test import Benchmark, BenchmarkMetadata, ErrorResponse
 from services.guidellm_parser import parse_guidellm_json
 from services.model_resolver import resolve_model_name
+from services.rate_limiter import limiter
 from services.shared import multi_target_collector
 from services.storage import Storage
-from services.rate_limiter import limiter
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

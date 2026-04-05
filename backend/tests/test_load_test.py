@@ -346,7 +346,9 @@ async def test_consecutive_failures_abort_test_early():
         mock_ctx.get = AsyncMock(return_value=mock_resp)
 
         with patch.object(engine, "_dispatch_request", side_effect=always_fail):
-            config = LoadTestConfig(endpoint="http://localhost:8080", model="OpenVINO/Phi-4-mini-instruct-int4-ov", total_requests=100)
+            config = LoadTestConfig(
+                endpoint="http://localhost:8080", model="OpenVINO/Phi-4-mini-instruct-int4-ov", total_requests=100
+            )
             result = await engine.run(config)
 
     assert result.get("success") is False
@@ -398,7 +400,9 @@ async def test_happy_path_unaffected_by_preflight():
         mock_ctx.get = AsyncMock(return_value=mock_resp)
 
         with patch.object(engine, "_dispatch_request", side_effect=mock_dispatch):
-            config = LoadTestConfig(endpoint="http://localhost:8080", model="OpenVINO/Phi-4-mini-instruct-int4-ov", total_requests=5)
+            config = LoadTestConfig(
+                endpoint="http://localhost:8080", model="OpenVINO/Phi-4-mini-instruct-int4-ov", total_requests=5
+            )
             result = await engine.run(config)
 
     assert engine._state.status == LoadTestStatus.COMPLETED
@@ -432,7 +436,9 @@ async def test_mixed_failure_reasons_no_abort():
         mock_ctx.get = AsyncMock(return_value=mock_resp)
 
         with patch.object(engine, "_dispatch_request", side_effect=fail_with_different_errors):
-            config = LoadTestConfig(endpoint="http://localhost:8080", model="OpenVINO/Phi-4-mini-instruct-int4-ov", total_requests=10)
+            config = LoadTestConfig(
+                endpoint="http://localhost:8080", model="OpenVINO/Phi-4-mini-instruct-int4-ov", total_requests=10
+            )
             result = await engine.run(config)
 
     assert result.get("error_type") != "consecutive_failure", (
@@ -461,7 +467,9 @@ async def test_same_failure_reason_aborts():
         mock_ctx.get = AsyncMock(return_value=mock_resp)
 
         with patch.object(engine, "_dispatch_request", side_effect=fail_with_same_error):
-            config = LoadTestConfig(endpoint="http://localhost:8080", model="OpenVINO/Phi-4-mini-instruct-int4-ov", total_requests=100)
+            config = LoadTestConfig(
+                endpoint="http://localhost:8080", model="OpenVINO/Phi-4-mini-instruct-int4-ov", total_requests=100
+            )
             result = await engine.run(config)
 
     assert result.get("success") is False
@@ -538,7 +546,9 @@ async def test_concurrent_run_rejected():
         mock_ctx.get = AsyncMock(return_value=mock_resp)
 
         with patch.object(engine, "_dispatch_request", side_effect=slow_dispatch):
-            config = LoadTestConfig(endpoint="http://localhost:8080", model="OpenVINO/Phi-4-mini-instruct-int4-ov", total_requests=5)
+            config = LoadTestConfig(
+                endpoint="http://localhost:8080", model="OpenVINO/Phi-4-mini-instruct-int4-ov", total_requests=5
+            )
 
             first_run = asyncio.create_task(engine.run(config))
             await asyncio.sleep(0.05)
@@ -581,7 +591,9 @@ async def test_sse_subscriber_disconnect_graceful():
 
         with patch.object(engine, "_dispatch_request", side_effect=mock_dispatch):
             disconnect_queue = await engine.subscribe()
-            config = LoadTestConfig(endpoint="http://localhost:8080", model="OpenVINO/Phi-4-mini-instruct-int4-ov", total_requests=5)
+            config = LoadTestConfig(
+                endpoint="http://localhost:8080", model="OpenVINO/Phi-4-mini-instruct-int4-ov", total_requests=5
+            )
             result = await engine.run(config)
 
     assert engine._state.status == LoadTestStatus.COMPLETED
@@ -991,8 +1003,9 @@ async def test_itl_none_for_single_token():
 async def test_sweep_executes_multiple_steps():
     """run_sweep() calls run() once per RPS step."""
     from unittest.mock import AsyncMock, patch
+
+    from models.load_test import SweepConfig
     from services.load_engine import LoadTestEngine
-    from models.load_test import LoadTestConfig, SweepConfig
 
     sweep_config = SweepConfig(
         endpoint="http://x",
@@ -1040,8 +1053,9 @@ async def test_sweep_executes_multiple_steps():
 def sweep_storage_client(isolated_client: TestClient):
     """Isolated client with initialized in-memory storage injected for sweep endpoints."""
     import asyncio
-    from services.storage import Storage
+
     from routers.load_test import get_storage
+    from services.storage import Storage
 
     test_storage = Storage(":memory:")
     loop = asyncio.new_event_loop()
@@ -1199,7 +1213,9 @@ async def test_dispatch_completions_non_streaming_handles_malformed_usage_dict()
     from services.load_engine import LoadTestEngine
 
     engine = LoadTestEngine()
-    config = LoadTestConfig(endpoint="http://localhost:8080", model="OpenVINO/Phi-4-mini-instruct-int4-ov", stream=False)
+    config = LoadTestConfig(
+        endpoint="http://localhost:8080", model="OpenVINO/Phi-4-mini-instruct-int4-ov", stream=False
+    )
     payload = engine._build_request_payload(config, "hello")
 
     mock_response = MagicMock()

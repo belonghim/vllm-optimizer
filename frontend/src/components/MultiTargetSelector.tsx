@@ -1,4 +1,5 @@
-import { useState, Fragment } from "react";
+import { useState, useRef, Fragment } from "react";
+import { getTargetKey } from "../utils/targetKey";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
 import { TARGET_COLORS } from "../constants";
 import { fmt } from "../utils/format";
@@ -6,6 +7,13 @@ import { authFetch } from "../utils/authFetch";
 import type { ClusterTarget, PerPodMetricSnapshot } from "../types";
 import ExpandablePodRow from "./ExpandablePodRow";
 import "./MultiTargetSelector.css";
+
+const POD_CACHE_TTL_MS = 10_000;
+
+interface PodCacheEntry {
+  data: PerPodMetricSnapshot[];
+  timestamp: number;
+}
 
 interface TargetStatus {
   status: string;
@@ -54,7 +62,8 @@ export default function MultiTargetSelector({
   const [isValidating, setIsValidating] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [podData, setPodData] = useState<Record<string, PerPodMetricSnapshot[]>>({});
+  const [podData, setPodData] = useState<Record<string, PodCacheEntry>>({});
+  const pendingFetches = useRef<Map<string, Promise<void>>>(new Map());
 
   const handleAdd = async () => {
     if (newTarget.namespace && newTarget.inferenceService) {
@@ -77,7 +86,7 @@ export default function MultiTargetSelector({
     }
   };
 
-  const toggleRowExpand = async (target: ClusterTarget) => {
+  const toggleRowExpand = (target: ClusterTarget) => {
     const key = getTargetKey(target);
     const isExpanded = expandedRows.has(key);
 
@@ -87,40 +96,48 @@ export default function MultiTargetSelector({
         next.delete(key);
         return next;
       });
-    } else {
-      setExpandedRows(prev => new Set(prev).add(key));
-
-      if (!podData[key]) {
-        try {
-          const response = await authFetch("/api/metrics/pods", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              targets: [{
-                namespace: target.namespace,
-                inferenceService: target.inferenceService,
-                cr_type: target.crType
-              }]
-            })
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            if (data[key]?.per_pod) {
-              setPodData(prev => ({
-                ...prev,
-                [key]: data[key].per_pod
-              }));
-            }
-          }
-        } catch (err) {
-          console.error("Failed to fetch pod data:", err);
-        }
-      }
+      return;
     }
-  };
 
-  const getTargetKey = (t: ClusterTarget) => `${t.namespace}/${t.inferenceService}/${t.crType || 'inferenceservice'}`;
+    setExpandedRows(prev => new Set(prev).add(key));
+
+    const cached = podData[key];
+    if (cached && Date.now() - cached.timestamp < POD_CACHE_TTL_MS) {
+      return;
+    }
+
+    if (pendingFetches.current.has(key)) {
+      return;
+    }
+
+    const fetchPromise = (async () => {
+      try {
+        const response = await authFetch("/api/metrics/pods", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            targets: [{
+              namespace: target.namespace,
+              inferenceService: target.inferenceService,
+              cr_type: target.crType
+            }]
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const pods: PerPodMetricSnapshot[] = data[key]?.per_pod ?? [];
+          setPodData(prev => ({ ...prev, [key]: { data: pods, timestamp: Date.now() } }));
+        }
+      } catch (err) {
+        console.error("Failed to fetch pod data:", err);
+      } finally {
+        pendingFetches.current.delete(key);
+      }
+    })();
+
+    pendingFetches.current.set(key, fetchPromise);
+  };
 
   const renderTargetItem = (target: ClusterTarget, index: number) => {
     const key = getTargetKey(target);
@@ -227,8 +244,8 @@ export default function MultiTargetSelector({
             )}
           </td>
         </tr>
-        {isExpanded && podData[key] && (
-          <ExpandablePodRow pods={podData[key]} parentColor={targetColor} />
+        {isExpanded && podData[key]?.data && (
+          <ExpandablePodRow pods={podData[key].data} parentColor={targetColor} />
         )}
       </Fragment>
     );

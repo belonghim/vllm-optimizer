@@ -6,7 +6,6 @@ Provides endpoints for starting, stopping, and monitoring load tests.
 import asyncio
 import json
 import logging
-import os
 import sqlite3
 import time as time_module
 import uuid
@@ -285,7 +284,7 @@ async def start_sweep(request: Request, config: SweepConfig) -> dict[str, Any]:
             await load_engine._broadcast({"type": "sweep_completed", "data": result.model_dump()})
         except asyncio.CancelledError:
             pass
-        except (RuntimeError, asyncio.TimeoutError, ValueError) as e:
+        except (TimeoutError, RuntimeError, ValueError) as e:
             logger.error("[Sweep] Error: %s", e)
             await load_engine._broadcast({"type": "sweep_completed", "data": None})
         finally:

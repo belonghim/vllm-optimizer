@@ -37,16 +37,15 @@ class ConfigPatch(BaseModel):
 @limiter.limit("60/minute")
 async def get_config(request: Request) -> ConfigResponse:
     endpoint = runtime_config.vllm_endpoint
-    model_name = os.getenv("VLLM_MODEL", "auto")
     try:
         resolved = await resolve_model_name(endpoint)
     except (RuntimeError, ValueError, OSError):
-        resolved = model_name
+        resolved = ""
     return ConfigResponse(
         vllm_endpoint=endpoint,
         vllm_namespace=runtime_config.vllm_namespace,
         vllm_is_name=runtime_config.vllm_is_name,
-        vllm_model_name=model_name,
+        vllm_model_name=resolved,
         resolved_model_name=resolved,
         cr_type=runtime_config.cr_type,
         configmap_updated=True,

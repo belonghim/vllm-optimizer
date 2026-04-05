@@ -15,6 +15,7 @@ import MonitorChartGrid, {
   type ChartConfig,
 } from "../components/MonitorChartGrid";
 import type { SlaProfile, TargetResult, TargetState } from "../types";
+import { getTargetKey } from "../utils/targetKey";
 
 // Re-export for backwards compatibility (tests import from this module)
 export { buildChartLinesMap } from "../components/MonitorChartGrid";
@@ -69,7 +70,7 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
     if (isMockEnabled) {
       const newStates: Record<string, TargetState> = {};
       targets.forEach(target => {
-        const key = `${target.namespace}/${target.inferenceService}/${target.crType || 'inferenceservice'}`;
+        const key = getTargetKey(target);
         newStates[key] = {
           metrics: { ...mockMetrics() },
           history: buildGapFill(mockHistory().map(h => ({ ...h, t: h.t })), ['ttft', 'lat_p99']).slice(-450),
@@ -184,7 +185,7 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
     setTargetStates(prev => {
       const initialStates: Record<string, TargetState> = {};
       targets.forEach(t => {
-        const key = `${t.namespace}/${t.inferenceService}/${t.crType || 'inferenceservice'}`;
+        const key = getTargetKey(t);
         initialStates[key] = prev[key] || { status: 'collecting' };
       });
       return { ...prev, ...initialStates };
@@ -238,7 +239,7 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
 
   const defaultKey = useMemo(() => {
     const dt = targets[0];
-    return dt ? `${dt.namespace}/${dt.inferenceService}/${dt.crType || 'inferenceservice'}` : null;
+    return dt ? getTargetKey(dt) : null;
   }, [targets]);
 
   const chartLinesMap = useMemo(() => buildChartLinesMap(targets, defaultKey, COLORS), [targets, defaultKey, COLORS]);

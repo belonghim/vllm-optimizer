@@ -71,9 +71,7 @@ class TestBuildPodQueriesNonAggregated:
 
         # All queries should contain the namespace selector
         for metric_name, query in queries.items():
-            assert 'namespace="my-namespace"' in query, (
-                f"{metric_name} should contain namespace selector, got: {query}"
-            )
+            assert 'namespace="my-namespace"' in query, f"{metric_name} should contain namespace selector, got: {query}"
 
     def test_build_pod_queries_gpu_memory_has_dcgm_selector(self) -> None:
         """Verify GPU memory queries contain DCGM selector for pod pattern."""
@@ -119,7 +117,7 @@ class TestFetchPrometheusMultiResult:
             with patch("services.multi_target_collector._with_retry", AsyncMock(return_value=mock_response)):
                 result = await collector._fetch_prometheus_multi_result(
                     headers={},
-                    query="rate(vllm:num_generated_tokens{namespace=\"test\"}[1m])",
+                    query='rate(vllm:num_generated_tokens{namespace="test"}[1m])',
                 )
 
         # Should return dict, not tuple
@@ -167,7 +165,7 @@ class TestFetchPrometheusMultiResult:
             with patch("services.multi_target_collector._with_retry", AsyncMock(return_value=mock_response)):
                 result = await collector._fetch_prometheus_multi_result(
                     headers={},
-                    query="vllm:gpu_utilization_perc{namespace=\"test\"}",
+                    query='vllm:gpu_utilization_perc{namespace="test"}',
                 )
 
         # Should still return 2 entries with fallback keys
@@ -189,9 +187,7 @@ class TestFetchPrometheusMultiResult:
         mock_response = MagicMock()
         mock_response.json.return_value = {
             "status": "success",
-            "data": {
-                "result": []
-            },
+            "data": {"result": []},
         }
         mock_response.raise_for_status = MagicMock()
 
@@ -202,7 +198,7 @@ class TestFetchPrometheusMultiResult:
             with patch("services.multi_target_collector._with_retry", AsyncMock(return_value=mock_response)):
                 result = await collector._fetch_prometheus_multi_result(
                     headers={},
-                    query="vllm:nonexistent_metric{namespace=\"test\"}",
+                    query='vllm:nonexistent_metric{namespace="test"}',
                 )
 
         assert result == {}, f"Expected empty dict, got {result}"
@@ -232,7 +228,7 @@ class TestFetchPrometheusMultiResult:
             with patch("services.multi_target_collector._with_retry", AsyncMock(return_value=mock_response)):
                 result = await collector._fetch_prometheus_multi_result(
                     headers={},
-                    query="rate(vllm:num_generated_tokens{namespace=\"test\"}[1m])",
+                    query='rate(vllm:num_generated_tokens{namespace="test"}[1m])',
                 )
 
         # Should only contain the valid value, skip NaN and Infinity
@@ -253,10 +249,9 @@ class TestPodsEndpointIntegration:
         2. Return per-pod metrics using _build_pod_queries and _fetch_prometheus_multi_result
         """
         import asyncio
-        from unittest.mock import AsyncMock, MagicMock, patch
+
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
-
         from models.load_test import BatchMetricsRequest
 
         collector = _build_collector()
@@ -265,6 +260,7 @@ class TestPodsEndpointIntegration:
         await collector.register_target("test-ns", "test-is")
         target = collector.get_target("test-ns", "test-is")
         from backend.services.multi_target_collector import VLLMMetrics
+
         target.latest = VLLMMetrics(
             timestamp=1234567890.0,
             tokens_per_second=100.0,
@@ -304,8 +300,9 @@ class TestPodsEndpointIntegration:
 
         @app.post("/pods")
         async def get_pod_metrics(body: BatchMetricsRequest):
-            from models.load_test import MetricsSnapshot, PerPodMetricSnapshot, PerPodMetricsResponse
             import time
+
+            from models.load_test import MetricsSnapshot, PerPodMetricSnapshot, PerPodMetricsResponse
 
             results = {}
             for target in body.targets:
@@ -332,10 +329,7 @@ class TestPodsEndpointIntegration:
                     headers["Authorization"] = f"Bearer {collector._token}"
 
                 # Fetch all pod queries in parallel
-                fetch_tasks = [
-                    collector._fetch_prometheus_multi_result(headers, query)
-                    for query in queries.values()
-                ]
+                fetch_tasks = [collector._fetch_prometheus_multi_result(headers, query) for query in queries.values()]
                 query_results = await asyncio.gather(*fetch_tasks)
 
                 # Build pod_metrics mapping

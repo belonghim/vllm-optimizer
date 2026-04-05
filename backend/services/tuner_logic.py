@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import math
-import os
 import time
 from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
@@ -273,7 +272,7 @@ class TunerLogic:
     ) -> tuple[float, float, float]:
         model_name = await model_resolver(endpoint)
         if not model_name or model_name == "auto":
-            raise ValueError(f"Cannot resolve model name from {endpoint}. Set VLLM_MODEL env var.")
+            raise ValueError(f"Cannot resolve model name from {endpoint}. Ensure the vLLM endpoint is reachable.")
         _trial_id = trial.number if trial is not None and hasattr(trial, "number") else trial_num
 
         if config.warmup_requests > 0:
@@ -480,7 +479,7 @@ async def save_auto_benchmark_for_tuner(
     try:
         model_name = await model_resolver(tuner._vllm_endpoint)
     except httpx.ConnectError:
-        model_name = os.environ.get("VLLM_MODEL", "unknown")
+        model_name = "unknown"
     benchmark = Benchmark(
         name=f"auto-tune-{time.strftime('%Y%m%d-%H%M%S')}",
         config=LoadTestConfig(

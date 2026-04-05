@@ -1,10 +1,8 @@
 # pyright: reportImportCycles=false
 import abc
 import copy
-import os
 import shlex
 from typing import Any
-
 
 _ARG_TO_KEY = {
     "--max-num-seqs": "max_num_seqs",
@@ -201,6 +199,10 @@ class CRAdapter(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    def metrics_port(self) -> int:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     def metric_prefix(self) -> str:
         raise NotImplementedError
 
@@ -281,6 +283,9 @@ class InferenceServiceAdapter(CRAdapter):
 
     def prometheus_job(self, name: str) -> str:
         return f"{name}-metrics"
+
+    def metrics_port(self) -> int:
+        return 8080
 
     def metric_prefix(self) -> str:
         return "vllm:"
@@ -450,11 +455,14 @@ class LLMInferenceServiceAdapter(CRAdapter):
         # LLMIS uses static PodMonitor name regardless of CR name
         return "kserve-llm-isvc-vllm-engine"
 
+    def metrics_port(self) -> int:
+        return 8080
+
     def metric_prefix(self) -> str:
         return "kserve_vllm:"
 
     def dcgm_pod_pattern(self, name: str) -> str:
-        return f"{name}-kserve(?!-router-scheduler).*"
+        return f"{name}-kserve.*"
 
     def check_ready(self, status: dict[str, Any]) -> bool:
         return _is_ready_condition(status)

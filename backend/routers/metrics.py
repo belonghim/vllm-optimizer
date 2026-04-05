@@ -1,7 +1,7 @@
 import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
-from services.rate_limiter import limiter
 from models.load_test import (
     BatchMetricsRequest,
     BatchMetricsResponse,
@@ -11,15 +11,16 @@ from models.load_test import (
     PerPodMetricsResponse,
     TargetedMetricsResponse,
 )
-from services.shared import multi_target_collector as _default_collector, runtime_config as _default_runtime_config
 from services.cr_adapter import get_cr_adapter
 from services.metrics_service import (
-    _convert_to_snapshot,
-    _fetch_query_range,
-    _get_history_from_thanos,
     _TIME_RANGE_CONFIG,
     MAX_HISTORY_POINTS,
+    _convert_to_snapshot,
+    _get_history_from_thanos,
 )
+from services.rate_limiter import limiter
+from services.shared import multi_target_collector as _default_collector
+from services.shared import runtime_config as _default_runtime_config
 
 router = APIRouter()
 
@@ -98,16 +99,16 @@ async def get_batch_metrics(
             continue
 
         vllm_metrics = await collector.get_metrics(target.namespace, target.inferenceService, cr_type=target.cr_type)
-        has_monitoring_label = collector.get_has_monitoring_label(target.namespace, target.inferenceService, cr_type=target.cr_type)
+        has_monitoring_label = collector.get_has_monitoring_label(
+            target.namespace, target.inferenceService, cr_type=target.cr_type
+        )
 
         if body.time_range in _TIME_RANGE_CONFIG:
             history = await _get_history_from_thanos(
                 target.namespace, target.inferenceService, target.cr_type, body.time_range, collector
             )
         else:
-            target_cache = collector.get_target(
-                target.namespace, target.inferenceService, cr_type=target.cr_type
-            )
+            target_cache = collector.get_target(target.namespace, target.inferenceService, cr_type=target.cr_type)
             n = min(body.history_points, MAX_HISTORY_POINTS)
             history = (
                 [_convert_to_snapshot(m).model_dump() for m in list(target_cache.history)[-n:]] if target_cache else []
@@ -179,8 +180,7 @@ async def get_pod_metrics(
 
         # Fetch all pod queries in parallel
         fetch_tasks = [
-            collector._fetch_prometheus_multi_result(headers, query, pod_name_pattern)
-            for query in queries.values()
+            collector._fetch_prometheus_multi_result(headers, query, pod_name_pattern) for query in queries.values()
         ]
         query_results = await asyncio.gather(*fetch_tasks)
 

@@ -5,7 +5,6 @@ import time as time_mod
 from datetime import UTC, datetime
 
 import httpx
-
 from models.load_test import MetricsSnapshot
 from services.retry_helper import with_retry
 
@@ -253,7 +252,11 @@ async def _get_history_from_thanos(
     start = now - cfg["duration"]
     step = cfg["step"]
 
-    queries = collector._build_pod_queries(namespace, is_name, cr_type) if per_pod else collector._build_target_queries(namespace, is_name, cr_type)
+    queries = (
+        collector._build_pod_queries(namespace, is_name, cr_type)
+        if per_pod
+        else collector._build_target_queries(namespace, is_name, cr_type)
+    )
     headers: dict[str, str] = {}
     token = collector._token
     if token:

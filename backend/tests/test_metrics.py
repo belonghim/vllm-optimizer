@@ -5,8 +5,9 @@ import httpx
 import pytest
 
 pytestmark = pytest.mark.slow
-from fastapi.testclient import TestClient
 from unittest.mock import AsyncMock, MagicMock, patch
+
+from fastapi.testclient import TestClient
 
 from ..main import app
 from ..services.multi_target_collector import VLLMMetrics
@@ -184,6 +185,7 @@ def test_metrics_batch_endpoint_with_llmisvc_cr_type(isolated_client, monkeypatc
         return await multi_target_collector.get_metrics.__wrapped__(namespace, is_name, cr_type)
 
     original = multi_target_collector.get_metrics
+
     async def mock_get_metrics_v2(namespace, is_name, cr_type=None):
         call_args.append({"namespace": namespace, "is_name": is_name, "cr_type": cr_type})
         return None
@@ -192,11 +194,7 @@ def test_metrics_batch_endpoint_with_llmisvc_cr_type(isolated_client, monkeypatc
 
     response = isolated_client.post(
         "/api/metrics/batch",
-        json={
-            "targets": [
-                {"namespace": "test-ns", "inferenceService": "llm-svc", "cr_type": "llminferenceservice"}
-            ]
-        },
+        json={"targets": [{"namespace": "test-ns", "inferenceService": "llm-svc", "cr_type": "llminferenceservice"}]},
     )
     assert response.status_code == 200
     data = response.json()
@@ -221,11 +219,7 @@ def test_metrics_batch_endpoint_with_inferenceservice_cr_type(isolated_client, m
 
     response = isolated_client.post(
         "/api/metrics/batch",
-        json={
-            "targets": [
-                {"namespace": "test-ns", "inferenceService": "isvc-svc", "cr_type": "inferenceservice"}
-            ]
-        },
+        json={"targets": [{"namespace": "test-ns", "inferenceService": "isvc-svc", "cr_type": "inferenceservice"}]},
     )
     assert response.status_code == 200
     data = response.json()
@@ -248,11 +242,7 @@ def test_metrics_batch_endpoint_without_cr_type_defaults(isolated_client, monkey
 
     response = isolated_client.post(
         "/api/metrics/batch",
-        json={
-            "targets": [
-                {"namespace": "test-ns", "inferenceService": "default-svc"}
-            ]
-        },
+        json={"targets": [{"namespace": "test-ns", "inferenceService": "default-svc"}]},
     )
     assert response.status_code == 200
     data = response.json()

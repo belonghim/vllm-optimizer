@@ -1,7 +1,6 @@
 """Unit tests for GET/PATCH /api/config endpoints."""
 
 import pytest
-from fastapi.testclient import TestClient
 
 pytestmark = pytest.mark.slow
 

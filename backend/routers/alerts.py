@@ -4,8 +4,8 @@ from collections.abc import Callable
 from fastapi import APIRouter, Request
 from models.sla import SlaProfile
 from pydantic import BaseModel
-from services.shared import multi_target_collector, storage
 from services.rate_limiter import limiter
+from services.shared import multi_target_collector, storage
 
 router = APIRouter()
 metrics_collector = multi_target_collector

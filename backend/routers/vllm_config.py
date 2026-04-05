@@ -1,14 +1,15 @@
 import asyncio
 import logging
-from typing import Any, Literal, Mapping, cast
+from collections.abc import Mapping
+from typing import Any, Literal, cast
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from kubernetes.client import CustomObjectsApi
 from kubernetes.client.exceptions import ApiException as K8sApiException
 from pydantic import BaseModel
-from services.shared import runtime_config
 from services.cr_adapter import deep_merge, get_cr_adapter
 from services.rate_limiter import limiter
+from services.shared import runtime_config
 
 logger = logging.getLogger(__name__)
 

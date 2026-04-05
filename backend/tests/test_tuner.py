@@ -1703,13 +1703,17 @@ async def test_evaluate_raises_value_error_when_model_resolution_fails(auto_tune
 
     from ..services import auto_tuner as _at_mod
 
-    with patch.dict("os.environ", {}, clear=False):
-        import os
-
-        os.environ.pop("VLLM_MODEL", None)
-        with patch.object(_at_mod, "resolve_model_name", new=AsyncMock(side_effect=ValueError("Cannot resolve model name from http://mock:8080. Set VLLM_MODEL env var."))):
-            with pytest.raises(ValueError, match="Cannot resolve model name"):
-                await tuner._evaluate("http://mock:8080", config)
+    with patch.object(
+        _at_mod,
+        "resolve_model_name",
+        new=AsyncMock(
+            side_effect=ValueError(
+                "Cannot resolve model name from http://mock:8080. Ensure the vLLM endpoint is reachable."
+            )
+        ),
+    ):
+        with pytest.raises(ValueError, match="Cannot resolve model name"):
+            await tuner._evaluate("http://mock:8080", config)
 
 
 def test_wait_metrics_returns_empty_when_idle(auto_tuner_instance):

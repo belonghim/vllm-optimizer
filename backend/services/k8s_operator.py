@@ -7,9 +7,14 @@ from typing import Any, cast
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
 from kubernetes.client.exceptions import ApiException
-
-from services.cr_adapter import CRAdapter, args_list_to_config_dict, get_cr_adapter  # pyright: ignore[reportImplicitRelativeImport]  # backend/ added to sys.path at runtime
-from services.shared import runtime_config  # pyright: ignore[reportImplicitRelativeImport]  # backend/ added to sys.path at runtime
+from services.cr_adapter import (  # pyright: ignore[reportImplicitRelativeImport]  # backend/ added to sys.path at runtime
+    CRAdapter,
+    args_list_to_config_dict,
+    get_cr_adapter,
+)
+from services.shared import (
+    runtime_config,  # pyright: ignore[reportImplicitRelativeImport]  # backend/ added to sys.path at runtime
+)
 
 logger = logging.getLogger(__name__)
 

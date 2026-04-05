@@ -7,7 +7,6 @@ data:
   K8S_DEPLOYMENT_NAME: "llm-ov-predictor"
   VLLM_ENDPOINT: "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080"
   VLLM_DEPLOYMENT_NAME: "llm-ov"
-  VLLM_MODEL: "OpenVINO/Phi-4-mini-instruct-int4-ov"
   # OpenShift Monitoring Stack — Thanos Querier
   PROMETHEUS_URL: "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091"
   PROMETHEUS_USE_TLS: "true"
@@ -22,6 +21,8 @@ data:
   OPTUNA_STORAGE_URL: "sqlite:////data/optuna.db"
   # vLLM CR type (inferenceservice or llminferenceservice)
   VLLM_CR_TYPE: "inferenceservice"
+  # Metrics collection source: thanos (default) | direct (vLLM Pod direct scrape)
+  METRICS_SOURCE: "thanos"
   # Default InferenceService (KServe) target
   DEFAULT_ISVC_NAME: ""
   DEFAULT_ISVC_NAMESPACE: ""

@@ -151,6 +151,7 @@ def test_chaos_vllm_timeout_load_engine_fails_gracefully(isolated_client: TestCl
 
 def test_chaos_storage_error_benchmark_fails_open(isolated_client: TestClient):
     from unittest.mock import MagicMock
+
     from routers.benchmark import get_storage
 
     mock_storage = MagicMock()
