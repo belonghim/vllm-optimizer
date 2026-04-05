@@ -4,7 +4,7 @@ import math
 import os
 import time
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import Any, Protocol
 
 import httpx
 import optuna
@@ -19,7 +19,9 @@ from models.load_test import (  # pyright: ignore[reportImplicitRelativeImport] 
     TuningConfig,
     TuningTrial,
 )
-from services.load_engine import LoadTestEngine  # pyright: ignore[reportImplicitRelativeImport]  # backend/ added to sys.path at runtime
+from services.load_engine import (
+    LoadTestEngine,  # pyright: ignore[reportImplicitRelativeImport]  # backend/ added to sys.path at runtime
+)
 
 from .model_resolver import resolve_model_name
 
