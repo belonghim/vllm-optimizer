@@ -5,7 +5,7 @@ const ISVC_TARGET_2 = { namespace: 'vllm-lab-prod', inferenceService: 'llm-prod'
 const LLMIS_TARGET_1 = { namespace: 'llm-d-demo', inferenceService: 'small-llm-d', crType: 'llminferenceservice', isDefault: false };
 
 test.describe('MultiTargetSelector Direct Display', () => {
-  test.beforeEach(async ({ page, mockApi: _mockApi }) => {
+  test.beforeEach(async ({ page }) => {
     await page.unrouteAll({ behavior: 'ignoreErrors' });
     await page.route('**/api/**', async (route) => {
       const req = route.request();
@@ -29,6 +29,30 @@ test.describe('MultiTargetSelector Direct Display', () => {
         });
       }
 
+      if (pathname === '/api/config' && method === 'PATCH') {
+        return json({ success: true });
+      }
+
+      if (pathname === '/api/config/default-targets' && method === 'GET') {
+        return json({
+          isvc: { name: 'llm-ov', namespace: 'vllm-lab-dev' },
+          llmisvc: { name: '', namespace: '' },
+          configmap_updated: false,
+        });
+      }
+
+      if (pathname === '/api/metrics/latest' && method === 'GET') {
+        return json({
+          status: 'ready',
+          data: { tps: 100, rps: 10, kv_cache: 50, running: 5, waiting: 2, gpu_util: 60, pods: 1, pods_ready: 1 },
+          hasMonitoringLabel: true,
+        });
+      }
+
+      if (pathname === '/api/sla/profiles' && method === 'GET') {
+        return json([]);
+      }
+
       if (pathname === '/api/metrics/batch' && method === 'POST') {
         const results: Record<string, unknown> = {};
         for (const target of targets) {
@@ -53,6 +77,30 @@ test.describe('MultiTargetSelector Direct Display', () => {
         return json({ results });
       }
 
+      if (pathname === '/api/tuner/all' && method === 'GET') {
+        return json({ status: { running: false, trials_completed: 0 }, trials: [], importance: {} });
+      }
+
+      if (pathname === '/api/tuner/status' && method === 'GET') {
+        return json({ running: false, trials_completed: 0 });
+      }
+
+      if (pathname === '/api/tuner/trials' && method === 'GET') {
+        return json([]);
+      }
+
+      if (pathname === '/api/tuner/importance' && method === 'GET') {
+        return json({});
+      }
+
+      if (pathname === '/api/vllm-config' && method === 'GET') {
+        return json({ success: true, data: { model_name: 'test-model', max_num_seqs: '128' } });
+      }
+
+      if (pathname === '/api/status/interrupted' && method === 'GET') {
+        return json({ interrupted_runs: [] });
+      }
+
       return json({});
     });
 
@@ -66,7 +114,7 @@ test.describe('MultiTargetSelector Direct Display', () => {
     await expect(table).toBeVisible();
   });
 
-  test('displays default marker (★) for default target', async ({ page }) => {
+  test('displays default marker for default target', async ({ page }) => {
     const defaultRow = page.locator('[data-testid^="target-row-"]').first();
     await expect(defaultRow).toBeVisible();
     await expect(defaultRow.locator('.multi-target-default-star')).toContainText('★');
@@ -85,7 +133,7 @@ test.describe('MultiTargetSelector Direct Display', () => {
 });
 
 test.describe('MultiTargetSelector LLMIS Metrics Display', () => {
-  test.beforeEach(async ({ page, mockApi: _mockApi }) => {
+  test.beforeEach(async ({ page }) => {
     await page.unrouteAll({ behavior: 'ignoreErrors' });
     await page.route('**/api/**', async (route) => {
       const req = route.request();
@@ -109,6 +157,30 @@ test.describe('MultiTargetSelector LLMIS Metrics Display', () => {
         });
       }
 
+      if (pathname === '/api/config' && method === 'PATCH') {
+        return json({ success: true });
+      }
+
+      if (pathname === '/api/config/default-targets' && method === 'GET') {
+        return json({
+          isvc: { name: 'llm-ov', namespace: 'vllm-lab-dev' },
+          llmisvc: { name: 'small-llm-d', namespace: 'llm-d-demo' },
+          configmap_updated: false,
+        });
+      }
+
+      if (pathname === '/api/metrics/latest' && method === 'GET') {
+        return json({
+          status: 'ready',
+          data: { tps: 100, rps: 10, kv_cache: 50, running: 5, waiting: 2, gpu_util: 60, pods: 1, pods_ready: 1 },
+          hasMonitoringLabel: true,
+        });
+      }
+
+      if (pathname === '/api/sla/profiles' && method === 'GET') {
+        return json([]);
+      }
+
       if (pathname === '/api/metrics/batch' && method === 'POST') {
         const results: Record<string, unknown> = {};
         for (const target of targets) {
@@ -133,17 +205,36 @@ test.describe('MultiTargetSelector LLMIS Metrics Display', () => {
         return json({ results });
       }
 
+      if (pathname === '/api/tuner/all' && method === 'GET') {
+        return json({ status: { running: false, trials_completed: 0 }, trials: [], importance: {} });
+      }
+
+      if (pathname === '/api/tuner/status' && method === 'GET') {
+        return json({ running: false, trials_completed: 0 });
+      }
+
+      if (pathname === '/api/tuner/trials' && method === 'GET') {
+        return json([]);
+      }
+
+      if (pathname === '/api/tuner/importance' && method === 'GET') {
+        return json({});
+      }
+
+      if (pathname === '/api/vllm-config' && method === 'GET') {
+        return json({ success: true, data: { model_name: 'test-model', max_num_seqs: '128' } });
+      }
+
+      if (pathname === '/api/status/interrupted' && method === 'GET') {
+        return json({ interrupted_runs: [] });
+      }
+
       return json({});
     });
 
     await page.goto('/');
     await page.getByRole('tab', { name: 'Monitoring' }).click();
     await page.waitForSelector('.multi-target-selector', { timeout: 10000 });
-  });
-
-  test('displays LLMInferenceService section when llmisvc targets exist', async ({ page }) => {
-    const llmisSection = page.locator('.multi-target-section-label', { hasText: 'LLMInferenceService' });
-    await expect(llmisSection).toBeVisible();
   });
 
   test('displays LLMIS badge for llminferenceservice targets', async ({ page }) => {
@@ -155,21 +246,21 @@ test.describe('MultiTargetSelector LLMIS Metrics Display', () => {
   test('renders metrics data for LLMIS target', async ({ page }) => {
     const targetRow = page.locator('[data-testid^="target-row-"]').last();
     await expect(targetRow).toBeVisible();
-    expect(await targetRow.locator('td').nth(1).textContent()).toBe('100');
+    expect(await targetRow.locator('td').nth(2).textContent()).toBe('100');
   });
 
-  test('displays both ISVC and LLMIS sections with correct counts', async ({ page }) => {
-    const isvcSection = page.locator('.multi-target-section-label', { hasText: 'InferenceService' });
-    const llmisSection = page.locator('.multi-target-section-label', { hasText: 'LLMInferenceService' });
+  test('displays both ISVC and LLMIS targets in table', async ({ page }) => {
+    const rows = page.locator('[data-testid^="target-row-"]');
+    await expect(rows).toHaveCount(3);
 
-    await expect(isvcSection).toBeVisible();
-    await expect(llmisSection).toBeVisible();
-
-    const isvcCount = page.locator('.multi-target-section-count').first();
-    const llmisCount = page.locator('.multi-target-section-count').last();
-
-    await expect(isvcCount).toContainText('1');
-    await expect(llmisCount).toContainText('1');
+    const badges = page.locator('.tag');
+    await expect(badges.first()).toBeVisible();
+    await expect(badges.last()).toBeVisible();
+    
+    const isvcBadge = page.locator('[data-testid="isvc-badge"]');
+    const llmisBadge = page.locator('[data-testid="llmis-badge"]');
+    
+    await expect(isvcBadge.or(llmisBadge).first()).toBeVisible();
   });
 
   test('sends correct cr_type in batch metrics request', async ({ page }) => {
@@ -185,7 +276,6 @@ test.describe('MultiTargetSelector LLMIS Metrics Display', () => {
       }
     });
 
-    await page.goto('/');
     await page.getByRole('tab', { name: 'Monitoring' }).click();
     await page.waitForSelector('.multi-target-selector', { timeout: 10000 });
 

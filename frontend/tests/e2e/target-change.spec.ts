@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/mock-api';
-import { setupVllmConfigMock, setupV1ModelsMock } from './fixtures/test-helpers';
+import { setupVllmConfigMock, setupVllmConfigMockWithQueryParams, setupV1ModelsMock } from './fixtures/test-helpers';
 
 test('LoadTest Sweep Mode: 타겟 변경 시 모델명 업데이트', async ({ page }) => {
   await setupVllmConfigMock(page, {
@@ -34,63 +34,37 @@ test('LoadTest Sweep Mode: 타겟 변경 시 모델명 업데이트', async ({ p
 });
 
 test('Tuner: 타겟 변경 시 설정 업데이트', async ({ page }) => {
-  await page.route('**/api/vllm-config', async (route) => {
-    const req = route.request();
-    const { pathname, searchParams } = new URL(req.url());
-    const method = req.method();
-    const json = (body: unknown) => route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(body),
-    });
-
-    if (pathname === '/api/vllm-config' && method === 'GET') {
-      const isName = searchParams.get('is_name') || '';
-      const crType = searchParams.get('cr_type') || '';
-      if (isName === 'target-a' || (isName === 'target-a-predictor' && crType === 'inferenceservice')) {
-        return json({
-          success: true,
-          data: {
-            model_name: 'model-a',
-            max_num_seqs: '128',
-            gpu_memory_utilization: '0.85',
-            max_model_len: '4096',
-            max_num_batched_tokens: '1024',
-            block_size: '16',
-            swap_space: '2',
-          },
-        });
-      }
-      if (isName === 'target-b' || (isName === 'target-b-openshift-default' && crType === 'llminferenceservice')) {
-        return json({
-          success: true,
-          data: {
-            model_name: 'model-b',
-            max_num_seqs: '256',
-            gpu_memory_utilization: '0.90',
-            max_model_len: '8192',
-            max_num_batched_tokens: '2048',
-            block_size: '32',
-            swap_space: '4',
-          },
-        });
-      }
-      return json({
-        success: true,
-        data: {
-          model_name: 'default-model',
-          max_num_seqs: '64',
-          gpu_memory_utilization: '0.80',
-          max_model_len: '2048',
-          max_num_batched_tokens: '512',
-          block_size: '8',
-          swap_space: '1',
-        },
-      });
-    }
+  await setupVllmConfigMockWithQueryParams(page, {
+    'target-a': {
+      model_name: 'model-a',
+      max_num_seqs: '128',
+      gpu_memory_utilization: '0.85',
+      max_model_len: '4096',
+      max_num_batched_tokens: '1024',
+      block_size: '16',
+      swap_space: '2',
+    },
+    'target-b': {
+      model_name: 'model-b',
+      max_num_seqs: '256',
+      gpu_memory_utilization: '0.90',
+      max_model_len: '8192',
+      max_num_batched_tokens: '2048',
+      block_size: '32',
+      swap_space: '4',
+    },
+    'default': {
+      model_name: 'default-model',
+      max_num_seqs: '64',
+      gpu_memory_utilization: '0.80',
+      max_model_len: '2048',
+      max_num_batched_tokens: '512',
+      block_size: '8',
+      swap_space: '1',
+    },
   });
 
-  await setupV1ModelsMock(page, [{ id: 'model-a' }]);
+  await setupV1ModelsMock(page, [{ id: 'model-a' }, { id: 'model-b' }]);
 
   await page.route('**/api/config', async (route) => {
     route.fulfill({
@@ -110,8 +84,8 @@ test('Tuner: 타겟 변경 시 설정 업데이트', async ({ page }) => {
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        isvc: { name: 'target-b', namespace: 'test-ns' },
-        llmisvc: { name: '', namespace: '' },
+        isvc: { name: '', namespace: '' },
+        llmisvc: { name: 'target-b', namespace: 'test-ns' },
         configmap_updated: true,
       }),
     });
@@ -147,10 +121,10 @@ test('Tuner: 타겟 변경 시 설정 업데이트', async ({ page }) => {
 
   const dropdown = page.getByTestId('tuner-target-selector-dropdown');
   await dropdown.waitFor({ state: 'visible', timeout: 5000 });
-  await dropdown.locator('div[role="option"]').first().waitFor({ state: 'visible', timeout: 5000 });
-
   const options = dropdown.locator('div[role="option"]');
-  await options.first().click();
+  await expect(options).toHaveCount(2);
+
+  await dropdown.locator('div[role="option"]', { hasText: 'target-a' }).click();
 
   await page.waitForFunction(() => {
     const input = document.querySelector('input[aria-label="max_num_seqs min"]');
@@ -161,16 +135,15 @@ test('Tuner: 타겟 변경 시 설정 업데이트', async ({ page }) => {
   const maxNumSeqsMin = maxNumSeqsRow.locator('input[type="number"]').first();
   await expect(maxNumSeqsMin).toBeVisible();
   const firstValue = await maxNumSeqsMin.inputValue();
-  expect(firstValue).toBe('64');
+  expect(firstValue).toBe('128');
 
   await trigger.click();
   await dropdown.waitFor({ state: 'visible', timeout: 5000 });
 
-  const secondOptions = dropdown.locator('div[role="option"]');
-  await secondOptions.last().click();
+  await dropdown.locator('div[role="option"]', { hasText: 'target-b' }).click();
 
   await page.waitForTimeout(500);
 
   const secondValue = await maxNumSeqsMin.inputValue();
-  expect(secondValue).toBe('64');
+  expect(secondValue).toBe('256');
 });

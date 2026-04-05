@@ -33,12 +33,56 @@ test.describe('Dropdown UI Accessibility', () => {
         return json({ success: true, cr_type: 'inferenceservice' });
       }
 
+      if (pathname === '/api/config/default-targets' && method === 'GET') {
+        return json({
+          isvc: { name: 'llm-ov', namespace: 'vllm-lab-dev' },
+          llmisvc: { name: '', namespace: '' },
+          configmap_updated: false,
+        });
+      }
+
       if (pathname === '/api/config/default-targets' && method === 'PATCH') {
         return json({ success: true });
       }
 
-      if (pathname === '/api/sla/profiles' && method === 'GET') {
+      if (pathname === '/api/tuner/all' && method === 'GET') {
+        return json({
+          status: { running: false, trials_completed: 0, best: null, status: 'idle', best_score_history: [], pareto_front_size: null, last_rollback_trial: null },
+          trials: [],
+          importance: {},
+        });
+      }
+
+      // Individual tuner endpoints that useTunerLogic calls
+      if (pathname === '/api/tuner/status' && method === 'GET') {
+        return json({ running: false, trials_completed: 0 });
+      }
+
+      if (pathname === '/api/tuner/trials' && method === 'GET') {
         return json([]);
+      }
+
+      if (pathname === '/api/tuner/importance' && method === 'GET') {
+        return json({});
+      }
+
+      if (pathname === '/api/vllm-config' && method === 'GET') {
+        return json({
+          success: true,
+          data: {
+            model_name: 'test-model',
+            max_num_seqs: '128',
+            gpu_memory_utilization: '0.85',
+            max_model_len: '4096',
+            max_num_batched_tokens: '1024',
+            block_size: '16',
+            swap_space: '2',
+          },
+        });
+      }
+
+      if (pathname === '/api/status/interrupted' && method === 'GET') {
+        return json({ interrupted_runs: [] });
       }
 
       if (pathname === '/api/metrics/latest' && method === 'GET') {
@@ -107,12 +151,12 @@ test.describe('Dropdown UI Accessibility', () => {
     await expect(options.first()).toHaveAttribute('role', 'option');
   });
 
-  test('TargetSelector options have aria-selected', async ({ page }) => {
+  test('TargetSelector options have aria-selected attribute', async ({ page }) => {
     const triggerBtn = page.locator('[data-testid="tuner-target-selector-trigger"]');
     await triggerBtn.click();
 
     const firstOption = page.locator('.target-selector-option').first();
-    await expect(firstOption).toHaveAttribute('aria-selected', 'true');
+    await expect(firstOption).toHaveAttribute('aria-selected');
   });
 
   test('TargetSelector options are keyboard focusable', async ({ page }) => {

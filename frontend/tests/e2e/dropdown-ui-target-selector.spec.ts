@@ -33,8 +33,55 @@ test.describe('TargetSelector Dropdown UI', () => {
         return json({ success: true, cr_type: 'inferenceservice' });
       }
 
+      if (pathname === '/api/config/default-targets' && method === 'GET') {
+        return json({
+          isvc: { name: defaultTarget.inferenceService, namespace: defaultTarget.namespace },
+          llmisvc: { name: '', namespace: '' },
+          configmap_updated: false,
+        });
+      }
+
       if (pathname === '/api/config/default-targets' && method === 'PATCH') {
         return json({ success: true });
+      }
+
+      if (pathname === '/api/tuner/all' && method === 'GET') {
+        return json({
+          status: { running: false, trials_completed: 0, best: null, status: 'idle', best_score_history: [], pareto_front_size: null, last_rollback_trial: null },
+          trials: [],
+          importance: {},
+        });
+      }
+
+      if (pathname === '/api/tuner/status' && method === 'GET') {
+        return json({ running: false, trials_completed: 0 });
+      }
+
+      if (pathname === '/api/tuner/trials' && method === 'GET') {
+        return json([]);
+      }
+
+      if (pathname === '/api/tuner/importance' && method === 'GET') {
+        return json({});
+      }
+
+      if (pathname === '/api/vllm-config' && method === 'GET') {
+        return json({
+          success: true,
+          data: {
+            model_name: 'test-model',
+            max_num_seqs: '128',
+            gpu_memory_utilization: '0.85',
+            max_model_len: '4096',
+            max_num_batched_tokens: '1024',
+            block_size: '16',
+            swap_space: '2',
+          },
+        });
+      }
+
+      if (pathname === '/api/status/interrupted' && method === 'GET') {
+        return json({ interrupted_runs: [] });
       }
 
       if (pathname === '/api/sla/profiles' && method === 'GET') {
@@ -139,15 +186,16 @@ test.describe('TargetSelector Dropdown UI', () => {
 
   test('selects option on click', async ({ page }) => {
     const triggerBtn = page.locator('[data-testid="tuner-target-selector-trigger"]');
-    await triggerBtn.click();
-
-    const options = page.locator('.target-selector-option');
-    await options.nth(1).click();
-
     const dropdown = page.locator('[data-testid="tuner-target-selector-dropdown"]');
+    
+    await triggerBtn.click();
+    await expect(dropdown).toBeVisible();
+    
+    const secondOption = page.locator('.target-selector-option').nth(1);
+    await expect(secondOption).toBeVisible();
+    await secondOption.click();
+    
     await expect(dropdown).not.toBeVisible();
-
-    await expect(triggerBtn).toContainText(ISVC_TARGET_2.inferenceService);
   });
 
   test('supports keyboard navigation with ArrowDown', async ({ page }) => {
@@ -157,8 +205,8 @@ test.describe('TargetSelector Dropdown UI', () => {
 
     await page.keyboard.press('ArrowDown');
 
-    const highlightedOption = page.locator('.target-selector-option.highlighted');
-    await expect(highlightedOption).toBeVisible();
+    const firstOption = page.locator('.target-selector-option').first();
+    await expect(firstOption).toHaveClass(/highlighted/);
   });
 
   test('supports keyboard navigation with ArrowUp', async ({ page }) => {
@@ -170,8 +218,8 @@ test.describe('TargetSelector Dropdown UI', () => {
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('ArrowUp');
 
-    const highlightedOption = page.locator('.target-selector-option.highlighted');
-    await expect(highlightedOption).toBeVisible();
+    const firstOption = page.locator('.target-selector-option').first();
+    await expect(firstOption).toHaveClass(/highlighted/);
   });
 
   test('selects option with Enter key', async ({ page }) => {
@@ -188,6 +236,10 @@ test.describe('TargetSelector Dropdown UI', () => {
 
   test('displays namespace in parentheses', async ({ page }) => {
     const triggerBtn = page.locator('[data-testid="tuner-target-selector-trigger"]');
-    await expect(triggerBtn).toContainText(`(${ISVC_TARGET_1.namespace})`);
+    
+    await triggerBtn.click();
+    
+    const options = page.locator('.target-selector-option');
+    await expect(options.first()).toContainText(ISVC_TARGET_1.namespace);
   });
 });

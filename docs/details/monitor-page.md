@@ -226,12 +226,6 @@ For each target in the batch response:
 |--------|------|------|
 | useMonitorLogic | `hooks/useMonitorLogic.ts` | Alternative hook-based monitor logic (not used by MonitorPage, which has inline logic) |
 
-## Related Hooks
-
-| Module | File | Role |
-|--------|------|------|
-| useMonitorLogic | `hooks/useMonitorLogic.ts` | Alternative hook-based monitor logic (not used by MonitorPage, which has inline logic) |
-
 ## Related Utilities
 
 | Utility | File | Role |

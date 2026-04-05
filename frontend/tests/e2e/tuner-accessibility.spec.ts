@@ -1,26 +1,16 @@
 import { test, expect } from './fixtures/mock-api';
+import { setupVllmConfigMock } from './fixtures/test-helpers';
 
 test.describe('TunerParamInputs Accessibility', () => {
   test.beforeEach(async ({ page }) => {
-    await page.route('**/api/vllm-config', async (route) => {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          success: true,
-          data: {
-            model_name: 'test-model',
-            max_num_seqs: '128',
-            gpu_memory_utilization: '0.85',
-            max_model_len: '4096',
-            max_num_batched_tokens: '1024',
-            block_size: '16',
-            swap_space: '2',
-            enable_chunked_prefill: 'true',
-            enable_enforce_eager: 'false',
-          },
-        }),
-      });
+    await setupVllmConfigMock(page, {
+      model_name: 'test-model',
+      max_num_seqs: '128',
+      gpu_memory_utilization: '0.85',
+      max_model_len: '4096',
+      max_num_batched_tokens: '1024',
+      block_size: '16',
+      swap_space: '2',
     });
 
     await page.goto('/');

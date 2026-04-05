@@ -27,10 +27,10 @@ Form for creating and editing SLA profiles.
 | Field | Label | Type | Description |
 |-------|-------|------|-------------|
 | Name | Profile Name | Text input | Unique name for the SLA profile |
-| Availability Min | Availability ≥ | Number input | Minimum availability percentage (e.g., 99.9) |
-| P95 Latency Max | P95 ≤ | Number input | Maximum P95 latency in milliseconds |
-| Error Rate Max | Error Rate ≤ | Number input | Maximum error rate percentage |
-| Min TPS | TPS ≥ | Number input | Minimum tokens per second |
+| Availability Min | Min Availability (%) | Number input | Minimum availability percentage (e.g., 99.9) |
+| P95 Latency Max | Max P95 Latency (ms) | Number input | Maximum P95 latency in milliseconds |
+| Error Rate Max | Max Error Rate (%) | Number input | Maximum error rate percentage |
+| Min TPS | Min TPS | Number input | Minimum tokens per second |
 
 **Validation**:
 - At least one threshold field must be filled
@@ -66,7 +66,7 @@ Table listing all saved SLA profiles.
 
 **Threshold Summary Format**:
 - `Availability≥{value}%` — if `availability_min` is set
-- `P95≤{value}ms` — if `p95_latency_max_ms` is set
+- `P95 Latency≤{value}ms` — if `p95_latency_max_ms` is set
 - `Error Rate≤{value}%` — if `error_rate_max_pct` is set
 - `TPS≥{value}` — if `min_tps` is set
 - Multiple thresholds joined with ` · ` separator

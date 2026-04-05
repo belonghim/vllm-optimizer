@@ -154,11 +154,6 @@ BenchmarkItem → {
 - P99 Latency Comparison (BarChart)
 - GPU Efficiency Comparison (BarChart, filtered to `metricsTargetMatched` only)
 
-**Rendered charts** (3 total):
-- TPS Comparison (BarChart)
-- P99 Latency Comparison (BarChart)
-- GPU Efficiency Comparison (BarChart, filtered to `metricsTargetMatched` only)
-
 ---
 
 ### 6. ConfirmDialog Component

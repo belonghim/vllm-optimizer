@@ -11,7 +11,27 @@ export interface VllmConfigMock {
 }
 
 export async function setupVllmConfigMock(page: Page, configs: VllmConfigMock) {
-  await page.route('**/api/vllm-config', async (route) => {
+  await page.route(/\/api\/vllm-config(\?.*)?$/, async (route) => {
+    const req = route.request();
+    const { pathname } = new URL(req.url());
+    const method = req.method();
+    const json = (body: unknown) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+
+    if (pathname === '/api/vllm-config' && method === 'GET') {
+      return json({ success: true, data: configs });
+    }
+  });
+}
+
+export async function setupVllmConfigMockWithQueryParams(
+  page: Page,
+  configs: Record<string, VllmConfigMock>
+) {
+  await page.route(/\/api\/vllm-config(\?.*)?$/, async (route) => {
     const req = route.request();
     const { pathname, searchParams } = new URL(req.url());
     const method = req.method();
@@ -22,7 +42,34 @@ export async function setupVllmConfigMock(page: Page, configs: VllmConfigMock) {
     });
 
     if (pathname === '/api/vllm-config' && method === 'GET') {
-      return json({ success: true, data: configs });
+      const isName = searchParams.get('is_name') || '';
+      const crType = searchParams.get('cr_type') || '';
+
+      if (configs[isName]) {
+        return json({ success: true, data: configs[isName] });
+      }
+
+      const compoundKey = `${isName}-${crType}`;
+      if (configs[compoundKey]) {
+        return json({ success: true, data: configs[compoundKey] });
+      }
+
+      if (configs['default']) {
+        return json({ success: true, data: configs['default'] });
+      }
+
+      return json({
+        success: true,
+        data: {
+          model_name: 'default-model',
+          max_num_seqs: '64',
+          gpu_memory_utilization: '0.80',
+          max_model_len: '2048',
+          max_num_batched_tokens: '512',
+          block_size: '8',
+          swap_space: '1',
+        },
+      });
     }
   });
 }
