@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from ..services.multi_target_collector import MultiTargetMetricsCollector, TargetCache, VLLMMetrics
+from backend.services.multi_target_collector import MultiTargetMetricsCollector, TargetCache, VLLMMetrics
 
 
 def _build_collector() -> MultiTargetMetricsCollector:
