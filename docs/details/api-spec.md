@@ -313,11 +313,19 @@ Get the latest metrics snapshot for the default target or a specified target ser
 {
   "status": "ready | collecting",
   "data": {
+    "timestamp": "number",
     "tps": "number",
     "rps": "number",
+    "ttft_mean": "number | null",
+    "ttft_p99": "number | null",
+    "latency_mean": "number | null",
+    "latency_p99": "number | null",
     "kv_cache": "number",
+    "kv_hit_rate": "number",
     "running": "number",
     "waiting": "number",
+    "gpu_mem_used": "number",
+    "gpu_mem_total": "number",
     "gpu_util": "number",
     "pods": "number",
     "pods_ready": "number"
@@ -326,16 +334,27 @@ Get the latest metrics snapshot for the default target or a specified target ser
 }
 ```
 
+> **Note:** `data` is `null` when `status` is `"collecting"` (metrics not yet available).
+
 **Response Fields:**
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `status` | string | `ready` if metrics available, `collecting` if still gathering |
-| `data.tps` | number | Transactions per second |
+| `data` | object \| null | MetricsSnapshot object, or `null` when status is `collecting` |
+| `data.timestamp` | number | Unix timestamp of the snapshot |
+| `data.tps` | number | Tokens per second |
 | `data.rps` | number | Requests per second |
+| `data.ttft_mean` | number \| null | Time to first token (mean) in ms |
+| `data.ttft_p99` | number \| null | Time to first token (P99) in ms |
+| `data.latency_mean` | number \| null | End-to-end latency (mean) in ms |
+| `data.latency_p99` | number \| null | End-to-end latency (P99) in ms |
 | `data.kv_cache` | number | KV cache utilization percentage |
-| `data.running` | number | Number of running requests |
-| `data.waiting` | number | Number of waiting requests |
+| `data.kv_hit_rate` | number | KV cache hit rate |
+| `data.running` | number | Number of currently running requests |
+| `data.waiting` | number | Number of requests waiting in queue |
+| `data.gpu_mem_used` | number | GPU memory used in GB |
+| `data.gpu_mem_total` | number | Total GPU memory in GB |
 | `data.gpu_util` | number | GPU utilization percentage |
 | `data.pods` | number | Total pod count |
 | `data.pods_ready` | number | Number of ready pods |
@@ -1142,23 +1161,37 @@ Start a new load test against the configured vLLM endpoint.
 {
   "endpoint": "string",
   "model": "string",
-  "concurrency": "number (optional)",
-  "rps": "number (optional)",
-  "duration": "number (optional)",
-  "prompt_template": "string (optional)"
+  "prompt_template": "string (optional)",
+  "total_requests": "integer (optional)",
+  "concurrency": "integer (optional)",
+  "duration": "integer (optional)",
+  "rps": "integer (optional)",
+  "max_tokens": "integer (optional)",
+  "temperature": "number (optional)",
+  "stream": "boolean (optional)",
+  "prompt_mode": "string (optional)",
+  "endpoint_type": "string (optional)",
+  "synthetic_config": "object (optional)"
 }
 ```
 
 **Request Fields:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `endpoint` | string | Yes | Target vLLM endpoint URL |
-| `model` | string | Yes | Model name to test |
-| `concurrency` | number | No | Number of concurrent requests |
-| `rps` | number | No | Target requests per second |
-| `duration` | number | No | Test duration in seconds |
-| `prompt_template` | string | No | Template for generating prompts |
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `endpoint` | string | No | `""` | vLLM endpoint URL (empty = use VLLM_ENDPOINT env) |
+| `model` | string | No | `"auto"` | Model name |
+| `prompt_template` | string | No | `"Hello, how are you?"` | Prompt for generation |
+| `total_requests` | integer | No | `100` | Total number of requests |
+| `concurrency` | integer | No | `10` | Number of concurrent requests |
+| `duration` | integer | No | `30` | Test duration in seconds (max 1 hour) |
+| `rps` | integer | No | `0` | Requests per second (0 = unlimited) |
+| `max_tokens` | integer | No | `256` | Max tokens to generate |
+| `temperature` | number | No | `0.7` | Temperature for generation |
+| `stream` | boolean | No | `true` | Enable streaming mode |
+| `prompt_mode` | string | No | `"static"` | Prompt mode: `"static"` or `"synthetic"` |
+| `endpoint_type` | string | No | `"completions"` | API endpoint type: `"completions"` or `"chat"` |
+| `synthetic_config` | object | No | `null` | Synthetic prompt config (used when `prompt_mode="synthetic"`) |
 
 **Response (200 OK):**
 
@@ -1268,28 +1301,37 @@ Start a parameter sweep that tests multiple concurrency levels sequentially.
 {
   "endpoint": "string",
   "model": "string",
-  "concurrency_levels": [
-    {
-      "concurrency": "number",
-      "rps": "number (optional)",
-      "duration": "number (optional)"
-    }
-  ],
-  "prompt_template": "string (optional)"
+  "rps_start": "integer (optional)",
+  "rps_end": "integer (optional)",
+  "rps_step": "integer (optional)",
+  "requests_per_step": "integer (optional)",
+  "concurrency": "integer (optional)",
+  "max_tokens": "integer (optional)",
+  "stream": "boolean (optional)",
+  "prompt": "string (optional)",
+  "saturation_error_rate": "number (optional)",
+  "saturation_latency_factor": "number (optional)",
+  "min_stable_steps": "integer (optional)"
 }
 ```
 
 **Request Fields:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `endpoint` | string | Yes | Target vLLM endpoint |
-| `model` | string | Yes | Model name to test |
-| `concurrency_levels` | array | Yes | Array of concurrency configurations to test |
-| `concurrency_levels[].concurrency` | number | Yes | Concurrent request count |
-| `concurrency_levels[].rps` | number | No | Target RPS for this level |
-| `concurrency_levels[].duration` | number | No | Duration for this level in seconds |
-| `prompt_template` | string | No | Prompt template |
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `endpoint` | string | No | `""` | vLLM endpoint URL |
+| `model` | string | No | `"auto"` | Model name |
+| `rps_start` | integer | No | `1` | Starting RPS |
+| `rps_end` | integer | No | `50` | Ending RPS |
+| `rps_step` | integer | No | `5` | RPS increment per step |
+| `requests_per_step` | integer | No | `20` | Requests per step |
+| `concurrency` | integer | No | `10` | Concurrent requests |
+| `max_tokens` | integer | No | `128` | Max tokens per request |
+| `stream` | boolean | No | `true` | Enable streaming |
+| `prompt` | string | No | `"Explain quantum computing in simple terms"` | Request prompt |
+| `saturation_error_rate` | number | No | `0.1` | Error rate threshold for saturation detection |
+| `saturation_latency_factor` | number | No | `3.0` | P99 latency multiple vs step-1 for saturation detection |
+| `min_stable_steps` | integer | No | `1` | Consecutive saturated steps required to stop sweep |
 
 **Response (200 OK):**
 
@@ -1971,16 +2013,13 @@ List all SLA profiles with pagination.
   {
     "id": "string",
     "name": "string",
-    "description": "string",
     "thresholds": {
-      "tps_min": "number",
-      "p99_latency_max": "number",
-      "ttft_p99_max": "number",
-      "gpu_util_min": "number",
-      "error_rate_max": "number"
+      "availability_min": "number",
+      "p95_latency_max_ms": "number",
+      "error_rate_max_pct": "number",
+      "min_tps": "number"
     },
-    "created_at": "string",
-    "updated_at": "string"
+    "created_at": "string"
   }
 ]
 ```
@@ -2004,13 +2043,11 @@ Create a new SLA profile.
 ```json
 {
   "name": "string",
-  "description": "string (optional)",
   "thresholds": {
-    "tps_min": "number",
-    "p99_latency_max": "number",
-    "ttft_p99_max": "number",
-    "gpu_util_min": "number",
-    "error_rate_max": "number"
+    "availability_min": "number",
+    "p95_latency_max_ms": "number",
+    "error_rate_max_pct": "number",
+    "min_tps": "number"
   }
 }
 ```
@@ -2021,10 +2058,8 @@ Create a new SLA profile.
 {
   "id": "string",
   "name": "string",
-  "description": "string",
   "thresholds": "object",
-  "created_at": "string",
-  "updated_at": "string"
+  "created_at": "string"
 }
 ```
 
@@ -2058,10 +2093,8 @@ Get a specific SLA profile by ID.
 {
   "id": "string",
   "name": "string",
-  "description": "string",
   "thresholds": "object",
-  "created_at": "string",
-  "updated_at": "string"
+  "created_at": "string"
 }
 ```
 
@@ -2091,13 +2124,11 @@ Update an existing SLA profile. Full replacement of the profile data.
 ```json
 {
   "name": "string",
-  "description": "string (optional)",
   "thresholds": {
-    "tps_min": "number",
-    "p99_latency_max": "number",
-    "ttft_p99_max": "number",
-    "gpu_util_min": "number",
-    "error_rate_max": "number"
+    "availability_min": "number",
+    "p95_latency_max_ms": "number",
+    "error_rate_max_pct": "number",
+    "min_tps": "number"
   }
 }
 ```
@@ -2108,10 +2139,8 @@ Update an existing SLA profile. Full replacement of the profile data.
 {
   "id": "string",
   "name": "string",
-  "description": "string",
   "thresholds": "object",
-  "created_at": "string",
-  "updated_at": "string"
+  "created_at": "string"
 }
 ```
 
