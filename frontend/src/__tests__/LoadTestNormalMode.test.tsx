@@ -35,7 +35,7 @@ describe("LoadTestNormalMode", () => {
             vllm_namespace: "vllm-lab-dev",
             vllm_is_name: "llm-ov",
             cr_type: "inferenceservice",
-            resolved_model_name: "qwen2-5-7b-instruct",
+            resolved_model_name: "OpenVINO/Phi-4-mini-instruct-int4-ov",
           })
         )
       );
@@ -64,7 +64,7 @@ describe("LoadTestNormalMode", () => {
             vllm_namespace: "vllm-lab-dev",
             vllm_is_name: "llm-ov",
             cr_type: "inferenceservice",
-            resolved_model_name: "qwen2-5-7b-instruct",
+            resolved_model_name: "OpenVINO/Phi-4-mini-instruct-int4-ov",
           })
         )
       );

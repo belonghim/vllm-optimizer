@@ -473,7 +473,7 @@ async def save_auto_benchmark_for_tuner(
 ) -> int | None:
     if tuner._best_trial is None or tuner._config is None:
         return None
-    model_name = await model_resolver(tuner._vllm_endpoint, fallback="qwen2-5-7b-instruct")
+    model_name = await model_resolver(tuner._vllm_endpoint, fallback="OpenVINO/Phi-4-mini-instruct-int4-ov")
     benchmark = Benchmark(
         name=f"auto-tune-{time.strftime('%Y%m%d-%H%M%S')}",
         config=LoadTestConfig(

@@ -17,7 +17,7 @@ def test_get_vllm_config_resolves_model_name_for_llmisvc(client_with_vllm_config
     mock_custom.get_namespaced_custom_object.return_value = {
         "spec": {
             "model": {
-                "name": "qwen2-5-7b-instruct",
+                "name": "OpenVINO/Phi-4-mini-instruct-int4-ov",
                 "uri": "oci://test-registry/test-model",
             }
         }
@@ -38,7 +38,7 @@ def test_get_vllm_config_resolves_model_name_for_llmisvc(client_with_vllm_config
         resp = client_with_vllm_config.get("/api/vllm-config")
         assert resp.status_code == 200
         body = resp.json()
-        assert body["modelName"] == "qwen2-5-7b-instruct"
+        assert body["modelName"] == "OpenVINO/Phi-4-mini-instruct-int4-ov"
 
 
 def test_get_vllm_config_model_name_fallback_for_llmisvc(client_with_vllm_config):

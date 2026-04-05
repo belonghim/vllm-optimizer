@@ -398,7 +398,7 @@ def test_get_vllm_config_resolves_model_name_for_isvc(client_with_vllm_config):
             "predictor": {
                 "model": {
                     "args": [
-                        "--served-model-name=qwen2-5-7b-instruct",
+                        "--served-model-name=OpenVINO/Phi-4-mini-instruct-int4-ov",
                         "--max-num-seqs=256",
                     ]
                 }
@@ -414,8 +414,8 @@ def test_get_vllm_config_resolves_model_name_for_isvc(client_with_vllm_config):
         resp = client_with_vllm_config.get("/api/vllm-config")
         assert resp.status_code == 200
         body = resp.json()
-        assert body["modelName"] == "qwen2-5-7b-instruct"
-        assert body["resolvedModelName"] == "qwen2-5-7b-instruct"
+        assert body["modelName"] == "OpenVINO/Phi-4-mini-instruct-int4-ov"
+        assert body["resolvedModelName"] == "OpenVINO/Phi-4-mini-instruct-int4-ov"
 
 
 def test_get_vllm_config_model_name_fallback_for_isvc(client_with_vllm_config):

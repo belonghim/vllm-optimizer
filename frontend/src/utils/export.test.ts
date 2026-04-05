@@ -5,7 +5,7 @@ const makeBenchmark = (overrides: Record<string, unknown> = {}) => ({
   id: 1,
   name: "bench1",
   timestamp: 1700000000,
-  config: { model: "qwen2-5-7b-instruct" },
+  config: { model: "OpenVINO/Phi-4-mini-instruct-int4-ov" },
   result: {
     tps: { mean: 42.5 },
     latency: { p99: 123 },

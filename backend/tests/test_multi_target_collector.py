@@ -308,7 +308,7 @@ class TestCrType:
                 "predictor": {
                     "model": {
                         "args": [
-                            "--served-model-name=qwen2-5-7b-instruct",
+                            "--served-model-name=OpenVINO/Phi-4-mini-instruct-int4-ov",
                             "--max-num-seqs=256",
                         ]
                     }
@@ -318,7 +318,7 @@ class TestCrType:
 
         model_name = await collector._resolve_model_name("vllm-lab-dev", "llm-ov", "inferenceservice")
 
-        assert model_name == "qwen2-5-7b-instruct"
+        assert model_name == "OpenVINO/Phi-4-mini-instruct-int4-ov"
 
     @pytest.mark.asyncio
     async def test_resolve_model_name_llmis_from_spec_model_name(self) -> None:
@@ -328,14 +328,14 @@ class TestCrType:
         collector._k8s_custom.get_namespaced_custom_object.return_value = {
             "spec": {
                 "model": {
-                    "name": "qwen2-5-7b-instruct",
+                    "name": "OpenVINO/Phi-4-mini-instruct-int4-ov",
                 }
             }
         }
 
         model_name = await collector._resolve_model_name("llm-d-demo", "small-llm-d", "llminferenceservice")
 
-        assert model_name == "qwen2-5-7b-instruct"
+        assert model_name == "OpenVINO/Phi-4-mini-instruct-int4-ov"
 
 
 class TestBuildTargetQueries:

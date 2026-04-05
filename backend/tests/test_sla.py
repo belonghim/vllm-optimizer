@@ -34,7 +34,7 @@ def _make_benchmark(
         timestamp=timestamp,
         config=LoadTestConfig(
             endpoint="http://localhost:8000",
-            model="qwen2-5-7b-instruct",
+            model="OpenVINO/Phi-4-mini-instruct-int4-ov",
             total_requests=max(total, 1),
             concurrency=1,
         ),

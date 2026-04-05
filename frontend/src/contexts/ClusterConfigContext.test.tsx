@@ -295,7 +295,7 @@ describe("ClusterConfigContext", () => {
         signals.push((init?.signal as AbortSignal | null) ?? null);
       }
       return Promise.resolve({
-        json: () => Promise.resolve({ resolved_model_name: "qwen2-5-7b-instruct" }),
+        json: () => Promise.resolve({ resolved_model_name: "OpenVINO/Phi-4-mini-instruct-int4-ov" }),
       } as unknown as Response);
     });
     vi.spyOn(global, "fetch").mockImplementation(fetchMock);

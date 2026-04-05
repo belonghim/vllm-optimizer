@@ -292,12 +292,12 @@ class TestInferenceServiceAdapter:
                 "model": {
                     "args": [
                         "--tensor-parallel-size=1",
-                        "--served-model-name=qwen2-5-7b-instruct",
+                        "--served-model-name=OpenVINO/Phi-4-mini-instruct-int4-ov",
                     ]
                 }
             }
         }
-        assert adapter.resolve_model_name(spec, "llm-ov") == "qwen2-5-7b-instruct"
+        assert adapter.resolve_model_name(spec, "llm-ov") == "OpenVINO/Phi-4-mini-instruct-int4-ov"
 
     def test_resolve_model_name_falls_back_to_is_name_for_isvc(self):
         adapter = InferenceServiceAdapter()
@@ -512,8 +512,8 @@ class TestLLMInferenceServiceAdapter:
 
     def test_resolve_model_name_from_spec_model_name_for_llmis(self):
         adapter = LLMInferenceServiceAdapter()
-        spec = {"model": {"name": "qwen2-5-7b-instruct"}}
-        assert adapter.resolve_model_name(spec, "small-llm-d") == "qwen2-5-7b-instruct"
+        spec = {"model": {"name": "OpenVINO/Phi-4-mini-instruct-int4-ov"}}
+        assert adapter.resolve_model_name(spec, "small-llm-d") == "OpenVINO/Phi-4-mini-instruct-int4-ov"
 
     def test_resolve_model_name_falls_back_to_is_name_for_llmis(self):
         adapter = LLMInferenceServiceAdapter()
