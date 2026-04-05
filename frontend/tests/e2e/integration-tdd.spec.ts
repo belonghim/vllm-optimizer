@@ -1,7 +1,23 @@
 import { test, expect } from './fixtures/mock-api';
+import { setupComprehensiveMock } from './fixtures/test-helpers';
 
 test.describe('TDD Cycle Verification: Red → Green → Refactor', () => {
   test('Red: Test fails before implementation (ConfigMap API)', async ({ page }) => {
+    await setupComprehensiveMock(page, {
+      config: {
+        vllm_endpoint: 'http://test:8080',
+        vllm_namespace: 'test-ns',
+        vllm_is_name: 'test-isvc',
+        cr_type: 'inferenceservice',
+      },
+      defaultTargets: {
+        isvc: { name: 'test-isvc', namespace: 'test-ns' },
+        llmisvc: { name: '', namespace: '' },
+        configmap_updated: true,
+      },
+      targets: [{ namespace: 'test-ns', inferenceService: 'test-isvc', crType: 'inferenceservice', isDefault: true }],
+    });
+
     await page.route('**/api/config/default-targets', async (route) => {
       const req = route.request();
       const method = req.method();
@@ -45,6 +61,22 @@ test.describe('TDD Cycle Verification: Red → Green → Refactor', () => {
   });
 
   test('Green: Test passes after implementation (ConfigMap persistence)', async ({ page }) => {
+    await setupComprehensiveMock(page, {
+      config: {
+        vllm_endpoint: 'http://base-isvc-predictor.base-ns.svc.cluster.local:8080',
+        vllm_namespace: 'base-ns',
+        vllm_is_name: 'base-isvc',
+        cr_type: 'inferenceservice',
+        resolved_model_name: 'test-model',
+      },
+      defaultTargets: {
+        isvc: { name: '', namespace: '' },
+        llmisvc: { name: '', namespace: '' },
+        configmap_updated: false,
+      },
+      targets: [{ namespace: 'base-ns', inferenceService: 'base-isvc', crType: 'inferenceservice', isDefault: true }],
+    });
+
     await page.goto('/');
     await page.waitForSelector('.multi-target-selector');
 
@@ -56,11 +88,12 @@ test.describe('TDD Cycle Verification: Red → Green → Refactor', () => {
 
     await page.waitForSelector('[data-testid^="target-row-"]');
 
-    await page.getByTestId('set-default-btn').first().click();
-
-    const response = await page.waitForResponse((r) =>
+    const responsePromise = page.waitForResponse((r) =>
       r.url().includes('/api/config/default-targets') && r.request().method() === 'PATCH'
     );
+    await page.getByTestId('set-default-btn').first().click();
+
+    const response = await responsePromise;
     expect(response.ok()).toBe(true);
 
     const body = await response.json();
@@ -68,6 +101,22 @@ test.describe('TDD Cycle Verification: Red → Green → Refactor', () => {
   });
 
   test('Refactor: Code quality verification (no regressions)', async ({ page }) => {
+    await setupComprehensiveMock(page, {
+      config: {
+        vllm_endpoint: 'http://base-isvc-predictor.base-ns.svc.cluster.local:8080',
+        vllm_namespace: 'base-ns',
+        vllm_is_name: 'base-isvc',
+        cr_type: 'inferenceservice',
+        resolved_model_name: 'test-model',
+      },
+      defaultTargets: {
+        isvc: { name: '', namespace: '' },
+        llmisvc: { name: '', namespace: '' },
+        configmap_updated: false,
+      },
+      targets: [{ namespace: 'base-ns', inferenceService: 'base-isvc', crType: 'inferenceservice', isDefault: true }],
+    });
+
     await page.goto('/');
     await page.waitForSelector('.multi-target-selector');
 
@@ -80,14 +129,17 @@ test.describe('TDD Cycle Verification: Red → Green → Refactor', () => {
       await page.waitForTimeout(100);
     }
 
-    const targetRows = page.getByTestId(/target-row-/);
+    const targetRows = page.locator('[data-testid^="target-row-"]').filter({
+      has: page.locator('[data-testid="set-default-btn"]'),
+    });
     const count = await targetRows.count();
     expect(count).toBe(3);
 
-    await page.getByTestId('set-default-btn').first().click();
-    await page.waitForResponse((r) =>
+    const responsePromise = page.waitForResponse((r) =>
       r.url().includes('/api/config/default-targets') && r.request().method() === 'PATCH'
     );
+    await page.getByTestId('set-default-btn').first().click();
+    await responsePromise;
 
     const consoleMessages: string[] = [];
     page.on('console', (msg) => {

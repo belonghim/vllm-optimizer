@@ -1,43 +1,21 @@
 import { test, expect } from './fixtures/mock-api';
+import { setupComprehensiveMock } from './fixtures/test-helpers';
 
 test.describe('Edge Cases: Empty and Deleted Targets', () => {
   test('Empty targets state: UI shows empty state message', async ({ page }) => {
-    await page.route('**/api/**', async (route) => {
-      const req = route.request();
-      const { pathname } = new URL(req.url());
-      const method = req.method();
-      const json = (body: unknown) => route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(body),
-      });
-
-      if (pathname === '/api/config' && method === 'GET') {
-        return json({
-          vllm_endpoint: '',
-          vllm_namespace: '',
-          vllm_is_name: '',
-          cr_type: 'inferenceservice',
-        });
-      }
-
-      if (pathname === '/api/config/default-targets' && method === 'GET') {
-        return json({
-          isvc: { name: '', namespace: '' },
-          llmisvc: { name: '', namespace: '' },
-          configmap_updated: true,
-        });
-      }
-
-      if (pathname === '/api/metrics/latest' && method === 'GET') {
-        return json({ status: 'ready', data: {}, hasMonitoringLabel: false });
-      }
-
-      if (pathname === '/api/sla/profiles' && method === 'GET') {
-        return json([]);
-      }
-
-      return json({});
+    await setupComprehensiveMock(page, {
+      config: {
+        vllm_endpoint: '',
+        vllm_namespace: '',
+        vllm_is_name: '',
+        cr_type: 'inferenceservice',
+      },
+      defaultTargets: {
+        isvc: { name: '', namespace: '' },
+        llmisvc: { name: '', namespace: '' },
+        configmap_updated: true,
+      },
+      metricsData: {},
     });
 
     await page.goto('/');
@@ -46,12 +24,30 @@ test.describe('Edge Cases: Empty and Deleted Targets', () => {
     const addTargetBtn = page.getByTestId('add-target-btn');
     await expect(addTargetBtn).toBeVisible();
 
-    const targetRows = page.getByTestId(/target-row-/);
+    const targetRows = page.locator('[data-testid^="target-row-"]').filter({
+      has: page.locator('[data-testid="set-default-btn"]'),
+    });
     const count = await targetRows.count();
     expect(count).toBe(0);
   });
 
   test('Deleted target: Default target removed, fallback to empty', async ({ page }) => {
+    await setupComprehensiveMock(page, {
+      config: {
+        vllm_endpoint: 'http://base-isvc-predictor.base-ns.svc.cluster.local:8080',
+        vllm_namespace: 'base-ns',
+        vllm_is_name: 'base-isvc',
+        cr_type: 'inferenceservice',
+        resolved_model_name: 'test-model',
+      },
+      defaultTargets: {
+        isvc: { name: '', namespace: '' },
+        llmisvc: { name: '', namespace: '' },
+        configmap_updated: false,
+      },
+      targets: [{ namespace: 'base-ns', inferenceService: 'base-isvc', crType: 'inferenceservice', isDefault: true }],
+    });
+
     await page.goto('/');
     await page.waitForSelector('.multi-target-selector');
 
@@ -63,15 +59,18 @@ test.describe('Edge Cases: Empty and Deleted Targets', () => {
 
     await page.waitForSelector('[data-testid^="target-row-"]');
 
-    await page.getByTestId('set-default-btn').first().click();
-    await page.waitForResponse((r) =>
+    const responsePromise = page.waitForResponse((r) =>
       r.url().includes('/api/config/default-targets') && r.request().method() === 'PATCH'
     );
+    await page.getByTestId('set-default-btn').first().click();
+    await responsePromise;
 
-    await page.getByTestId('remove-target-btn').first().click();
+    await page.getByTestId('delete-btn').first().click();
     await page.waitForTimeout(200);
 
-    const targetRows = page.getByTestId(/target-row-/);
+    const targetRows = page.locator('[data-testid^="target-row-"]').filter({
+      has: page.locator('[data-testid="set-default-btn"]'),
+    });
     const count = await targetRows.count();
     expect(count).toBe(0);
   });
@@ -79,6 +78,22 @@ test.describe('Edge Cases: Empty and Deleted Targets', () => {
 
 test.describe('Multiple CR Types', () => {
   test('Switching between isvc and llmisvc', async ({ page }) => {
+    await setupComprehensiveMock(page, {
+      config: {
+        vllm_endpoint: 'http://base-isvc-predictor.base-ns.svc.cluster.local:8080',
+        vllm_namespace: 'base-ns',
+        vllm_is_name: 'base-isvc',
+        cr_type: 'inferenceservice',
+        resolved_model_name: 'test-model',
+      },
+      defaultTargets: {
+        isvc: { name: '', namespace: '' },
+        llmisvc: { name: '', namespace: '' },
+        configmap_updated: false,
+      },
+      targets: [{ namespace: 'base-ns', inferenceService: 'base-isvc', crType: 'inferenceservice', isDefault: true }],
+    });
+
     await page.goto('/');
     await page.waitForSelector('.multi-target-selector');
 
@@ -96,18 +111,45 @@ test.describe('Multiple CR Types', () => {
     await page.getByTestId('confirm-add-btn').click();
     await page.waitForTimeout(100);
 
+    let responsePromise = page.waitForResponse((r) =>
+      r.url().includes('/api/config/default-targets') && r.request().method() === 'PATCH'
+    );
     await page.getByTestId('set-default-btn').first().click();
-    await page.waitForResponse((r) =>
-      r.url().includes('/api/config/default-targets') && r.request().method() === 'PATCH'
-    );
+    await responsePromise;
 
-    await page.getByTestId('set-default-btn').last().click();
-    await page.waitForResponse((r) =>
+    responsePromise = page.waitForResponse((r) =>
       r.url().includes('/api/config/default-targets') && r.request().method() === 'PATCH'
     );
+    await page.getByTestId('set-default-btn').last().click();
+    await responsePromise;
   });
 
   test('Concurrent operations: Rapid add/remove/set-default', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem('vllm-opt-cluster-config', JSON.stringify({
+        endpoint: '',
+        targets: [{ namespace: 'base-ns', inferenceService: 'base-isvc', crType: 'inferenceservice', source: 'manual' }],
+        maxTargets: 6,
+        version: 3,
+      }));
+    });
+
+    await setupComprehensiveMock(page, {
+      config: {
+        vllm_endpoint: 'http://base-isvc-predictor.base-ns.svc.cluster.local:8080',
+        vllm_namespace: 'base-ns',
+        vllm_is_name: 'base-isvc',
+        cr_type: 'inferenceservice',
+        resolved_model_name: 'test-model',
+      },
+      defaultTargets: {
+        isvc: { name: '', namespace: '' },
+        llmisvc: { name: '', namespace: '' },
+        configmap_updated: false,
+      },
+      targets: [{ namespace: 'base-ns', inferenceService: 'base-isvc', crType: 'inferenceservice', isDefault: true }],
+    });
+
     await page.goto('/');
     await page.waitForSelector('.multi-target-selector');
 

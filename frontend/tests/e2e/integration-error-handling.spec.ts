@@ -1,64 +1,52 @@
 import { test, expect } from './fixtures/mock-api';
+import { setupComprehensiveMock } from './fixtures/test-helpers';
 
 test.describe('Error Handling and Recovery', () => {
   test('ConfigMap save failure: UI shows error but remains functional', async ({ page }) => {
-    await page.route('**/api/**', async (route) => {
-      const req = route.request();
-      const { pathname } = new URL(req.url());
-      const method = req.method();
-      const json = (body: unknown) => route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(body),
-      });
+    await setupComprehensiveMock(page, {
+      config: {
+        vllm_endpoint: 'http://test:8080',
+        vllm_namespace: 'test-ns',
+        vllm_is_name: 'test-isvc',
+        cr_type: 'inferenceservice',
+      },
+      defaultTargets: {
+        isvc: { name: 'test-isvc', namespace: 'test-ns' },
+        llmisvc: { name: '', namespace: '' },
+        configmap_updated: true,
+      },
+      metricsData: { tps: 100 },
+      targets: [{ namespace: 'test-ns', inferenceService: 'test-isvc', crType: 'inferenceservice', isDefault: true }],
+    });
 
-      if (pathname === '/api/config' && method === 'GET') {
-        return json({
-          vllm_endpoint: 'http://test:8080',
-          vllm_namespace: 'test-ns',
-          vllm_is_name: 'test-isvc',
-          cr_type: 'inferenceservice',
+    await page.route('**/api/config/default-targets', async (route) => {
+      const method = route.request().method();
+
+      if (method === 'GET') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            isvc: { name: 'test-isvc', namespace: 'test-ns' },
+            llmisvc: { name: '', namespace: '' },
+            configmap_updated: true,
+          }),
         });
       }
 
-      if (pathname === '/api/config/default-targets' && method === 'GET') {
-        return json({
-          isvc: { name: 'test-isvc', namespace: 'test-ns' },
-          llmisvc: { name: '', namespace: '' },
-          configmap_updated: true,
+      if (method === 'PATCH') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            isvc: { name: 'test-isvc', namespace: 'test-ns' },
+            llmisvc: { name: '', namespace: '' },
+            configmap_updated: false,
+          }),
         });
       }
 
-      if (pathname === '/api/config/default-targets' && method === 'PATCH') {
-        return json({
-          isvc: { name: 'test-isvc', namespace: 'test-ns' },
-          llmisvc: { name: '', namespace: '' },
-          configmap_updated: false,
-        });
-      }
-
-      if (pathname === '/api/metrics/latest' && method === 'GET') {
-        return json({ status: 'ready', data: { tps: 100 }, hasMonitoringLabel: true });
-      }
-
-      if (pathname === '/api/metrics/batch' && method === 'POST') {
-        return json({
-          results: {
-            'test-ns/test-isvc': {
-              status: 'ready',
-              data: { tps: 100 },
-              hasMonitoringLabel: true,
-              history: [],
-            },
-          },
-        });
-      }
-
-      if (pathname === '/api/sla/profiles' && method === 'GET') {
-        return json([]);
-      }
-
-      return json({});
+      return route.fulfill({ status: 404 });
     });
 
     await page.goto('/');
@@ -72,12 +60,12 @@ test.describe('Error Handling and Recovery', () => {
 
     await page.waitForSelector('[data-testid^="target-row-"]');
 
-    await page.getByTestId('set-default-btn').first().click();
-
-    const response = await page.waitForResponse((r) =>
+    const responsePromise = page.waitForResponse((r) =>
       r.url().includes('/api/config/default-targets') && r.request().method() === 'PATCH'
     );
+    await page.getByTestId('set-default-btn').first().click();
 
+    const response = await responsePromise;
     const body = await response.json();
     expect(body.configmap_updated).toBe(false);
 
@@ -87,6 +75,21 @@ test.describe('Error Handling and Recovery', () => {
 
   test('Network error: Retry mechanism works', async ({ page }) => {
     let callCount = 0;
+
+    await setupComprehensiveMock(page, {
+      config: {
+        vllm_endpoint: 'http://test:8080',
+        vllm_namespace: 'test-ns',
+        vllm_is_name: 'test-isvc',
+        cr_type: 'inferenceservice',
+      },
+      defaultTargets: {
+        isvc: { name: 'test-isvc', namespace: 'test-ns' },
+        llmisvc: { name: '', namespace: '' },
+        configmap_updated: true,
+      },
+      targets: [{ namespace: 'test-ns', inferenceService: 'test-isvc', crType: 'inferenceservice', isDefault: true }],
+    });
 
     await page.route('**/api/config/default-targets', async (route) => {
       const req = route.request();
@@ -124,40 +127,6 @@ test.describe('Error Handling and Recovery', () => {
 
       return route.fulfill({ status: 404 });
     });
-
-    await page.route('**/api/config', async (route) => {
-      const req = route.request();
-      if (req.method() === 'GET') {
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            vllm_endpoint: 'http://test:8080',
-            vllm_namespace: 'test-ns',
-            vllm_is_name: 'test-isvc',
-            cr_type: 'inferenceservice',
-          }),
-        });
-      }
-      return route.fulfill({ status: 404 });
-    });
-
-    await page.route('**/api/metrics/**', async (route) => {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ status: 'ready', data: {}, hasMonitoringLabel: true }),
-      });
-    });
-
-    await page.route('**/api/sla/**', async (route) => {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify([]),
-      });
-    });
-
     await page.goto('/');
     await page.waitForSelector('.multi-target-selector');
 

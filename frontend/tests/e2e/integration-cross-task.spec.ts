@@ -1,6 +1,25 @@
 import { test, expect } from './fixtures/mock-api';
+import { setupComprehensiveMock } from './fixtures/test-helpers';
 
 test.describe('Cross-Task Integration: MonitorPage + AutoTuner + LoadTest', () => {
+  test.beforeEach(async ({ page }) => {
+    await setupComprehensiveMock(page, {
+      config: {
+        vllm_endpoint: 'http://base-isvc-predictor.base-ns.svc.cluster.local:8080',
+        vllm_namespace: 'base-ns',
+        vllm_is_name: 'base-isvc',
+        cr_type: 'inferenceservice',
+        resolved_model_name: 'test-model',
+      },
+      defaultTargets: {
+        isvc: { name: '', namespace: '' },
+        llmisvc: { name: '', namespace: '' },
+        configmap_updated: false,
+      },
+      targets: [{ namespace: 'base-ns', inferenceService: 'base-isvc', crType: 'inferenceservice', isDefault: true }],
+    });
+  });
+
   test('MonitorPage default affects AutoTuner target selector', async ({ page }) => {
     await page.goto('/');
     await page.waitForSelector('.multi-target-selector');
@@ -13,15 +32,16 @@ test.describe('Cross-Task Integration: MonitorPage + AutoTuner + LoadTest', () =
 
     await page.waitForSelector('[data-testid^="target-row-"]');
 
-    await page.getByTestId('set-default-btn').first().click();
-    await page.waitForResponse((r) =>
+    const responsePromise = page.waitForResponse((r) =>
       r.url().includes('/api/config/default-targets') && r.request().method() === 'PATCH'
     );
+    await page.getByTestId('set-default-btn').first().click();
+    await responsePromise;
 
-    await page.getByRole('tab', { name: '자동 파라미터 튜닝' }).click();
+    await page.getByRole('tab', { name: 'Auto Tuner' }).click();
     await page.waitForTimeout(500);
 
-    const tunerTargetSelector = page.getByTestId('target-selector');
+    const tunerTargetSelector = page.getByTestId('tuner-target-selector');
     await expect(tunerTargetSelector).toBeVisible();
   });
 
@@ -37,15 +57,16 @@ test.describe('Cross-Task Integration: MonitorPage + AutoTuner + LoadTest', () =
 
     await page.waitForSelector('[data-testid^="target-row-"]');
 
-    await page.getByTestId('set-default-btn').first().click();
-    await page.waitForResponse((r) =>
+    const responsePromise = page.waitForResponse((r) =>
       r.url().includes('/api/config/default-targets') && r.request().method() === 'PATCH'
     );
+    await page.getByTestId('set-default-btn').first().click();
+    await responsePromise;
 
-    await page.getByRole('tab', { name: '부하 테스트' }).click();
+    await page.getByRole('tab', { name: 'Load Test' }).click();
     await page.waitForTimeout(500);
 
-    const loadTestTargetSelector = page.getByTestId('target-selector');
+    const loadTestTargetSelector = page.getByTestId('loadtest-target-selector');
     await expect(loadTestTargetSelector).toBeVisible();
   });
 
@@ -61,21 +82,22 @@ test.describe('Cross-Task Integration: MonitorPage + AutoTuner + LoadTest', () =
 
     await page.waitForSelector('[data-testid^="target-row-"]');
 
-    await page.getByTestId('set-default-btn').first().click();
-    await page.waitForResponse((r) =>
+    const responsePromise = page.waitForResponse((r) =>
       r.url().includes('/api/config/default-targets') && r.request().method() === 'PATCH'
     );
+    await page.getByTestId('set-default-btn').first().click();
+    await responsePromise;
 
-    await page.getByRole('tab', { name: '자동 파라미터 튜닝' }).click();
+    await page.getByRole('tab', { name: 'Auto Tuner' }).click();
     await page.waitForTimeout(500);
 
-    const tunerTargetSelector = page.getByTestId('target-selector');
+    const tunerTargetSelector = page.getByTestId('tuner-target-selector');
     await expect(tunerTargetSelector).toBeVisible();
 
-    await page.getByRole('tab', { name: '부하 테스트' }).click();
+    await page.getByRole('tab', { name: 'Load Test' }).click();
     await page.waitForTimeout(500);
 
-    const loadTestTargetSelector = page.getByTestId('target-selector');
+    const loadTestTargetSelector = page.getByTestId('loadtest-target-selector');
     await expect(loadTestTargetSelector).toBeVisible();
   });
 });
