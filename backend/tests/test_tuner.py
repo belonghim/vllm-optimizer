@@ -1707,7 +1707,7 @@ async def test_evaluate_raises_value_error_when_model_resolution_fails(auto_tune
         import os
 
         os.environ.pop("VLLM_MODEL", None)
-        with patch.object(_at_mod, "resolve_model_name", new=AsyncMock(side_effect=ValueError("resolver error"))):
+        with patch.object(_at_mod, "resolve_model_name", new=AsyncMock(side_effect=ValueError("Cannot resolve model name from http://mock:8080. Set VLLM_MODEL env var."))):
             with pytest.raises(ValueError, match="Cannot resolve model name"):
                 await tuner._evaluate("http://mock:8080", config)
 

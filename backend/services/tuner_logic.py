@@ -468,12 +468,17 @@ async def execute_trial_for_tuner(
 
 async def save_auto_benchmark_for_tuner(
     tuner: Any,  # AutoTuner — avoid circular import
-    model_resolver=resolve_model_name,
+    model_resolver=None,
     save_benchmark_fn=None,
 ) -> int | None:
+    if model_resolver is None:
+        model_resolver = resolve_model_name
     if tuner._best_trial is None or tuner._config is None:
         return None
-    model_name = await model_resolver(tuner._vllm_endpoint, fallback="OpenVINO/Phi-4-mini-instruct-int4-ov")
+    try:
+        model_name = await model_resolver(tuner._vllm_endpoint)
+    except httpx.ConnectError:
+        model_name = os.environ.get("VLLM_MODEL", "unknown")
     benchmark = Benchmark(
         name=f"auto-tune-{time.strftime('%Y%m%d-%H%M%S')}",
         config=LoadTestConfig(

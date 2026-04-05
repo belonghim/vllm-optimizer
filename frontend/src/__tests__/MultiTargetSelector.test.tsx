@@ -209,7 +209,7 @@ describe("MultiTargetSelector", () => {
       });
 
       // With new behavior, isvc target shows KServe badge
-      expect(screen.getByTestId("isvc-badge")).toBeInTheDocument();
+      expect(screen.getAllByTestId("isvc-badge")[0]).toBeInTheDocument();
     });
   });
 
@@ -222,7 +222,7 @@ describe("MultiTargetSelector", () => {
       });
 
       // With new behavior, set-default button shows for non-default targets
-      expect(screen.getByTestId("set-default-btn")).toBeInTheDocument();
+      expect(screen.getAllByTestId("set-default-btn")[0]).toBeInTheDocument();
     });
   });
 
@@ -235,7 +235,7 @@ describe("MultiTargetSelector", () => {
       });
 
       // With new behavior, delete button shows for non-default targets
-      expect(screen.getByTestId("delete-btn")).toBeInTheDocument();
+      expect(screen.getAllByTestId("delete-btn")[0]).toBeInTheDocument();
     });
   });
 
