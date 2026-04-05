@@ -187,11 +187,7 @@ class CRAdapter(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def deployment_name(self, name: str) -> str:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def prometheus_job(self, name: str) -> str:
+    def prometheus_job(self, name: str, namespace: str = "") -> str:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -281,7 +277,7 @@ class InferenceServiceAdapter(CRAdapter):
     def deployment_name(self, name: str) -> str:
         return f"{name}-predictor"
 
-    def prometheus_job(self, name: str) -> str:
+    def prometheus_job(self, name: str, namespace: str = "") -> str:
         return f"{name}-metrics"
 
     def metrics_port(self) -> int:
@@ -451,9 +447,10 @@ class LLMInferenceServiceAdapter(CRAdapter):
     def deployment_name(self, name: str) -> str:
         return f"{name}-kserve"
 
-    def prometheus_job(self, name: str) -> str:
-        # LLMIS uses static PodMonitor name regardless of CR name
-        return "kserve-llm-isvc-vllm-engine"
+    def prometheus_job(self, name: str, namespace: str = "") -> str:
+        # LLMIS job label includes namespace prefix: "{namespace}/kserve-llm-isvc-vllm-engine"
+        prefix = f"{namespace}/" if namespace else ""
+        return f"{prefix}kserve-llm-isvc-vllm-engine"
 
     def metrics_port(self) -> int:
         return 8080

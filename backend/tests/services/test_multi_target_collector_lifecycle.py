@@ -19,7 +19,9 @@ class TestRegisterTarget:
         assert collector.build_target_key("test-ns", "test-is") in collector._targets
 
     @pytest.mark.asyncio
-    async def test_register_existing_target_returns_true_no_duplicate(self, collector: MultiTargetMetricsCollector) -> None:
+    async def test_register_existing_target_returns_true_no_duplicate(
+        self, collector: MultiTargetMetricsCollector
+    ) -> None:
         default = collector._get_default_target()
         assert default is not None
         before = len(collector._targets)
@@ -43,7 +45,9 @@ class TestRegisterTarget:
         assert len(collector._targets) == collector.MAX_TARGETS
 
     @pytest.mark.asyncio
-    async def test_register_target_monitoring_label_false_when_k8s_unavailable(self, collector: MultiTargetMetricsCollector) -> None:
+    async def test_register_target_monitoring_label_false_when_k8s_unavailable(
+        self, collector: MultiTargetMetricsCollector
+    ) -> None:
 
         with patch.object(collector, "_ensure_collect_loop", new_callable=AsyncMock):
             await collector.register_target("new-ns", "new-is")
@@ -112,7 +116,9 @@ class TestGetMetrics:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_get_metrics_registered_target_returns_none_before_collection(self, collector: MultiTargetMetricsCollector) -> None:
+    async def test_get_metrics_registered_target_returns_none_before_collection(
+        self, collector: MultiTargetMetricsCollector
+    ) -> None:
 
         with patch.object(collector, "_ensure_collect_loop", new_callable=AsyncMock):
             await collector.register_target("test-ns", "test-is")
@@ -166,7 +172,9 @@ class TestGetDefaultTarget:
 
         assert result is None
 
-    def test_get_default_target_falls_back_to_first_when_no_is_default(self, collector: MultiTargetMetricsCollector) -> None:
+    def test_get_default_target_falls_back_to_first_when_no_is_default(
+        self, collector: MultiTargetMetricsCollector
+    ) -> None:
         for t in collector._targets.values():
             t.is_default = False
 
@@ -318,7 +326,7 @@ class TestBuildTargetQueries:
         queries = collector._build_target_queries("test-ns", "my-svc", "llminferenceservice")
 
         assert all("kserve_vllm:" in q for q in queries.values())
-        assert 'job="kserve-llm-isvc-vllm-engine"' in queries["tokens_per_second"]
+        assert 'job="test-ns/kserve-llm-isvc-vllm-engine"' in queries["tokens_per_second"]
         assert 'namespace="test-ns"' in queries["tokens_per_second"]
 
     def test_isvc_dcgm_pod_pattern_uses_predictor_suffix(self, collector: MultiTargetMetricsCollector) -> None:
@@ -348,6 +356,7 @@ class TestQueryKubernetesPods:
         collector._k8s_core = MagicMock()
 
         mock_pod = MagicMock()
+        mock_pod.metadata.name = "test-svc-predictor-abc123"
         mock_pod.status.phase = "Running"
         mock_container = MagicMock()
         mock_container.ready = True
@@ -372,6 +381,7 @@ class TestQueryKubernetesPods:
         collector._k8s_core = MagicMock()
 
         mock_pod = MagicMock()
+        mock_pod.metadata.name = "test-svc-predictor-abc123"
         mock_pod.status.phase = "Running"
         mock_pod.status.container_statuses = []
 
@@ -394,6 +404,7 @@ class TestQueryKubernetesPods:
         collector._k8s_core = MagicMock()
 
         mock_pod = MagicMock()
+        mock_pod.metadata.name = "test-svc-predictor-abc123"
         mock_pod.status.phase = "Running"
         mock_pod.status.container_statuses = None
 
@@ -416,6 +427,7 @@ class TestQueryKubernetesPods:
         collector._k8s_core = MagicMock()
 
         mock_pod = MagicMock()
+        mock_pod.metadata.name = "test-svc-predictor-abc123"
         mock_pod.status.phase = "Pending"
         mock_container = MagicMock()
         mock_container.ready = True
@@ -461,7 +473,9 @@ class TestQueryKubernetesPods:
 
 class TestGetTargetWarning:
     @pytest.mark.asyncio
-    async def test_get_target_returns_none_for_unknown_key(self, collector: MultiTargetMetricsCollector, caplog: pytest.LogCaptureFixture) -> None:
+    async def test_get_target_returns_none_for_unknown_key(
+        self, collector: MultiTargetMetricsCollector, caplog: pytest.LogCaptureFixture
+    ) -> None:
         import logging
 
         with caplog.at_level(logging.WARNING, logger="services.multi_target_collector"):

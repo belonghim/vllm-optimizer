@@ -422,7 +422,7 @@ class MultiTargetMetricsCollector:
             cr_type = runtime_config.cr_type
         adapter = get_cr_adapter(cr_type)
         prefix = adapter.metric_prefix()
-        selector = f'namespace="{namespace}", job="{adapter.prometheus_job(is_name)}"'
+        selector = f'namespace="{namespace}", job="{adapter.prometheus_job(is_name, namespace)}"'
         dcgm_selector = f'exported_namespace="{namespace}", exported_pod=~"{adapter.dcgm_pod_pattern(is_name)}"'
         return {
             "tokens_per_second": (
@@ -477,7 +477,7 @@ class MultiTargetMetricsCollector:
             cr_type = runtime_config.cr_type
         adapter = get_cr_adapter(cr_type)
         prefix = adapter.metric_prefix()
-        selector = f'namespace="{namespace}", job="{adapter.prometheus_job(is_name)}"'
+        selector = f'namespace="{namespace}", job="{adapter.prometheus_job(is_name, namespace)}"'
         dcgm_selector = f'exported_namespace="{namespace}", exported_pod=~"{adapter.dcgm_pod_pattern(is_name)}"'
         return {
             "tokens_per_second": (
@@ -836,6 +836,10 @@ class MultiTargetMetricsCollector:
             return {}
 
         items = pods.items or []
+        pod_pattern_str = get_cr_adapter(cr_type).dcgm_pod_pattern(is_name)
+        if pod_pattern_str:
+            pod_pattern = re.compile(pod_pattern_str)
+            items = [p for p in items if pod_pattern.match(p.metadata.name or "")]
         ready = sum(
             1
             for pod in items
