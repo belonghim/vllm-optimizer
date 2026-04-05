@@ -8,6 +8,7 @@ These tests verify that:
 - _fetch_prometheus_metric correctly extracts results[0]
 """
 
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -200,7 +201,7 @@ class TestFetchPrometheusMetric:
         assert metric_name == "empty_metric"
 
     @pytest.mark.asyncio
-    async def test_fetch_prometheus_metric_logs_warning_for_multiple_results(self) -> None:
+    async def test_fetch_prometheus_metric_logs_warning_for_multiple_results(self, caplog) -> None:
         """Verify _fetch_prometheus_metric logs warning when multiple results returned."""
         collector = _build_collector()
 
@@ -222,13 +223,13 @@ class TestFetchPrometheusMetric:
 
         with patch("services.shared.get_internal_client", return_value=mock_internal_client):
             with patch("services.multi_target_collector._with_retry", AsyncMock(return_value=mock_response)):
-                with patch("backend.services.multi_target_collector.logger") as mock_logger:
+                with caplog.at_level(logging.WARNING):
                     metric_name, value = await collector._fetch_prometheus_metric(
                         headers={},
                         metric_name="multi_result_metric",
                         query="sum(rate(test_metric[5m]))",
                     )
-            mock_logger.warning.assert_called_once()
-            warning_call_args = str(mock_logger.warning.call_args)
-            assert "multiple results" in warning_call_args.lower() or "3 results" in warning_call_args
-            assert value == 10.0
+
+        warning_messages = [r.message for r in caplog.records if r.levelno == logging.WARNING]
+        assert any("multiple results" in msg.lower() or "3 results" in msg for msg in warning_messages)
+        assert value == 10.0
