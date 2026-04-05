@@ -13,25 +13,16 @@ import pytest
 from backend.services.multi_target_collector import MultiTargetMetricsCollector
 
 
-def _build_collector() -> MultiTargetMetricsCollector:
-    """Build a collector instance with k8s disabled."""
-    collector = MultiTargetMetricsCollector()
-    collector._k8s_available = False
-    collector._k8s_core = None
-    return collector
-
-
 class TestMultiPodAggregation:
     """Integration tests for multi-pod aggregation via mock Prometheus."""
 
     @pytest.mark.asyncio
-    async def test_multi_pod_aggregation_averages_percentages(self) -> None:
+    async def test_multi_pod_aggregation_averages_percentages(self, collector: MultiTargetMetricsCollector) -> None:
         """Verify kv_cache_usage_pct averages across 2 pods: (50 + 80) / 2 = 65.
 
         When Prometheus queries use avg() aggregation, multi-pod data should
         be averaged, not summed.
         """
-        collector = _build_collector()
 
         # Mock Prometheus response for avg(kv_cache_usage_pct) across 2 pods
         # avg() aggregation returns a SINGLE result with the averaged value
@@ -58,13 +49,12 @@ class TestMultiPodAggregation:
         )
 
     @pytest.mark.asyncio
-    async def test_multi_pod_aggregation_sums_counts(self) -> None:
+    async def test_multi_pod_aggregation_sums_counts(self, collector: MultiTargetMetricsCollector) -> None:
         """Verify running_requests sums across 2 pods: 3 + 5 = 8.
 
         When Prometheus queries use sum() aggregation, multi-pod data should
         be summed, not averaged.
         """
-        collector = _build_collector()
 
         mock_response = MagicMock()
         mock_response.json.return_value = {
@@ -89,13 +79,12 @@ class TestMultiPodAggregation:
         )
 
     @pytest.mark.asyncio
-    async def test_single_pod_unchanged(self) -> None:
+    async def test_single_pod_unchanged(self, collector: MultiTargetMetricsCollector) -> None:
         """Verify single pod values pass through correctly (no aggregation change).
 
         When there's only one pod, avg and sum both return the same value,
         so the result should be the actual pod value.
         """
-        collector = _build_collector()
 
         mock_response = MagicMock()
         mock_response.json.return_value = {

@@ -14,24 +14,15 @@ import pytest
 from backend.services.multi_target_collector import MultiTargetMetricsCollector
 
 
-def _build_collector() -> MultiTargetMetricsCollector:
-    """Build a collector instance with k8s disabled."""
-    collector = MultiTargetMetricsCollector()
-    collector._k8s_available = False
-    collector._k8s_core = None
-    return collector
-
-
 class TestBuildPodQueriesNonAggregated:
     """Tests for _build_pod_queries non-aggregated query generation."""
 
-    def test_build_pod_queries_returns_non_aggregated(self) -> None:
+    def test_build_pod_queries_returns_non_aggregated(self, collector: MultiTargetMetricsCollector) -> None:
         """Verify _build_pod_queries does NOT use sum() or avg() aggregation.
 
         Per-pod queries should return raw per-pod values, not aggregated ones.
         This is the key difference from _build_target_queries which uses sum/avg.
         """
-        collector = _build_collector()
         queries = collector._build_pod_queries("test-ns", "test-is")
 
         # Count metrics should NOT use sum() in per-pod queries
@@ -64,18 +55,16 @@ class TestBuildPodQueriesNonAggregated:
             f"TTFT queries should not use 'sum by (le)' in per-pod queries, got: {queries['mean_ttft_ms']}"
         )
 
-    def test_build_pod_queries_contains_selector(self) -> None:
+    def test_build_pod_queries_contains_selector(self, collector: MultiTargetMetricsCollector) -> None:
         """Verify _build_pod_queries contains proper namespace and job selectors."""
-        collector = _build_collector()
         queries = collector._build_pod_queries("my-namespace", "my-service")
 
         # All queries should contain the namespace selector
         for metric_name, query in queries.items():
             assert 'namespace="my-namespace"' in query, f"{metric_name} should contain namespace selector, got: {query}"
 
-    def test_build_pod_queries_gpu_memory_has_dcgm_selector(self) -> None:
+    def test_build_pod_queries_gpu_memory_has_dcgm_selector(self, collector: MultiTargetMetricsCollector) -> None:
         """Verify GPU memory queries contain DCGM selector for pod pattern."""
-        collector = _build_collector()
         queries = collector._build_pod_queries("test-ns", "test-is")
 
         # GPU memory queries should contain dcgm_selector for fallback
@@ -88,13 +77,14 @@ class TestFetchPrometheusMultiResult:
     """Tests for _fetch_prometheus_multi_result parsing multiple results."""
 
     @pytest.mark.asyncio
-    async def test_fetch_prometheus_multi_result_parses_multiple_results(self) -> None:
+    async def test_fetch_prometheus_multi_result_parses_multiple_results(
+        self, collector: MultiTargetMetricsCollector
+    ) -> None:
         """Verify _fetch_prometheus_multi_result returns a dict mapping pod names to values.
 
         Unlike _fetch_prometheus_metric which returns (metric_name, value) tuple,
         this method should return {pod_name: value, ...} dict.
         """
-        collector = _build_collector()
 
         # Mock Prometheus response with multiple results (one per pod)
         mock_response = MagicMock()
@@ -137,13 +127,14 @@ class TestFetchPrometheusMultiResult:
         assert result["vllm-pod-2"] == 30.5
 
     @pytest.mark.asyncio
-    async def test_fetch_prometheus_multi_result_handles_missing_pod_label(self) -> None:
+    async def test_fetch_prometheus_multi_result_handles_missing_pod_label(
+        self, collector: MultiTargetMetricsCollector
+    ) -> None:
         """Verify _fetch_prometheus_multi_result uses fallback keys when pod label is missing.
 
         When Prometheus returns results without a 'pod' label, the method should
         use "pod_0", "pod_1", etc. as fallback keys.
         """
-        collector = _build_collector()
 
         # Mock Prometheus response without 'pod' label in metrics
         mock_response = MagicMock()
@@ -180,9 +171,10 @@ class TestFetchPrometheusMultiResult:
         assert result["pod_1"] == 200.0
 
     @pytest.mark.asyncio
-    async def test_fetch_prometheus_multi_result_handles_empty_results(self) -> None:
+    async def test_fetch_prometheus_multi_result_handles_empty_results(
+        self, collector: MultiTargetMetricsCollector
+    ) -> None:
         """Verify _fetch_prometheus_multi_result returns empty dict for no results."""
-        collector = _build_collector()
 
         mock_response = MagicMock()
         mock_response.json.return_value = {
@@ -204,9 +196,10 @@ class TestFetchPrometheusMultiResult:
         assert result == {}, f"Expected empty dict, got {result}"
 
     @pytest.mark.asyncio
-    async def test_fetch_prometheus_multi_result_skips_nan_and_inf(self) -> None:
+    async def test_fetch_prometheus_multi_result_skips_nan_and_inf(
+        self, collector: MultiTargetMetricsCollector
+    ) -> None:
         """Verify _fetch_prometheus_multi_result skips NaN and Inf values."""
-        collector = _build_collector()
 
         mock_response = MagicMock()
         mock_response.json.return_value = {
@@ -241,7 +234,7 @@ class TestPodsEndpointIntegration:
     """Integration tests for /pods endpoint returning aggregated and per-pod metrics."""
 
     @pytest.mark.asyncio
-    async def test_pods_endpoint_returns_aggregated_and_per_pod(self) -> None:
+    async def test_pods_endpoint_returns_aggregated_and_per_pod(self, collector: MultiTargetMetricsCollector) -> None:
         """Verify /pods endpoint returns both aggregated metrics and per-pod breakdown.
 
         The endpoint should:
@@ -253,8 +246,6 @@ class TestPodsEndpointIntegration:
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
         from models.load_test import BatchMetricsRequest
-
-        collector = _build_collector()
 
         # Register a target and set up its latest metrics
         await collector.register_target("test-ns", "test-is")
@@ -424,7 +415,6 @@ class TestPodsEndpointIntegration:
 
         # Should have aggregated metrics
         assert "aggregated" in result
-        aggregated = result["aggregated"]
 
         # Should have per-pod metrics
         assert "per_pod" in result

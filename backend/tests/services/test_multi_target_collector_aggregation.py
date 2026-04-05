@@ -16,23 +16,14 @@ import pytest
 from backend.services.multi_target_collector import MultiTargetMetricsCollector
 
 
-def _build_collector() -> MultiTargetMetricsCollector:
-    """Build a collector instance with k8s disabled."""
-    collector = MultiTargetMetricsCollector()
-    collector._k8s_available = False
-    collector._k8s_core = None
-    return collector
-
-
 class TestBuildTargetQueriesAggregation:
     """Tests for _build_target_queries aggregation function selection."""
 
-    def test_build_queries_uses_sum_for_counts(self) -> None:
+    def test_build_queries_uses_sum_for_counts(self, collector: MultiTargetMetricsCollector) -> None:
         """Verify running_requests and waiting_requests use sum() aggregation.
 
         Counts should use sum() to aggregate values across all pods.
         """
-        collector = _build_collector()
         queries = collector._build_target_queries("test-ns", "test-is")
 
         # Count metrics should use sum()
@@ -43,12 +34,11 @@ class TestBuildTargetQueriesAggregation:
             f"waiting_requests should use sum(), got: {queries['waiting_requests']}"
         )
 
-    def test_build_queries_uses_avg_for_percentages(self) -> None:
+    def test_build_queries_uses_avg_for_percentages(self, collector: MultiTargetMetricsCollector) -> None:
         """Verify kv_cache_usage_pct and gpu_utilization_pct use avg() aggregation.
 
         Percentage/average metrics should use avg() to get mean utilization across pods.
         """
-        collector = _build_collector()
         queries = collector._build_target_queries("test-ns", "test-is")
 
         # Percentage metrics should use avg()
@@ -59,13 +49,12 @@ class TestBuildTargetQueriesAggregation:
             f"gpu_utilization_pct should use avg(), got: {queries['gpu_utilization_pct']}"
         )
 
-    def test_build_queries_histogram_quantiles_unchanged(self) -> None:
+    def test_build_queries_histogram_quantiles_unchanged(self, collector: MultiTargetMetricsCollector) -> None:
         """Verify TTFT and latency queries use histogram_quantile with sum unchanged.
 
         Histogram quantiles should still use histogram_quantile with sum(rate(...))
         to compute percentiles correctly.
         """
-        collector = _build_collector()
         queries = collector._build_target_queries("test-ns", "test-is")
 
         # TTFT queries should use histogram_quantile
@@ -89,12 +78,11 @@ class TestBuildTargetQueriesAggregation:
             f"TTFT queries should use 'sum by (le)' inside histogram_quantile, got: {queries['mean_ttft_ms']}"
         )
 
-    def test_build_queries_counter_rate_unchanged(self) -> None:
+    def test_build_queries_counter_rate_unchanged(self, collector: MultiTargetMetricsCollector) -> None:
         """Verify tokens_per_second and requests_per_second use sum(rate(...)) unchanged.
 
         Counter rate metrics should still use sum(rate(...)) to get rates.
         """
-        collector = _build_collector()
         queries = collector._build_target_queries("test-ns", "test-is")
 
         # Counter rate metrics should use sum(rate(...))
@@ -110,13 +98,12 @@ class TestFetchPrometheusMetric:
     """Tests for _fetch_prometheus_metric result extraction."""
 
     @pytest.mark.asyncio
-    async def test_fetch_prometheus_metric_extracts_first_result(self) -> None:
+    async def test_fetch_prometheus_metric_extracts_first_result(self, collector: MultiTargetMetricsCollector) -> None:
         """Verify _fetch_prometheus_metric extracts value from results[0].
 
         For aggregated queries, Prometheus returns exactly ONE result because
         aggregation reduces all matching series into a single value.
         """
-        collector = _build_collector()
 
         mock_response = MagicMock()
         mock_response.json.return_value = {
@@ -145,9 +132,8 @@ class TestFetchPrometheusMetric:
         assert metric_name == "test_metric"
 
     @pytest.mark.asyncio
-    async def test_fetch_prometheus_metric_handles_single_result(self) -> None:
+    async def test_fetch_prometheus_metric_handles_single_result(self, collector: MultiTargetMetricsCollector) -> None:
         """Verify _fetch_prometheus_metric works with single result (normal case)."""
-        collector = _build_collector()
 
         mock_response = MagicMock()
         mock_response.json.return_value = {
@@ -175,9 +161,8 @@ class TestFetchPrometheusMetric:
         assert metric_name == "single_result_metric"
 
     @pytest.mark.asyncio
-    async def test_fetch_prometheus_metric_handles_empty_results(self) -> None:
+    async def test_fetch_prometheus_metric_handles_empty_results(self, collector: MultiTargetMetricsCollector) -> None:
         """Verify _fetch_prometheus_metric returns None for empty results."""
-        collector = _build_collector()
 
         mock_response = MagicMock()
         mock_response.json.return_value = {
@@ -201,9 +186,8 @@ class TestFetchPrometheusMetric:
         assert metric_name == "empty_metric"
 
     @pytest.mark.asyncio
-    async def test_fetch_prometheus_metric_logs_warning_for_multiple_results(self, caplog) -> None:
+    async def test_fetch_prometheus_metric_logs_warning_for_multiple_results(self, collector: MultiTargetMetricsCollector, caplog) -> None:
         """Verify _fetch_prometheus_metric logs warning when multiple results returned."""
-        collector = _build_collector()
 
         mock_response = MagicMock()
         mock_response.json.return_value = {
