@@ -113,18 +113,6 @@ class TestArgHelpers:
         assert _extract_served_model_name(parsed_args) == "qwen3-5"
 
 
-class TestLLMInferenceServiceAdapter:
-    def test_api_coordinates(self):
-        adapter = LLMInferenceServiceAdapter()
-        assert adapter.api_group() == "inference.io"
-        assert adapter.api_version() == "v1"
-        assert adapter.api_plural() == "llminferenceservices"
-
-    def test_metric_prefix(self):
-        adapter = LLMInferenceServiceAdapter()
-        assert adapter.metric_prefix() == "kserve_vllm:"
-
-
 class TestInferenceServiceAdapter:
     def test_api_coordinates(self):
         adapter = InferenceServiceAdapter()
@@ -317,6 +305,10 @@ class TestLLMInferenceServiceAdapter:
         assert adapter.api_version() == "v1alpha1"
         assert adapter.api_plural() == "llminferenceservices"
 
+    def test_metric_prefix(self):
+        adapter = LLMInferenceServiceAdapter()
+        assert adapter.metric_prefix() == "kserve_vllm:"
+
     def test_read_args_empty(self):
         adapter = LLMInferenceServiceAdapter()
         assert adapter.read_args({}) == {}
@@ -480,10 +472,7 @@ class TestLLMInferenceServiceAdapter:
 
     def test_pod_label_selector(self):
         adapter = LLMInferenceServiceAdapter()
-        assert (
-            adapter.pod_label_selector("small-llm-d")
-            == "app.kubernetes.io/name=small-llm-d,kserve.io/component=workload"
-        )
+        assert adapter.pod_label_selector("small-llm-d") == "app.kubernetes.io/name=small-llm-d"
 
     def test_deployment_name(self):
         adapter = LLMInferenceServiceAdapter()

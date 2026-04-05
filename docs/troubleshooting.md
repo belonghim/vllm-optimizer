@@ -133,8 +133,8 @@ oc apply -f openshift/base/05-monitoring.yaml -n vllm-optimizer-dev
 2.  Look for import statements that include `backend.` as a prefix for modules within the `backend` directory.
 
 **Fix**: Remove the `backend.` prefix from internal import statements.
--   **Incorrect**: `from backend.services.shared import metrics_collector`
--   **Correct**: `from services.shared import metrics_collector`
+-   **Incorrect**: `from backend.services.shared import multi_target_collector`
+-   **Correct**: `from services.shared import multi_target_collector`
 This applies to all internal imports (e.g., `from models.load_test import ...`, `from routers.load_test import ...`).
 
 ### 7. Thanos TLS Certificate Error

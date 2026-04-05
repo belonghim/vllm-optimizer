@@ -295,7 +295,7 @@ oc logs -l app=vllm-optimizer-backend -n vllm-optimizer-dev | grep "StartupShim"
 - [[AGENTS#tool-usage-discipline]] — Tool usage discipline and best practices.
 - `.sisyphus/plans/vllm-monitoring-integration.md` — Master plan for monitoring integration (Tasks 1–9).
 - `openshift/base/05-monitoring.yaml` — ServiceMonitor and alerting rules.
-- `backend/services/metrics_collector.py` — Background collector that updates Prometheus metrics.
+- `backend/services/multi_target_collector.py` — Background collector that updates Prometheus metrics.
 - `backend/metrics/prometheus_metrics.py` — Metric definitions and `generate_metrics()`.
 
 ## Maintenance Notes

@@ -33,7 +33,7 @@ def test_get_vllm_config_resolves_model_name_for_llmisvc(client_with_vllm_config
         {
             "_get_k8s_custom": lambda: mock_custom,
             "_get_vllm_is_name": lambda: "small-llm-d",
-            "get_cr_adapter": lambda: LLMInferenceServiceAdapter(),
+            "get_cr_adapter": lambda *_: LLMInferenceServiceAdapter(),
         },
     ):
         resp = client_with_vllm_config.get("/api/vllm-config")
@@ -61,7 +61,7 @@ def test_get_vllm_config_model_name_fallback_for_llmisvc(client_with_vllm_config
         {
             "_get_k8s_custom": lambda: mock_custom,
             "_get_vllm_is_name": lambda: "small-llm-d",
-            "get_cr_adapter": lambda: LLMInferenceServiceAdapter(),
+            "get_cr_adapter": lambda *_: LLMInferenceServiceAdapter(),
         },
     ):
         resp = client_with_vllm_config.get("/api/vllm-config")

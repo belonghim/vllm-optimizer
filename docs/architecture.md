@@ -151,9 +151,9 @@ The backend is a FastAPI application written in Python, running on port `8000`. 
 
 -   **`main.py`**: This is the entry point for the FastAPI application. It initializes the application, registers routers for different functionalities (load test, metrics, benchmark, tuner), and starts background services like the `MetricsCollector`.
 -   **`services/load_engine.py`**: This module contains the asynchronous engine responsible for generating load against the vLLM endpoint. It handles concurrent requests and collects response statistics during load tests.
--   **`services/metrics_collector.py`**: This critical background service periodically collects metrics from the OpenShift cluster. It performs two main tasks:
+-   **`services/multi_target_collector.py`**: This critical background service periodically collects metrics from the OpenShift cluster. It performs two main tasks:
     1.  **Thanos Querier Integration**: Queries the Thanos Querier (part of the OpenShift Monitoring Stack) for vLLM-specific metrics (e.g., `vllm:num_requests_running`, `vllm:num_requests_waiting`, token counters, latency histograms). It uses a Bearer token for authentication and `verify=False` for self-signed certificates.
-    2.  **Kubernetes API Interaction**: Queries the Kubernetes API for vLLM pod counts and readiness status. It uses dynamic label selectors derived from the vLLM Deployment's `matchLabels` to identify relevant pods.
+    2.  **Direct Pod Scraping**: Optionally scrapes metrics directly from vLLM pods via their `/metrics` endpoint when `METRICS_SOURCE=direct` is set. Includes retry logic for transient network errors and proper handling of connection issues.
     The collected metrics are then used to update Prometheus client gauges, counters, and histograms, which are exposed via the `/metrics` endpoint.
 -   **`services/auto_tuner.py`**: Thin facade that composes K8sOperator, EventBroadcaster, and TunerLogic. Manages the tuning loop, state, and public API (start, stop, subscribe, unsubscribe, get_importance). Owns all asyncio.Lock instances.
 -   **`services/k8s_operator.py`**: Handles all Kubernetes API operations — InferenceService readiness checks, args patching, rollback, and preflight permission validation. Lock-free; receives locks as parameters from AutoTuner.

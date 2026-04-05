@@ -228,7 +228,6 @@ class TestFetchPrometheusMetric:
                         metric_name="multi_result_metric",
                         query="sum(rate(test_metric[5m]))",
                     )
-
             mock_logger.warning.assert_called_once()
             warning_call_args = str(mock_logger.warning.call_args)
             assert "multiple results" in warning_call_args.lower() or "3 results" in warning_call_args

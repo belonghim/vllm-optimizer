@@ -882,15 +882,40 @@ class MultiTargetMetricsCollector:
             )
 
     async def _scrape_pod_metrics(self, pod_ip: str, port: int) -> dict[str, float]:
-        from services.metrics_constants import COUNTER_METRIC_MAP, GAUGE_METRIC_MAP, HISTOGRAM_METRIC_MAP
+        import asyncio
 
-        try:
-            async with httpx.AsyncClient(verify=False, timeout=5) as http:
-                resp = await http.get(f"http://{pod_ip}:{port}/metrics")
-                resp.raise_for_status()
-                text = resp.text
-        except httpx.HTTPError as exc:
-            logger.warning("[MultiTargetMetricsCollector] pod scrape failed (%s:%d): %s", pod_ip, port, exc)
+        from services.metrics_constants import (
+            COUNTER_METRIC_MAP,
+            GAUGE_METRIC_MAP,
+            HISTOGRAM_METRIC_MAP,
+            normalize_metric_name,
+        )
+
+        text: str | None = None
+        for attempt in range(2):
+            try:
+                async with httpx.AsyncClient(verify=False, timeout=5) as http:
+                    resp = await http.get(f"http://{pod_ip}:{port}/metrics")
+                    resp.raise_for_status()
+                    text = resp.text
+                break
+            except (httpx.ConnectError, httpx.TimeoutException) as exc:
+                if attempt == 0:
+                    logger.debug(
+                        "[MultiTargetMetricsCollector] pod scrape transient error (%s:%d), retrying: %s",
+                        pod_ip,
+                        port,
+                        exc,
+                    )
+                    await asyncio.sleep(0.5)
+                else:
+                    logger.warning("[MultiTargetMetricsCollector] pod scrape failed (%s:%d): %s", pod_ip, port, exc)
+                    return {}
+            except httpx.HTTPError as exc:
+                logger.warning("[MultiTargetMetricsCollector] pod scrape failed (%s:%d): %s", pod_ip, port, exc)
+                return {}
+
+        if text is None:
             return {}
 
         hist_suffixes: dict[str, tuple[str, str]] = {}
@@ -908,13 +933,13 @@ class MultiTargetMetricsCollector:
 
             brace_pos = line.find("{")
             if brace_pos != -1:
-                metric_name = line[:brace_pos]
+                metric_name = normalize_metric_name(line[:brace_pos])
                 rest = line[line.rfind("}") + 1 :].strip()
             else:
                 parts = line.split(None, 1)
                 if len(parts) < 2:
                     continue
-                metric_name, rest = parts[0], parts[1]
+                metric_name, rest = normalize_metric_name(parts[0]), parts[1]
 
             value_str = rest.split()[0] if rest else ""
             if not value_str:
