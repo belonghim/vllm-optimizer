@@ -479,7 +479,7 @@ class LLMInferenceServiceAdapter(CRAdapter):
         return 8000
 
     def metrics_scheme(self) -> str:
-        return "https"
+        return "https"  # LLMIS pods use self-signed TLS; caller uses verify=False
 
     def metric_prefix(self) -> str:
         return "kserve_vllm:"

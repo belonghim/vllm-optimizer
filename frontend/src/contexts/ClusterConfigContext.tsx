@@ -255,7 +255,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
           return { ...prev, targets };
         });
 
-        const resolveTargetModels = async (targets: ClusterTarget[]) => {
+        const resolveTargetModels = async (targets: ClusterTarget[], signal: AbortSignal) => {
           const updated = await Promise.all(
             targets.map(async (t) => {
               try {
@@ -264,16 +264,18 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
                   is_name: t.inferenceService,
                   ...(t.crType ? { cr_type: t.crType } : {}),
                 });
-                const r = await authFetch(`${API}/vllm-config?${params}`);
+                const r = await authFetch(`${API}/vllm-config?${params}`, { signal });
                 if (!r.ok) return t;
                 const d = await r.json();
                 const modelName = d.resolvedModelName || d.modelName;
                 return modelName ? { ...t, modelName } : t;
-              } catch {
+              } catch (err) {
+                console.warn('model resolve failed', err);
                 return t;
               }
             })
           );
+          if (signal.aborted) return;
           setConfig(prev => ({
             ...prev,
             targets: prev.targets.map(pt => {
@@ -293,7 +295,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
           newTargets.push(createConfigMapTarget(llmisvc.namespace, llmisvc.name, "llminferenceservice"));
         }
         if (newTargets.length > 0) {
-          resolveTargetModels(newTargets).catch(console.warn);
+          resolveTargetModels(newTargets, controller.signal).catch(console.warn);
         }
       })
       .catch((err: Error) => {

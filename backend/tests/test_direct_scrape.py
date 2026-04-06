@@ -1,3 +1,4 @@
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -283,3 +284,54 @@ def test_compute_histogram_quantile_empty_buckets(collector):
 def test_compute_histogram_quantile_zero_quantile(collector):
     buckets = [(0.1, 5.0), (0.5, 90.0), (1.0, 99.0), (float("inf"), 100.0)]
     assert collector._compute_histogram_quantile(buckets, 0.0) == 0.0
+
+
+async def test_get_dcgm_exporter_ip_cache_hit(collector):
+    collector._dcgm_exporter_cache["node-1"] = "10.0.0.99"
+    collector._dcgm_exporter_cache_time["node-1"] = time.time()
+    result = await collector._get_dcgm_exporter_ip("node-1")
+    assert result == "10.0.0.99"
+
+
+async def test_get_dcgm_exporter_ip_cache_miss_pod_found(collector):
+    import types
+
+    collector._k8s_available = True
+    pod = types.SimpleNamespace(
+        spec=types.SimpleNamespace(node_name="node-2"),
+        status=types.SimpleNamespace(phase="Running", pod_ip="10.0.0.50"),
+    )
+    pod_list = types.SimpleNamespace(items=[pod])
+
+    def _fake_list(*args, **kwargs):
+        return pod_list
+
+    collector._k8s_core = types.SimpleNamespace(list_namespaced_pod=_fake_list)
+    result = await collector._get_dcgm_exporter_ip("node-2")
+    assert result == "10.0.0.50"
+    assert collector._dcgm_exporter_cache["node-2"] == "10.0.0.50"
+
+
+_DCGM_METRICS_TEXT = """\
+# HELP DCGM_FI_DEV_GPU_UTIL GPU utilization (in %)
+# TYPE DCGM_FI_DEV_GPU_UTIL gauge
+DCGM_FI_DEV_GPU_UTIL{namespace="ns",pod="pod1"} 42.0
+# HELP DCGM_FI_DEV_FB_USED FB memory used (MiB)
+# TYPE DCGM_FI_DEV_FB_USED gauge
+DCGM_FI_DEV_FB_USED{namespace="ns",pod="pod1"} 8192.0
+# HELP DCGM_FI_DEV_FB_FREE FB memory free (MiB)
+# TYPE DCGM_FI_DEV_FB_FREE gauge
+DCGM_FI_DEV_FB_FREE{namespace="ns",pod="pod1"} 8192.0
+# HELP DCGM_FI_DEV_FB_RESERVED FB memory reserved (MiB)
+# TYPE DCGM_FI_DEV_FB_RESERVED gauge
+DCGM_FI_DEV_FB_RESERVED{namespace="ns",pod="pod1"} 0.0
+"""
+
+
+async def test_scrape_dcgm_for_pods_returns_gpu_metrics(collector):
+    mock_client, _ = _make_mock_client(_DCGM_METRICS_TEXT)
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await collector._scrape_dcgm_for_pods("10.0.0.1", {"pod1"}, "ns")
+    assert "pod1" in result
+    assert result["pod1"]["gpu_utilization_pct"] == pytest.approx(42.0, rel=1e-3)
+    assert result["pod1"]["gpu_memory_used_gb"] == pytest.approx(8.0, rel=1e-3)
