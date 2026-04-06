@@ -960,7 +960,7 @@ async def test_sweep_stop_midway():
             rps_step=1,
             requests_per_step=5,
         )
-        result = await engine.run_sweep(config)
+        await engine.run_sweep(config)
 
     # Should have run only 1 step before stopping
     assert call_count == 1

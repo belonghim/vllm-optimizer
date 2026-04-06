@@ -277,7 +277,7 @@ class TestGetHistoryFromThanos:
                 queries = mock_collector._build_pod_queries(target.namespace, target.inferenceService, target.cr_type)
 
                 pod_series_list = []
-                for f in queries.keys():
+                for f in queries:
                     pod_series = await mock_fetch_multi(MagicMock(), {}, queries[f], 0, 1, 1)
                     pod_series_list.append(pod_series)
 

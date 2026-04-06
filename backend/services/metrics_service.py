@@ -281,7 +281,7 @@ async def _get_history_from_thanos(
                 *[_fetch_query_range(client, headers, queries[f], start, now, step) for f in field_names]
             )
 
-            metric_series: dict[str, list[tuple[float, float]]] = dict(zip(field_names, series_list))
+            metric_series: dict[str, list[tuple[float, float]]] = dict(zip(field_names, series_list, strict=False))
 
             all_timestamps: set[float] = set()
             for series in metric_series.values():

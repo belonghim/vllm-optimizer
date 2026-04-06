@@ -201,3 +201,85 @@ async def test_collect_target_direct_kserve(collector, monkeypatch, vllm_metrics
     assert target.latest is not None
     assert target.latest.running_requests == 5
     assert target.latest.pod_count == 1
+
+
+async def test_collect_target_direct_gpu_memory_total(collector, monkeypatch):
+    import types
+
+    from services.multi_target_collector import TargetCache
+
+    monkeypatch.setenv("METRICS_SOURCE", "direct")
+    collector._k8s_available = True
+
+    pod = types.SimpleNamespace(
+        status=types.SimpleNamespace(
+            phase="Running",
+            pod_ip="10.0.0.1",
+            container_statuses=[types.SimpleNamespace(ready=True)],
+        )
+    )
+    pod_list = types.SimpleNamespace(items=[pod])
+    collector._k8s_core = types.SimpleNamespace(list_namespaced_pod=lambda **kw: pod_list)
+
+    async def _fake_scrape(*args, **kwargs):
+        return {
+            "gpu_memory_used_gb": 10.0,
+            "gpu_memory_free_gb": 20.0,
+            "gpu_memory_reserved_gb": 2.0,
+        }
+
+    monkeypatch.setattr(collector, "_scrape_pod_metrics", _fake_scrape)
+    target = TargetCache(key="ns/is/inferenceservice", namespace="ns", is_name="is", cr_type="inferenceservice")
+
+    await collector._collect_target_direct(target)
+
+    assert target.latest is not None
+    assert target.latest.gpu_memory_total_gb == 32.0
+
+
+async def test_collect_target_direct_p99_ttft_from_buckets(collector, monkeypatch):
+    import types
+
+    from services.multi_target_collector import TargetCache
+
+    monkeypatch.setenv("METRICS_SOURCE", "direct")
+    collector._k8s_available = True
+
+    pod = types.SimpleNamespace(
+        status=types.SimpleNamespace(
+            phase="Running",
+            pod_ip="10.0.0.1",
+            container_statuses=[types.SimpleNamespace(ready=True)],
+        )
+    )
+    pod_list = types.SimpleNamespace(items=[pod])
+    collector._k8s_core = types.SimpleNamespace(list_namespaced_pod=lambda **kw: pod_list)
+
+    async def _fake_scrape(*args, **kwargs):
+        return {
+            "ttft_buckets": [(0.1, 5.0), (0.5, 90.0), (1.0, 99.0), (float("inf"), 100.0)],
+        }
+
+    monkeypatch.setattr(collector, "_scrape_pod_metrics", _fake_scrape)
+    target = TargetCache(key="ns/is/inferenceservice", namespace="ns", is_name="is", cr_type="inferenceservice")
+
+    await collector._collect_target_direct(target)
+
+    assert target.latest is not None
+    assert target.latest.p99_ttft_ms > 0
+    assert 900 < target.latest.p99_ttft_ms <= 1000
+
+
+def test_compute_histogram_quantile_basic(collector):
+    buckets = [(0.1, 5.0), (0.5, 90.0), (1.0, 99.0), (float("inf"), 100.0)]
+    p99 = collector._compute_histogram_quantile(buckets, 0.99)
+    assert 0.9 <= p99 <= 1.0
+
+
+def test_compute_histogram_quantile_empty_buckets(collector):
+    assert collector._compute_histogram_quantile([], 0.99) == 0.0
+
+
+def test_compute_histogram_quantile_zero_quantile(collector):
+    buckets = [(0.1, 5.0), (0.5, 90.0), (1.0, 99.0), (float("inf"), 100.0)]
+    assert collector._compute_histogram_quantile(buckets, 0.0) == 0.0

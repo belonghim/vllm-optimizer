@@ -1,16 +1,15 @@
 import asyncio
 import time
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-
-pytestmark = pytest.mark.slow
-from unittest.mock import AsyncMock, MagicMock, patch
-
 from fastapi.testclient import TestClient
 
 from ..main import app
 from ..services.multi_target_collector import VLLMMetrics
+
+pytestmark = pytest.mark.slow
 
 
 @pytest.fixture
@@ -183,8 +182,6 @@ def test_metrics_batch_endpoint_with_llmisvc_cr_type(isolated_client, monkeypatc
     async def mock_get_metrics(namespace, is_name, cr_type=None):
         call_args.append({"namespace": namespace, "is_name": is_name, "cr_type": cr_type})
         return await multi_target_collector.get_metrics.__wrapped__(namespace, is_name, cr_type)
-
-    original = multi_target_collector.get_metrics
 
     async def mock_get_metrics_v2(namespace, is_name, cr_type=None):
         call_args.append({"namespace": namespace, "is_name": is_name, "cr_type": cr_type})

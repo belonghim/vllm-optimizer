@@ -709,6 +709,7 @@ class MultiTargetMetricsCollector:
                     "running_requests",
                     "waiting_requests",
                     "kv_cache_usage_pct",
+                    "kv_cache_hit_rate",
                     "gpu_utilization_pct",
                     "gpu_memory_used_gb",
                     "gpu_memory_free_gb",
@@ -772,6 +773,9 @@ class MultiTargetMetricsCollector:
                 + sum(agg_gauges.get("gpu_memory_free_gb", []))
                 + sum(agg_gauges.get("gpu_memory_reserved_gb", []))
             )
+        if "kv_cache_hit_rate" in agg_gauges:
+            vals = agg_gauges["kv_cache_hit_rate"]
+            metrics.kv_cache_hit_rate = sum(vals) / len(vals)
 
         hist_stats = self._compute_histogram_stats(agg_hist)
         metrics.mean_ttft_ms = hist_stats.get("mean_ttft_ms", 0.0)
