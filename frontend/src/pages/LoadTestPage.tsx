@@ -47,28 +47,34 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
     }
   }, [globalIsLoading, resolvedModelName]);
 
-  // Fetch model name when target changes (for Sweep mode)
+  // Fetch model name when target changes via backend API (avoids direct cluster URL access)
   useEffect(() => {
-    if (!targetEndpoint || targetEndpoint === "") return;
+    if (!selectedTarget) return;
     const controller = new AbortController();
     const fetchModel = async () => {
       try {
-        const resp = await authFetch(`${targetEndpoint}/v1/models`, { signal: controller.signal });
+        const params = new URLSearchParams({
+          namespace: selectedTarget.namespace,
+          is_name: selectedTarget.inferenceService,
+          ...(selectedTarget.crType ? { cr_type: selectedTarget.crType } : {}),
+        });
+        const resp = await authFetch(`/api/vllm-config?${params}`, { signal: controller.signal });
         if (!resp.ok) return;
         const data = await resp.json();
-        if (data.data && data.data.length > 0) {
-          setSweepModel(data.data[0].id);
-          setTargetModel(data.data[0].id);
+        const modelName = data.resolvedModelName || data.modelName;
+        if (modelName) {
+          setSweepModel(modelName);
+          setTargetModel(modelName);
         }
       } catch (err) {
         if ((err as Error).name !== 'AbortError') {
-          console.warn('Failed to fetch model name for sweep target:', err);
+          console.warn('Failed to fetch model name for target:', err);
         }
       }
     };
     fetchModel();
     return () => controller.abort();
-  }, [targetEndpoint]);
+  }, [selectedTarget]);
 
   useEffect(() => {
     if (!targetEndpoint) setTargetModel(undefined);
