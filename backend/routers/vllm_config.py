@@ -6,6 +6,7 @@ from typing import Any, Literal, cast
 from fastapi import APIRouter, HTTPException, Query, Request
 from kubernetes.client import CustomObjectsApi
 from kubernetes.client.exceptions import ApiException as K8sApiException
+from models.vllm_config import VllmConfigPatchResponse, VllmConfigResponse
 from pydantic import BaseModel
 from services.cr_adapter import deep_merge, get_cr_adapter
 from services.rate_limiter import limiter
@@ -117,7 +118,7 @@ def _get_k8s_custom() -> CustomObjectsApi | None:
         return None
 
 
-@router.get("")
+@router.get("", response_model=VllmConfigResponse)
 @limiter.limit("30/minute")
 async def get_vllm_config(
     request: Request,
@@ -165,7 +166,7 @@ async def get_vllm_config(
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@router.patch("")
+@router.patch("", response_model=VllmConfigPatchResponse)
 @limiter.limit("30/minute")
 async def patch_vllm_config(request: Request, config: VllmConfigPatchRequest) -> dict[str, Any]:
     """Update vLLM configuration (args, resources, model URI)."""

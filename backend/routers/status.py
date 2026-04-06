@@ -11,6 +11,7 @@ from typing import Any
 
 import httpx
 from fastapi import APIRouter, Request
+from models.vllm_config import InterruptedRunsResponse
 from services.rate_limiter import limiter
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,7 @@ async def set_interrupted_runs(runs: list[dict[str, Any]]) -> None:
         _interrupted_runs = list(runs)
 
 
-@router.get("/status/interrupted")
+@router.get("/status/interrupted", response_model=InterruptedRunsResponse)
 @limiter.limit("60/minute")
 async def get_interrupted_runs(request: Request) -> dict[str, Any]:
     """Return interrupted runs, clear the stored list, and mark DB rows as cleared."""

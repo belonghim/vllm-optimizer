@@ -35,6 +35,7 @@ def get_runtime_config():
 
 @router.get(
     "/latest",
+    response_model=None,
     responses={
         409: {"model": ErrorResponse},
     },
@@ -83,7 +84,7 @@ async def get_latest_metrics(
     return _convert_to_snapshot(vllm_metrics)
 
 
-@router.post("/batch")
+@router.post("/batch", response_model=BatchMetricsResponse)
 @limiter.limit("120/minute")
 async def get_batch_metrics(
     request: Request,
@@ -145,7 +146,7 @@ async def get_batch_metrics(
     return BatchMetricsResponse(results=results)
 
 
-@router.post("/pods")
+@router.post("/pods", response_model=None)
 @limiter.limit("120/minute")
 async def get_pod_metrics(
     request: Request,
@@ -243,7 +244,7 @@ async def get_pod_metrics(
     return results
 
 
-@router.post("/pods/history")
+@router.post("/pods/history", response_model=BatchMetricsResponse)
 @limiter.limit("120/minute")
 async def get_pods_history(
     request: Request,
@@ -337,7 +338,7 @@ async def get_metrics_history(
     ]
 
 
-@router.get("")
+@router.get("", response_model=None)
 @limiter.exempt
 async def get_prometheus_metrics() -> PlainTextResponse:
     from fastapi.responses import PlainTextResponse
