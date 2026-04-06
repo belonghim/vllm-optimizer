@@ -1,4 +1,4 @@
-import { useState, useRef, Fragment } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
 import { getTargetKey, parseTargetKey } from "../utils/targetKey";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
 import { TARGET_COLORS } from "../constants";
@@ -62,12 +62,19 @@ export default function MultiTargetSelector({
   const [newTarget, setNewTarget] = useState({ namespace: "", inferenceService: "", crType: contextCrType || "inferenceservice" });
   const [isValidating, setIsValidating] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  const [applyError, setApplyError] = useState<string | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [podData, setPodData] = useState<Record<string, PodCacheEntry>>({});
   const pendingFetches = useRef<Map<string, Promise<void>>>(new Map());
 
   const [userSelectedKey, setUserSelectedKey] = useState<string | null>(null);
   const pendingDefaultKey = userSelectedKey ?? (targets.length > 0 ? getTargetKey(targets[0]) : '');
+
+  useEffect(() => {
+    if (userSelectedKey && !targets.some(t => getTargetKey(t) === userSelectedKey)) {
+      setUserSelectedKey(null);
+    }
+  }, [targets, userSelectedKey]);
 
   const handleAdd = async () => {
     if (newTarget.namespace && newTarget.inferenceService) {
@@ -276,13 +283,21 @@ export default function MultiTargetSelector({
               onClick={async () => {
                 const parsed = parseTargetKey(pendingDefaultKey);
                 if (parsed) {
-                  await setDefaultTarget(parsed.namespace, parsed.inferenceService, parsed.crType);
-                  setUserSelectedKey(null);
+                  try {
+                    setApplyError(null);
+                    await setDefaultTarget(parsed.namespace, parsed.inferenceService, parsed.crType);
+                    setUserSelectedKey(null);
+                  } catch {
+                    setApplyError("기본 타겟 업데이트 실패");
+                  }
                 }
               }}
             >
               적용
             </button>
+          )}
+          {applyError && (
+            <span className="multi-target-error-msg" style={{ fontSize: '12px' }}>{applyError}</span>
           )}
           {!isAdding && (
             <button
@@ -352,7 +367,7 @@ export default function MultiTargetSelector({
               onChange={(e) => setNewTarget(prev => ({ ...prev, crType: e.target.value }))}
             >
               <option value="inferenceservice">isvc (KServe)</option>
-              <option value="llminferenceservice">llmisvc (LLMIS)</option>
+              <option value="llminferenceservice">LLMIS (llmisvc)</option>
             </select>
             {addError && <div className="multi-target-error-msg" data-testid="add-target-error">{addError}</div>}
           </div>

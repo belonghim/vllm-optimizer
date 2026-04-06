@@ -251,7 +251,7 @@ describe("MultiTargetSelector", () => {
     fireEvent.click(screen.getByTestId("add-target-btn"));
     expect(screen.getByTestId("cr-type-select")).toBeInTheDocument();
     expect(screen.getByText("isvc (KServe)")).toBeInTheDocument();
-    expect(screen.getByText("llmisvc (LLMIS)")).toBeInTheDocument();
+    expect(screen.getByText("LLMIS (llmisvc)")).toBeInTheDocument();
   });
 
   it("shows LLMIS badge for target with crType llminferenceservice", () => {
