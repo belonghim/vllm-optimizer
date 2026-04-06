@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, Fragment } from "react";
+import { useState, useRef, Fragment } from "react";
 import { getTargetKey, parseTargetKey } from "../utils/targetKey";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
 import { TARGET_COLORS } from "../constants";
@@ -66,15 +66,8 @@ export default function MultiTargetSelector({
   const [podData, setPodData] = useState<Record<string, PodCacheEntry>>({});
   const pendingFetches = useRef<Map<string, Promise<void>>>(new Map());
 
-  const [pendingDefaultKey, setPendingDefaultKey] = useState<string>(
-    () => targets.length > 0 ? getTargetKey(targets[0]) : ''
-  );
-
-  useEffect(() => {
-    if (targets.length > 0 && !targets.some(t => getTargetKey(t) === pendingDefaultKey)) {
-      setPendingDefaultKey(getTargetKey(targets[0]));
-    }
-  }, [targets, pendingDefaultKey]);
+  const [userSelectedKey, setUserSelectedKey] = useState<string | null>(null);
+  const pendingDefaultKey = userSelectedKey ?? (targets.length > 0 ? getTargetKey(targets[0]) : '');
 
   const handleAdd = async () => {
     if (newTarget.namespace && newTarget.inferenceService) {
@@ -245,7 +238,7 @@ export default function MultiTargetSelector({
                 name="default-target"
                 value={key}
                 checked={pendingDefaultKey === key}
-                onChange={() => setPendingDefaultKey(key)}
+                onChange={() => setUserSelectedKey(key === getTargetKey(targets[0]) ? null : key)}
                 data-testid={`radio-default-${index}`}
                 aria-label={`Set ${target.inferenceService} as default`}
                 style={{ cursor: 'pointer' }}
@@ -275,7 +268,7 @@ export default function MultiTargetSelector({
       <div className="section-title multi-target-header">
         <span>Monitoring Targets ({targets.length}/{maxTargets})</span>
         <div className="multi-target-header-actions">
-          {targets.length > 1 && pendingDefaultKey !== getTargetKey(targets[0]) && (
+          {targets.length > 1 && userSelectedKey !== null && userSelectedKey !== getTargetKey(targets[0]) && (
             <button
               type="button"
               className="btn btn-primary multi-target-apply-btn"
@@ -284,6 +277,7 @@ export default function MultiTargetSelector({
                 const parsed = parseTargetKey(pendingDefaultKey);
                 if (parsed) {
                   await setDefaultTarget(parsed.namespace, parsed.inferenceService, parsed.crType);
+                  setUserSelectedKey(null);
                 }
               }}
             >
