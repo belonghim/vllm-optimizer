@@ -489,9 +489,8 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
   }, []);
 
   const setDefaultTarget = useCallback(async (namespace: string, inferenceService: string, crType: string): Promise<void> => {
-    let previousTargets: ClusterTarget[] = [];
+    const previousTargets = configRef.current.targets;
     setConfig(prev => {
-      previousTargets = prev.targets;
       const currentTargets = prev.targets;
       const target = currentTargets.find(t => targetMatches(t, { namespace, inferenceService, crType }));
       if (!target) {

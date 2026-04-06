@@ -7,6 +7,7 @@ beforeEach(() => {
   vi.spyOn(Storage.prototype, "getItem").mockReturnValue(null);
   vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {});
   vi.spyOn(global, "fetch").mockResolvedValue({
+    ok: true,
     json: () =>
       Promise.resolve({
         vllm_endpoint: "",
@@ -212,6 +213,43 @@ describe("ClusterConfigContext", () => {
     expect(result.current.targets.some(t => t.inferenceService === "my-model" && t.crType === "inferenceservice")).toBe(true);
     // Total count unchanged
     expect(result.current.targets.length).toBe(3);
+  });
+
+  it("setDefaultTarget rolls back targets on PATCH failure", async () => {
+    const { result } = renderHook(() => useClusterConfig(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.targets).toEqual([defaultTarget]);
+    });
+
+    act(() => {
+      result.current.addTarget("ns1", "svc1");
+      result.current.addTarget("ns2", "svc2");
+    });
+
+    const originalTargets = [...result.current.targets];
+
+    vi.spyOn(global, "fetch").mockImplementation(((_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "PATCH") {
+        return Promise.resolve({
+          ok: false,
+          status: 500,
+          json: () => Promise.resolve({}),
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ vllm_endpoint: "", vllm_namespace: "", vllm_is_name: "" }),
+      } as unknown as Response);
+    }) as typeof fetch);
+
+    await act(async () => {
+      await expect(
+        result.current.setDefaultTarget("ns2", "svc2", "inferenceservice")
+      ).rejects.toThrow();
+    });
+
+    expect(result.current.targets).toEqual(originalTargets);
   });
 
   it("exposes maxTargets constant as 5", async () => {

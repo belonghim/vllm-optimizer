@@ -19,7 +19,6 @@ vi.mock("../contexts/ClusterConfigContext", () => ({
     removeTarget: vi.fn(),
     setDefaultTarget: vi.fn(),
     crType: "inferenceservice",
-    updateCrType: vi.fn(),
   }),
 }));
 
