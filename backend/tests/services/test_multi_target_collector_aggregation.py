@@ -186,7 +186,9 @@ class TestFetchPrometheusMetric:
         assert metric_name == "empty_metric"
 
     @pytest.mark.asyncio
-    async def test_fetch_prometheus_metric_logs_warning_for_multiple_results(self, collector: MultiTargetMetricsCollector, caplog) -> None:
+    async def test_fetch_prometheus_metric_logs_warning_for_multiple_results(
+        self, collector: MultiTargetMetricsCollector, caplog
+    ) -> None:
         """Verify _fetch_prometheus_metric logs warning when multiple results returned."""
 
         mock_response = MagicMock()

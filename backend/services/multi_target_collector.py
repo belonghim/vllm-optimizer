@@ -18,6 +18,7 @@ from services.runtime_config_instance import runtime_config
 
 logger = logging.getLogger(__name__)
 
+_LABEL_RE = re.compile(r'(\w+)="([^"]*)"')
 
 PROMETHEUS_URL = os.getenv(
     "PROMETHEUS_URL",
@@ -732,6 +733,23 @@ class MultiTargetMetricsCollector:
                         merged[le_f] = merged.get(le_f, 0.0) + count_f
             all_counter_raws[pod_ip] = pod_counters
 
+        node_to_pods: dict[str, list[Any]] = {}
+        for pod in running_pods:
+            spec = getattr(pod, "spec", None)
+            node = spec.node_name if spec else None
+            if node:
+                node_to_pods.setdefault(node, []).append(pod)
+
+        for node_name, node_pods in node_to_pods.items():
+            exporter_ip = await self._get_dcgm_exporter_ip(node_name)
+            if not exporter_ip:
+                continue
+            pod_names_set = {pod.metadata.name for pod in node_pods if pod.metadata}
+            dcgm_data = await self._scrape_dcgm_for_pods(exporter_ip, pod_names_set, target.namespace)
+            for pod_metrics in dcgm_data.values():
+                for k, v in pod_metrics.items():
+                    agg_gauges.setdefault(k, []).append(v)
+
         metrics = VLLMMetrics(timestamp=now)
         metrics.pod_count = len(items)
         metrics.pod_ready = sum(
@@ -1005,6 +1023,99 @@ class MultiTargetMetricsCollector:
                 "[MultiTargetMetricsCollector] K8s init failed (monitoring label/pods disabled): %s",
                 exc,
             )
+
+    async def _get_dcgm_exporter_ip(self, node_name: str) -> str | None:
+        if not self._k8s_available or self._k8s_core is None:
+            return None
+        try:
+            pods = cast(
+                client.V1PodList,
+                await asyncio.to_thread(
+                    self._k8s_core.list_namespaced_pod,
+                    namespace="nvidia-gpu-operator",
+                    label_selector="app=nvidia-dcgm-exporter",
+                ),
+            )
+            for pod in pods.items or []:
+                if (
+                    pod.spec
+                    and pod.spec.node_name == node_name
+                    and pod.status
+                    and pod.status.phase == "Running"
+                    and pod.status.pod_ip
+                ):
+                    return pod.status.pod_ip
+        except Exception as exc:
+            logger.debug(
+                "[MultiTargetMetricsCollector] DCGM exporter lookup failed for node %s: %s",
+                node_name,
+                exc,
+            )
+        return None
+
+    async def _scrape_dcgm_for_pods(
+        self, exporter_ip: str, pod_names: set[str], namespace: str
+    ) -> dict[str, dict[str, float]]:
+        try:
+            async with httpx.AsyncClient(verify=False, timeout=5) as http:
+                resp = await http.get(f"http://{exporter_ip}:9400/metrics")
+                resp.raise_for_status()
+                text = resp.text
+        except Exception as exc:
+            logger.debug("[MultiTargetMetricsCollector] DCGM scrape failed (%s): %s", exporter_ip, exc)
+            return {}
+
+        pod_util: dict[str, list[float]] = {}
+        pod_fb_used: dict[str, list[float]] = {}
+        pod_fb_free: dict[str, list[float]] = {}
+        pod_fb_reserved: dict[str, list[float]] = {}
+
+        for line in text.splitlines():
+            if line.startswith("#") or not line.strip():
+                continue
+            pod_name: str | None = None
+            line_ns: str | None = None
+            label_part = line.split("}")[0] if "}" in line else line
+            for m in _LABEL_RE.finditer(label_part):
+                if m.group(1) == "namespace":
+                    line_ns = m.group(2)
+                elif m.group(1) == "pod":
+                    pod_name = m.group(2)
+            if line_ns != namespace or pod_name not in pod_names:
+                continue
+
+            parts = line.rsplit("}", 1)
+            if len(parts) != 2:
+                continue
+            metric_name = parts[0].split("{")[0].strip()
+            try:
+                value = float(parts[1].strip().split()[0])
+            except (ValueError, IndexError):
+                continue
+
+            if metric_name == "DCGM_FI_DEV_GPU_UTIL":
+                pod_util.setdefault(pod_name, []).append(value)
+            elif metric_name == "DCGM_FI_DEV_FB_USED":
+                pod_fb_used.setdefault(pod_name, []).append(value)
+            elif metric_name == "DCGM_FI_DEV_FB_FREE":
+                pod_fb_free.setdefault(pod_name, []).append(value)
+            elif metric_name == "DCGM_FI_DEV_FB_RESERVED":
+                pod_fb_reserved.setdefault(pod_name, []).append(value)
+
+        result: dict[str, dict[str, float]] = {}
+        for pod in pod_names:
+            entry: dict[str, float] = {}
+            if pod_util.get(pod):
+                entry["gpu_utilization_pct"] = sum(pod_util[pod]) / len(pod_util[pod])
+            if pod_fb_used.get(pod):
+                entry["gpu_memory_used_gb"] = sum(pod_fb_used[pod]) / 1024.0
+            if pod_fb_free.get(pod):
+                entry["gpu_memory_free_gb"] = sum(pod_fb_free[pod]) / 1024.0
+            if pod_fb_reserved.get(pod):
+                entry["gpu_memory_reserved_gb"] = sum(pod_fb_reserved[pod]) / 1024.0
+            if entry:
+                result[pod] = entry
+        return result
 
     async def _scrape_pod_metrics(
         self, pod_ip: str, port: int, scheme: str = "http"

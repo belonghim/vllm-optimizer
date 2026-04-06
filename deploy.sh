@@ -423,6 +423,28 @@ if [[ "${ENV}" == "dev" ]]; then
   fi
 fi
 
+if [[ "${ENV}" == "dev" ]]; then
+  DCGM_RBAC_PATH="${SCRIPT_DIR}/openshift/vllm-dependency/dcgm-rbac"
+  if [[ -d "$DCGM_RBAC_PATH" ]]; then
+    shopt -s nullglob
+    yaml_files=("${DCGM_RBAC_PATH}"/*.yaml)
+    shopt -u nullglob
+    if [[ ${#yaml_files[@]} -eq 0 ]]; then
+      warn "No YAML files found in ${DCGM_RBAC_PATH}; skipping DCGM RBAC apply"
+    else
+      log "Applying DCGM RBAC to namespace nvidia-gpu-operator..."
+      for f in "${yaml_files[@]}"; do
+        if [[ "$DRY_RUN" == "true" ]]; then
+          oc apply --dry-run=client -f "$f"
+        else
+          oc apply -f "$f" || { warn "Failed to apply $(basename "$f") to nvidia-gpu-operator"; exit 1; }
+        fi
+      done
+      ok "DCGM RBAC applied: nvidia-gpu-operator"
+    fi
+  fi
+fi
+
 log "Patching LLMIS monitoring labels in namespace ${VLLM_NAMESPACE}..."
 patch_monitoring_labels "$VLLM_NAMESPACE"
 
