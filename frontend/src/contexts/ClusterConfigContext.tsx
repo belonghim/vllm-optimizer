@@ -4,6 +4,7 @@ import { API } from "../constants";
 import type { ClusterTarget, ClusterConfig } from "../types";
 import { authFetch } from "../utils/authFetch";
 import { buildDefaultEndpoint } from "../utils/endpointUtils";
+import { targetMatches } from "../utils/targetKey";
 
 const STORAGE_KEY = "vllm-opt-cluster-config";
 const SCHEMA_VERSION = 3;
@@ -451,15 +452,11 @@ const updateCrType = useCallback(async (value: string): Promise<{ configmap_upda
   const removeTarget = useCallback((namespace: string, inferenceService: string, crType: string): void => {
     setConfig(prev => {
       const currentTargets = prev.targets;
-      const target = currentTargets.find(
-        t => t.namespace === namespace && t.inferenceService === inferenceService && t.crType === crType
-      );
+      const target = currentTargets.find(t => targetMatches(t, { namespace, inferenceService, crType }));
 
       if (target && currentTargets.indexOf(target) === 0) return prev;
 
-      const newTargets = currentTargets.filter(
-        t => !(t.namespace === namespace && t.inferenceService === inferenceService && t.crType === crType)
-      );
+      const newTargets = currentTargets.filter(t => !targetMatches(t, { namespace, inferenceService, crType }));
 
       return {
         ...prev,
@@ -471,13 +468,13 @@ const updateCrType = useCallback(async (value: string): Promise<{ configmap_upda
   const setDefaultTarget = useCallback(async (namespace: string, inferenceService: string, crType: string): Promise<void> => {
     setConfig(prev => {
       const currentTargets = prev.targets;
-      const target = currentTargets.find(t => t.namespace === namespace && t.inferenceService === inferenceService && t.crType === crType);
+      const target = currentTargets.find(t => targetMatches(t, { namespace, inferenceService, crType }));
       if (!target) {
         const newTarget: ClusterTarget = { namespace, inferenceService, crType, source: "configmap" };
-        return { ...prev, targets: [newTarget, ...currentTargets.filter(t => !(t.namespace === namespace && t.inferenceService === inferenceService && t.crType === crType))] };
+        return { ...prev, targets: [newTarget, ...currentTargets.filter(t => !targetMatches(t, { namespace, inferenceService, crType }))] };
       }
 
-      const targetIdx = currentTargets.findIndex(t => t.namespace === namespace && t.inferenceService === inferenceService && t.crType === crType);
+      const targetIdx = currentTargets.findIndex(t => targetMatches(t, { namespace, inferenceService, crType }));
       if (targetIdx < 0) return prev;
       const defaultTarget = currentTargets[targetIdx];
       const newTargets = [defaultTarget, ...currentTargets.filter((_, i) => i !== targetIdx)];

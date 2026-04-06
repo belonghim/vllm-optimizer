@@ -12,3 +12,10 @@ export function parseTargetKey(key: string): { namespace: string; inferenceServi
   const [namespace, inferenceService, crType] = parts;
   return { namespace, inferenceService, crType };
 }
+
+export function targetMatches(
+  t: ClusterTarget,
+  key: { namespace: string; inferenceService: string; crType: string }
+): boolean {
+  return t.namespace === key.namespace && t.inferenceService === key.inferenceService && t.crType === key.crType;
+}
