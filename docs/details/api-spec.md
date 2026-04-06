@@ -12,9 +12,10 @@ status: draft
 
 # vLLM Optimizer API Specification
 
-Complete API reference for the vLLM Optimizer backend service. All endpoints are served by a FastAPI application with async/await patterns, rate limiting via slowapi, and SSE streaming support.
+> [!NOTE]
+> 이 문서는 **고수준 요약**입니다. 정확한 API 스키마는 `/docs` (Swagger UI) 또는 `/openapi.json`을 참조하세요.
 
-## Quick Reference
+## Quick Reference (참고용)
 
 | # | Method | Path | Feature | Description |
 |---|--------|------|---------|-------------|

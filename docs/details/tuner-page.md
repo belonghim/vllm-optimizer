@@ -245,11 +245,34 @@ The core business logic for the TunerPage.
 | ClusterConfigContext | `contexts/ClusterConfigContext.tsx` | Global cluster configuration |
 | MockDataContext | `contexts/MockDataContext.tsx` | Mock data toggle |
 
-## Related Utilities
+## Error States & Edge Cases
 
-| Utility | File | Role |
-|---------|------|------|
-| authFetch | `utils/authFetch.ts` | Authenticated HTTP requests |
-| export | `utils/export.ts` | JSON/CSV download utilities |
-| format | `utils/format.ts` | Number formatting |
-| endpointUtils | `utils/endpointUtils.ts` | Endpoint URL construction |
+### 튜닝 중 페이지 이탈 후 복귀
+
+튜닝 실행 중(상태: "running")에 사용자가 페이지를 이탈하거나 브라우저를 닫은 후:
+- 다시 TunerPage에 진입하면 `/api/status/interrupted` 엔드포인트를 통해 이전에 중단된 튜닝 세션이 있는지 확인
+- 발견되면 `interruptedWarning` 상태에 경고 배너 표시: "A previous tuning run was interrupted."
+- × 버튼을 클릭하여 해당 경고를 닫을 수 있음
+- 이 경고는 TunerStatusPanel 상단에 표시됨
+
+### model="auto" 사용 금지
+
+튜닝 설정에서 Model 필드에 "auto" 값을 입력하면:
+- 백엔드 Preflight Check에서 거부됨
+- 400 에러 반환: "Preflight check failed: model 'auto' is not allowed"
+- auto_tuner는 `/api/v1/models` 엔드포인트를 통해 실제 모델 이름을 동적으로 해결해야 함
+- 사용자가 직접 사용 가능한 모델 이름을 입력해야 함 (예: `meta-llama/Llama-3.1-8B-Instruct`)
+
+### 튜닝 중 중복 시작 방지
+
+▶ Start Tuning 버튼 클릭 시:
+- 백엔드에서 `auto_tuner.is_running` 상태를 확인함
+- 이미 튜닝이 실행 중인 경우 409 에러 반환: "Tuning is already running. Wait for it to complete or stop it first."
+- 중복 시작을 방지하기 위해 버튼은 실행 중 비활성화되지 않으나, 백엔드에서 에러를 반환함
+
+### 파라미터 적용 시 튜닝 실행 중
+
+■ Stop 버튼을 클릭하지 않고 Apply Best 또는 Apply Current를 클릭하면:
+- 백엔드에서 `auto_tuner.is_running` 상태를 확인함
+- 튜닝이 실행 중인 경우 409 에러 반환: "Tuning is in progress. Wait for completion or stop first."
+- Apply Best, Apply Current 버튼은 튜닝이 완료된 후에만 사용 가능함 |

@@ -312,11 +312,35 @@ Visualizes the sweep results showing the relationship between RPS and latency/th
 | ClusterConfigContext | `contexts/ClusterConfigContext.tsx` | Global cluster configuration |
 | MockDataContext | `contexts/MockDataContext.tsx` | Mock data toggle |
 
-## Related Utilities
+## Error States & Edge Cases
 
-| Utility | File | Role |
-|---------|------|------|
-| authFetch | `utils/authFetch.ts` | Authenticated HTTP requests |
-| endpointUtils | `utils/endpointUtils.ts` | Endpoint URL construction |
-| format | `utils/format.ts` | Number formatting |
-| metrics | `utils/metrics.ts` | GPU efficiency calculation |
+### 실행 중 타겟 변경 시도
+
+로드 테스트 실행 중(상태가 "RUNNING"일 때)에는:
+- Normal 모드의 TargetSelector가 비활성화됨 (disabled 속성)
+- Sweep 모드의 타겟 관련 필드도 비활성화됨
+- 이를 변경하려면 먼저 ■ Stop 버튼으로 테스트를 중지해야 함
+- 실행 중 타겟 변경을 시도하면 UI层面上에서 막혀있어 별도의 에러 메시지가 나타나지 않음
+
+### 엔드포인트 없이 Start
+
+엔드포인트 필드가 비어있는 상태에서 ▶ Start 또는 ▶ Start Sweep 버튼을 클릭하면:
+- 백엔드에서 Preflight Check 실패로 400 에러 반환
+- ErrorAlert에 "Preflight check failed" 관련 오류 메시지 표시
+- 에러 타입은 `preflight_error`로, 구체적인 이유는 엔드포인트 URL 누락이 원인이 됨
+
+### SSE 연결 끊김 (Reconnection)
+
+SSE 연결이 끊어지는 경우:
+- `isReconnecting` 상태가 true로 전환됨
+- 페이지 상단에 "↺ Reconnecting SSE... (attempt N/3)" 배너가 표시됨
+- 최대 3번까지 재연결을 시도함
+- 재연결 실패 시 (또는 3회 모두 실패 시) 테스트 상태가 "stuck"으로 유지되지 않도록 자동 처리됨
+- 이 재연결 로직은 `useLoadTestSSE` 후크에서 관리됨
+
+### 인터럽트된 테스트 복구
+
+로드 테스트 실행 중 페이지 이탈(브라우저 닫기, 새로고침 등) 후 다시 진입하면:
+- `/api/status/interrupted` 엔드포인트를 통해 이전에 중단된 테스트가 있는지 확인
+- 발견되면 `interruptedWarning` 상태에 경고 배너 표시
+- 사용자가 × 버튼을 클릭하여 해당 경고를 닫을 수 있음 |

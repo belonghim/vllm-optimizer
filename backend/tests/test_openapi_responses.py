@@ -116,3 +116,55 @@ def test_tuner_start_has_error_schemas(client):
     assert "409" in responses, "409 response not found for /api/tuner/start"
     assert "$ref" in responses["409"]["content"]["application/json"]["schema"]
     assert "ErrorResponse" in responses["409"]["content"]["application/json"]["schema"]["$ref"]
+
+
+def test_contract_get_config(isolated_client):
+    """GET /api/config returns 200 with expected ConfigResponse fields."""
+    response = isolated_client.get("/api/config")
+    assert response.status_code == 200
+    body = response.json()
+    for field in (
+        "vllm_endpoint",
+        "vllm_namespace",
+        "vllm_is_name",
+        "vllm_model_name",
+        "resolved_model_name",
+        "cr_type",
+    ):
+        assert field in body, f"Expected field '{field}' missing from /api/config response"
+
+
+def test_contract_get_vllm_config(isolated_client):
+    """GET /api/vllm-config returns 200 or 503 (K8s unavailable in test env).
+    If 200, verify VllmConfigResponse shape."""
+    response = isolated_client.get("/api/vllm-config")
+    assert response.status_code in (200, 503), f"Unexpected status {response.status_code}"
+    if response.status_code == 200:
+        body = response.json()
+        for field in ("success", "data", "resources", "extraArgs", "modelName", "resolvedModelName"):
+            assert field in body, f"Expected field '{field}' missing from /api/vllm-config response"
+
+
+def test_contract_get_metrics_history(isolated_client):
+    """GET /api/metrics/history returns 200 with a list body."""
+    response = isolated_client.get("/api/metrics/history")
+    assert response.status_code == 200
+    body = response.json()
+    assert isinstance(body, list), "Expected /api/metrics/history to return a list"
+
+
+def test_contract_get_sla_profiles(isolated_client):
+    """GET /api/sla/profiles returns 200 with a list body."""
+    response = isolated_client.get("/api/sla/profiles")
+    assert response.status_code == 200
+    body = response.json()
+    assert isinstance(body, list), "Expected /api/sla/profiles to return a list"
+
+
+def test_contract_get_tuner_status(isolated_client):
+    """GET /api/tuner/status returns 200 with status-related fields."""
+    response = isolated_client.get("/api/tuner/status")
+    assert response.status_code == 200
+    body = response.json()
+    for field in ("running", "trials_completed", "status"):
+        assert field in body, f"Expected field '{field}' missing from /api/tuner/status response"

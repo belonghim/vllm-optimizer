@@ -52,3 +52,7 @@ Detailed documentation for each page in the vLLM Optimizer frontend application.
 - **Real-time**: Server-Sent Events (SSE)
 - **API**: Authenticated fetch via `authFetch` utility
 - **Mock Mode**: Toggleable mock data for development/testing
+
+## API Reference
+
+정확한 API 스키마는 FastAPI 서버의 `/docs` (Swagger UI) 또는 `/openapi.json`을 참조하세요.

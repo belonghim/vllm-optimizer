@@ -256,8 +256,33 @@ This creates a cross-page workflow:
 | TARGET_COLORS | `constants/index.ts` | Color palette for benchmarks |
 | ERROR_MESSAGES.SLA | `constants/errorMessages.ts` | SLA-specific error messages |
 
-## Related Utilities
+## Error States & Edge Cases
 
-| Utility | File | Role |
-|---------|------|------|
-| authFetch | `utils/authFetch.ts` | Authenticated HTTP requests |
+### Threshold 없이 저장 시도
+
+SLA 프로필 저장 시 모든 threshold 필드(Availability, P95 Latency, Error Rate, Min TPS)를 빈 상태로 두고 저장하면:
+- 백엔드에서 `SlaThresholds` 모델의 `model_validator`가 이를 거부함
+- 422 Unprocessable Entity 에러 반환: "At least one threshold must be set"
+- SlaProfileForm에서 "At least one threshold must be set" 에러 메시지가 ErrorAlert에 표시됨
+- 최소 하나의 threshold 값을 입력해야 저장이 가능함
+
+### 벤치마크 없이 SLA 평가
+
+SLA 프로필을 선택한 상태에서 BenchmarkPage에서 벤치마크를 선택하지 않은 경우:
+- Metrics Trend Chart Panel에 "Select benchmarks from the Benchmark page to evaluate against this SLA profile." 메시지가 표시됨
+- 벤치마크가 선택되지 않으면 평가가 수행되지 않음
+- Bar Chart 영역에는 "No evaluation results available." 메시지가 표시됨
+
+### 벤치마크 ID 불일치
+
+SLA 평가 요청 시 존재하지 않는 벤치마크 ID를 포함하면:
+- 해당 벤치마크는 결과에서 제외됨
+- 응답의 `warnings` 배열에 "Benchmark {id} not found (may have been deleted)" 경고 메시지가 포함됨
+- 존재하는 벤치마크에 대해서만 평가가 수행됨
+
+### 프로필 삭제 후 재선택
+
+SLA 프로필을 선택한 상태에서 해당 프로필을 삭제하면:
+- 선택된 프로필 정보가クリア됨
+- Metrics Trend Chart Panel이 더 이상 표시되지 않음
+- 사용자가 다른 프로필을 선택하거나 새 프로필을 생성해야 함 |

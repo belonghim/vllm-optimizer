@@ -226,10 +226,33 @@ For each target in the batch response:
 |--------|------|------|
 | useMonitorLogic | `hooks/useMonitorLogic.ts` | Alternative hook-based monitor logic (not used by MonitorPage, which has inline logic) |
 
-## Related Utilities
+## Error States & Edge Cases
 
-| Utility | File | Role |
-|---------|------|------|
-| gapFill | `utils/gapFill.ts` | Fills gaps in time-series data |
-| authFetch | `utils/authFetch.ts` | Authenticated HTTP requests |
-| format | `utils/format.ts` | Number formatting (`fmt`) |
+### 타겟이 없는 상태
+
+Monitor 페이지에 진입했을 때 타겟이 하나도 등록되어 있지 않으면:
+- MultiTargetSelector 영역에 빈 테이블 대신 "Monitoring Targets (0/Max)" 제목과 "+ Add" 버튼만 표시
+- "+ Add" 버튼을 클릭하여 타겟을 추가해야 메트릭 수집이 시작됨
+- 타겟이 없으면 메트릭 폴링이 수행되지 않음
+
+### Thanos 연결 실패
+
+`METRICS_SOURCE=thanos` 환경 변수로 Thanos Querier를 사용하는 경우:
+- Thanos Querier에 연결할 수 없거나 인증 실패 시 응답의 `collector_version`이 "unknown"으로 반환
+- 모든 메트릭 값이 0이거나 null로 표시됨
+- 这种 상태에서는 GPU%, GPU Mem 등 메트릭이 모두 "-"로 표시됨
+- ErrorAlert에 Thanos 연결 오류 메시지가 표시될 수 있음
+
+### Direct 모드에서 Pod IP 없음
+
+`METRICS_SOURCE=direct` 모드에서 메트릭을 수집하는 경우:
+- Pod IP를 가져올 수 없는 타겟 (예: Pod이 아직 Running 상태가 아닌 경우) 해당 타겟의 메트릭이 빈값으로 표시
+- Pods 컬럼에 해당 타겟이 "0/0" 또는 "—"로 표시됨
+- 해당 타겟의 모든 메트릭(tps, latency, gpu 등)이 "—" 대시로 표시됨
+
+### namespace에 모니터링 레이블 누락
+
+ target의 namespace에 `openshift.io/cluster-monitoring=true` 레이블이 없는 경우:
+- 해당 타겟 행에 ⚠️ 경고 아이콘이 표시됨
+- Thanos 기반 메트릭 수집이 불가능하므로 메트릭이 0 또는 "-"로 표시됨
+- 이 경고는 MultiTargetSelector의 "Type" 컬럼 근처에 표시됨 |

@@ -250,11 +250,32 @@ Used for destructive operations:
 | BenchmarkSelectionContext | `contexts/BenchmarkSelectionContext.tsx` | Multi-select state management |
 | MockDataContext | `contexts/MockDataContext.tsx` | Mock data toggle |
 
-## Related Utilities
+## Error States & Edge Cases
 
-| Utility | File | Role |
-|---------|------|------|
-| authFetch | `utils/authFetch.ts` | Authenticated HTTP requests |
-| export | `utils/export.ts` | JSON/CSV download, CSV conversion |
-| metrics | `utils/metrics.ts` | GPU efficiency calculation |
-| mockData | `mockData.ts` | Mock benchmark data generation |
+### 벤치마크가 없는 상태
+
+저장된 벤치마크가 없는 경우:
+- BenchmarkTable 대신 빈 상태 메시지가 표시됨: "Saved load test results will appear here."
+- 모든 액션 버튼(Export JSON, Export CSV, Import GuideLLM Results, Delete Selected)이 비활성화됨
+- 벤치마크를 얻으려면 LoadTestPage에서 로드 테스트를 실행하고 "Save as Benchmark"로 저장해야 함
+
+### 비교 선택이 1개만 된 경우
+
+벤치마크를 1개만 선택한 상태에서:
+- BenchmarkCompareCharts 컴포넌트가 렌더링되지 않음 (조건: `selected.length >= 2`)
+- 비교 차트 영역이 아예 표시되지 않음
+- 최소 2개 이상의 벤치마크를 선택해야 TPS, P99 Latency, GPU Efficiency 비교 차트가 나타남
+
+### 가이드LLM 결과 가져오기 실패
+
+Import GuideLLM Results 버튼을 클릭하여 파일을 선택한 후:
+- 백엔드에서 파일 파싱 실패 또는 필수 필드 누락 시 400 또는 500 에러 반환
+- ErrorAlert에 "Import failed" 관련 오류 메시지 표시
+- 성공 시에는 가져온 벤치마크 개수가 alert로 표시되고 벤치마크 목록이 새로고침됨
+
+### 삭제 확인 후 실패
+
+벤치마크 삭제 ConfirmDialog에서 확인을 클릭한 후:
+- DELETE 요청이 실패하면 (예: 서버 오류) ErrorAlert에 오류 메시지 표시
+- 삭제되지 않은 벤치마크는 목록에 계속 유지됨
+- 성공적으로 삭제되면 목록이 새로고침됨 |
