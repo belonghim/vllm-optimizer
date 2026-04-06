@@ -135,14 +135,12 @@ def test_contract_get_config(isolated_client):
 
 
 def test_contract_get_vllm_config(isolated_client):
-    """GET /api/vllm-config returns 200 or 503 (K8s unavailable in test env).
-    If 200, verify VllmConfigResponse shape."""
+    """GET /api/vllm-config returns 200 and VllmConfigResponse shape."""
     response = isolated_client.get("/api/vllm-config")
-    assert response.status_code in (200, 503), f"Unexpected status {response.status_code}"
-    if response.status_code == 200:
-        body = response.json()
-        for field in ("success", "data", "resources", "extraArgs", "modelName", "resolvedModelName"):
-            assert field in body, f"Expected field '{field}' missing from /api/vllm-config response"
+    assert response.status_code == 200, f"Unexpected status {response.status_code}"
+    body = response.json()
+    for field in ("success", "data", "resources", "extraArgs", "modelName", "resolvedModelName"):
+        assert field in body, f"Expected field '{field}' missing from /api/vllm-config response"
 
 
 def test_contract_get_metrics_history(isolated_client):

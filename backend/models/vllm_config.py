@@ -7,26 +7,6 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
-class VllmConfigData(BaseModel):
-    """vLLM configuration args as key-value pairs."""
-
-    max_num_seqs: str | None = Field(default=None, description="Max concurrent sequences")
-    gpu_memory_utilization: str | None = Field(default=None, description="GPU memory fraction")
-    max_model_len: str | None = Field(default=None, description="Max model context length")
-    max_num_batched_tokens: str | None = Field(default=None, description="Max batched tokens")
-    block_size: str | None = Field(default=None, description="KV cache block size")
-    swap_space: str | None = Field(default=None, description="Swap space in GB")
-    enable_chunked_prefill: str | None = Field(default=None, description="Enable chunked prefill")
-    enable_enforce_eager: str | None = Field(default=None, description="Enforce eager mode")
-
-
-class VllmConfigResources(BaseModel):
-    """vLLM resource requests and limits."""
-
-    requests: dict[str, str] | None = Field(default=None, description="Resource requests")
-    limits: dict[str, str] | None = Field(default=None, description="Resource limits")
-
-
 class VllmConfigResponse(BaseModel):
     """Response model for GET /api/vllm-config."""
 
@@ -45,16 +25,6 @@ class VllmConfigPatchResponse(BaseModel):
     success: bool = Field(description="Whether the patch was applied")
     updated_keys: list[str] = Field(default_factory=list, description="Config keys that were updated")
     updated_storageUri: bool = Field(description="Whether storageUri was updated")
-
-
-class InterruptedRun(BaseModel):
-    """Single interrupted run record."""
-
-    id: int | None = Field(default=None, description="Run ID")
-    name: str | None = Field(default=None, description="Run name")
-    status: str | None = Field(default=None, description="Run status")
-    # Flexible extra fields
-    extra: dict[str, Any] = Field(default_factory=dict, description="Additional run data")
 
 
 class InterruptedRunsResponse(BaseModel):
