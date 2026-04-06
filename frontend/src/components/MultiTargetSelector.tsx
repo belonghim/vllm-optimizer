@@ -245,7 +245,7 @@ export default function MultiTargetSelector({
                 <button
                   type="button"
                   className="btn btn-danger multi-target-delete-btn"
-                  onClick={() => removeTarget(target.namespace, target.inferenceService)}
+                  onClick={() => removeTarget(target.namespace, target.inferenceService, target.crType || "inferenceservice")}
                   data-testid="delete-btn"
                   aria-label={`Remove monitoring target ${target.namespace}/${target.inferenceService}`}
                 >

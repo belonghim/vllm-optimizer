@@ -103,7 +103,7 @@ describe("ClusterConfigContext", () => {
     expect(result.current.targets[2]).toMatchObject({ namespace: "ns2", inferenceService: "svc2", crType: "inferenceservice" });
 
     act(() => {
-      result.current.removeTarget("ns2", "svc2");
+      result.current.removeTarget("ns2", "svc2", "inferenceservice");
     });
 
     expect(result.current.targets.length).toBe(2);
@@ -126,11 +126,34 @@ describe("ClusterConfigContext", () => {
     expect(result.current.targets[0]).toEqual(defaultTarget);
 
     act(() => {
-      result.current.removeTarget("vllm-lab-dev", "llm-ov");
+      result.current.removeTarget("vllm-lab-dev", "llm-ov", "inferenceservice");
     });
 
     expect(result.current.targets.length).toBe(3);
     expect(result.current.targets[0]).toEqual(defaultTarget);
+  });
+
+  it("removeTarget with crType removes only the matching target, not same-name different-crType target", async () => {
+    const { result } = renderHook(() => useClusterConfig(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.targets).toEqual([defaultTarget]);
+    });
+
+    act(() => {
+      result.current.addTarget("llm-d-demo", "my-model", "inferenceservice");
+      result.current.addTarget("llm-d-demo", "my-model", "llminferenceservice");
+    });
+
+    expect(result.current.targets.length).toBe(3);
+
+    act(() => {
+      result.current.removeTarget("llm-d-demo", "my-model", "llminferenceservice");
+    });
+
+    expect(result.current.targets.length).toBe(2);
+    expect(result.current.targets.some(t => t.crType === "inferenceservice" && t.inferenceService === "my-model")).toBe(true);
+    expect(result.current.targets.some(t => t.crType === "llminferenceservice")).toBe(false);
   });
 
   it("setDefaultTarget changes default to specified target", async () => {

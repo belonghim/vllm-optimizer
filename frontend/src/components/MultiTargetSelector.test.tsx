@@ -167,7 +167,7 @@ describe("MultiTargetSelector", () => {
     vi.mocked(useClusterConfig).mockReturnValue(multiMock as unknown as ClusterConfigContextValue);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
     fireEvent.click(screen.getByTestId("delete-btn"));
-    expect(mockRemoveTarget).toHaveBeenCalledWith("llm-d-prod", "large-llm-d");
+    expect(mockRemoveTarget).toHaveBeenCalledWith("llm-d-prod", "large-llm-d", "inferenceservice");
   });
 
   it("calls setDefaultTarget when set-default button is clicked", () => {

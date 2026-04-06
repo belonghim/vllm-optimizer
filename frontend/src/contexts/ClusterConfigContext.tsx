@@ -23,7 +23,7 @@ export interface ClusterConfigContextValue {
   targets: ClusterTarget[];
   maxTargets: number;
   addTarget: (namespace: string, inferenceService: string, crType?: string) => void;
-  removeTarget: (namespace: string, inferenceService: string) => void;
+  removeTarget: (namespace: string, inferenceService: string, crType: string) => void;
   setDefaultTarget: (namespace: string, inferenceService: string, crType: string) => void;
   crType: string;
   resolvedModelName: string;
@@ -448,14 +448,18 @@ const updateCrType = useCallback(async (value: string): Promise<{ configmap_upda
     });
   }, []);
 
-  const removeTarget = useCallback((namespace: string, inferenceService: string): void => {
+  const removeTarget = useCallback((namespace: string, inferenceService: string, crType: string): void => {
     setConfig(prev => {
       const currentTargets = prev.targets;
-      const target = currentTargets.find(t => t.namespace === namespace && t.inferenceService === inferenceService);
+      const target = currentTargets.find(
+        t => t.namespace === namespace && t.inferenceService === inferenceService && t.crType === crType
+      );
 
       if (target && currentTargets.indexOf(target) === 0) return prev;
 
-      const newTargets = currentTargets.filter(t => !(t.namespace === namespace && t.inferenceService === inferenceService));
+      const newTargets = currentTargets.filter(
+        t => !(t.namespace === namespace && t.inferenceService === inferenceService && t.crType === crType)
+      );
 
       return {
         ...prev,
