@@ -471,13 +471,13 @@ const updateCrType = useCallback(async (value: string): Promise<{ configmap_upda
   const setDefaultTarget = useCallback(async (namespace: string, inferenceService: string, crType: string): Promise<void> => {
     setConfig(prev => {
       const currentTargets = prev.targets;
-      const target = currentTargets.find(t => t.namespace === namespace && t.inferenceService === inferenceService);
+      const target = currentTargets.find(t => t.namespace === namespace && t.inferenceService === inferenceService && t.crType === crType);
       if (!target) {
         const newTarget: ClusterTarget = { namespace, inferenceService, crType, source: "configmap" };
-        return { ...prev, targets: [newTarget, ...currentTargets.filter(t => !(t.namespace === namespace && t.inferenceService === inferenceService))] };
+        return { ...prev, targets: [newTarget, ...currentTargets.filter(t => !(t.namespace === namespace && t.inferenceService === inferenceService && t.crType === crType))] };
       }
 
-      const targetIdx = currentTargets.findIndex(t => t.namespace === namespace && t.inferenceService === inferenceService);
+      const targetIdx = currentTargets.findIndex(t => t.namespace === namespace && t.inferenceService === inferenceService && t.crType === crType);
       if (targetIdx < 0) return prev;
       const defaultTarget = currentTargets[targetIdx];
       const newTargets = [defaultTarget, ...currentTargets.filter((_, i) => i !== targetIdx)];

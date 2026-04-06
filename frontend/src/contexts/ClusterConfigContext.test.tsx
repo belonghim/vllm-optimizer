@@ -179,6 +179,36 @@ describe("ClusterConfigContext", () => {
     expect(result.current.targets[1]).toMatchObject({ namespace: "vllm-lab-dev", inferenceService: "llm-ov", crType: "inferenceservice" });
   });
 
+  it("setDefaultTarget with crType only promotes the matching target, not same-name different-crType target", async () => {
+    const { result } = renderHook(() => useClusterConfig(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.targets).toEqual([defaultTarget]);
+    });
+
+    act(() => {
+      result.current.addTarget("llm-d-demo", "my-model", "inferenceservice");
+      result.current.addTarget("llm-d-demo", "my-model", "llminferenceservice");
+    });
+
+    expect(result.current.targets.length).toBe(3);
+
+    act(() => {
+      result.current.setDefaultTarget("llm-d-demo", "my-model", "llminferenceservice");
+    });
+
+    // LLMIS target should be first (default)
+    expect(result.current.targets[0]).toMatchObject({
+      namespace: "llm-d-demo",
+      inferenceService: "my-model",
+      crType: "llminferenceservice",
+    });
+    // ISVC target with same name should still exist separately
+    expect(result.current.targets.some(t => t.inferenceService === "my-model" && t.crType === "inferenceservice")).toBe(true);
+    // Total count unchanged
+    expect(result.current.targets.length).toBe(3);
+  });
+
   it("exposes maxTargets constant as 5", async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
