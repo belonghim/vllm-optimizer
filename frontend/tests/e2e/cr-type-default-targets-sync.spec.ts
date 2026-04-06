@@ -25,14 +25,15 @@ test.describe('ConfigMap persistence error handling', () => {
 
     await page.waitForSelector('[data-testid^="target-row-"]');
 
-    const setDefaultBtn = page.getByTestId('set-default-btn').first();
-    await expect(setDefaultBtn).toBeVisible();
+    const radioBtn = page.getByTestId('radio-default-1');
+    await expect(radioBtn).toBeVisible();
 
-    await setDefaultBtn.click();
+    await radioBtn.click();
+    await page.getByTestId('apply-default-btn').click();
 
     await page.waitForTimeout(500);
 
-    await expect(page.getByTestId('set-default-btn').first()).toBeVisible();
+    await expect(page.getByTestId('radio-default-1')).toBeVisible();
   });
 });
 

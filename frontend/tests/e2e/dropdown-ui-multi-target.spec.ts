@@ -24,7 +24,9 @@ test.describe('MultiTargetSelector Direct Display', () => {
   test('displays default marker for default target', async ({ page }) => {
     const defaultRow = page.locator('[data-testid^="target-row-"]').first();
     await expect(defaultRow).toBeVisible();
-    await expect(defaultRow.locator('.multi-target-default-star')).toContainText('★');
+    await expect(defaultRow).toHaveClass(/multi-target-row-default/);
+    const radio = defaultRow.locator('[data-testid="radio-default-0"]');
+    await expect(radio).toBeChecked();
   });
 
   test('displays namespace under target name', async ({ page }) => {

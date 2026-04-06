@@ -1,5 +1,5 @@
-import { useState, useRef, Fragment } from "react";
-import { getTargetKey } from "../utils/targetKey";
+import { useState, useEffect, useRef, Fragment } from "react";
+import { getTargetKey, parseTargetKey } from "../utils/targetKey";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
 import { TARGET_COLORS } from "../constants";
 import { fmt } from "../utils/format";
@@ -65,6 +65,16 @@ export default function MultiTargetSelector({
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [podData, setPodData] = useState<Record<string, PodCacheEntry>>({});
   const pendingFetches = useRef<Map<string, Promise<void>>>(new Map());
+
+  const [pendingDefaultKey, setPendingDefaultKey] = useState<string>(
+    () => targets.length > 0 ? getTargetKey(targets[0]) : ''
+  );
+
+  useEffect(() => {
+    if (targets.length > 0 && !targets.some(t => getTargetKey(t) === pendingDefaultKey)) {
+      setPendingDefaultKey(getTargetKey(targets[0]));
+    }
+  }, [targets, pendingDefaultKey]);
 
   const handleAdd = async () => {
     if (newTarget.namespace && newTarget.inferenceService) {
@@ -158,7 +168,6 @@ export default function MultiTargetSelector({
         <tr data-testid={`target-row-${index}`} className={isFirstTarget ? "multi-target-row-default" : ""}>
           <td className="target-name multi-target-color-cell" style={{ borderLeftColor: targetColor }}>
             <div style={{ color: targetColor }}>
-              {isFirstTarget && <span className="multi-target-default-star">★</span>}
               {target.inferenceService}
               {!hasMonitoringLabel && (
                 <span
@@ -185,7 +194,7 @@ export default function MultiTargetSelector({
             {target.crType === "llminferenceservice" ? (
               <span className="tag tag-info" title="LLMInferenceService" data-testid="llmis-badge">LLMIS</span>
             ) : (
-              <span className="tag tag-idle" title="InferenceService" data-testid="isvc-badge">KServe</span>
+              <span className="tag tag-idle" title="InferenceService" data-testid="isvc-badge">ISVC</span>
             )}
           </td>
           {status === 'collecting' ? (
@@ -230,29 +239,28 @@ export default function MultiTargetSelector({
             </>
           )}
           <td className="multi-target-action-cell">
-            {!isFirstTarget && (
-              <div className="multi-target-action-btns">
-                <button
-                  type="button"
-                  className="btn btn-secondary multi-target-setdefault-btn"
-                  onClick={() => setDefaultTarget(target.namespace, target.inferenceService, target.crType || "inferenceservice")}
-                  data-testid="set-default-btn"
-                  title="Set as default"
-                  aria-label={`Set ${target.inferenceService} as default monitoring target`}
-                >
-                  Set Default
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-danger multi-target-delete-btn"
-                  onClick={() => removeTarget(target.namespace, target.inferenceService, target.crType || "inferenceservice")}
-                  data-testid="delete-btn"
-                  aria-label={`Remove monitoring target ${target.namespace}/${target.inferenceService}`}
-                >
-                  ×
-                </button>
-              </div>
-            )}
+            <div className="multi-target-action-btns">
+              <input
+                type="radio"
+                name="default-target"
+                value={key}
+                checked={pendingDefaultKey === key}
+                onChange={() => setPendingDefaultKey(key)}
+                data-testid={`radio-default-${index}`}
+                aria-label={`Set ${target.inferenceService} as default`}
+                style={{ cursor: 'pointer' }}
+              />
+              <button
+                type="button"
+                className="btn btn-danger multi-target-delete-btn"
+                onClick={() => removeTarget(target.namespace, target.inferenceService, target.crType || "inferenceservice")}
+                disabled={targets.length === 1}
+                data-testid="delete-btn"
+                aria-label={`Remove monitoring target ${target.namespace}/${target.inferenceService}`}
+              >
+                ×
+              </button>
+            </div>
           </td>
         </tr>
         {isExpanded && podData[key]?.data && (
@@ -267,6 +275,21 @@ export default function MultiTargetSelector({
       <div className="section-title multi-target-header">
         <span>Monitoring Targets ({targets.length}/{maxTargets})</span>
         <div className="multi-target-header-actions">
+          {targets.length > 1 && pendingDefaultKey !== getTargetKey(targets[0]) && (
+            <button
+              type="button"
+              className="btn btn-primary multi-target-apply-btn"
+              data-testid="apply-default-btn"
+              onClick={async () => {
+                const parsed = parseTargetKey(pendingDefaultKey);
+                if (parsed) {
+                  await setDefaultTarget(parsed.namespace, parsed.inferenceService, parsed.crType);
+                }
+              }}
+            >
+              적용
+            </button>
+          )}
           {!isAdding && (
             <button
               type="button"

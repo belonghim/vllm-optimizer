@@ -30,15 +30,16 @@ test.describe('CR type default targets - Set Default', () => {
 
     await page.waitForSelector('[data-testid^="target-row-"]');
 
-    const setDefaultBtn = page.getByTestId('set-default-btn').first();
-    await expect(setDefaultBtn).toBeVisible();
+    const radioBtn = page.getByTestId('radio-default-1');
+    await expect(radioBtn).toBeVisible();
 
-    await setDefaultBtn.click();
+    await radioBtn.click();
+    await page.getByTestId('apply-default-btn').click();
 
     await page.waitForTimeout(500);
 
     const firstRow = page.locator('[data-testid^="target-row-"]').first();
-    await expect(firstRow.locator('.multi-target-default-star')).toBeVisible();
+    await expect(firstRow).toHaveClass(/multi-target-row-default/);
   });
 
   test('Set Default button calls ConfigMap API for LLMInferenceService', async ({ page }) => {
@@ -53,15 +54,16 @@ test.describe('CR type default targets - Set Default', () => {
 
     await page.waitForSelector('[data-testid^="target-row-"]');
 
-    const setDefaultBtn = page.getByTestId('set-default-btn').first();
-    await expect(setDefaultBtn).toBeVisible();
+    const radioBtn = page.getByTestId('radio-default-1');
+    await expect(radioBtn).toBeVisible();
 
-    await setDefaultBtn.click();
+    await radioBtn.click();
+    await page.getByTestId('apply-default-btn').click();
 
     await page.waitForTimeout(500);
 
     const firstRow = page.locator('[data-testid^="target-row-"]').first();
-    await expect(firstRow.locator('.multi-target-default-star')).toBeVisible();
+    await expect(firstRow).toHaveClass(/multi-target-row-default/);
   });
 
   test('Default target persists after simulated Pod restart', async ({ page }) => {

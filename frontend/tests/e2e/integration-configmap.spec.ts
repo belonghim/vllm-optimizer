@@ -13,9 +13,10 @@ test.describe('Full Integration: Backend + Frontend + ConfigMap', () => {
 
     await page.waitForSelector('[data-testid^="target-row-"]');
 
-    const setDefaultBtn = page.getByTestId('set-default-btn').first();
-    await expect(setDefaultBtn).toBeVisible();
-    await setDefaultBtn.click();
+    const radioBtn = page.getByTestId('radio-default-1');
+    await expect(radioBtn).toBeVisible();
+    await radioBtn.click();
+    await page.getByTestId('apply-default-btn').click();
 
     await page.waitForResponse((response) =>
       response.url().includes('/api/config/default-targets') &&
@@ -47,7 +48,8 @@ test.describe('Full Integration: Backend + Frontend + ConfigMap', () => {
 
     await page.waitForSelector('[data-testid^="target-row-"]');
 
-    await page.getByTestId('set-default-btn').first().click();
+    await page.getByTestId('radio-default-1').click();
+    await page.getByTestId('apply-default-btn').click();
     await page.waitForResponse((response) =>
       response.url().includes('/api/config/default-targets') &&
       response.request().method() === 'PATCH'

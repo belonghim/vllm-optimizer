@@ -68,12 +68,13 @@ test.describe('CR type default targets - UI', () => {
     await page.getByTestId('confirm-add-btn').click();
 
     await page.waitForSelector('[data-testid^="target-row-"]');
-    await page.getByTestId('set-default-btn').first().click();
+    await page.getByTestId('radio-default-1').click();
+    await page.getByTestId('apply-default-btn').click();
 
     await page.waitForTimeout(500);
 
     const firstRow = page.locator('[data-testid^="target-row-"]').first();
-    await expect(firstRow.locator('.multi-target-default-star')).toBeVisible();
+    await expect(firstRow).toHaveClass(/multi-target-row-default/);
   });
 
   test('Dropdown shows targets grouped by CR type', async ({ page }) => {

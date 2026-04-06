@@ -124,13 +124,13 @@ describe("MultiTargetSelector", () => {
     expect(mockContext.addTarget).not.toHaveBeenCalled();
   });
 
-  it("does not show delete or set-default button on default target", () => {
+  it("shows radio button on all targets and delete button disabled if only one", () => {
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
-    expect(screen.queryByTestId("delete-btn")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("set-default-btn")).not.toBeInTheDocument();
+    expect(screen.getByTestId("radio-default-0")).toBeInTheDocument();
+    expect(screen.getByTestId("delete-btn")).toBeDisabled();
   });
 
-  it("shows delete and set-default buttons on non-default target", () => {
+  it("shows radio buttons and enabled delete buttons on multiple targets", () => {
     const multiMock = {
       ...mockContext,
       targets: [
@@ -145,8 +145,38 @@ describe("MultiTargetSelector", () => {
     };
     vi.mocked(useClusterConfig).mockReturnValue(multiMock as unknown as ClusterConfigContextValue);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
-    expect(screen.getAllByTestId("delete-btn")).toHaveLength(1);
-    expect(screen.getAllByTestId("set-default-btn")).toHaveLength(1);
+    expect(screen.getByTestId("radio-default-0")).toBeInTheDocument();
+    expect(screen.getByTestId("radio-default-1")).toBeInTheDocument();
+    const deleteBtns = screen.getAllByTestId("delete-btn");
+    expect(deleteBtns).toHaveLength(2);
+    expect(deleteBtns[0]).not.toBeDisabled();
+    expect(deleteBtns[1]).not.toBeDisabled();
+  });
+
+  it("shows Apply button only when radio selection differs from current default", () => {
+    const multiMock = {
+      ...mockContext,
+      targets: [
+        { namespace: "llm-d-demo", inferenceService: "small-llm-d", crType: "inferenceservice" },
+        { namespace: "llm-d-prod", inferenceService: "large-llm-d", crType: "inferenceservice" },
+      ],
+      isvcTargets: [
+        { namespace: "llm-d-demo", inferenceService: "small-llm-d", crType: "inferenceservice" },
+        { namespace: "llm-d-prod", inferenceService: "large-llm-d", crType: "inferenceservice" },
+      ],
+      llmisvcTargets: [],
+    };
+    vi.mocked(useClusterConfig).mockReturnValue(multiMock as unknown as ClusterConfigContextValue);
+    render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
+    
+    expect(screen.queryByTestId("apply-default-btn")).not.toBeInTheDocument();
+    
+    fireEvent.click(screen.getByTestId("radio-default-1"));
+    
+    expect(screen.getByTestId("apply-default-btn")).toBeInTheDocument();
+    
+    fireEvent.click(screen.getByTestId("radio-default-0"));
+    expect(screen.queryByTestId("apply-default-btn")).not.toBeInTheDocument();
   });
 
   it("calls removeTarget when delete button is clicked", () => {
@@ -166,11 +196,11 @@ describe("MultiTargetSelector", () => {
     };
     vi.mocked(useClusterConfig).mockReturnValue(multiMock as unknown as ClusterConfigContextValue);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
-    fireEvent.click(screen.getByTestId("delete-btn"));
+    fireEvent.click(screen.getAllByTestId("delete-btn")[1]);
     expect(mockRemoveTarget).toHaveBeenCalledWith("llm-d-prod", "large-llm-d", "inferenceservice");
   });
 
-  it("calls setDefaultTarget when set-default button is clicked", () => {
+  it("calls setDefaultTarget when Apply button is clicked", async () => {
     const mockSetDefaultTarget = vi.fn();
     const multiMock = {
       ...mockContext,
@@ -187,7 +217,10 @@ describe("MultiTargetSelector", () => {
     };
     vi.mocked(useClusterConfig).mockReturnValue(multiMock as unknown as ClusterConfigContextValue);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
-    fireEvent.click(screen.getByTestId("set-default-btn"));
+    
+    fireEvent.click(screen.getByTestId("radio-default-1"));
+    fireEvent.click(screen.getByTestId("apply-default-btn"));
+    
     expect(mockSetDefaultTarget).toHaveBeenCalledWith("llm-d-prod", "large-llm-d", "inferenceservice");
   });
 

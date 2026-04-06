@@ -35,7 +35,8 @@ test.describe('Cross-Task Integration: MonitorPage + AutoTuner + LoadTest', () =
     const responsePromise = page.waitForResponse((r) =>
       r.url().includes('/api/config/default-targets') && r.request().method() === 'PATCH'
     );
-    await page.getByTestId('set-default-btn').first().click();
+    await page.getByTestId('radio-default-1').click();
+    await page.getByTestId('apply-default-btn').click();
     await responsePromise;
 
     await page.getByRole('tab', { name: 'Auto Tuner' }).click();
@@ -60,7 +61,8 @@ test.describe('Cross-Task Integration: MonitorPage + AutoTuner + LoadTest', () =
     const responsePromise = page.waitForResponse((r) =>
       r.url().includes('/api/config/default-targets') && r.request().method() === 'PATCH'
     );
-    await page.getByTestId('set-default-btn').first().click();
+    await page.getByTestId('radio-default-1').click();
+    await page.getByTestId('apply-default-btn').click();
     await responsePromise;
 
     await page.getByRole('tab', { name: 'Load Test' }).click();
@@ -85,7 +87,8 @@ test.describe('Cross-Task Integration: MonitorPage + AutoTuner + LoadTest', () =
     const responsePromise = page.waitForResponse((r) =>
       r.url().includes('/api/config/default-targets') && r.request().method() === 'PATCH'
     );
-    await page.getByTestId('set-default-btn').first().click();
+    await page.getByTestId('radio-default-1').click();
+    await page.getByTestId('apply-default-btn').click();
     await responsePromise;
 
     await page.getByRole('tab', { name: 'Auto Tuner' }).click();

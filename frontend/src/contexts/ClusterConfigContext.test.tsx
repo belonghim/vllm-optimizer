@@ -110,27 +110,32 @@ describe("ClusterConfigContext", () => {
     expect(result.current.targets[1].namespace).toBe("ns1");
   });
 
-  it("removeTarget does NOT remove first target (no-op)", async () => {
+  it("removeTarget CAN remove first target when multiple targets exist", async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
-
-    await waitFor(() => {
-      expect(result.current.targets).toEqual([defaultTarget]);
-    });
+    await waitFor(() => expect(result.current.targets).toEqual([defaultTarget]));
 
     act(() => {
       result.current.addTarget("ns1", "svc1");
-      result.current.addTarget("ns2", "svc2");
     });
-
-    expect(result.current.targets.length).toBe(3);
-    expect(result.current.targets[0]).toEqual(defaultTarget);
+    expect(result.current.targets.length).toBe(2);
 
     act(() => {
       result.current.removeTarget("vllm-lab-dev", "llm-ov", "inferenceservice");
     });
 
-    expect(result.current.targets.length).toBe(3);
-    expect(result.current.targets[0]).toEqual(defaultTarget);
+    expect(result.current.targets.length).toBe(1);
+    expect(result.current.targets[0]).toMatchObject({ namespace: "ns1", inferenceService: "svc1" });
+  });
+
+  it("removeTarget removes last target if called directly (UI prevents it via disabled button)", async () => {
+    const { result } = renderHook(() => useClusterConfig(), { wrapper });
+    await waitFor(() => expect(result.current.targets).toEqual([defaultTarget]));
+
+    act(() => {
+      result.current.removeTarget("vllm-lab-dev", "llm-ov", "inferenceservice");
+    });
+
+    expect(result.current.targets.length).toBe(0);
   });
 
   it("removeTarget with crType removes only the matching target, not same-name different-crType target", async () => {

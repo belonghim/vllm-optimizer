@@ -91,7 +91,8 @@ test.describe('TDD Cycle Verification: Red → Green → Refactor', () => {
     const responsePromise = page.waitForResponse((r) =>
       r.url().includes('/api/config/default-targets') && r.request().method() === 'PATCH'
     );
-    await page.getByTestId('set-default-btn').first().click();
+    await page.getByTestId('radio-default-1').click();
+    await page.getByTestId('apply-default-btn').click();
 
     const response = await responsePromise;
     expect(response.ok()).toBe(true);
@@ -130,15 +131,16 @@ test.describe('TDD Cycle Verification: Red → Green → Refactor', () => {
     }
 
     const targetRows = page.locator('[data-testid^="target-row-"]').filter({
-      has: page.locator('[data-testid="set-default-btn"]'),
+      has: page.locator('[data-testid^="radio-default-"]'),
     });
     const count = await targetRows.count();
-    expect(count).toBe(3);
+    expect(count).toBe(4);
 
     const responsePromise = page.waitForResponse((r) =>
       r.url().includes('/api/config/default-targets') && r.request().method() === 'PATCH'
     );
-    await page.getByTestId('set-default-btn').first().click();
+    await page.getByTestId('radio-default-1').click();
+    await page.getByTestId('apply-default-btn').click();
     await responsePromise;
 
     const consoleMessages: string[] = [];

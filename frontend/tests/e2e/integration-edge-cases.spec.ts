@@ -25,7 +25,7 @@ test.describe('Edge Cases: Empty and Deleted Targets', () => {
     await expect(addTargetBtn).toBeVisible();
 
     const targetRows = page.locator('[data-testid^="target-row-"]').filter({
-      has: page.locator('[data-testid="set-default-btn"]'),
+      has: page.locator('[data-testid^="radio-default-"]'),
     });
     const count = await targetRows.count();
     expect(count).toBe(0);
@@ -62,14 +62,15 @@ test.describe('Edge Cases: Empty and Deleted Targets', () => {
     const responsePromise = page.waitForResponse((r) =>
       r.url().includes('/api/config/default-targets') && r.request().method() === 'PATCH'
     );
-    await page.getByTestId('set-default-btn').first().click();
+    await page.getByTestId('radio-default-1').click();
+    await page.getByTestId('apply-default-btn').click();
     await responsePromise;
 
     await page.getByTestId('delete-btn').first().click();
     await page.waitForTimeout(200);
 
     const targetRows = page.locator('[data-testid^="target-row-"]').filter({
-      has: page.locator('[data-testid="set-default-btn"]'),
+      has: page.locator('[data-testid^="radio-default-"]'),
     });
     const count = await targetRows.count();
     expect(count).toBe(0);
@@ -167,7 +168,8 @@ test.describe('Multiple CR Types', () => {
     expect(count).toBe(5);
 
     for (let i = 0; i < 3; i++) {
-      await page.getByTestId('set-default-btn').first().click();
+      await page.getByTestId('radio-default-1').click();
+      await page.getByTestId('apply-default-btn').click();
       await page.waitForTimeout(100);
     }
 

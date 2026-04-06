@@ -452,10 +452,6 @@ const updateCrType = useCallback(async (value: string): Promise<{ configmap_upda
   const removeTarget = useCallback((namespace: string, inferenceService: string, crType: string): void => {
     setConfig(prev => {
       const currentTargets = prev.targets;
-      const target = currentTargets.find(t => targetMatches(t, { namespace, inferenceService, crType }));
-
-      if (target && currentTargets.indexOf(target) === 0) return prev;
-
       const newTargets = currentTargets.filter(t => !targetMatches(t, { namespace, inferenceService, crType }));
 
       return {
