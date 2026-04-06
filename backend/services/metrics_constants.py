@@ -14,6 +14,8 @@ GAUGE_METRIC_MAP: dict[str, str] = {
     "vllm:num_requests_waiting": "waiting_requests",
     "DCGM_FI_DEV_GPU_UTIL": "gpu_utilization_pct",
     "DCGM_FI_DEV_FB_USED": "gpu_memory_used_gb",
+    "DCGM_FI_DEV_FB_FREE": "gpu_memory_free_gb",
+    "DCGM_FI_DEV_FB_RESERVED": "gpu_memory_reserved_gb",
 }
 
 COUNTER_METRIC_MAP: dict[str, str] = {
@@ -30,4 +32,6 @@ HISTOGRAM_METRIC_MAP: dict[str, str] = {
 
 METRICS_UNIT_SCALE: dict[str, float] = {
     "DCGM_FI_DEV_FB_USED": 1.0 / 1024,
+    "DCGM_FI_DEV_FB_FREE": 1.0 / 1024,
+    "DCGM_FI_DEV_FB_RESERVED": 1.0 / 1024,
 }

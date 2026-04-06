@@ -11,7 +11,14 @@ def broadcaster():
 
 @pytest.fixture
 def watcher(broadcaster):
-    return ConfigMapWatcher(broadcaster)
+    w = ConfigMapWatcher(broadcaster)
+    w._read_configmap = lambda: {
+        "DEFAULT_ISVC_NAME": "",
+        "DEFAULT_ISVC_NAMESPACE": "",
+        "DEFAULT_LLMISVC_NAME": "",
+        "DEFAULT_LLMISVC_NAMESPACE": "",
+    }
+    return w
 
 
 @pytest.mark.asyncio

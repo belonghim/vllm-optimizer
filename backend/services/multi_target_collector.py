@@ -211,6 +211,38 @@ class MultiTargetMetricsCollector:
         mean_e2e_latency_ms = (latency_sum / latency_count) * 1000 if latency_count > 0 else 0.0
         return {"mean_ttft_ms": mean_ttft_ms, "mean_e2e_latency_ms": mean_e2e_latency_ms}
 
+    def _compute_histogram_quantile(self, buckets: list[tuple[float, float]], quantile: float) -> float:
+        if not buckets or quantile < 0 or quantile > 1:
+            return 0.0
+
+        sorted_buckets = sorted(buckets, key=lambda item: item[0])
+        total_count = 0.0
+        for le, count in sorted_buckets:
+            if math.isinf(le):
+                total_count = count
+                break
+            total_count = max(total_count, count)
+        if total_count <= 0:
+            return 0.0
+
+        rank = quantile * total_count
+        lower_bound = 0.0
+        lower_count = 0.0
+
+        for upper_bound, upper_count in sorted_buckets:
+            if upper_count >= rank:
+                if upper_count == lower_count:
+                    return lower_bound
+                if math.isinf(upper_bound):
+                    return lower_bound
+                return lower_bound + ((upper_bound - lower_bound) * (rank - lower_count) / (upper_count - lower_count))
+
+            if not math.isinf(upper_bound):
+                lower_bound = upper_bound
+            lower_count = upper_count
+
+        return 0.0
+
     def _get_default_target(self) -> TargetCache | None:
         if not self._targets:
             return None
@@ -662,6 +694,7 @@ class MultiTargetMetricsCollector:
         counter_fields = {v for v in COUNTER_METRIC_MAP.values() if not v.startswith("_")}
         agg_gauges: dict[str, list[float]] = {}
         agg_hist: dict[str, float] = {}
+        agg_hist_buckets: dict[str, dict[float, float]] = {}
         all_counter_raws: dict[str, dict[str, float]] = {}
 
         for pod, result in zip(running_pods, scrape_results, strict=False):
@@ -669,19 +702,32 @@ class MultiTargetMetricsCollector:
                 continue
             pod_ip: str = pod.status.pod_ip
             pod_counters: dict[str, float] = {}
-            for k, v in cast(dict[str, float], result).items():
-                if k in counter_fields:
-                    pod_counters[k] = v
+            for k, v in cast(dict[str, float | list[tuple[float, float]]], result).items():
+                if k in counter_fields and isinstance(v, (float, int)):
+                    pod_counters[k] = float(v)
                 elif k in (
                     "running_requests",
                     "waiting_requests",
                     "kv_cache_usage_pct",
                     "gpu_utilization_pct",
                     "gpu_memory_used_gb",
-                ):
-                    agg_gauges.setdefault(k, []).append(v)
-                elif k.endswith(("_sum", "_count")):
-                    agg_hist[k] = agg_hist.get(k, 0.0) + v
+                    "gpu_memory_free_gb",
+                    "gpu_memory_reserved_gb",
+                ) and isinstance(v, (float, int)):
+                    agg_gauges.setdefault(k, []).append(float(v))
+                elif k.endswith(("_sum", "_count")) and isinstance(v, (float, int)):
+                    agg_hist[k] = agg_hist.get(k, 0.0) + float(v)
+                elif k.endswith("_buckets") and isinstance(v, list):
+                    merged = agg_hist_buckets.setdefault(k, {})
+                    for bucket in v:
+                        if not isinstance(bucket, tuple) or len(bucket) != 2:
+                            continue
+                        le, count = bucket
+                        if not isinstance(le, (float, int)) or not isinstance(count, (float, int)):
+                            continue
+                        le_f = float(le)
+                        count_f = float(count)
+                        merged[le_f] = merged.get(le_f, 0.0) + count_f
             all_counter_raws[pod_ip] = pod_counters
 
         metrics = VLLMMetrics(timestamp=now)
@@ -716,10 +762,28 @@ class MultiTargetMetricsCollector:
             metrics.gpu_utilization_pct = sum(vals) / len(vals)
         if "gpu_memory_used_gb" in agg_gauges:
             metrics.gpu_memory_used_gb = sum(agg_gauges["gpu_memory_used_gb"])
+        if (
+            "gpu_memory_used_gb" in agg_gauges
+            or "gpu_memory_free_gb" in agg_gauges
+            or "gpu_memory_reserved_gb" in agg_gauges
+        ):
+            metrics.gpu_memory_total_gb = (
+                sum(agg_gauges.get("gpu_memory_used_gb", []))
+                + sum(agg_gauges.get("gpu_memory_free_gb", []))
+                + sum(agg_gauges.get("gpu_memory_reserved_gb", []))
+            )
 
         hist_stats = self._compute_histogram_stats(agg_hist)
         metrics.mean_ttft_ms = hist_stats.get("mean_ttft_ms", 0.0)
         metrics.mean_e2e_latency_ms = hist_stats.get("mean_e2e_latency_ms", 0.0)
+        if "ttft_buckets" in agg_hist_buckets:
+            metrics.p99_ttft_ms = (
+                self._compute_histogram_quantile(list(agg_hist_buckets["ttft_buckets"].items()), 0.99) * 1000
+            )
+        if "latency_buckets" in agg_hist_buckets:
+            metrics.p99_e2e_latency_ms = (
+                self._compute_histogram_quantile(list(agg_hist_buckets["latency_buckets"].items()), 0.99) * 1000
+            )
 
         if target.is_default:
             update_metrics(metrics)
@@ -937,13 +1001,14 @@ class MultiTargetMetricsCollector:
                 exc,
             )
 
-    async def _scrape_pod_metrics(self, pod_ip: str, port: int) -> dict[str, float]:
+    async def _scrape_pod_metrics(self, pod_ip: str, port: int) -> dict[str, float | list[tuple[float, float]]]:
         import asyncio
 
         from services.metrics_constants import (
             COUNTER_METRIC_MAP,
             GAUGE_METRIC_MAP,
             HISTOGRAM_METRIC_MAP,
+            METRICS_UNIT_SCALE,
             normalize_metric_name,
         )
 
@@ -975,22 +1040,30 @@ class MultiTargetMetricsCollector:
             return {}
 
         hist_suffixes: dict[str, tuple[str, str]] = {}
+        hist_buckets: dict[str, str] = {}
         for base, alias in HISTOGRAM_METRIC_MAP.items():
             hist_suffixes[f"{base}_sum"] = (alias, "sum")
             hist_suffixes[f"{base}_count"] = (alias, "count")
+            hist_buckets[f"{base}_bucket"] = alias
 
         gauge_acc: dict[str, float] = {}
         counter_acc: dict[str, float] = {}
         hist_acc: dict[str, float] = {}
+        hist_bucket_acc: dict[str, dict[float, float]] = {}
 
         for line in text.splitlines():
             if not line or line.startswith("#"):
                 continue
 
             brace_pos = line.find("{")
+            label_str = ""
             if brace_pos != -1:
+                end_brace = line.rfind("}")
+                if end_brace < brace_pos:
+                    continue
                 metric_name = normalize_metric_name(line[:brace_pos])
-                rest = line[line.rfind("}") + 1 :].strip()
+                label_str = line[brace_pos + 1 : end_brace]
+                rest = line[end_brace + 1 :].strip()
             else:
                 parts = line.split(None, 1)
                 if len(parts) < 2:
@@ -1007,18 +1080,35 @@ class MultiTargetMetricsCollector:
             if math.isnan(value) or math.isinf(value):
                 continue
 
+            value *= METRICS_UNIT_SCALE.get(metric_name, 1.0)
+
             if metric_name in GAUGE_METRIC_MAP:
                 gauge_acc[metric_name] = gauge_acc.get(metric_name, 0.0) + value
             elif metric_name.endswith("_created"):
                 pass
             elif metric_name in COUNTER_METRIC_MAP:
                 counter_acc[metric_name] = counter_acc.get(metric_name, 0.0) + value
+            elif metric_name in hist_buckets:
+                le_match = re.search(r'le="([^"]+)"', label_str)
+                if not le_match:
+                    continue
+                le_raw = le_match.group(1)
+                if le_raw == "+Inf":
+                    le = float("inf")
+                else:
+                    try:
+                        le = float(le_raw)
+                    except ValueError:
+                        continue
+                key = f"{hist_buckets[metric_name]}_buckets"
+                per_bucket = hist_bucket_acc.setdefault(key, {})
+                per_bucket[le] = per_bucket.get(le, 0.0) + value
             elif metric_name in hist_suffixes:
                 alias, suffix = hist_suffixes[metric_name]
                 key = f"{alias}_{suffix}"
                 hist_acc[key] = hist_acc.get(key, 0.0) + value
 
-        result: dict[str, float] = {}
+        result: dict[str, float | list[tuple[float, float]]] = {}
         for metric_name, field_name in GAUGE_METRIC_MAP.items():
             if metric_name in gauge_acc:
                 result[field_name] = result.get(field_name, 0.0) + gauge_acc[metric_name]
@@ -1026,5 +1116,7 @@ class MultiTargetMetricsCollector:
             if metric_name in counter_acc:
                 result[field_name] = result.get(field_name, 0.0) + counter_acc[metric_name]
         result.update(hist_acc)
+        for field_name, bucket_map in hist_bucket_acc.items():
+            result[field_name] = sorted(bucket_map.items(), key=lambda item: item[0])
 
         return result
