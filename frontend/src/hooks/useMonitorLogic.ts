@@ -11,7 +11,7 @@ import {
   buildChartLinesMap, loadChartConfig, saveChartConfig,
   type ChartConfig,
 } from "../components/MonitorChartGrid";
-import type { PerPodMetricsResponse, SlaProfile, TargetResult, TargetState } from "../types";
+import type { SlaProfile, TargetResult, TargetState } from "../types";
 import { getTargetKey } from "../utils/targetKey";
 
 export function useMonitorLogic(isActive: boolean) {
@@ -152,38 +152,6 @@ export function useMonitorLogic(isActive: boolean) {
     }
   }, [targets, isMockEnabled, crType, selectedSlaProfile]);
 
-  const fetchPodMetrics = useCallback(async (
-    namespace: string,
-    inferenceService: string,
-    signal?: AbortSignal,
-  ): Promise<PerPodMetricsResponse | null> => {
-    if (isMockEnabled) {
-      return null;
-    }
-
-    try {
-      const res = await authFetch(`${API}/metrics/pods`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          namespace,
-          inference_service: inferenceService,
-          cr_type: crType,
-        }),
-        signal,
-      });
-
-      if (signal?.aborted) return null;
-      if (!res.ok) throw new Error(`Pods HTTP ${res.status}`);
-      const data: PerPodMetricsResponse = await res.json();
-      return data;
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') return null;
-      console.error("Failed to fetch pod metrics", err);
-      return null;
-    }
-  }, [isMockEnabled, crType]);
-
   useEffect(() => {
     if (!isActive) return;
     if (targets.length === 0) {
@@ -268,7 +236,7 @@ export function useMonitorLogic(isActive: boolean) {
   return {
     initialized, error, targets, slaProfiles, selectedSlaProfileId, setSelectedSlaProfileId,
     chartOrder, hiddenCharts, mergedHistory, targetStatuses, targetStates, chartLinesMap,
-    hideChart, showChart, getSlaThreshold, fetchPodMetrics,
+    hideChart, showChart, getSlaThreshold,
     selectedRange, setSelectedRange, timeRangePointsRef, selectedRangeRef,
   };
 }

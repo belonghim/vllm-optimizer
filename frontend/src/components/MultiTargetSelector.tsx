@@ -4,7 +4,7 @@ import { useClusterConfig } from "../contexts/ClusterConfigContext";
 import { TARGET_COLORS } from "../constants";
 import { fmt } from "../utils/format";
 import { authFetch } from "../utils/authFetch";
-import type { ClusterTarget, PerPodMetricSnapshot } from "../types";
+import type { ClusterTarget, PerPodMetricSnapshot, PerPodMetricsDict } from "../types";
 import ExpandablePodRow from "./ExpandablePodRow";
 import "./MultiTargetSelector.css";
 
@@ -136,7 +136,7 @@ export default function MultiTargetSelector({
         });
 
         if (response.ok) {
-          const data = await response.json();
+          const data: PerPodMetricsDict = await response.json();
           const pods: PerPodMetricSnapshot[] = data[key]?.per_pod ?? [];
           setPodData(prev => ({ ...prev, [key]: { data: pods, timestamp: Date.now() } }));
         }

@@ -65,6 +65,8 @@ export interface PerPodMetricsResponse {
   timestamp: number;
 }
 
+export type PerPodMetricsDict = Record<string, PerPodMetricsResponse>;
+
 export interface TargetResult {
   status: string;
   error?: string;
