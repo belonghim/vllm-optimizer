@@ -16,7 +16,7 @@ class TestRegisterTarget:
 
         assert result is True
         assert len(collector._targets) == initial_count + 1
-        assert collector.build_target_key("test-ns", "test-is") in collector._targets
+        assert collector.build_target_key("test-ns", "test-is", "inferenceservice") in collector._targets
 
     @pytest.mark.asyncio
     async def test_register_existing_target_returns_true_no_duplicate(
@@ -52,7 +52,7 @@ class TestRegisterTarget:
         with patch.object(collector, "_ensure_collect_loop", new_callable=AsyncMock):
             await collector.register_target("new-ns", "new-is")
 
-        key = collector.build_target_key("new-ns", "new-is")
+        key = collector.build_target_key("new-ns", "new-is", "inferenceservice")
         assert collector._targets[key].has_monitoring_label is False
 
     @pytest.mark.asyncio
@@ -61,7 +61,7 @@ class TestRegisterTarget:
         with patch.object(collector, "_ensure_collect_loop", new_callable=AsyncMock):
             await collector.register_target("extra-ns", "extra-is")
 
-        key = collector.build_target_key("extra-ns", "extra-is")
+        key = collector.build_target_key("extra-ns", "extra-is", "inferenceservice")
         assert collector._targets[key].is_default is False
 
 
@@ -75,7 +75,7 @@ class TestRemoveTarget:
         result = await collector.remove_target("rm-ns", "rm-is")
 
         assert result is True
-        assert collector.build_target_key("rm-ns", "rm-is") not in collector._targets
+        assert collector.build_target_key("rm-ns", "rm-is", "inferenceservice") not in collector._targets
 
     @pytest.mark.asyncio
     async def test_remove_nonexistent_target_returns_false(self, collector: MultiTargetMetricsCollector) -> None:
@@ -132,7 +132,7 @@ class TestGetMetrics:
         with patch.object(collector, "_ensure_collect_loop", new_callable=AsyncMock):
             await collector.register_target("test-ns", "test-is")
 
-        key = collector.build_target_key("test-ns", "test-is")
+        key = collector.build_target_key("test-ns", "test-is", "inferenceservice")
         fake = VLLMMetrics(timestamp=time.time(), tokens_per_second=99.0)
         collector._targets[key].latest = fake
 
@@ -190,7 +190,7 @@ class TestGetDefaultTarget:
         assert default is not None
         assert default.namespace == "new-ns"
         assert default.is_name == "new-is"
-        assert collector.build_target_key("new-ns", "new-is") in collector._targets
+        assert collector.build_target_key("new-ns", "new-is", default.cr_type) in collector._targets
 
     def test_set_default_target_partial_update_namespace_only(self, collector: MultiTargetMetricsCollector) -> None:
         default_target = collector._get_default_target()
@@ -213,15 +213,15 @@ class TestTargetKey:
         )
 
     def test_target_key_used_consistently(self, collector: MultiTargetMetricsCollector) -> None:
-        key1 = collector.build_target_key("ns", "is")
-        key2 = collector.build_target_key("ns", "is")
+        key1 = collector.build_target_key("ns", "is", "inferenceservice")
+        key2 = collector.build_target_key("ns", "is", "inferenceservice")
         assert key1 == key2
 
     def test_target_key_includes_cr_type(self, collector: MultiTargetMetricsCollector) -> None:
         assert collector.build_target_key("ns", "name", "inferenceservice") == "ns/name/inferenceservice"
 
-    def test_target_key_defaults_to_inferenceservice(self, collector: MultiTargetMetricsCollector) -> None:
-        assert collector.build_target_key("ns", "name").endswith("/inferenceservice")
+    def test_target_key_explicit_cr_type_required(self, collector: MultiTargetMetricsCollector) -> None:
+        assert collector.build_target_key("ns", "name", "inferenceservice") == "ns/name/inferenceservice"
 
     def test_target_key_prevents_collision(self, collector: MultiTargetMetricsCollector) -> None:
         assert collector.build_target_key("ns", "name", "inferenceservice") != collector.build_target_key(
@@ -491,12 +491,12 @@ class TestGetTargetWarning:
         with patch.object(collector, "_ensure_collect_loop", new_callable=AsyncMock):
             await collector.register_target("hist-ns", "hist-is")
 
-        key = collector.build_target_key("hist-ns", "hist-is")
+        key = collector.build_target_key("hist-ns", "hist-is", "inferenceservice")
         target = collector._targets[key]
         fake = VLLMMetrics(timestamp=time.time(), tokens_per_second=42.0)
         target.history.append(fake)
 
-        key = collector.build_target_key("hist-ns", "hist-is")
+        key = collector.build_target_key("hist-ns", "hist-is", "inferenceservice")
         assert key in collector._targets
         history = list(collector._targets[key].history)
         assert len(history) > 0

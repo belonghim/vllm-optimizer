@@ -247,6 +247,8 @@ class MultiTargetMetricsCollector:
 
     def get_target(self, namespace: str, is_name: str, cr_type: str | None = None) -> "TargetCache | None":
         """Resolve target cache entry using the canonical key format."""
+        if cr_type is None:
+            cr_type = runtime_config.cr_type
         key = self.build_target_key(namespace, is_name, cr_type)
         result = self._targets.get(key)
         if result is None:
@@ -329,6 +331,8 @@ class MultiTargetMetricsCollector:
         ]
 
     async def get_metrics(self, namespace: str, is_name: str, cr_type: str | None = None) -> VLLMMetrics | None:
+        if cr_type is None:
+            cr_type = runtime_config.cr_type
         key = self.build_target_key(namespace, is_name, cr_type)
         async with self._lock:
             target = self._targets.get(key)
@@ -376,6 +380,8 @@ class MultiTargetMetricsCollector:
         return True
 
     async def remove_target(self, namespace: str, is_name: str, cr_type: str | None = None) -> bool:
+        if cr_type is None:
+            cr_type = runtime_config.cr_type
         key = self.build_target_key(namespace, is_name, cr_type)
         async with self._lock:
             removed = self._targets.pop(key, None)
@@ -899,13 +905,13 @@ class MultiTargetMetricsCollector:
         return target.has_monitoring_label is not None and target.has_monitoring_label if target else False
 
     def get_cr_exists(self, namespace: str, is_name: str, cr_type: str | None = None) -> bool | None:
+        if cr_type is None:
+            cr_type = runtime_config.cr_type
         key = self.build_target_key(namespace, is_name, cr_type)
         target = self._targets.get(key)
         return target.cr_exists if target else None
 
-    def build_target_key(self, namespace: str, is_name: str, cr_type: str | None = None) -> str:
-        if cr_type is None:
-            cr_type = runtime_config.cr_type
+    def build_target_key(self, namespace: str, is_name: str, cr_type: str) -> str:
         return f"{namespace}/{is_name}/{cr_type}"
 
     def _load_token(self) -> str | None:
