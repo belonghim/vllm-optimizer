@@ -455,7 +455,10 @@ class MultiTargetMetricsCollector:
             cr_type = runtime_config.cr_type
         adapter = get_cr_adapter(cr_type)
         prefix = adapter.metric_prefix()
-        selector = f'namespace="{namespace}", job="{adapter.prometheus_job(is_name, namespace)}"'
+        selector = (
+            f'namespace="{namespace}", job="{adapter.prometheus_job(is_name, namespace)}"'
+            f"{adapter.metric_extra_selector(is_name)}"
+        )
         dcgm_selector = f'exported_namespace="{namespace}", exported_pod=~"{adapter.dcgm_pod_pattern(is_name)}"'
         return {
             "tokens_per_second": (
@@ -510,7 +513,10 @@ class MultiTargetMetricsCollector:
             cr_type = runtime_config.cr_type
         adapter = get_cr_adapter(cr_type)
         prefix = adapter.metric_prefix()
-        selector = f'namespace="{namespace}", job="{adapter.prometheus_job(is_name, namespace)}"'
+        selector = (
+            f'namespace="{namespace}", job="{adapter.prometheus_job(is_name, namespace)}"'
+            f"{adapter.metric_extra_selector(is_name)}"
+        )
         dcgm_selector = f'exported_namespace="{namespace}", exported_pod=~"{adapter.dcgm_pod_pattern(is_name)}"'
         return {
             "tokens_per_second": (

@@ -253,6 +253,11 @@ class TestInferenceServiceAdapter:
         adapter = InferenceServiceAdapter()
         assert adapter.prometheus_job("llm-ov") == "llm-ov-metrics"
 
+    def test_metric_extra_selector(self):
+        adapter = InferenceServiceAdapter()
+        assert adapter.metric_extra_selector("llm-ov") == ""
+        assert adapter.metric_extra_selector("any-name") == ""
+
     def test_dcgm_pod_pattern(self):
         adapter = InferenceServiceAdapter()
         assert adapter.dcgm_pod_pattern("llm-ov") == "llm-ov-predictor.*"
@@ -484,6 +489,12 @@ class TestLLMInferenceServiceAdapter:
     def test_prometheus_job(self):
         adapter = LLMInferenceServiceAdapter()
         assert adapter.prometheus_job("small-llm-d") == "kserve-llm-isvc-vllm-engine"
+
+    def test_metric_extra_selector(self):
+        adapter = LLMInferenceServiceAdapter()
+        assert adapter.metric_extra_selector("small-llm-d") == ', pod=~"small-llm-d-kserve.*"'
+        assert adapter.metric_extra_selector("large-llm-d") == ', pod=~"large-llm-d-kserve.*"'
+        assert adapter.metric_extra_selector("small-llm-d") != adapter.metric_extra_selector("large-llm-d")
 
     def test_dcgm_pod_pattern(self):
         adapter = LLMInferenceServiceAdapter()

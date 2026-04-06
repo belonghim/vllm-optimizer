@@ -214,6 +214,16 @@ class CRAdapter(abc.ABC):
     def resolve_model_name(self, spec: dict[str, Any], fallback_name: str) -> str:
         raise NotImplementedError
 
+    @abc.abstractmethod
+    def metric_extra_selector(self, name: str) -> str:
+        """Additional Prometheus selector fragment to differentiate this CR's metrics.
+
+        Returns an empty string if the job label alone identifies the instance
+        (KServe), or a comma-prefixed fragment like ', pod=~"<pattern>"' when
+        the job label is shared across instances in the same namespace (LLMIS).
+        """
+        raise NotImplementedError
+
 
 class InferenceServiceAdapter(CRAdapter):
     def api_group(self) -> str:
@@ -279,6 +289,9 @@ class InferenceServiceAdapter(CRAdapter):
 
     def prometheus_job(self, name: str, namespace: str = "") -> str:
         return f"{name}-metrics"
+
+    def metric_extra_selector(self, name: str) -> str:
+        return ""
 
     def metrics_port(self) -> int:
         return 8080
@@ -451,6 +464,9 @@ class LLMInferenceServiceAdapter(CRAdapter):
         # LLMIS job label includes namespace prefix: "{namespace}/kserve-llm-isvc-vllm-engine"
         prefix = f"{namespace}/" if namespace else ""
         return f"{prefix}kserve-llm-isvc-vllm-engine"
+
+    def metric_extra_selector(self, name: str) -> str:
+        return f', pod=~"{name}-kserve.*"'
 
     def metrics_port(self) -> int:
         return 8080

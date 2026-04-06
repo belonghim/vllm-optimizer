@@ -146,10 +146,13 @@ def test_auto_tuner_rollback_llmis():
 
 def test_collector_pod_selector_llmis():
     adapter = LLMInferenceServiceAdapter()
-    assert adapter.pod_label_selector("small-llm-d") == "app.kubernetes.io/name=small-llm-d"
+    assert (
+        adapter.pod_label_selector("small-llm-d") == "app.kubernetes.io/name=small-llm-d,kserve.io/component=workload"
+    )
 
 
 def test_collector_prometheus_job_llmis():
     adapter = LLMInferenceServiceAdapter()
     assert adapter.prometheus_job("small-llm-d") == "kserve-llm-isvc-vllm-engine"
     assert adapter.dcgm_pod_pattern("small-llm-d") == "small-llm-d-kserve.*"
+    assert adapter.metric_extra_selector("small-llm-d") == ', pod=~"small-llm-d-kserve.*"'

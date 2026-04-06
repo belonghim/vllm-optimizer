@@ -429,3 +429,89 @@ class TestPodsEndpointIntegration:
         assert len(result["per_pod"]) == 2
         pod_0_data = next(p for p in result["per_pod"] if p["pod_name"] == "vllm-pod-0")
         assert pod_0_data["kv_cache"] == 55.0
+
+
+class TestLLMISSelectorIsolation:
+    """Tests verifying LLMIS selector isolation between different instances.
+
+    These tests ensure that:
+    - _build_target_queries and _build_pod_queries generate distinct selectors for different LLMIS instances
+    - LLMIS selectors contain pod=~"name-kserve.*" filter
+    - KServe selectors do NOT contain pod=~ filter
+    """
+
+    def test_build_target_queries_llmis_small_contains_pod_selector(
+        self, collector: MultiTargetMetricsCollector
+    ) -> None:
+        """Verify _build_target_queries for LLMIS small-llm-d contains pod=~'small-llm-d-kserve.*'."""
+        queries = collector._build_target_queries("llm-d-demo", "small-llm-d", "llminferenceservice")
+
+        # Every query value should contain the pod selector for small-llm-d
+        for metric_name, query in queries.items():
+            assert 'pod=~"small-llm-d-kserve.*"' in query, (
+                f"{metric_name} should contain pod=~'small-llm-d-kserve.*', got: {query}"
+            )
+
+    def test_build_target_queries_llmis_large_contains_pod_selector(
+        self, collector: MultiTargetMetricsCollector
+    ) -> None:
+        """Verify _build_target_queries for LLMIS large-llm-d contains pod=~'large-llm-d-kserve.*'."""
+        queries = collector._build_target_queries("llm-d-demo", "large-llm-d", "llminferenceservice")
+
+        # Every query value should contain the pod selector for large-llm-d
+        for metric_name, query in queries.items():
+            assert 'pod=~"large-llm-d-kserve.*"' in query, (
+                f"{metric_name} should contain pod=~'large-llm-d-kserve.*', got: {query}"
+            )
+
+    def test_build_target_queries_llmis_selectors_are_different(self, collector: MultiTargetMetricsCollector) -> None:
+        """Verify _build_target_queries generates different selectors for different LLMIS instances."""
+        q_small = collector._build_target_queries("llm-d-demo", "small-llm-d", "llminferenceservice")
+        q_large = collector._build_target_queries("llm-d-demo", "large-llm-d", "llminferenceservice")
+
+        # The selectors should be different between small and large
+        assert q_small["tokens_per_second"] != q_large["tokens_per_second"], (
+            "small-llm-d and large-llm-d should have different selectors"
+        )
+
+    def test_build_pod_queries_llmis_small_contains_pod_selector(self, collector: MultiTargetMetricsCollector) -> None:
+        """Verify _build_pod_queries for LLMIS small-llm-d contains pod=~'small-llm-d-kserve.*'."""
+        queries = collector._build_pod_queries("llm-d-demo", "small-llm-d", "llminferenceservice")
+
+        # Every query value should contain the pod selector for small-llm-d
+        for metric_name, query in queries.items():
+            assert 'pod=~"small-llm-d-kserve.*"' in query, (
+                f"{metric_name} should contain pod=~'small-llm-d-kserve.*', got: {query}"
+            )
+
+    def test_build_target_queries_kserve_does_not_contain_pod_selector(
+        self, collector: MultiTargetMetricsCollector
+    ) -> None:
+        """Verify _build_target_queries for KServe (inferenceservice) does NOT contain pod=~."""
+        queries = collector._build_target_queries("some-ns", "llm-ov", "inferenceservice")
+
+        # Non-GPU queries should not contain pod=~ in main selector
+        # GPU metrics use DCGM which legitimately has exported_pod=~
+        non_gpu_metrics = [
+            k for k in queries if k not in ("gpu_memory_used_gb", "gpu_memory_total_gb", "gpu_utilization_pct")
+        ]
+        for metric_name in non_gpu_metrics:
+            assert "pod=~" not in queries[metric_name], (
+                f"{metric_name} should NOT contain pod=~ for KServe, got: {queries[metric_name]}"
+            )
+
+    def test_build_pod_queries_kserve_does_not_contain_pod_selector(
+        self, collector: MultiTargetMetricsCollector
+    ) -> None:
+        """Verify _build_pod_queries for KServe (inferenceservice) does NOT contain pod=~."""
+        queries = collector._build_pod_queries("some-ns", "llm-ov", "inferenceservice")
+
+        # Non-GPU queries should not contain pod=~ in main selector
+        # GPU metrics use DCGM which legitimately has exported_pod=~
+        non_gpu_metrics = [
+            k for k in queries if k not in ("gpu_memory_used_gb", "gpu_memory_total_gb", "gpu_utilization_pct")
+        ]
+        for metric_name in non_gpu_metrics:
+            assert "pod=~" not in queries[metric_name], (
+                f"{metric_name} should NOT contain pod=~ for KServe, got: {queries[metric_name]}"
+            )
