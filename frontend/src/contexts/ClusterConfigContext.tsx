@@ -28,7 +28,7 @@ export interface ClusterConfigContextValue {
   setDefaultTarget: (namespace: string, inferenceService: string, crType: string) => Promise<void>;
   crType: string;
   resolvedModelName: string;
-  updateCrType: (value: string) => Promise<{ configmap_updated: boolean }>;
+
   isvcTargets: ClusterTarget[];
   llmisvcTargets: ClusterTarget[];
 }
@@ -46,7 +46,7 @@ const ClusterConfigContext = createContext<ClusterConfigContextValue>({
   setDefaultTarget: async () => {},
   crType: DEFAULT_CR_TYPE,
   resolvedModelName: "",
-  updateCrType: async () => ({ configmap_updated: true }),
+
   isvcTargets: [],
   llmisvcTargets: [],
 });
@@ -428,22 +428,6 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
     return () => controller.abort();
   }, [crType, stableTargets]);
 
-const updateCrType = useCallback(async (value: string): Promise<{ configmap_updated: boolean }> => {
-  // No auth required — /config endpoint reads env variables with no auth middleware
-  const res = await authFetch(`${API}/config`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ cr_type: value }),
-  });
-  if (res.status === 409) throw new Error('Auto-tuner is running. Cannot change CR type.');
-  if (!res.ok) throw new Error(`Failed to update CR type: ${res.status}`);
-  const data: unknown = await res.json();
-  if (isRecord(data) && typeof data.cr_type === "string") {
-    setCrType(data.cr_type);
-  }
-  const configmapUpdated = isRecord(data) && data.configmap_updated === true;
-  return { configmap_updated: configmapUpdated };
-}, []);
 
   const updateConfig = useCallback((field: string, value: string): void => {
     setConfig(prev => {
@@ -505,7 +489,9 @@ const updateCrType = useCallback(async (value: string): Promise<{ configmap_upda
   }, []);
 
   const setDefaultTarget = useCallback(async (namespace: string, inferenceService: string, crType: string): Promise<void> => {
+    let previousTargets: ClusterTarget[] = [];
     setConfig(prev => {
+      previousTargets = prev.targets;
       const currentTargets = prev.targets;
       const target = currentTargets.find(t => targetMatches(t, { namespace, inferenceService, crType }));
       if (!target) {
@@ -543,6 +529,7 @@ const updateCrType = useCallback(async (value: string): Promise<{ configmap_upda
       }
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") return;
+      setConfig(prev => ({ ...prev, targets: previousTargets }));
       throw err;
     } finally {
       clearTimeout(timeoutId);
@@ -564,11 +551,10 @@ const updateCrType = useCallback(async (value: string): Promise<{ configmap_upda
       setDefaultTarget,
       crType,
       resolvedModelName,
-      updateCrType,
       isvcTargets,
       llmisvcTargets,
     };
-  }, [config, isLoading, updateConfig, addTarget, removeTarget, setDefaultTarget, crType, resolvedModelName, updateCrType, isvcTargets, llmisvcTargets]);
+  }, [config, isLoading, updateConfig, addTarget, removeTarget, setDefaultTarget, crType, resolvedModelName, isvcTargets, llmisvcTargets]);
 
   return (
     <ClusterConfigContext.Provider value={value}>

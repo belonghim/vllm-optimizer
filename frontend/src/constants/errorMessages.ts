@@ -1,12 +1,4 @@
 export const ERROR_MESSAGES = {
-  // ClusterConfigBar.tsx
-  CLUSTER_CONFIG: {
-    AUTO_TUNER_RUNNING: "Auto-tuner is running. Cannot change CR type.",
-    CR_TYPE_UPDATE_FAILED: "Failed to change CR type.",
-    SAVE_FAILED: "Failed to save configuration.",
-    CONFIGMAP_WARNING: "Configuration applied in memory only. ConfigMap update failed — will reset on Pod restart.",
-  },
-
   // SlaPage.tsx
   SLA: {
     PROFILE_LOAD_FAILED: "Failed to load SLA profile",

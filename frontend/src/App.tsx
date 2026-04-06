@@ -10,7 +10,6 @@ const SlaPage = lazy(() => import("./pages/SlaPage"));
 import MockDataSwitch from "./components/MockDataSwitch";
 import ThemeToggle from "./components/ThemeToggle";
 import ErrorBoundary from "./components/ErrorBoundary";
-import ClusterConfigBar from "./components/ClusterConfigBar";
 import { BenchmarkSelectionProvider } from "./contexts/BenchmarkSelectionContext";
 
 interface PageDef {
@@ -103,7 +102,6 @@ export default function App() {
         </div>
       </header>
 
-      {page === "tuner" && <ClusterConfigBar />}
 
       <main className="app-main">
         <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>Loading...</div>}>
