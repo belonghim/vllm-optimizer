@@ -199,6 +199,10 @@ class CRAdapter(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    def metrics_scheme(self) -> str:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     def metric_prefix(self) -> str:
         raise NotImplementedError
 
@@ -295,6 +299,9 @@ class InferenceServiceAdapter(CRAdapter):
 
     def metrics_port(self) -> int:
         return 8080
+
+    def metrics_scheme(self) -> str:
+        return "http"
 
     def metric_prefix(self) -> str:
         return "vllm:"
@@ -469,7 +476,10 @@ class LLMInferenceServiceAdapter(CRAdapter):
         return f', pod=~"{name}-kserve.*"'
 
     def metrics_port(self) -> int:
-        return 8080
+        return 8000
+
+    def metrics_scheme(self) -> str:
+        return "https"
 
     def metric_prefix(self) -> str:
         return "kserve_vllm:"

@@ -684,10 +684,11 @@ class MultiTargetMetricsCollector:
             return
 
         port = adapter.metrics_port()
+        scheme = adapter.metrics_scheme()
         now = time.time()
 
         scrape_results = await asyncio.gather(
-            *(self._scrape_pod_metrics(pod.status.pod_ip, port) for pod in running_pods),
+            *(self._scrape_pod_metrics(pod.status.pod_ip, port, scheme) for pod in running_pods),
             return_exceptions=True,
         )
 
@@ -1005,7 +1006,9 @@ class MultiTargetMetricsCollector:
                 exc,
             )
 
-    async def _scrape_pod_metrics(self, pod_ip: str, port: int) -> dict[str, float | list[tuple[float, float]]]:
+    async def _scrape_pod_metrics(
+        self, pod_ip: str, port: int, scheme: str = "http"
+    ) -> dict[str, float | list[tuple[float, float]]]:
         import asyncio
 
         from services.metrics_constants import (
@@ -1020,7 +1023,7 @@ class MultiTargetMetricsCollector:
         for attempt in range(2):
             try:
                 async with httpx.AsyncClient(verify=False, timeout=5) as http:
-                    resp = await http.get(f"http://{pod_ip}:{port}/metrics")
+                    resp = await http.get(f"{scheme}://{pod_ip}:{port}/metrics")
                     resp.raise_for_status()
                     text = resp.text
                 break
