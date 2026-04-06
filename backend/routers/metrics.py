@@ -155,8 +155,20 @@ async def get_pod_metrics(
 ) -> dict[str, PerPodMetricsResponse]:
     """Get per-pod metrics for multiple targets.
 
-    Returns aggregated metrics plus per-pod breakdown using _build_pod_queries
-    and _fetch_prometheus_multi_result for each target.
+    Returns a ``dict[str, PerPodMetricsResponse]`` keyed by
+    ``"{namespace}/{inferenceService}/{cr_type}"``, e.g.
+    ``"vllm-lab-dev/llm-ov/inferenceservice"``.
+
+    Why ``response_model=None`` (Case B):
+        FastAPI / OpenAPI cannot express a dynamic-key dict schema
+        (``dict[str, PerPodMetricsResponse]``) in its type system. Setting
+        ``response_model=None`` disables automatic schema generation for this
+        endpoint.
+
+    Frontend note:
+        ``MultiTargetSelector.tsx`` accesses ``data[key]?.per_pod`` directly on
+        the response root. Wrapping the response in a ``results`` dict would be a
+        breaking change for the frontend, so the raw ``dict`` is returned as-is.
     """
     import time
 
