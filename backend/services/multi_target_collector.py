@@ -1030,7 +1030,8 @@ class MultiTargetMetricsCollector:
         if node_name in self._dcgm_exporter_cache:
             cached_time = self._dcgm_exporter_cache_time.get(node_name, 0)
             if time.time() - cached_time < 300:
-                return self._dcgm_exporter_cache[node_name]
+                ip = self._dcgm_exporter_cache[node_name]
+                return ip or None
         if not self._k8s_available or self._k8s_core is None:
             return None
         try:
@@ -1059,19 +1060,39 @@ class MultiTargetMetricsCollector:
                 node_name,
                 exc,
             )
+        self._dcgm_exporter_cache[node_name] = ""
+        self._dcgm_exporter_cache_time[node_name] = time.time()
         return None
 
     async def _scrape_dcgm_for_pods(
         self, exporter_ip: str, pod_names: set[str], namespace: str
     ) -> dict[str, dict[str, float]]:
-        try:
-            async with httpx.AsyncClient(verify=False, timeout=5) as http:
-                resp = await http.get(f"http://{exporter_ip}:9400/metrics")
-                resp.raise_for_status()
-                text = resp.text
-        except Exception as exc:
-            logger.debug("[MultiTargetMetricsCollector] DCGM scrape failed (%s): %s", exporter_ip, exc)
-            return {}
+        text = ""
+        for attempt in range(2):
+            try:
+                async with httpx.AsyncClient(verify=False, timeout=5) as http:
+                    resp = await http.get(f"http://{exporter_ip}:9400/metrics")
+                    resp.raise_for_status()
+                    text = resp.text
+                break
+            except (httpx.ConnectError, httpx.TimeoutException) as exc:
+                if attempt == 0:
+                    logger.debug(
+                        "[MultiTargetMetricsCollector] DCGM scrape transient error (%s), retrying: %s",
+                        exporter_ip,
+                        exc,
+                    )
+                    await asyncio.sleep(0.5)
+                else:
+                    logger.debug(
+                        "[MultiTargetMetricsCollector] DCGM scrape failed after retry (%s): %s",
+                        exporter_ip,
+                        exc,
+                    )
+                    return {}
+            except Exception as exc:
+                logger.debug("[MultiTargetMetricsCollector] DCGM scrape failed (%s): %s", exporter_ip, exc)
+                return {}
 
         pod_util: dict[str, list[float]] = {}
         pod_fb_used: dict[str, list[float]] = {}
