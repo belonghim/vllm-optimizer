@@ -293,7 +293,7 @@ export default function MultiTargetSelector({
                 }
               }}
             >
-              적용
+              Change default
             </button>
           )}
           {applyError && (
