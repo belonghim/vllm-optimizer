@@ -67,11 +67,13 @@ async def get_latest_metrics(
                 status="collecting",
                 data=None,
                 hasMonitoringLabel=has_monitoring_label,
+                crExists=collector.get_cr_exists(namespace, is_name),
             )
         return TargetedMetricsResponse(
             status="ready",
             data=_convert_to_snapshot(vllm_metrics),
             hasMonitoringLabel=has_monitoring_label,
+            crExists=collector.get_cr_exists(namespace, is_name),
         )
 
     default_namespace = rt_config.vllm_namespace
@@ -120,6 +122,11 @@ async def get_batch_metrics(
                 "status": "collecting",
                 "hasMonitoringLabel": has_monitoring_label,
                 "history": history,
+                "crExists": collector.get_cr_exists(
+                    target.namespace,
+                    target.inferenceService,
+                    cr_type=target.cr_type,
+                ),
             }
         else:
             snapshot = _convert_to_snapshot(vllm_metrics)
@@ -128,6 +135,11 @@ async def get_batch_metrics(
                 "status": "ready",
                 "hasMonitoringLabel": has_monitoring_label,
                 "history": history,
+                "crExists": collector.get_cr_exists(
+                    target.namespace,
+                    target.inferenceService,
+                    cr_type=target.cr_type,
+                ),
             }
 
     return BatchMetricsResponse(results=results)

@@ -57,6 +57,8 @@ class TargetCache:
     has_monitoring_label: bool | None = None
     is_default: bool = False
     last_label_check: float = field(default_factory=time.time)
+    cr_exists: bool | None = None
+    last_cr_check: float = field(default_factory=lambda: 0.0)
     cr_type: str = ""
     model_name: str = ""
     prev_counters: dict[str, dict[str, float]] = field(default_factory=dict)
@@ -133,6 +135,37 @@ class MultiTargetMetricsCollector:
 
         spec = cr_obj.get("spec", {}) if isinstance(cr_obj, dict) else {}
         return adapter.resolve_model_name(spec, is_name)
+
+    async def _check_cr_exists(self, target: TargetCache) -> None:
+        now = time.time()
+        if now - target.last_cr_check < 60.0:
+            return
+        target.last_cr_check = now
+
+        if not self._k8s_available or self._k8s_custom is None:
+            return
+
+        adapter = get_cr_adapter(target.cr_type)
+        try:
+            await asyncio.to_thread(
+                self._k8s_custom.get_namespaced_custom_object,
+                group=adapter.api_group(),
+                version=adapter.api_version(),
+                namespace=target.namespace,
+                plural=adapter.api_plural(),
+                name=target.is_name,
+            )
+            target.cr_exists = True
+        except client.ApiException as exc:
+            if exc.status == 404:
+                target.cr_exists = False
+                logger.info(
+                    "[MultiTargetMetricsCollector] CR not found: %s/%s",
+                    target.namespace,
+                    target.is_name,
+                )
+        except OSError:
+            pass
 
     def _compute_rates(
         self,
@@ -567,6 +600,8 @@ class MultiTargetMetricsCollector:
         metrics.pod_count = k8s_data.get("pod_count", 0)
         metrics.pod_ready = k8s_data.get("pod_ready", 0)
 
+        await self._check_cr_exists(target)
+
         if target.is_default:
             update_metrics(metrics)
 
@@ -856,6 +891,11 @@ class MultiTargetMetricsCollector:
         key = self.build_target_key(namespace, is_name, cr_type)
         target = self._targets.get(key)
         return target.has_monitoring_label is not None and target.has_monitoring_label if target else False
+
+    def get_cr_exists(self, namespace: str, is_name: str, cr_type: str | None = None) -> bool | None:
+        key = self.build_target_key(namespace, is_name, cr_type)
+        target = self._targets.get(key)
+        return target.cr_exists if target else None
 
     def build_target_key(self, namespace: str, is_name: str, cr_type: str | None = None) -> str:
         if cr_type is None:

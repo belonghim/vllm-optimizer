@@ -136,7 +136,13 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
 
       Object.entries(batchData.results as Record<string, TargetResult>).forEach(([key, result]) => {
         if (result.status === 'error') {
-          newStates[key] = { status: 'error', error: result.error, data: null, history: [] };
+          newStates[key] = {
+            status: 'error',
+            error: result.error,
+            data: null,
+            history: [],
+            crExists: (result as any).crExists ?? null,
+          };
           return;
         }
 
@@ -162,6 +168,7 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
           history,
           status: result.status || 'ready',
           hasMonitoringLabel: result.hasMonitoringLabel,
+          crExists: (result as any).crExists ?? null,
           error: null
         };
       });

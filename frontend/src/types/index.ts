@@ -79,6 +79,7 @@ export interface TargetState {
   metrics?: TargetResultData | null;
   history?: Record<string, unknown>[];
   hasMonitoringLabel?: boolean;
+  crExists?: boolean | null;
   error?: string | null;
 }
 

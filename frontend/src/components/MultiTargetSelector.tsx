@@ -44,6 +44,7 @@ interface TargetState {
   metrics?: TargetStateData | null;
   history?: unknown[];
   hasMonitoringLabel?: boolean;
+  crExists?: boolean | null;
   error?: string | null;
 }
 
@@ -145,6 +146,7 @@ export default function MultiTargetSelector({
     const status = state?.status || targetStatuses[key]?.status || 'collecting';
     const data = state?.data || state?.metrics;
     const hasMonitoringLabel = state?.hasMonitoringLabel !== false && targetStatuses[key]?.hasMonitoringLabel !== false;
+    const crExists = state?.crExists;
     const targetColor = TARGET_COLORS[index % TARGET_COLORS.length];
     const isExpanded = expandedRows.has(key);
     const pods = data?.pods ?? 1;
@@ -165,6 +167,15 @@ export default function MultiTargetSelector({
                   data-testid="no-monitoring-warning"
                 >
                   ⚠️
+                </span>
+              )}
+              {crExists === false && (
+                <span
+                  className="multi-target-warning-icon"
+                  title="CR not found in K8s. It may have been deleted. Metrics show last known values."
+                  data-testid="cr-not-found-warning"
+                >
+                  🔴
                 </span>
               )}
             </div>

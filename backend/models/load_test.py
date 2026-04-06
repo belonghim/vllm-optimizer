@@ -296,6 +296,10 @@ class TargetedMetricsResponse(BaseModel):
     hasMonitoringLabel: bool = Field(
         default=False, description="Whether namespace has openshift.io/cluster-monitoring=true label"
     )
+    crExists: bool | None = Field(
+        default=None,
+        description="Whether the CR still exists in K8s. None = not yet checked, True = exists, False = deleted",
+    )
 
 
 class MetricsTarget(BaseModel):
