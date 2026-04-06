@@ -50,6 +50,11 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
   // Fetch model name when target changes via backend API (avoids direct cluster URL access)
   useEffect(() => {
     if (!selectedTarget) return;
+    if (selectedTarget.modelName) {
+      setSweepModel(selectedTarget.modelName);
+      setTargetModel(selectedTarget.modelName);
+      return;
+    }
     const controller = new AbortController();
     const fetchModel = async () => {
       try {
@@ -77,8 +82,11 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
   }, [selectedTarget]);
 
   useEffect(() => {
-    if (!targetEndpoint) setTargetModel(undefined);
-  }, [targetEndpoint]);
+    if (!targetEndpoint) {
+      setTargetModel(undefined);
+      setSweepModel(resolvedModelName || "auto");
+    }
+  }, [targetEndpoint, resolvedModelName]);
 
   return (
     <div className="flex-col-16">

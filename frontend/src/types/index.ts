@@ -88,6 +88,7 @@ export interface ClusterTarget {
   inferenceService: string;
   crType: string;
   source?: "configmap" | "manual";
+  modelName?: string;
 }
 
 export interface ClusterConfig {

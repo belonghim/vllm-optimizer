@@ -85,6 +85,7 @@ class MultiTargetMetricsCollector:
         self._k8s_available: bool = False
         self._k8s_core: client.CoreV1Api | None = None
         self._k8s_custom: client.CustomObjectsApi | None = None
+        self._dcgm_exporter_cache: dict[str, str] = {}
         self._default_namespace = os.getenv("VLLM_NAMESPACE", "vllm-lab-dev")
         self._default_is_name = os.getenv("VLLM_DEPLOYMENT_NAME", "llm-ov")
         self._init_k8s()
@@ -1025,6 +1026,8 @@ class MultiTargetMetricsCollector:
             )
 
     async def _get_dcgm_exporter_ip(self, node_name: str) -> str | None:
+        if node_name in self._dcgm_exporter_cache:
+            return self._dcgm_exporter_cache[node_name]
         if not self._k8s_available or self._k8s_core is None:
             return None
         try:
@@ -1044,6 +1047,7 @@ class MultiTargetMetricsCollector:
                     and pod.status.phase == "Running"
                     and pod.status.pod_ip
                 ):
+                    self._dcgm_exporter_cache[node_name] = pod.status.pod_ip
                     return pod.status.pod_ip
         except Exception as exc:
             logger.debug(

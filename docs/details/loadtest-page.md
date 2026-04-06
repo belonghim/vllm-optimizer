@@ -36,6 +36,7 @@ The LoadTestPage provides load testing capabilities for vLLM inference services.
 - When a target is selected, automatically builds the endpoint URL from the target's namespace, inference service name, and CR type
 - Endpoint is constructed via `buildDefaultEndpoint(crType, namespace, inferenceService)`
 - If no target is selected, falls back to the global endpoint from ClusterConfigContext
+- Model name is resolved via `/api/vllm-config` backend proxy (not direct cluster URL); uses `target.modelName` fast-path if already pre-resolved by ClusterConfigContext
 
 ---
 

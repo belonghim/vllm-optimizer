@@ -254,6 +254,47 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
 
           return { ...prev, targets };
         });
+
+        const resolveTargetModels = async (targets: ClusterTarget[]) => {
+          const updated = await Promise.all(
+            targets.map(async (t) => {
+              try {
+                const params = new URLSearchParams({
+                  namespace: t.namespace,
+                  is_name: t.inferenceService,
+                  ...(t.crType ? { cr_type: t.crType } : {}),
+                });
+                const r = await authFetch(`${API}/vllm-config?${params}`);
+                if (!r.ok) return t;
+                const d = await r.json();
+                const modelName = d.resolvedModelName || d.modelName;
+                return modelName ? { ...t, modelName } : t;
+              } catch {
+                return t;
+              }
+            })
+          );
+          setConfig(prev => ({
+            ...prev,
+            targets: prev.targets.map(pt => {
+              const match = updated.find(
+                u => u.namespace === pt.namespace && u.inferenceService === pt.inferenceService && u.crType === pt.crType
+              );
+              return match?.modelName ? { ...pt, modelName: match.modelName } : pt;
+            }),
+          }));
+        };
+
+        const newTargets: ClusterTarget[] = [];
+        if (isvcHasValue && typeof isvc.name === "string" && typeof isvc.namespace === "string") {
+          newTargets.push(createConfigMapTarget(isvc.namespace, isvc.name, "inferenceservice"));
+        }
+        if (llmisvcHasValue && typeof llmisvc.name === "string" && typeof llmisvc.namespace === "string") {
+          newTargets.push(createConfigMapTarget(llmisvc.namespace, llmisvc.name, "llminferenceservice"));
+        }
+        if (newTargets.length > 0) {
+          resolveTargetModels(newTargets).catch(console.warn);
+        }
       })
       .catch((err: Error) => {
         if (err.name !== "AbortError") {
