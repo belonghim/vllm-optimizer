@@ -21,6 +21,7 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
   const [sharedEndpoint, setSharedEndpoint] = useState("");
   const [sharedModel, setSharedModel] = useState(resolvedModelName || "auto");
   const [sweepModel, setSweepModel] = useState(resolvedModelName || "auto");
+  const [targetModel, setTargetModel] = useState<string | undefined>(undefined);
   const [selectedTarget, setSelectedTarget] = useState<ClusterTarget | null>(null);
 
   // Build target-based endpoint when target changes
@@ -57,6 +58,7 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
         const data = await resp.json();
         if (data.data && data.data.length > 0) {
           setSweepModel(data.data[0].id);
+          setTargetModel(data.data[0].id);
         }
       } catch (err) {
         if ((err as Error).name !== 'AbortError') {
@@ -66,6 +68,10 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
     };
     fetchModel();
     return () => controller.abort();
+  }, [targetEndpoint]);
+
+  useEffect(() => {
+    if (!targetEndpoint) setTargetModel(undefined);
   }, [targetEndpoint]);
 
   return (
@@ -94,6 +100,7 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
               onEndpointChange={setSharedEndpoint}
               onModelChange={setSharedModel}
               targetEndpoint={targetEndpoint}
+              targetModel={targetModel}
             />
           </>
         : <LoadTestSweepMode
