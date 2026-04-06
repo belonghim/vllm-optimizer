@@ -245,7 +245,10 @@ export default function MultiTargetSelector({
                 name="default-target"
                 value={key}
                 checked={pendingDefaultKey === key}
-                onChange={() => setUserSelectedKey(key === getTargetKey(targets[0]) ? null : key)}
+                onChange={() => {
+                  setApplyError(null);
+                  setUserSelectedKey(key === getTargetKey(targets[0]) ? null : key);
+                }}
                 data-testid={`radio-default-${index}`}
                 aria-label={`Set ${target.inferenceService} as default`}
                 style={{ cursor: 'pointer' }}

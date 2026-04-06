@@ -224,6 +224,32 @@ describe("MultiTargetSelector", () => {
     expect(mockSetDefaultTarget).toHaveBeenCalledWith("llm-d-prod", "large-llm-d", "inferenceservice");
   });
 
+  it("shows applyError message when setDefaultTarget rejects", async () => {
+    const mockSetDefaultTarget = vi.fn(() => Promise.reject(new Error("api error")));
+    const multiMock = {
+      ...mockContext,
+      targets: [
+        { namespace: "llm-d-demo", inferenceService: "small-llm-d", crType: "inferenceservice" },
+        { namespace: "llm-d-prod", inferenceService: "large-llm-d", crType: "inferenceservice" },
+      ],
+      isvcTargets: [
+        { namespace: "llm-d-demo", inferenceService: "small-llm-d", crType: "inferenceservice" },
+        { namespace: "llm-d-prod", inferenceService: "large-llm-d", crType: "inferenceservice" },
+      ],
+      llmisvcTargets: [],
+      setDefaultTarget: mockSetDefaultTarget,
+    };
+    vi.mocked(useClusterConfig).mockReturnValue(multiMock as unknown as ClusterConfigContextValue);
+    render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
+    
+    fireEvent.click(screen.getByTestId("radio-default-1"));
+    fireEvent.click(screen.getByTestId("apply-default-btn"));
+    
+    await waitFor(() => {
+      expect(screen.getByText("기본 타겟 업데이트 실패")).toBeInTheDocument();
+    });
+  });
+
   it("shows warning for namespace without monitoring label", () => {
     const targetKey = "vllm/llm-cuda/inferenceservice";
     const statuses = {
