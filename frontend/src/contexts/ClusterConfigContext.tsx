@@ -25,7 +25,7 @@ export interface ClusterConfigContextValue {
   maxTargets: number;
   addTarget: (namespace: string, inferenceService: string, crType?: string) => void;
   removeTarget: (namespace: string, inferenceService: string, crType: string) => void;
-  setDefaultTarget: (namespace: string, inferenceService: string, crType: string) => void;
+  setDefaultTarget: (namespace: string, inferenceService: string, crType: string) => Promise<void>;
   crType: string;
   resolvedModelName: string;
   updateCrType: (value: string) => Promise<{ configmap_updated: boolean }>;
@@ -43,7 +43,7 @@ const ClusterConfigContext = createContext<ClusterConfigContextValue>({
   maxTargets: MAX_TARGETS,
   addTarget: () => {},
   removeTarget: () => {},
-  setDefaultTarget: () => {},
+  setDefaultTarget: async () => {},
   crType: DEFAULT_CR_TYPE,
   resolvedModelName: "",
   updateCrType: async () => ({ configmap_updated: true }),
@@ -530,16 +530,20 @@ const updateCrType = useCallback(async (value: string): Promise<{ configmap_upda
       : { llmisvc: { name: inferenceService, namespace } };
 
     try {
-      await authFetch(`${API}/config/default-targets`, {
+      const res = await authFetch(`${API}/config/default-targets`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patchPayload),
         signal: controller.signal,
       });
-    } catch (err) {
-      if (err instanceof Error && err.name !== "AbortError") {
-        console.error("Failed to persist default target to ConfigMap (local state updated):", err);
+      if (!res.ok) throw new Error(`ConfigMap patch failed: ${res.status}`);
+      const data: unknown = await res.json();
+      if (isRecord(data) && data.configmap_updated === false) {
+        throw new Error("ConfigMap write failed (RBAC or cluster error)");
       }
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return;
+      throw err;
     } finally {
       clearTimeout(timeoutId);
     }
