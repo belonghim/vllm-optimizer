@@ -13,7 +13,7 @@ export default function ExpandablePodRow({ pods, parentColor }: ExpandablePodRow
 
   return (
     <tr>
-      <td colSpan={13} style={{ padding: 0 }}>
+      <td colSpan={999} style={{ padding: 0 }}>
         <table className="monitor-table" style={{ margin: 0 }}>
           <thead>
             <tr>

@@ -25,34 +25,26 @@ class TestBuildPodQueriesNonAggregated:
         """
         queries = collector._build_pod_queries("test-ns", "test-is")
 
-        # Count metrics should NOT use sum() in per-pod queries
-        assert not queries["running_requests"].startswith("sum("), (
-            f"running_requests should not use sum() in per-pod queries, got: {queries['running_requests']}"
+        assert not queries["running_requests"][0].startswith("sum("), (
+            f"running_requests should not use sum() in per-pod queries, got: {queries['running_requests'][0]}"
         )
-        assert not queries["waiting_requests"].startswith("sum("), (
-            f"waiting_requests should not use sum() in per-pod queries, got: {queries['waiting_requests']}"
+        assert not queries["waiting_requests"][0].startswith("sum("), (
+            f"waiting_requests should not use sum() in per-pod queries, got: {queries['waiting_requests'][0]}"
         )
-
-        # Percentage metrics should NOT use avg() in per-pod queries
-        assert not queries["kv_cache_usage_pct"].startswith("avg("), (
-            f"kv_cache_usage_pct should not use avg() in per-pod queries, got: {queries['kv_cache_usage_pct']}"
+        assert not queries["kv_cache_usage_pct"][0].startswith("avg("), (
+            f"kv_cache_usage_pct should not use avg() in per-pod queries, got: {queries['kv_cache_usage_pct'][0]}"
         )
-        assert not queries["gpu_utilization_pct"].startswith("(avg("), (
-            f"gpu_utilization_pct should not use avg() in per-pod queries, got: {queries['gpu_utilization_pct']}"
+        assert not queries["gpu_utilization_pct"][0].startswith("(avg("), (
+            f"gpu_utilization_pct should not use avg() in per-pod queries, got: {queries['gpu_utilization_pct'][0]}"
         )
-
-        # Counter rate metrics should NOT use sum(rate(...)) - just rate(...)
-        assert "sum(rate(" not in queries["tokens_per_second"], (
-            f"tokens_per_second should not use sum(rate(...)) in per-pod queries, got: {queries['tokens_per_second']}"
+        assert "sum(rate(" not in queries["tokens_per_second"][0], (
+            f"tokens_per_second should not use sum(rate(...)) in per-pod queries, got: {queries['tokens_per_second'][0]}"
         )
-        assert "sum(rate(" not in queries["requests_per_second"], (
-            f"requests_per_second should not use sum(rate(...)) in per-pod queries, got: {queries['requests_per_second']}"
+        assert "sum(rate(" not in queries["requests_per_second"][0], (
+            f"requests_per_second should not use sum(rate(...)) in per-pod queries, got: {queries['requests_per_second'][0]}"
         )
-
-        # Histogram quantiles should NOT use "sum by (le)" inside histogram_quantile
-        # Per-pod queries use rate() directly without sum aggregation
-        assert "sum by (le)" not in queries["mean_ttft_ms"], (
-            f"TTFT queries should not use 'sum by (le)' in per-pod queries, got: {queries['mean_ttft_ms']}"
+        assert "sum by (le)" not in queries["mean_ttft_ms"][0], (
+            f"TTFT queries should not use 'sum by (le)' in per-pod queries, got: {queries['mean_ttft_ms'][0]}"
         )
 
     def test_build_pod_queries_contains_selector(self, collector: MultiTargetMetricsCollector) -> None:
@@ -60,7 +52,7 @@ class TestBuildPodQueriesNonAggregated:
         queries = collector._build_pod_queries("my-namespace", "my-service")
 
         # All queries should contain the namespace selector
-        for metric_name, query in queries.items():
+        for metric_name, (query, _) in queries.items():
             assert 'namespace="my-namespace"' in query, f"{metric_name} should contain namespace selector, got: {query}"
 
     def test_build_pod_queries_gpu_memory_has_dcgm_selector(self, collector: MultiTargetMetricsCollector) -> None:
@@ -68,8 +60,8 @@ class TestBuildPodQueriesNonAggregated:
         queries = collector._build_pod_queries("test-ns", "test-is")
 
         # GPU memory queries should contain dcgm_selector for fallback
-        assert "DCGM_FI_DEV_FB_USED" in queries["gpu_memory_used_gb"], (
-            f"gpu_memory_used_gb should contain DCGM fallback, got: {queries['gpu_memory_used_gb']}"
+        assert "DCGM_FI_DEV_FB_USED" in queries["gpu_memory_used_gb"][0], (
+            f"gpu_memory_used_gb should contain DCGM fallback, got: {queries['gpu_memory_used_gb'][0]}"
         )
 
 
@@ -235,23 +227,14 @@ class TestPodsEndpointIntegration:
 
     @pytest.mark.asyncio
     async def test_pods_endpoint_returns_aggregated_and_per_pod(self, collector: MultiTargetMetricsCollector) -> None:
-        """Verify /pods endpoint returns both aggregated metrics and per-pod breakdown.
-
-        The endpoint should:
-        1. Return aggregated metrics (same as /batch endpoint)
-        2. Return per-pod metrics using _build_pod_queries and _fetch_prometheus_multi_result
-        """
-        import asyncio
-
-        from fastapi import FastAPI
         from fastapi.testclient import TestClient
-        from models.load_test import BatchMetricsRequest
+        from main import app
+        from routers.metrics import get_multi_target_collector
 
-        # Register a target and set up its latest metrics
-        await collector.register_target("test-ns", "test-is")
-        target = collector.get_target("test-ns", "test-is")
         from backend.services.multi_target_collector import VLLMMetrics
 
+        await collector.register_target("test-ns", "test-is")
+        target = collector.get_target("test-ns", "test-is")
         target.latest = VLLMMetrics(
             timestamp=1234567890.0,
             tokens_per_second=100.0,
@@ -262,140 +245,17 @@ class TestPodsEndpointIntegration:
             gpu_memory_used_gb=20.0,
         )
 
-        # Mock _query_prometheus to return aggregated metrics
-        async def mock_query_prometheus(namespace: str, is_name: str, cr_type: str = None):
-            return {
-                "tokens_per_second": 100.0,
-                "requests_per_second": 10.0,
-                "kv_cache_usage_pct": 50.0,
-                "running_requests": 5,
-                "waiting_requests": 2,
-                "gpu_utilization_pct": 80.0,
-                "gpu_memory_used_gb": 20.0,
-            }
+        async def mock_fetch_multi(headers, query, pod_name_pattern=None, aggregation="last"):
+            return {"vllm-pod-0": 55.0, "vllm-pod-1": 45.0}
 
-        # Mock _fetch_prometheus_multi_result to return per-pod metrics
-        async def mock_fetch_multi(headers: dict, query: str):
-            # Return mock per-pod data
-            return {
-                "vllm-pod-0": 55.0,
-                "vllm-pod-1": 45.0,
-            }
-
-        collector._query_prometheus = mock_query_prometheus
         collector._fetch_prometheus_multi_result = mock_fetch_multi
         collector._token = None
 
-        # Create a minimal FastAPI app for testing
-        app = FastAPI()
-
-        @app.post("/pods")
-        async def get_pod_metrics(body: BatchMetricsRequest):
-            import time
-
-            from models.load_test import MetricsSnapshot, PerPodMetricSnapshot, PerPodMetricsResponse
-
-            results = {}
-            for target in body.targets:
-                key = f"{target.namespace}/{target.inferenceService}"
-                registered = await collector.register_target(
-                    target.namespace, target.inferenceService, cr_type=target.cr_type
-                )
-                if not registered:
-                    results[key] = PerPodMetricsResponse(
-                        aggregated=MetricsSnapshot(timestamp=time.time()),
-                        per_pod=[],
-                        pod_names=[],
-                        timestamp=time.time(),
-                    )
-                    continue
-
-                # Get aggregated metrics
-                vllm_metrics = await collector.get_metrics(target.namespace, target.inferenceService)
-
-                # Build per-pod queries
-                queries = collector._build_pod_queries(target.namespace, target.inferenceService, target.cr_type)
-                headers = {}
-                if collector._token:
-                    headers["Authorization"] = f"Bearer {collector._token}"
-
-                # Fetch all pod queries in parallel
-                fetch_tasks = [collector._fetch_prometheus_multi_result(headers, query) for query in queries.values()]
-                query_results = await asyncio.gather(*fetch_tasks)
-
-                # Build pod_metrics mapping
-                metric_names = list(queries.keys())
-                pod_metrics = {}
-                for metric_name, pod_result in zip(metric_names, query_results, strict=False):
-                    for pod_name, value in pod_result.items():
-                        if pod_name not in pod_metrics:
-                            pod_metrics[pod_name] = {
-                                "tps": None,
-                                "rps": None,
-                                "kv_cache": None,
-                                "running": None,
-                                "waiting": None,
-                                "gpu_util": None,
-                                "gpu_mem_used": None,
-                                "gpu_mem_total": None,
-                            }
-                        snapshot_field = _pod_metric_to_snapshot_field(metric_name)
-                        if snapshot_field and value is not None:
-                            pod_metrics[pod_name][snapshot_field] = value
-
-                # Convert to PerPodMetricSnapshot list
-                pod_names = sorted(pod_metrics.keys())
-                per_pod_snapshots = [
-                    PerPodMetricSnapshot(
-                        pod_name=pod_name,
-                        tps=pod_metrics[pod_name].get("tps"),
-                        rps=pod_metrics[pod_name].get("rps"),
-                        kv_cache=pod_metrics[pod_name].get("kv_cache"),
-                        running=pod_metrics[pod_name].get("running"),
-                        waiting=pod_metrics[pod_name].get("waiting"),
-                        gpu_util=pod_metrics[pod_name].get("gpu_util"),
-                        gpu_mem_used=pod_metrics[pod_name].get("gpu_mem_used"),
-                        gpu_mem_total=pod_metrics[pod_name].get("gpu_mem_total"),
-                    )
-                    for pod_name in pod_names
-                ]
-
-                # Create aggregated snapshot from metrics
-                aggregated = MetricsSnapshot(
-                    timestamp=time.time(),
-                    tps=vllm_metrics.tokens_per_second if vllm_metrics else None,
-                    rps=vllm_metrics.requests_per_second if vllm_metrics else None,
-                    kv_cache=vllm_metrics.kv_cache_usage_pct if vllm_metrics else None,
-                    running=vllm_metrics.running_requests if vllm_metrics else None,
-                    gpu_util=vllm_metrics.gpu_utilization_pct if vllm_metrics else None,
-                    gpu_mem_used=vllm_metrics.gpu_memory_used_gb if vllm_metrics else None,
-                )
-
-                results[key] = PerPodMetricsResponse(
-                    aggregated=aggregated,
-                    per_pod=per_pod_snapshots,
-                    pod_names=pod_names,
-                    timestamp=time.time(),
-                )
-
-            return results
-
-        def _pod_metric_to_snapshot_field(metric_name: str) -> str | None:
-            mapping = {
-                "tokens_per_second": "tps",
-                "requests_per_second": "rps",
-                "kv_cache_usage_pct": "kv_cache",
-                "running_requests": "running",
-                "waiting_requests": "waiting",
-                "gpu_utilization_pct": "gpu_util",
-                "gpu_memory_used_gb": "gpu_mem_used",
-            }
-            return mapping.get(metric_name)
-
-        # Test the endpoint
-        with TestClient(app) as client:
+        app.dependency_overrides[get_multi_target_collector] = lambda: collector
+        try:
+            client = TestClient(app)
             response = client.post(
-                "/pods",
+                "/api/metrics/pods",
                 json={
                     "targets": [
                         {
@@ -406,28 +266,24 @@ class TestPodsEndpointIntegration:
                     ]
                 },
             )
+        finally:
+            del app.dependency_overrides[get_multi_target_collector]
 
         assert response.status_code == 200
         data = response.json()
 
-        # Should have one result for our target
-        assert "test-ns/test-is" in data
+        key = "test-ns/test-is/inferenceservice"
+        assert key in data
 
-        result = data["test-ns/test-is"]
-
-        # Should have aggregated metrics
+        result = data[key]
         assert "aggregated" in result
-
-        # Should have per-pod metrics
         assert "per_pod" in result
         assert "pod_names" in result
 
-        # Verify per-pod data exists
         assert len(result["pod_names"]) == 2
         assert "vllm-pod-0" in result["pod_names"]
         assert "vllm-pod-1" in result["pod_names"]
 
-        # Verify per_pod list has entries
         assert len(result["per_pod"]) == 2
         pod_0_data = next(p for p in result["per_pod"] if p["pod_name"] == "vllm-pod-0")
         assert pod_0_data["kv_cache"] == 55.0
@@ -480,8 +336,7 @@ class TestLLMISSelectorIsolation:
         """Verify _build_pod_queries for LLMIS small-llm-d contains pod=~'small-llm-d-kserve.*'."""
         queries = collector._build_pod_queries("llm-d-demo", "small-llm-d", "llminferenceservice")
 
-        # Every query value should contain the pod selector for small-llm-d
-        for metric_name, query in queries.items():
+        for metric_name, (query, _) in queries.items():
             assert 'pod=~"small-llm-d-kserve.*"' in query, (
                 f"{metric_name} should contain pod=~'small-llm-d-kserve.*', got: {query}"
             )
@@ -514,8 +369,8 @@ class TestLLMISSelectorIsolation:
             k for k in queries if k not in ("gpu_memory_used_gb", "gpu_memory_total_gb", "gpu_utilization_pct")
         ]
         for metric_name in non_gpu_metrics:
-            assert "pod=~" not in queries[metric_name], (
-                f"{metric_name} should NOT contain pod=~ for KServe, got: {queries[metric_name]}"
+            assert "pod=~" not in queries[metric_name][0], (
+                f"{metric_name} should NOT contain pod=~ for KServe, got: {queries[metric_name][0]}"
             )
 
 

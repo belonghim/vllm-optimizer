@@ -549,7 +549,9 @@ class MultiTargetMetricsCollector:
             ),
         }
 
-    def _build_pod_queries(self, namespace: str, is_name: str, cr_type: str | None = None) -> dict[str, str]:
+    def _build_pod_queries(
+        self, namespace: str, is_name: str, cr_type: str | None = None
+    ) -> dict[str, tuple[str, str]]:
         if cr_type is None:
             cr_type = runtime_config.cr_type
         adapter = get_cr_adapter(cr_type)
@@ -562,44 +564,54 @@ class MultiTargetMetricsCollector:
         return {
             "tokens_per_second": (
                 f"rate({prefix}num_generated_tokens{{{selector}}}[1m]) "
-                f"or rate({prefix}generation_tokens_total{{{selector}}}[1m])"
+                f"or rate({prefix}generation_tokens_total{{{selector}}}[1m])",
+                "last",
             ),
             "requests_per_second": (
                 f"rate({prefix}num_requests_finished{{{selector}}}[1m]) "
-                f"or rate({prefix}request_success_total{{{selector}}}[1m])"
+                f"or rate({prefix}request_success_total{{{selector}}}[1m])",
+                "last",
             ),
             "mean_ttft_ms": (
-                f"histogram_quantile(0.5, rate({prefix}time_to_first_token_seconds_bucket{{{selector}}}[1m])) * 1000"
+                f"histogram_quantile(0.5, rate({prefix}time_to_first_token_seconds_bucket{{{selector}}}[1m])) * 1000",
+                "last",
             ),
             "p99_ttft_ms": (
-                f"histogram_quantile(0.99, rate({prefix}time_to_first_token_seconds_bucket{{{selector}}}[1m])) * 1000"
+                f"histogram_quantile(0.99, rate({prefix}time_to_first_token_seconds_bucket{{{selector}}}[1m])) * 1000",
+                "last",
             ),
             "mean_e2e_latency_ms": (
-                f"histogram_quantile(0.5, rate({prefix}e2e_request_latency_seconds_bucket{{{selector}}}[1m])) * 1000"
+                f"histogram_quantile(0.5, rate({prefix}e2e_request_latency_seconds_bucket{{{selector}}}[1m])) * 1000",
+                "last",
             ),
             "p99_e2e_latency_ms": (
-                f"histogram_quantile(0.99, rate({prefix}e2e_request_latency_seconds_bucket{{{selector}}}[1m])) * 1000"
+                f"histogram_quantile(0.99, rate({prefix}e2e_request_latency_seconds_bucket{{{selector}}}[1m])) * 1000",
+                "last",
             ),
-            "kv_cache_usage_pct": f"{prefix}kv_cache_usage_perc{{{selector}}} * 100",
+            "kv_cache_usage_pct": (f"{prefix}kv_cache_usage_perc{{{selector}}} * 100", "last"),
             "kv_cache_hit_rate": (
-                f"{prefix}kv_cache_hit_rate{{{selector}}} or {prefix}cache_config_info{{{selector}}}"
+                f"{prefix}kv_cache_hit_rate{{{selector}}} or {prefix}cache_config_info{{{selector}}}",
+                "last",
             ),
-            "running_requests": f"{prefix}num_requests_running{{{selector}}}",
-            "waiting_requests": f"{prefix}num_requests_waiting{{{selector}}}",
+            "running_requests": (f"{prefix}num_requests_running{{{selector}}}", "last"),
+            "waiting_requests": (f"{prefix}num_requests_waiting{{{selector}}}", "last"),
             "gpu_memory_used_gb": (
                 f"({prefix}gpu_memory_usage_bytes{{{selector}}} / 1024^3) "
                 f"or {prefix}gpu_cache_usage_perc{{{selector}}} "
-                f"or (DCGM_FI_DEV_FB_USED{{{dcgm_selector}}} / 1024)"
+                f"or (DCGM_FI_DEV_FB_USED{{{dcgm_selector}}} / 1024)",
+                "sum",
             ),
             "gpu_memory_total_gb": (
                 f"({prefix}gpu_memory_total_bytes{{{selector}}} / 1024^3) "
                 f"or ({prefix}gpu_cache_usage_perc{{{selector}}} * 0 + 1) "
-                f"or ((DCGM_FI_DEV_FB_USED{{{dcgm_selector}}} + DCGM_FI_DEV_FB_FREE{{{dcgm_selector}}} + DCGM_FI_DEV_FB_RESERVED{{{dcgm_selector}}}) / 1024)"
+                f"or ((DCGM_FI_DEV_FB_USED{{{dcgm_selector}}} + DCGM_FI_DEV_FB_FREE{{{dcgm_selector}}} + DCGM_FI_DEV_FB_RESERVED{{{dcgm_selector}}}) / 1024)",
+                "sum",
             ),
             "gpu_utilization_pct": (
                 f"({prefix}gpu_utilization_perc{{{selector}}} * 100) "
                 f"or ({prefix}gpu_utilization{{{selector}}} * 100) "
-                f"or DCGM_FI_DEV_GPU_UTIL{{{dcgm_selector}}}"
+                f"or DCGM_FI_DEV_GPU_UTIL{{{dcgm_selector}}}",
+                "avg",
             ),
         }
 

@@ -203,18 +203,9 @@ async def get_pod_metrics(
         adapter = get_cr_adapter(cr_type)
         pod_name_pattern = adapter.dcgm_pod_pattern(target.inferenceService)
 
-        _AGGREGATION: dict[str, str] = {
-            "gpu_utilization_pct": "avg",
-            "gpu_memory_used_gb": "sum",
-            "gpu_memory_total_gb": "sum",
-        }
-
-        # Fetch all pod queries in parallel
         fetch_tasks = [
-            collector._fetch_prometheus_multi_result(
-                headers, query, pod_name_pattern, aggregation=_AGGREGATION.get(metric_name, "last")
-            )
-            for metric_name, query in queries.items()
+            collector._fetch_prometheus_multi_result(headers, query, pod_name_pattern, aggregation=aggregation)
+            for query, aggregation in queries.values()
         ]
         query_results = await asyncio.gather(*fetch_tasks)
 
