@@ -515,3 +515,187 @@ class TestLLMISSelectorIsolation:
             assert "pod=~" not in queries[metric_name], (
                 f"{metric_name} should NOT contain pod=~ for KServe, got: {queries[metric_name]}"
             )
+
+
+class TestFetchPrometheusMultiResultDCGMFallback:
+    """Tests for DCGM exported_pod relabeling fallback in _fetch_prometheus_multi_result.
+
+    These tests verify that when DCGM exporter returns metrics with 'exported_pod' label
+    (instead of plain 'pod'), the collector falls back to using exported_pod for pod name
+    resolution. This is critical for GPU metrics where nvidia-dcgm-exporter rewrites
+    pod labels via relabeling rules.
+    """
+
+    @pytest.mark.asyncio
+    async def test_dcgm_relabeling_pod_replaced_with_exported_pod(self, collector: MultiTargetMetricsCollector) -> None:
+        """Verify exported_pod label is used when pod label doesn't match pattern."""
+        # Prometheus returns DCGM metric with exported_pod relabeling
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "status": "success",
+            "data": {
+                "result": [
+                    {
+                        "metric": {"pod": "nvidia-dcgm-exporter-abc123", "exported_pod": "llm-ov-predictor-xyz"},
+                        "value": [1234567890.0, "75.0"],
+                    }
+                ]
+            },
+        }
+        mock_response.raise_for_status = MagicMock()
+
+        mock_internal_client = MagicMock()
+        mock_internal_client.get = AsyncMock(return_value=mock_response)
+
+        with patch("services.shared.get_internal_client", return_value=mock_internal_client):
+            with patch("services.multi_target_collector._with_retry", AsyncMock(return_value=mock_response)):
+                result = await collector._fetch_prometheus_multi_result(
+                    headers={},
+                    query='DCGM_FI_DEV_GPU_UTIL{namespace="test"}',
+                    pod_name_pattern="llm-ov-predictor.*",
+                )
+
+        # Should use exported_pod value for pod name
+        assert result == {"llm-ov-predictor-xyz": 75.0}
+
+    @pytest.mark.asyncio
+    async def test_dcgm_relabeling_exported_pod_no_match_skipped(self, collector: MultiTargetMetricsCollector) -> None:
+        """Verify result is skipped when exported_pod doesn't match pod_name_pattern."""
+        # Prometheus returns DCGM metric where exported_pod doesn't match pattern
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "status": "success",
+            "data": {
+                "result": [
+                    {
+                        "metric": {"pod": "nvidia-dcgm-exporter-abc123", "exported_pod": "some-other-pod"},
+                        "value": [1234567890.0, "75.0"],
+                    }
+                ]
+            },
+        }
+        mock_response.raise_for_status = MagicMock()
+
+        mock_internal_client = MagicMock()
+        mock_internal_client.get = AsyncMock(return_value=mock_response)
+
+        with patch("services.shared.get_internal_client", return_value=mock_internal_client):
+            with patch("services.multi_target_collector._with_retry", AsyncMock(return_value=mock_response)):
+                result = await collector._fetch_prometheus_multi_result(
+                    headers={},
+                    query='DCGM_FI_DEV_GPU_UTIL{namespace="test"}',
+                    pod_name_pattern="llm-ov-predictor.*",
+                )
+
+        # exported_pod doesn't match pattern, should be skipped
+        assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_dcgm_relabeling_llmis_path(self, collector: MultiTargetMetricsCollector) -> None:
+        """Verify exported_pod fallback works for LLMIS naming convention."""
+        # Prometheus returns DCGM metric with LLMIS exported_pod
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "status": "success",
+            "data": {
+                "result": [
+                    {
+                        "metric": {"pod": "nvidia-dcgm-exporter-abc123", "exported_pod": "small-llm-d-kserve-abc"},
+                        "value": [1234567890.0, "60.0"],
+                    }
+                ]
+            },
+        }
+        mock_response.raise_for_status = MagicMock()
+
+        mock_internal_client = MagicMock()
+        mock_internal_client.get = AsyncMock(return_value=mock_response)
+
+        with patch("services.shared.get_internal_client", return_value=mock_internal_client):
+            with patch("services.multi_target_collector._with_retry", AsyncMock(return_value=mock_response)):
+                result = await collector._fetch_prometheus_multi_result(
+                    headers={},
+                    query='DCGM_FI_DEV_GPU_UTIL{namespace="test"}',
+                    pod_name_pattern="small-llm-d-kserve.*",
+                )
+
+        # Should use exported_pod value for LLMIS pod name
+        assert result == {"small-llm-d-kserve-abc": 60.0}
+
+    @pytest.mark.asyncio
+    async def test_dcgm_relabeling_no_exported_pod_skipped(self, collector: MultiTargetMetricsCollector) -> None:
+        """Verify result is skipped when neither pod nor exported_pod matches pattern."""
+        # Prometheus returns DCGM metric with only 'pod' label (no exported_pod)
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "status": "success",
+            "data": {
+                "result": [
+                    {
+                        "metric": {"pod": "nvidia-dcgm-exporter-abc123"},
+                        "value": [1234567890.0, "75.0"],
+                    }
+                ]
+            },
+        }
+        mock_response.raise_for_status = MagicMock()
+
+        mock_internal_client = MagicMock()
+        mock_internal_client.get = AsyncMock(return_value=mock_response)
+
+        with patch("services.shared.get_internal_client", return_value=mock_internal_client):
+            with patch("services.multi_target_collector._with_retry", AsyncMock(return_value=mock_response)):
+                result = await collector._fetch_prometheus_multi_result(
+                    headers={},
+                    query='DCGM_FI_DEV_GPU_UTIL{namespace="test"}',
+                    pod_name_pattern="llm-ov-predictor.*",
+                )
+
+        # No exported_pod and pod doesn't match pattern, should be skipped
+        assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_dcgm_relabeling_multi_gpu_last_write_wins(self, collector: MultiTargetMetricsCollector) -> None:
+        """Verify multiple GPU results with same exported_pod result in one entry (last wins)."""
+        # Prometheus returns two DCGM results for different GPUs, same exported_pod
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "status": "success",
+            "data": {
+                "result": [
+                    {
+                        "metric": {
+                            "pod": "nvidia-dcgm-exporter-abc123",
+                            "exported_pod": "llm-ov-predictor-xyz",
+                            "gpu": "0",
+                        },
+                        "value": [1234567890.0, "30.0"],
+                    },
+                    {
+                        "metric": {
+                            "pod": "nvidia-dcgm-exporter-abc123",
+                            "exported_pod": "llm-ov-predictor-xyz",
+                            "gpu": "1",
+                        },
+                        "value": [1234567890.0, "40.0"],
+                    },
+                ]
+            },
+        }
+        mock_response.raise_for_status = MagicMock()
+
+        mock_internal_client = MagicMock()
+        mock_internal_client.get = AsyncMock(return_value=mock_response)
+
+        with patch("services.shared.get_internal_client", return_value=mock_internal_client):
+            with patch("services.multi_target_collector._with_retry", AsyncMock(return_value=mock_response)):
+                result = await collector._fetch_prometheus_multi_result(
+                    headers={},
+                    query='DCGM_FI_DEV_GPU_UTIL{namespace="test"}',
+                    pod_name_pattern="llm-ov-predictor.*",
+                )
+
+        # Both GPUs report to same pod, should be deduplicated (one entry)
+        assert len(result) == 1
+        assert "llm-ov-predictor-xyz" in result
+        assert result["llm-ov-predictor-xyz"] in {30.0, 40.0}

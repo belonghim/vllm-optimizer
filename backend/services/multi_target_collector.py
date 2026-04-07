@@ -900,6 +900,10 @@ class MultiTargetMetricsCollector:
         this method parses ALL results from the Prometheus response, extracting the 'pod' label
         from each result to create a pod->value mapping.
 
+        When pod_name_pattern is provided and the 'pod' label does not match, falls back to the
+        'exported_pod' label. This handles OpenShift monitoring's relabeling of DCGM metrics where
+        the original pod name is moved to 'exported_pod'.
+
         Args:
             headers: HTTP headers for Prometheus request
             query: Prometheus query string (should return per-pod results)
@@ -940,7 +944,15 @@ class MultiTargetMetricsCollector:
                     # Extract pod label, fallback to pod_0, pod_1, etc. if missing
                     pod_name = labels.get("pod", f"pod_{i}")
                     if pod_name_pattern and not re.search(pod_name_pattern, pod_name):
-                        continue
+                        # OpenShift monitoring renames the original DCGM 'pod' label (vLLM pod name)
+                        # to 'exported_pod' and sets 'pod' to the DCGM exporter pod name.
+                        # Fall back to exported_pod before discarding. For multi-GPU pods, multiple
+                        # results share the same exported_pod — last-write-wins (known limitation).
+                        exported_pod = labels.get("exported_pod", "")
+                        if exported_pod and re.search(pod_name_pattern, exported_pod):
+                            pod_name = exported_pod
+                        else:
+                            continue
                     result[pod_name] = round(value, 3)
         except (httpx.HTTPError, ValueError, AttributeError, TypeError):
             pass

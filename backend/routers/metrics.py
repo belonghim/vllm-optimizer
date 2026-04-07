@@ -305,6 +305,7 @@ def _pod_metric_to_snapshot_field(metric_name: str) -> str | None:
         "gpu_utilization_pct": "gpu_util",
         "gpu_memory_used_gb": "gpu_mem_used",
     }
+    # Note: gpu_memory_total_gb is intentionally excluded — PerPodMetricSnapshot has no total field.
     return mapping.get(metric_name)
 
 
