@@ -29,7 +29,7 @@ COUNTER_METRIC_MAP: dict[str, str] = {
 HISTOGRAM_METRIC_MAP: dict[str, str] = {
     "vllm:time_to_first_token_seconds": "ttft",
     "vllm:e2e_request_latency_seconds": "latency",
-    "vllm:time_per_output_token_seconds": "tpot",
+    "vllm:request_time_per_output_token_seconds": "tpot",
     "vllm:request_queue_time_seconds": "queue_time",
 }
 

@@ -561,11 +561,11 @@ class MultiTargetMetricsCollector:
             "swapped_requests": f"sum({prefix}num_requests_swapped{{{selector}}})",
             "mean_tpot_ms": (
                 f"histogram_quantile(0.5, sum by (le) "
-                f"(rate({prefix}time_per_output_token_seconds_bucket{{{selector}}}[1m]))) * 1000"
+                f"(rate({prefix}request_time_per_output_token_seconds_bucket{{{selector}}}[1m]))) * 1000"
             ),
             "p99_tpot_ms": (
                 f"histogram_quantile(0.99, sum by (le) "
-                f"(rate({prefix}time_per_output_token_seconds_bucket{{{selector}}}[1m]))) * 1000"
+                f"(rate({prefix}request_time_per_output_token_seconds_bucket{{{selector}}}[1m]))) * 1000"
             ),
             "mean_queue_time_ms": (
                 f"histogram_quantile(0.5, sum by (le) "
@@ -631,10 +631,10 @@ class MultiTargetMetricsCollector:
             "waiting_requests": PodQuery(f"{prefix}num_requests_waiting{{{selector}}}"),
             "swapped_requests": PodQuery(f"{prefix}num_requests_swapped{{{selector}}}"),
             "mean_tpot_ms": PodQuery(
-                f"histogram_quantile(0.5, rate({prefix}time_per_output_token_seconds_bucket{{{selector}}}[1m])) * 1000"
+                f"histogram_quantile(0.5, rate({prefix}request_time_per_output_token_seconds_bucket{{{selector}}}[1m])) * 1000"
             ),
             "p99_tpot_ms": PodQuery(
-                f"histogram_quantile(0.99, rate({prefix}time_per_output_token_seconds_bucket{{{selector}}}[1m])) * 1000"
+                f"histogram_quantile(0.99, rate({prefix}request_time_per_output_token_seconds_bucket{{{selector}}}[1m])) * 1000"
             ),
             "mean_queue_time_ms": PodQuery(
                 f"histogram_quantile(0.5, rate({prefix}request_queue_time_seconds_bucket{{{selector}}}[1m])) * 1000"
