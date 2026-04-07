@@ -512,7 +512,9 @@ class TestFetchPrometheusMultiResultDCGMFallback:
         assert result == {}
 
     @pytest.mark.asyncio
-    async def test_dcgm_relabeling_multi_gpu_last_write_wins(self, collector: MultiTargetMetricsCollector) -> None:
+    async def test_dcgm_relabeling_multi_gpu_aggregation_default_last(
+        self, collector: MultiTargetMetricsCollector
+    ) -> None:
         """Verify multiple GPU results with same exported_pod result in one entry (last wins)."""
         # Prometheus returns two DCGM results for different GPUs, same exported_pod
         mock_response = MagicMock()

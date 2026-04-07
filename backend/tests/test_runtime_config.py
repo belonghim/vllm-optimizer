@@ -14,11 +14,12 @@ def reset_runtime_config():
     runtime_config.set_vllm_namespace("vllm-lab-dev")
     runtime_config.set_vllm_endpoint("http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080")
     runtime_config.set_vllm_is_name("llm-ov")
+    runtime_config.reset_cr_type()
     yield
-    # Reset after test as well
     runtime_config.set_vllm_namespace("vllm-lab-dev")
     runtime_config.set_vllm_endpoint("http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080")
     runtime_config.set_vllm_is_name("llm-ov")
+    runtime_config.reset_cr_type()
 
 
 @pytest.fixture
