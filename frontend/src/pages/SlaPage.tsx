@@ -18,7 +18,7 @@ interface SlaVerdict {
   value: number | null;
   threshold: number | null;
   pass: boolean;
-  status: 'pass' | 'fail' | 'insufficient_data';
+  status: 'pass' | 'fail' | 'insufficient_data' | 'skipped';
 }
 
 interface SlaEvaluationResult {
@@ -173,7 +173,8 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
 
   const chartData = (currentEval?.results ?? []).map(r => {
     const verdict = r.verdicts.find(v => v.metric === chartMetric);
-    return { name: r.benchmark_name, value: verdict?.value ?? null, threshold: verdict?.threshold ?? null };
+    const value = verdict?.status === 'skipped' ? null : (verdict?.value ?? null);
+    return { name: r.benchmark_name, value, threshold: verdict?.threshold ?? null };
   });
   const legendPayload = (currentEval?.results ?? []).map((result, index) => ({
     value: result.benchmark_name, type: 'circle' as const, id: String(result.benchmark_id), color: TARGET_COLORS[index % TARGET_COLORS.length],
