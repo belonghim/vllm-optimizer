@@ -160,7 +160,6 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
           rps: m.rps, ttft_p99: m.ttft_p99, lat_mean: m.latency_mean,
           kv_hit: m.kv_hit_rate, gpu_util: m.gpu_util,
           gpu_mem_used: m.gpu_mem_used, gpu_mem_total: m.gpu_mem_total,
-          swapped: m.swapped,
           tpot_mean: m.tpot_mean, tpot_p99: m.tpot_p99,
           queue_time_mean: m.queue_time_mean, queue_time_p99: m.queue_time_p99,
         }));

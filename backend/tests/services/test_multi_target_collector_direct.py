@@ -98,3 +98,22 @@ async def test_direct_queue_time_mean_and_p99() -> None:
     assert target.latest is not None
     assert target.latest.mean_queue_time_ms == pytest.approx(100.0)
     assert target.latest.p99_queue_time_ms > 0
+
+
+@pytest.mark.asyncio
+async def test_direct_cr_exists_set() -> None:
+    collector = _make_collector_with_running_pod()
+    target = _make_target()
+
+    with (
+        patch.object(collector, "_scrape_pod_metrics", new=AsyncMock(return_value={})),
+        patch.object(
+            collector,
+            "_check_cr_exists",
+            new=AsyncMock(side_effect=lambda t: setattr(t, "cr_exists", True)),
+        ),
+        patch("services.multi_target_collector.update_metrics", lambda *args, **kwargs: None),
+    ):
+        await collector._collect_target_direct(target)
+
+    assert target.cr_exists is True

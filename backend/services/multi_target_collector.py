@@ -44,7 +44,6 @@ class VLLMMetrics:
     kv_cache_hit_rate: float = 0
     running_requests: int = 0
     waiting_requests: int = 0
-    swapped_requests: int = 0
     gpu_memory_used_gb: float = 0
     gpu_memory_total_gb: float = 0
     gpu_utilization_pct: float = 0
@@ -378,7 +377,6 @@ class MultiTargetMetricsCollector:
                 "kv_hit_rate": m.kv_cache_hit_rate,
                 "running": m.running_requests,
                 "waiting": m.waiting_requests,
-                "swapped": m.swapped_requests,
                 "gpu_mem_used": m.gpu_memory_used_gb,
                 "gpu_mem_total": m.gpu_memory_total_gb,
                 "gpu_util": m.gpu_utilization_pct,
@@ -417,6 +415,7 @@ class MultiTargetMetricsCollector:
         if cr_type is None:
             cr_type = runtime_config.cr_type
         key = self.build_target_key(namespace, is_name, cr_type)
+        new_target = None
         async with self._lock:
             existing = self._targets.get(key)
             if existing is not None:
@@ -443,6 +442,10 @@ class MultiTargetMetricsCollector:
                     cr_type=cr_type,
                     model_name=model_name,
                 )
+                new_target = self._targets[key]
+
+        if new_target is not None:
+            await self._check_cr_exists(new_target)
 
         await self._ensure_collect_loop()
         return True
@@ -565,7 +568,6 @@ class MultiTargetMetricsCollector:
             ),
             "running_requests": f"sum({prefix}num_requests_running{{{selector}}})",
             "waiting_requests": f"sum({prefix}num_requests_waiting{{{selector}}})",
-            "swapped_requests": f"sum({prefix}num_requests_swapped{{{selector}}})",
             "mean_tpot_ms": (
                 f"histogram_quantile(0.5, sum by (le) "
                 f"(rate({prefix}request_time_per_output_token_seconds_bucket{{{selector}}}[1m]))) * 1000"
@@ -636,7 +638,6 @@ class MultiTargetMetricsCollector:
             ),
             "running_requests": PodQuery(f"{prefix}num_requests_running{{{selector}}}"),
             "waiting_requests": PodQuery(f"{prefix}num_requests_waiting{{{selector}}}"),
-            "swapped_requests": PodQuery(f"{prefix}num_requests_swapped{{{selector}}}"),
             "mean_tpot_ms": PodQuery(
                 f"histogram_quantile(0.5, rate({prefix}request_time_per_output_token_seconds_bucket{{{selector}}}[1m])) * 1000"
             ),
@@ -778,7 +779,6 @@ class MultiTargetMetricsCollector:
                 elif k in (
                     "running_requests",
                     "waiting_requests",
-                    "swapped_requests",
                     "kv_cache_usage_pct",
                     "kv_cache_hit_rate",
                     "gpu_utilization_pct",
@@ -864,8 +864,6 @@ class MultiTargetMetricsCollector:
         if "kv_cache_hit_rate" in agg_gauges:
             vals = agg_gauges["kv_cache_hit_rate"]
             metrics.kv_cache_hit_rate = sum(vals) / len(vals)
-        if "swapped_requests" in agg_gauges:
-            metrics.swapped_requests = int(sum(agg_gauges["swapped_requests"]))
 
         hist_stats = self._compute_histogram_stats(agg_hist)
         metrics.mean_ttft_ms = hist_stats.get("mean_ttft_ms", 0.0)

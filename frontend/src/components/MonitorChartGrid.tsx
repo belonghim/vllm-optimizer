@@ -23,7 +23,6 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
   { id: 'kv',       title: 'KV Cache Usage (%)' },
   { id: 'kv_hit',   title: 'KV Cache Hit Rate (%)' },
   { id: 'queue',    title: 'Request Queue' },
-  { id: 'swapped',  title: 'Swapped Requests' },
   { id: 'rps',      title: 'RPS (Requests/sec)' },
   { id: 'gpu_util', title: 'GPU Utilization (%)' },
   { id: 'gpu_mem',  title: 'GPU Memory (GB)' },
@@ -99,7 +98,6 @@ export function buildChartLinesMap(
         { key: `${defaultKey}_running`, color: COLORS.green, label: "Running" },
         { key: `${defaultKey}_waiting`, color: COLORS.red, label: "Waiting" },
       ],
-      swapped: [{ key: `${defaultKey}_swapped`, color: COLORS.accent, label: "Swapped" }],
       tpot: [
         { key: `${defaultKey}_tpot_mean`, color: COLORS.cyan, label: "TPOT mean" },
         { key: `${defaultKey}_tpot_p99`, color: COLORS.accent, label: "TPOT p99" },
@@ -121,7 +119,6 @@ export function buildChartLinesMap(
     kv:       makeMultiLines('kv'),
     kv_hit:   makeMultiLines('kv_hit'),
     queue:    makeMultiLines('running'),
-    swapped:  makeMultiLines('swapped'),
     rps:      makeMultiLines('rps'),
     gpu_util: makeMultiLines('gpu_util'),
     gpu_mem:  makeMultiLines('gpu_mem_used'),
