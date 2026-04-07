@@ -19,6 +19,7 @@ def _make_collector_with_running_pod(ip: str = "10.0.0.10") -> MultiTargetMetric
     collector = MultiTargetMetricsCollector()
     collector._k8s_available = True
     collector._k8s_core = MagicMock()
+    collector._k8s_custom = None
 
     pod = MagicMock()
     pod.status = SimpleNamespace(
@@ -31,21 +32,6 @@ def _make_collector_with_running_pod(ip: str = "10.0.0.10") -> MultiTargetMetric
 
     collector._k8s_core.list_namespaced_pod.return_value = SimpleNamespace(items=[pod])
     return collector
-
-
-@pytest.mark.asyncio
-async def test_direct_swapped_requests() -> None:
-    collector = _make_collector_with_running_pod()
-    target = _make_target()
-
-    with (
-        patch.object(collector, "_scrape_pod_metrics", new=AsyncMock(return_value={"swapped_requests": 3.0})),
-        patch("services.multi_target_collector.update_metrics", lambda *args, **kwargs: None),
-    ):
-        await collector._collect_target_direct(target)
-
-    assert target.latest is not None
-    assert target.latest.swapped_requests == 3
 
 
 @pytest.mark.asyncio

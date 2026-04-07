@@ -874,10 +874,18 @@ class MultiTargetMetricsCollector:
             metrics.p99_ttft_ms = (
                 self._compute_histogram_quantile(list(agg_hist_buckets["ttft_buckets"].items()), 0.99) * 1000
             )
-            if "latency_buckets" in agg_hist_buckets:
-                metrics.p99_queue_time_ms = (
-                    self._compute_histogram_quantile(list(agg_hist_buckets["latency_buckets"].items()), 0.99) * 1000
-                )
+        if "latency_buckets" in agg_hist_buckets:
+            metrics.p99_e2e_latency_ms = (
+                self._compute_histogram_quantile(list(agg_hist_buckets["latency_buckets"].items()), 0.99) * 1000
+            )
+        if "tpot_buckets" in agg_hist_buckets:
+            metrics.p99_tpot_ms = (
+                self._compute_histogram_quantile(list(agg_hist_buckets["tpot_buckets"].items()), 0.99) * 1000
+            )
+        if "queue_time_buckets" in agg_hist_buckets:
+            metrics.p99_queue_time_ms = (
+                self._compute_histogram_quantile(list(agg_hist_buckets["queue_time_buckets"].items()), 0.99) * 1000
+            )
 
         await self._check_cr_exists(target)
 
