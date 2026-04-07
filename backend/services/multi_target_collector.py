@@ -763,6 +763,7 @@ class MultiTargetMetricsCollector:
         )
 
         counter_fields = {v for v in COUNTER_METRIC_MAP.values() if not v.startswith("_")}
+        gauge_fields = set(GAUGE_METRIC_MAP.values())
         agg_gauges: dict[str, list[float]] = {}
         agg_hist: dict[str, float] = {}
         agg_hist_buckets: dict[str, dict[float, float]] = {}
@@ -776,7 +777,7 @@ class MultiTargetMetricsCollector:
             for k, v in cast(dict[str, float | list[tuple[float, float]]], result).items():
                 if k in counter_fields and isinstance(v, (float, int)):
                     pod_counters[k] = float(v)
-                elif k in set(GAUGE_METRIC_MAP.values()) and isinstance(v, (float, int)):
+                elif k in gauge_fields and isinstance(v, (float, int)):
                     agg_gauges.setdefault(k, []).append(float(v))
                 elif k.endswith(("_sum", "_count")) and isinstance(v, (float, int)):
                     agg_hist[k] = agg_hist.get(k, 0.0) + float(v)
