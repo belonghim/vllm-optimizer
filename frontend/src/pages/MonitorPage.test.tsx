@@ -59,7 +59,7 @@ describe("MonitorPage", () => {
     const ttftTitle = screen.queryByText("TTFT (ms)");
     const gpuMemTitle = screen.queryByText("GPU Memory (GB)");
     const tpotTitle = screen.queryByText("TPOT (ms)");
-    const queueTimeTitle = screen.queryByText("Queue Time (ms)");
+    const queueTimeTitle = screen.queryByText("Queue Time (ms) (vLLM v0.6+)");
     // At least one chart title should be present in mock mode
     expect(tpsTitle || latencyTitle || ttftTitle || gpuMemTitle || tpotTitle || queueTimeTitle).toBeInTheDocument();
   });
@@ -89,12 +89,14 @@ describe("buildChartLinesMap", () => {
 
     expect(result.ttft).toHaveLength(3);
     expect(result.ttft[1].color).toBe(COLORS.cyan);
-
-    expect(result.queue).toHaveLength(3);
+ 
+    expect(result.queue).toHaveLength(2);
     expect(result.queue[0].label).toBe("Running");
     expect(result.queue[1].label).toBe("Waiting");
-    expect(result.queue[2].label).toBe("Swapped");
-
+ 
+    expect(result.swapped).toHaveLength(1);
+    expect(result.swapped[0].label).toBe("Swapped");
+ 
     expect(result.tpot).toHaveLength(2);
     expect(result.tpot[0].label).toBe("TPOT mean");
     expect(result.tpot[1].label).toBe("TPOT p99");
@@ -118,6 +120,7 @@ describe("buildChartLinesMap", () => {
     expect(result.tps).toHaveLength(3);
     expect(result.latency).toHaveLength(3);
     expect(result.gpu_util).toHaveLength(3);
+    expect(result.swapped).toHaveLength(3);
     expect(result.tpot).toHaveLength(3);
     expect(result.queue_time).toHaveLength(3);
 
@@ -143,5 +146,6 @@ describe("buildChartLinesMap", () => {
     expect(result.gpu_mem).toEqual([]);
     expect(result.tpot).toEqual([]);
     expect(result.queue_time).toEqual([]);
+    expect(result.swapped).toEqual([]);
   });
 });

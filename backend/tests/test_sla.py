@@ -250,7 +250,7 @@ async def test_verdict_invalid_status_rejected(storage: Storage) -> None:
 
 @pytest.mark.asyncio
 async def test_verdict_valid_statuses(storage: Storage) -> None:
-    for status in ["pass", "fail", "insufficient_data"]:
+    for status in ["pass", "fail", "insufficient_data", "skipped"]:
         v = SlaVerdict.model_validate({"metric": "x", "pass": status == "pass", "status": status})
         assert v.status == status
 
@@ -572,9 +572,9 @@ async def test_evaluate_p95_ttft_fail(storage: Storage) -> None:
 
 
 @pytest.mark.asyncio
-async def test_ttft_zero_skips_verdict(storage: Storage) -> None:
+async def test_ttft_zero_produces_skipped_verdict(storage: Storage) -> None:
     profile = SlaProfile(
-        name="ttft-zero-skip",
+        name="ttft-zero-skipped-verdict",
         thresholds=SlaThresholds(mean_ttft_max_ms=100.0, p95_ttft_max_ms=200.0),
     )
     benchmark = _make_benchmark(success=990, failed=10, p95_seconds=0.4, tps_mean=20.0)
@@ -584,27 +584,30 @@ async def test_ttft_zero_skips_verdict(storage: Storage) -> None:
 
     assert len(results) == 1
     assert results[0].overall_pass is True
-    ttft_mean_verdicts = [v for v in results[0].verdicts if v.metric == "ttft_mean"]
-    ttft_p95_verdicts = [v for v in results[0].verdicts if v.metric == "ttft_p95"]
-    assert len(ttft_mean_verdicts) == 0
-    assert len(ttft_p95_verdicts) == 0
+    ttft_mean_verdict = _verdict_by_metric(results[0], "ttft_mean")
+    ttft_p95_verdict = _verdict_by_metric(results[0], "ttft_p95")
+    assert ttft_mean_verdict.status == "skipped"
+    assert ttft_mean_verdict.pass_ is True
+    assert ttft_mean_verdict.value == 0
+    assert ttft_p95_verdict.status == "skipped"
+    assert ttft_p95_verdict.pass_ is True
+    assert ttft_p95_verdict.value == 0
 
 
 @pytest.mark.asyncio
-async def test_ttft_zero_does_not_affect_overall_pass(storage: Storage) -> None:
+async def test_overall_pass_ignores_skipped(storage: Storage) -> None:
     profile = SlaProfile(
-        name="ttft-zero-other-pass",
-        thresholds=SlaThresholds(mean_ttft_max_ms=100.0, min_tps=10.0),
+        name="ttft-zero-overall-pass",
+        thresholds=SlaThresholds(mean_ttft_max_ms=100.0),
     )
-    benchmark = _make_benchmark(success=990, failed=10, p95_seconds=0.4, tps_mean=15.0)
+    benchmark = _make_benchmark(success=990, failed=10, p95_seconds=0.4, tps_mean=20.0)
     benchmark.result.ttft = LatencyStats(mean=0.0, p50=0.0, p95=0.0, p99=0.0, min=0.0, max=0.0)
 
     results = _evaluate(profile, [benchmark])
 
     assert len(results) == 1
     assert results[0].overall_pass is True
-    ttft_mean_verdicts = [v for v in results[0].verdicts if v.metric == "ttft_mean"]
-    assert len(ttft_mean_verdicts) == 0
-    tps_verdict = _verdict_by_metric(results[0], "min_tps")
-    assert tps_verdict.status == "pass"
-    assert tps_verdict.pass_ is True
+    assert len(results[0].verdicts) == 1
+    assert results[0].verdicts[0].metric == "ttft_mean"
+    assert results[0].verdicts[0].status == "skipped"
+    assert results[0].verdicts[0].pass_ is True

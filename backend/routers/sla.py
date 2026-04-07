@@ -69,11 +69,33 @@ def evaluate_benchmarks_against_sla(
                 elif metric == "ttft_mean":
                     value = benchmark.result.ttft.mean * 1000
                     if value == 0:
+                        verdicts.append(
+                            SlaVerdict.model_validate(
+                                {
+                                    "metric": metric,
+                                    "value": 0.0,
+                                    "threshold": threshold,
+                                    "pass": True,
+                                    "status": "skipped",
+                                }
+                            )
+                        )
                         continue
                     pass_bool = value <= threshold
                 elif metric == "ttft_p95":
                     value = benchmark.result.ttft.p95 * 1000
                     if value == 0:
+                        verdicts.append(
+                            SlaVerdict.model_validate(
+                                {
+                                    "metric": metric,
+                                    "value": 0.0,
+                                    "threshold": threshold,
+                                    "pass": True,
+                                    "status": "skipped",
+                                }
+                            )
+                        )
                         continue
                     pass_bool = value <= threshold
                 else:
@@ -92,7 +114,8 @@ def evaluate_benchmarks_against_sla(
                     )
                 )
 
-        overall_pass = len(verdicts) == 0 or all(v.pass_ for v in verdicts)
+        active = [v for v in verdicts if v.status != "skipped"]
+        overall_pass = len(active) == 0 or all(v.pass_ for v in active)
         results.append(
             SlaEvaluationResult(
                 benchmark_id=benchmark.id if benchmark.id is not None else 0,

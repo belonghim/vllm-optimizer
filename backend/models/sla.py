@@ -54,7 +54,7 @@ class SlaVerdict(BaseModel):
     value: float | None = None
     threshold: float | None = None
     pass_: bool = Field(alias="pass")
-    status: Literal["pass", "fail", "insufficient_data"]
+    status: Literal["pass", "fail", "insufficient_data", "skipped"]
 
     model_config = ConfigDict(populate_by_name=True)
 
