@@ -723,7 +723,7 @@ class MultiTargetMetricsCollector:
         target.history.append(metrics)
 
     async def _collect_target_direct(self, target: TargetCache) -> None:
-        from services.metrics_constants import COUNTER_METRIC_MAP
+        from services.metrics_constants import COUNTER_METRIC_MAP, GAUGE_METRIC_MAP
 
         adapter = self._adapter_for(target)
 
@@ -776,16 +776,7 @@ class MultiTargetMetricsCollector:
             for k, v in cast(dict[str, float | list[tuple[float, float]]], result).items():
                 if k in counter_fields and isinstance(v, (float, int)):
                     pod_counters[k] = float(v)
-                elif k in (
-                    "running_requests",
-                    "waiting_requests",
-                    "kv_cache_usage_pct",
-                    "kv_cache_hit_rate",
-                    "gpu_utilization_pct",
-                    "gpu_memory_used_gb",
-                    "gpu_memory_free_gb",
-                    "gpu_memory_reserved_gb",
-                ) and isinstance(v, (float, int)):
+                elif k in set(GAUGE_METRIC_MAP.values()) and isinstance(v, (float, int)):
                     agg_gauges.setdefault(k, []).append(float(v))
                 elif k.endswith(("_sum", "_count")) and isinstance(v, (float, int)):
                     agg_hist[k] = agg_hist.get(k, 0.0) + float(v)
