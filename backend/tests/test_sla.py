@@ -495,3 +495,77 @@ async def test_evaluate_profile_empty_benchmarks(storage: Storage, monkeypatch: 
         data = resp.json()
         assert data["results"] == []
         assert data["warnings"] == []
+
+
+@pytest.mark.asyncio
+async def test_evaluate_mean_ttft_pass(storage: Storage) -> None:
+    profile = SlaProfile(
+        name="ttft-mean-pass",
+        thresholds=SlaThresholds(mean_ttft_max_ms=500.0),
+    )
+    benchmark = _make_benchmark(success=990, failed=10, p95_seconds=0.4, tps_mean=20.0)
+    benchmark.result.ttft = LatencyStats(mean=0.3, p50=0.3, p95=0.3, p99=0.3, min=0.3, max=0.3)
+
+    results = _evaluate(profile, [benchmark])
+
+    assert len(results) == 1
+    assert results[0].overall_pass is True
+    ttft_verdict = _verdict_by_metric(results[0], "ttft_mean")
+    assert ttft_verdict.status == "pass"
+    assert ttft_verdict.pass_ is True
+
+
+@pytest.mark.asyncio
+async def test_evaluate_mean_ttft_fail(storage: Storage) -> None:
+    profile = SlaProfile(
+        name="ttft-mean-fail",
+        thresholds=SlaThresholds(mean_ttft_max_ms=200.0),
+    )
+    benchmark = _make_benchmark(success=990, failed=10, p95_seconds=0.4, tps_mean=20.0)
+    benchmark.result.ttft = LatencyStats(mean=0.3, p50=0.3, p95=0.3, p99=0.3, min=0.3, max=0.3)
+
+    results = _evaluate(profile, [benchmark])
+
+    assert len(results) == 1
+    assert results[0].overall_pass is False
+    ttft_verdict = _verdict_by_metric(results[0], "ttft_mean")
+    assert ttft_verdict.status == "fail"
+    assert ttft_verdict.pass_ is False
+    assert ttft_verdict.value == pytest.approx(300.0)
+
+
+@pytest.mark.asyncio
+async def test_evaluate_p95_ttft_pass(storage: Storage) -> None:
+    profile = SlaProfile(
+        name="ttft-p95-pass",
+        thresholds=SlaThresholds(p95_ttft_max_ms=1000.0),
+    )
+    benchmark = _make_benchmark(success=990, failed=10, p95_seconds=0.4, tps_mean=20.0)
+    benchmark.result.ttft = LatencyStats(mean=0.5, p50=0.5, p95=0.8, p99=0.9, min=0.5, max=0.9)
+
+    results = _evaluate(profile, [benchmark])
+
+    assert len(results) == 1
+    assert results[0].overall_pass is True
+    ttft_verdict = _verdict_by_metric(results[0], "ttft_p95")
+    assert ttft_verdict.status == "pass"
+    assert ttft_verdict.pass_ is True
+
+
+@pytest.mark.asyncio
+async def test_evaluate_p95_ttft_fail(storage: Storage) -> None:
+    profile = SlaProfile(
+        name="ttft-p95-fail",
+        thresholds=SlaThresholds(p95_ttft_max_ms=500.0),
+    )
+    benchmark = _make_benchmark(success=990, failed=10, p95_seconds=0.4, tps_mean=20.0)
+    benchmark.result.ttft = LatencyStats(mean=0.5, p50=0.5, p95=0.8, p99=0.9, min=0.5, max=0.9)
+
+    results = _evaluate(profile, [benchmark])
+
+    assert len(results) == 1
+    assert results[0].overall_pass is False
+    ttft_verdict = _verdict_by_metric(results[0], "ttft_p95")
+    assert ttft_verdict.status == "fail"
+    assert ttft_verdict.pass_ is False
+    assert ttft_verdict.value == pytest.approx(800.0)

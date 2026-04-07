@@ -3,6 +3,8 @@ export interface SlaThresholds {
   p95_latency_max_ms: number | null;
   error_rate_max_pct: number | null;
   min_tps: number | null;
+  mean_ttft_max_ms?: number | null;
+  p95_ttft_max_ms?: number | null;
 }
 
 export interface SlaProfile {
