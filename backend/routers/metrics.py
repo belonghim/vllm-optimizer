@@ -203,9 +203,18 @@ async def get_pod_metrics(
         adapter = get_cr_adapter(cr_type)
         pod_name_pattern = adapter.dcgm_pod_pattern(target.inferenceService)
 
+        _AGGREGATION: dict[str, str] = {
+            "gpu_utilization_pct": "avg",
+            "gpu_memory_used_gb": "sum",
+            "gpu_memory_total_gb": "sum",
+        }
+
         # Fetch all pod queries in parallel
         fetch_tasks = [
-            collector._fetch_prometheus_multi_result(headers, query, pod_name_pattern) for query in queries.values()
+            collector._fetch_prometheus_multi_result(
+                headers, query, pod_name_pattern, aggregation=_AGGREGATION.get(metric_name, "last")
+            )
+            for metric_name, query in queries.items()
         ]
         query_results = await asyncio.gather(*fetch_tasks)
 
@@ -224,6 +233,7 @@ async def get_pod_metrics(
                         "waiting": None,
                         "gpu_util": None,
                         "gpu_mem_used": None,
+                        "gpu_mem_total": None,
                     }
                 # Map metric name to PerPodMetricSnapshot field
                 snapshot_field = _pod_metric_to_snapshot_field(metric_name)
@@ -242,6 +252,7 @@ async def get_pod_metrics(
                 waiting=pod_metrics[pod_name].get("waiting"),
                 gpu_util=pod_metrics[pod_name].get("gpu_util"),
                 gpu_mem_used=pod_metrics[pod_name].get("gpu_mem_used"),
+                gpu_mem_total=pod_metrics[pod_name].get("gpu_mem_total"),
             )
             for pod_name in pod_names
         ]
@@ -304,8 +315,8 @@ def _pod_metric_to_snapshot_field(metric_name: str) -> str | None:
         "waiting_requests": "waiting",
         "gpu_utilization_pct": "gpu_util",
         "gpu_memory_used_gb": "gpu_mem_used",
+        "gpu_memory_total_gb": "gpu_mem_total",
     }
-    # Note: gpu_memory_total_gb is intentionally excluded — PerPodMetricSnapshot has no total field.
     return mapping.get(metric_name)
 
 

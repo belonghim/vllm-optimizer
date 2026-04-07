@@ -7,7 +7,7 @@ import re
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import httpx
 from kubernetes import client, config
@@ -892,6 +892,7 @@ class MultiTargetMetricsCollector:
         headers: dict[str, str],
         query: str,
         pod_name_pattern: str | None = None,
+        aggregation: Literal["last", "avg", "sum"] = "last",
     ) -> dict[str, float]:
         """
         Fetch multiple results from Prometheus, returning a dict mapping pod names to metric values.
@@ -903,6 +904,12 @@ class MultiTargetMetricsCollector:
         When pod_name_pattern is provided and the 'pod' label does not match, falls back to the
         'exported_pod' label. This handles OpenShift monitoring's relabeling of DCGM metrics where
         the original pod name is moved to 'exported_pod'.
+
+        For multi-GPU pods, multiple results share the same pod name (one per GPU).
+        The aggregation parameter controls how duplicates are combined:
+        - "last": last value wins (default, backward-compatible)
+        - "avg": arithmetic mean across all GPUs (e.g., utilization %)
+        - "sum": total across all GPUs (e.g., memory used/total GB)
 
         Args:
             headers: HTTP headers for Prometheus request
@@ -926,13 +933,13 @@ class MultiTargetMetricsCollector:
             return resp
 
         result: dict[str, float] = {}
+        counts: dict[str, int] = {}
         try:
             response = await _with_retry(_do_fetch)
             data = cast(dict[str, Any], response.json())
             payload = cast(dict[str, Any], data.get("data", {}))
             results = cast(list[dict[str, Any]], payload.get("result", []))
             if data.get("status") == "success" and results:
-                logger.info(f"Multi-result query returned {len(results)} results")
                 for i, item in enumerate(results):
                     labels = cast(dict[str, Any], item.get("metric", {}))
                     value_list = cast(list[Any], item.get("value", []))
@@ -946,17 +953,24 @@ class MultiTargetMetricsCollector:
                     if pod_name_pattern and not re.search(pod_name_pattern, pod_name):
                         # OpenShift monitoring renames the original DCGM 'pod' label (vLLM pod name)
                         # to 'exported_pod' and sets 'pod' to the DCGM exporter pod name.
-                        # Fall back to exported_pod before discarding. For multi-GPU pods, multiple
-                        # results share the same exported_pod — last-write-wins (known limitation).
+                        # Fall back to exported_pod before discarding.
                         exported_pod = labels.get("exported_pod", "")
                         if exported_pod and re.search(pod_name_pattern, exported_pod):
                             pod_name = exported_pod
                         else:
                             continue
-                    result[pod_name] = round(value, 3)
+                    if aggregation == "sum":
+                        result[pod_name] = result.get(pod_name, 0.0) + value
+                    elif aggregation == "avg":
+                        result[pod_name] = result.get(pod_name, 0.0) + value
+                        counts[pod_name] = counts.get(pod_name, 0) + 1
+                    else:
+                        result[pod_name] = value
+            if aggregation == "avg":
+                result = {pod: total / counts[pod] for pod, total in result.items()}
         except (httpx.HTTPError, ValueError, AttributeError, TypeError):
             pass
-        return result
+        return {pod: round(v, 3) for pod, v in result.items()}
 
     async def _query_kubernetes_pods(self, namespace: str, is_name: str, cr_type: str | None = None) -> dict[str, int]:
         if cr_type is None:

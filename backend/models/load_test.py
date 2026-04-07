@@ -249,6 +249,7 @@ class PerPodMetricSnapshot(BaseModel):
     waiting: int | None
     gpu_util: float | None
     gpu_mem_used: float | None
+    gpu_mem_total: float | None
 
 
 class PerPodMetricsResponse(BaseModel):

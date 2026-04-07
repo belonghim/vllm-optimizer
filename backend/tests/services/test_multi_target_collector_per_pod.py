@@ -337,6 +337,7 @@ class TestPodsEndpointIntegration:
                                 "waiting": None,
                                 "gpu_util": None,
                                 "gpu_mem_used": None,
+                                "gpu_mem_total": None,
                             }
                         snapshot_field = _pod_metric_to_snapshot_field(metric_name)
                         if snapshot_field and value is not None:
@@ -354,6 +355,7 @@ class TestPodsEndpointIntegration:
                         waiting=pod_metrics[pod_name].get("waiting"),
                         gpu_util=pod_metrics[pod_name].get("gpu_util"),
                         gpu_mem_used=pod_metrics[pod_name].get("gpu_mem_used"),
+                        gpu_mem_total=pod_metrics[pod_name].get("gpu_mem_total"),
                     )
                     for pod_name in pod_names
                 ]

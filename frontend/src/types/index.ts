@@ -56,6 +56,7 @@ export interface PerPodMetricSnapshot {
   waiting?: number | null;
   gpu_util?: number | null;
   gpu_mem_used?: number | null;
+  gpu_mem_total?: number | null;
 }
 
 export interface PerPodMetricsResponse {

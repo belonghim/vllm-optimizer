@@ -24,7 +24,7 @@ export default function ExpandablePodRow({ pods, parentColor }: ExpandablePodRow
               <th>Waiting</th>
               <th>KV%</th>
               <th>GPU%</th>
-              <th>GPU Mem</th>
+              <th>GPU Mem (GB)</th>
             </tr>
           </thead>
           <tbody>
@@ -37,7 +37,7 @@ export default function ExpandablePodRow({ pods, parentColor }: ExpandablePodRow
                 <td>{fmt(pod.waiting, 0)}</td>
                 <td>{fmt(pod.kv_cache)}</td>
                 <td>{fmt(pod.gpu_util)}</td>
-                <td>{fmt(pod.gpu_mem_used)}</td>
+                <td>{fmt(pod.gpu_mem_used, 1)} / {fmt(pod.gpu_mem_total, 0)}</td>
               </tr>
             ))}
           </tbody>
