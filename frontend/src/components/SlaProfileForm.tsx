@@ -7,6 +7,8 @@ export interface SlaFormState {
   p95Ms: string;
   errRate: string;
   minTps: string;
+  meanTtftMs: string;
+  p95TtftMs: string;
 }
 
 interface SlaProfileFormProps {
@@ -18,7 +20,7 @@ interface SlaProfileFormProps {
 }
 
 export default function SlaProfileForm({ formState, onChange, onSubmit, onCancel, editingId }: SlaProfileFormProps) {
-  const { name, availMin, p95Ms, errRate, minTps } = formState;
+  const { name, availMin, p95Ms, errRate, minTps, meanTtftMs, p95TtftMs } = formState;
   return (
     <div className="panel">
       <div className="section-title">{editingId ? ERROR_MESSAGES.SLA.EDIT_TITLE : ERROR_MESSAGES.SLA.CREATE_TITLE}</div>
@@ -42,6 +44,14 @@ export default function SlaProfileForm({ formState, onChange, onSubmit, onCancel
         <div className="form-group">
           <label>Min TPS</label>
           <input type="number" min="0" step="0.1" value={minTps} onChange={e => onChange('minTps', e.target.value)} placeholder="10.0" />
+        </div>
+        <div className="form-group">
+          <label>TTFT Mean (ms)</label>
+          <input type="number" min="0" step="1" value={meanTtftMs} onChange={e => onChange('meanTtftMs', e.target.value)} placeholder="1000" />
+        </div>
+        <div className="form-group">
+          <label>TTFT P95 (ms)</label>
+          <input type="number" min="0" step="1" value={p95TtftMs} onChange={e => onChange('p95TtftMs', e.target.value)} placeholder="2000" />
         </div>
         <div className="form-actions" style={{ gridColumn: '1 / -1', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
           {editingId && <button type="button" className="btn-secondary" onClick={onCancel}>Cancel</button>}

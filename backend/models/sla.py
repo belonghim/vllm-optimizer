@@ -16,11 +16,21 @@ class SlaThresholds(BaseModel):
     p95_latency_max_ms: float | None = Field(default=None, description="P95 latency 최대값 (ms)", gt=0)
     error_rate_max_pct: float | None = Field(default=None, description="최대 오류율 (%)", ge=0, le=100)
     min_tps: float | None = Field(default=None, description="최소 TPS", gt=0)
+    mean_ttft_max_ms: float | None = Field(default=None, description="TTFT 평균 최대값 (ms)", gt=0)
+    p95_ttft_max_ms: float | None = Field(default=None, description="TTFT P95 최대값 (ms)", gt=0)
 
     @model_validator(mode="after")
     def at_least_one_threshold(self) -> "SlaThresholds":
         if all(
-            v is None for v in [self.availability_min, self.p95_latency_max_ms, self.error_rate_max_pct, self.min_tps]
+            v is None
+            for v in [
+                self.availability_min,
+                self.p95_latency_max_ms,
+                self.error_rate_max_pct,
+                self.min_tps,
+                self.mean_ttft_max_ms,
+                self.p95_ttft_max_ms,
+            ]
         ):
             raise ValueError("At least one threshold must be set")
         return self

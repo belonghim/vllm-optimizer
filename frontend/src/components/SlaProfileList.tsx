@@ -17,6 +17,8 @@ function renderThresholds(t: SlaThresholds): string {
   if (t.p95_latency_max_ms != null) parts.push(`P95≤${t.p95_latency_max_ms}ms`);
   if (t.error_rate_max_pct != null) parts.push(`Error Rate≤${t.error_rate_max_pct}%`);
   if (t.min_tps != null) parts.push(`TPS≥${t.min_tps}`);
+  if (t.mean_ttft_max_ms != null) parts.push(`TTFT Mean≤${t.mean_ttft_max_ms}ms`);
+  if (t.p95_ttft_max_ms != null) parts.push(`TTFT P95≤${t.p95_ttft_max_ms}ms`);
   return parts.join(' · ') || ERROR_MESSAGES.SLA.NO_THRESHOLDS_SET;
 }
 

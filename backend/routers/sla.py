@@ -37,6 +37,10 @@ def evaluate_benchmarks_against_sla(
             metric_thresholds.append(("error_rate", thresholds.error_rate_max_pct))
         if thresholds.min_tps is not None:
             metric_thresholds.append(("min_tps", thresholds.min_tps))
+        if thresholds.mean_ttft_max_ms is not None:
+            metric_thresholds.append(("ttft_mean", thresholds.mean_ttft_max_ms))
+        if thresholds.p95_ttft_max_ms is not None:
+            metric_thresholds.append(("ttft_p95", thresholds.p95_ttft_max_ms))
 
         if total == 0:
             for metric, threshold in metric_thresholds:
@@ -61,6 +65,12 @@ def evaluate_benchmarks_against_sla(
                     pass_bool = value <= threshold
                 elif metric == "error_rate":
                     value = benchmark.result.failed / total * 100
+                    pass_bool = value <= threshold
+                elif metric == "ttft_mean":
+                    value = benchmark.result.ttft.mean * 1000
+                    pass_bool = value <= threshold
+                elif metric == "ttft_p95":
+                    value = benchmark.result.ttft.p95 * 1000
                     pass_bool = value <= threshold
                 else:
                     value = benchmark.result.tps.mean
