@@ -50,7 +50,7 @@ describe("MonitorPage", () => {
     expect(screen.getByText("Monitoring Targets (1/5)")).toBeInTheDocument();
   });
 
-  it("renders 9 chart titles", async () => {
+  it("renders chart titles", async () => {
     render(<MonitorPage isActive={true} />);
     await act(async () => {});
     // Chart titles may be conditionally rendered; verify at least some key charts exist
@@ -58,8 +58,10 @@ describe("MonitorPage", () => {
     const latencyTitle = screen.queryByText("Latency (ms)");
     const ttftTitle = screen.queryByText("TTFT (ms)");
     const gpuMemTitle = screen.queryByText("GPU Memory (GB)");
+    const tpotTitle = screen.queryByText("TPOT (ms)");
+    const queueTimeTitle = screen.queryByText("Queue Time (ms)");
     // At least one chart title should be present in mock mode
-    expect(tpsTitle || latencyTitle || ttftTitle || gpuMemTitle).toBeInTheDocument();
+    expect(tpsTitle || latencyTitle || ttftTitle || gpuMemTitle || tpotTitle || queueTimeTitle).toBeInTheDocument();
   });
 
   it("does not show error banner in mock mode", () => {
@@ -88,9 +90,18 @@ describe("buildChartLinesMap", () => {
     expect(result.ttft).toHaveLength(3);
     expect(result.ttft[1].color).toBe(COLORS.cyan);
 
-    expect(result.queue).toHaveLength(2);
+    expect(result.queue).toHaveLength(3);
     expect(result.queue[0].label).toBe("Running");
     expect(result.queue[1].label).toBe("Waiting");
+    expect(result.queue[2].label).toBe("Swapped");
+
+    expect(result.tpot).toHaveLength(2);
+    expect(result.tpot[0].label).toBe("TPOT mean");
+    expect(result.tpot[1].label).toBe("TPOT p99");
+
+    expect(result.queue_time).toHaveLength(2);
+    expect(result.queue_time[0].label).toBe("Queue mean");
+    expect(result.queue_time[1].label).toBe("Queue p99");
 
     expect(result.tps).toEqual([{ key: "ns1/svc1/inferenceservice_tps", color: COLORS.accent, label: "TPS" }]);
   });
@@ -107,6 +118,8 @@ describe("buildChartLinesMap", () => {
     expect(result.tps).toHaveLength(3);
     expect(result.latency).toHaveLength(3);
     expect(result.gpu_util).toHaveLength(3);
+    expect(result.tpot).toHaveLength(3);
+    expect(result.queue_time).toHaveLength(3);
 
     expect(result.tps[0]).toEqual({ key: "ns1/svc1/inferenceservice_tps", label: "svc1", color: TARGET_COLORS[0] });
     expect(result.tps[1]).toEqual({ key: "ns2/svc2/inferenceservice_tps", label: "svc2", color: TARGET_COLORS[1] });
@@ -128,5 +141,7 @@ describe("buildChartLinesMap", () => {
     expect(result.rps).toEqual([]);
     expect(result.gpu_util).toEqual([]);
     expect(result.gpu_mem).toEqual([]);
+    expect(result.tpot).toEqual([]);
+    expect(result.queue_time).toEqual([]);
   });
 });

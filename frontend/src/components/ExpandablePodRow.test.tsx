@@ -27,7 +27,7 @@ describe("ExpandablePodRow", () => {
     expect(screen.getByText("1")).toBeInTheDocument();
     expect(screen.getByText("45.2")).toBeInTheDocument();
     expect(screen.getByText("65.1")).toBeInTheDocument();
-    expect(screen.getByText("18.4")).toBeInTheDocument();
+    expect(screen.getByText(/18\.4/)).toBeInTheDocument();
   });
 
   it("handles missing metrics", () => {

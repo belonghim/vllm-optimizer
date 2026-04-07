@@ -44,9 +44,14 @@ class VLLMMetrics:
     kv_cache_hit_rate: float = 0
     running_requests: int = 0
     waiting_requests: int = 0
+    swapped_requests: int = 0
     gpu_memory_used_gb: float = 0
     gpu_memory_total_gb: float = 0
     gpu_utilization_pct: float = 0
+    mean_tpot_ms: float = 0
+    p99_tpot_ms: float = 0
+    mean_queue_time_ms: float = 0
+    p99_queue_time_ms: float = 0
     pod_count: int = 0
     pod_ready: int = 0
 
@@ -215,9 +220,20 @@ class MultiTargetMetricsCollector:
         ttft_count = raw_histograms.get("ttft_count", 0.0)
         latency_sum = raw_histograms.get("latency_sum", 0.0)
         latency_count = raw_histograms.get("latency_count", 0.0)
+        tpot_sum = raw_histograms.get("tpot_sum", 0.0)
+        tpot_count = raw_histograms.get("tpot_count", 0.0)
+        queue_time_sum = raw_histograms.get("queue_time_sum", 0.0)
+        queue_time_count = raw_histograms.get("queue_time_count", 0.0)
         mean_ttft_ms = (ttft_sum / ttft_count) * 1000 if ttft_count > 0 else 0.0
         mean_e2e_latency_ms = (latency_sum / latency_count) * 1000 if latency_count > 0 else 0.0
-        return {"mean_ttft_ms": mean_ttft_ms, "mean_e2e_latency_ms": mean_e2e_latency_ms}
+        mean_tpot_ms = (tpot_sum / tpot_count) * 1000 if tpot_count > 0 else 0.0
+        mean_queue_time_ms = (queue_time_sum / queue_time_count) * 1000 if queue_time_count > 0 else 0.0
+        return {
+            "mean_ttft_ms": mean_ttft_ms,
+            "mean_e2e_latency_ms": mean_e2e_latency_ms,
+            "mean_tpot_ms": mean_tpot_ms,
+            "mean_queue_time_ms": mean_queue_time_ms,
+        }
 
     def _compute_histogram_quantile(self, buckets: list[tuple[float, float]], quantile: float) -> float:
         if not buckets or quantile < 0 or quantile > 1:
@@ -355,9 +371,14 @@ class MultiTargetMetricsCollector:
                 "kv_hit_rate": m.kv_cache_hit_rate,
                 "running": m.running_requests,
                 "waiting": m.waiting_requests,
+                "swapped": m.swapped_requests,
                 "gpu_mem_used": m.gpu_memory_used_gb,
                 "gpu_mem_total": m.gpu_memory_total_gb,
                 "gpu_util": m.gpu_utilization_pct,
+                "tpot_mean": m.mean_tpot_ms,
+                "tpot_p99": m.p99_tpot_ms,
+                "queue_time_mean": m.mean_queue_time_ms,
+                "queue_time_p99": m.p99_queue_time_ms,
                 "pods": m.pod_count,
                 "pods_ready": m.pod_ready,
                 "_metadata": {
@@ -537,6 +558,23 @@ class MultiTargetMetricsCollector:
             ),
             "running_requests": f"sum({prefix}num_requests_running{{{selector}}})",
             "waiting_requests": f"sum({prefix}num_requests_waiting{{{selector}}})",
+            "swapped_requests": f"sum({prefix}num_requests_swapped{{{selector}}})",
+            "mean_tpot_ms": (
+                f"histogram_quantile(0.5, sum by (le) "
+                f"(rate({prefix}time_per_output_token_seconds_bucket{{{selector}}}[1m]))) * 1000"
+            ),
+            "p99_tpot_ms": (
+                f"histogram_quantile(0.99, sum by (le) "
+                f"(rate({prefix}time_per_output_token_seconds_bucket{{{selector}}}[1m]))) * 1000"
+            ),
+            "mean_queue_time_ms": (
+                f"histogram_quantile(0.5, sum by (le) "
+                f"(rate({prefix}request_queue_time_seconds_bucket{{{selector}}}[1m]))) * 1000"
+            ),
+            "p99_queue_time_ms": (
+                f"histogram_quantile(0.99, sum by (le) "
+                f"(rate({prefix}request_queue_time_seconds_bucket{{{selector}}}[1m]))) * 1000"
+            ),
             "gpu_memory_used_gb": (
                 f"(sum({prefix}gpu_memory_usage_bytes{{{selector}}}) / 1024^3) "
                 f"or {prefix}gpu_cache_usage_perc{{{selector}}} "
@@ -591,6 +629,19 @@ class MultiTargetMetricsCollector:
             ),
             "running_requests": PodQuery(f"{prefix}num_requests_running{{{selector}}}"),
             "waiting_requests": PodQuery(f"{prefix}num_requests_waiting{{{selector}}}"),
+            "swapped_requests": PodQuery(f"{prefix}num_requests_swapped{{{selector}}}"),
+            "mean_tpot_ms": PodQuery(
+                f"histogram_quantile(0.5, rate({prefix}time_per_output_token_seconds_bucket{{{selector}}}[1m])) * 1000"
+            ),
+            "p99_tpot_ms": PodQuery(
+                f"histogram_quantile(0.99, rate({prefix}time_per_output_token_seconds_bucket{{{selector}}}[1m])) * 1000"
+            ),
+            "mean_queue_time_ms": PodQuery(
+                f"histogram_quantile(0.5, rate({prefix}request_queue_time_seconds_bucket{{{selector}}}[1m])) * 1000"
+            ),
+            "p99_queue_time_ms": PodQuery(
+                f"histogram_quantile(0.99, rate({prefix}request_queue_time_seconds_bucket{{{selector}}}[1m])) * 1000"
+            ),
             "gpu_memory_used_gb": PodQuery(
                 f"({prefix}gpu_memory_usage_bytes{{{selector}}} / 1024^3) "
                 f"or {prefix}gpu_cache_usage_perc{{{selector}}} "
@@ -720,6 +771,7 @@ class MultiTargetMetricsCollector:
                 elif k in (
                     "running_requests",
                     "waiting_requests",
+                    "swapped_requests",
                     "kv_cache_usage_pct",
                     "kv_cache_hit_rate",
                     "gpu_utilization_pct",
@@ -805,10 +857,14 @@ class MultiTargetMetricsCollector:
         if "kv_cache_hit_rate" in agg_gauges:
             vals = agg_gauges["kv_cache_hit_rate"]
             metrics.kv_cache_hit_rate = sum(vals) / len(vals)
+        if "swapped_requests" in agg_gauges:
+            metrics.swapped_requests = int(sum(agg_gauges["swapped_requests"]))
 
         hist_stats = self._compute_histogram_stats(agg_hist)
         metrics.mean_ttft_ms = hist_stats.get("mean_ttft_ms", 0.0)
         metrics.mean_e2e_latency_ms = hist_stats.get("mean_e2e_latency_ms", 0.0)
+        metrics.mean_tpot_ms = hist_stats.get("mean_tpot_ms", 0.0)
+        metrics.mean_queue_time_ms = hist_stats.get("mean_queue_time_ms", 0.0)
         if "ttft_buckets" in agg_hist_buckets:
             metrics.p99_ttft_ms = (
                 self._compute_histogram_quantile(list(agg_hist_buckets["ttft_buckets"].items()), 0.99) * 1000
@@ -816,6 +872,14 @@ class MultiTargetMetricsCollector:
         if "latency_buckets" in agg_hist_buckets:
             metrics.p99_e2e_latency_ms = (
                 self._compute_histogram_quantile(list(agg_hist_buckets["latency_buckets"].items()), 0.99) * 1000
+            )
+        if "tpot_buckets" in agg_hist_buckets:
+            metrics.p99_tpot_ms = (
+                self._compute_histogram_quantile(list(agg_hist_buckets["tpot_buckets"].items()), 0.99) * 1000
+            )
+        if "queue_time_buckets" in agg_hist_buckets:
+            metrics.p99_queue_time_ms = (
+                self._compute_histogram_quantile(list(agg_hist_buckets["queue_time_buckets"].items()), 0.99) * 1000
             )
 
         if target.is_default:

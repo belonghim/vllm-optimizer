@@ -160,6 +160,9 @@ class _StubMultiTargetMetricsCollector:
     async def get_metrics(self, namespace: str, is_name: str, cr_type: str | None = None) -> None:
         return None
 
+    def get_target(self, namespace: str, is_name: str, cr_type: str | None = None):
+        return None
+
     def get_has_monitoring_label(self, namespace: str, is_name: str, cr_type: str | None = None) -> bool:
         return self._has_label is not None and self._has_label
 

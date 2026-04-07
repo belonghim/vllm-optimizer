@@ -12,6 +12,7 @@ GAUGE_METRIC_MAP: dict[str, str] = {
     "vllm:kv_cache_usage_perc": "kv_cache_usage_pct",
     "vllm:num_requests_running": "running_requests",
     "vllm:num_requests_waiting": "waiting_requests",
+    "vllm:num_requests_swapped": "swapped_requests",
     "DCGM_FI_DEV_GPU_UTIL": "gpu_utilization_pct",
     "DCGM_FI_DEV_FB_USED": "gpu_memory_used_gb",
     "DCGM_FI_DEV_FB_FREE": "gpu_memory_free_gb",
@@ -28,6 +29,8 @@ COUNTER_METRIC_MAP: dict[str, str] = {
 HISTOGRAM_METRIC_MAP: dict[str, str] = {
     "vllm:time_to_first_token_seconds": "ttft",
     "vllm:e2e_request_latency_seconds": "latency",
+    "vllm:time_per_output_token_seconds": "tpot",
+    "vllm:request_queue_time_seconds": "queue_time",
 }
 
 METRICS_UNIT_SCALE: dict[str, float] = {

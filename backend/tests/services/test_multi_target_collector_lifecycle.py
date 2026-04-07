@@ -344,7 +344,7 @@ class TestBuildTargetQueries:
         llmis_queries = collector._build_target_queries("ns", "svc", "llminferenceservice")
 
         assert set(isvc_queries.keys()) == set(llmis_queries.keys())
-        assert len(isvc_queries) == 13
+        assert len(isvc_queries) == 18
 
 
 class TestQueryKubernetesPods:

@@ -569,3 +569,42 @@ async def test_evaluate_p95_ttft_fail(storage: Storage) -> None:
     assert ttft_verdict.status == "fail"
     assert ttft_verdict.pass_ is False
     assert ttft_verdict.value == pytest.approx(800.0)
+
+
+@pytest.mark.asyncio
+async def test_ttft_zero_skips_verdict(storage: Storage) -> None:
+    profile = SlaProfile(
+        name="ttft-zero-skip",
+        thresholds=SlaThresholds(mean_ttft_max_ms=100.0, p95_ttft_max_ms=200.0),
+    )
+    benchmark = _make_benchmark(success=990, failed=10, p95_seconds=0.4, tps_mean=20.0)
+    benchmark.result.ttft = LatencyStats(mean=0.0, p50=0.0, p95=0.0, p99=0.0, min=0.0, max=0.0)
+
+    results = _evaluate(profile, [benchmark])
+
+    assert len(results) == 1
+    assert results[0].overall_pass is True
+    ttft_mean_verdicts = [v for v in results[0].verdicts if v.metric == "ttft_mean"]
+    ttft_p95_verdicts = [v for v in results[0].verdicts if v.metric == "ttft_p95"]
+    assert len(ttft_mean_verdicts) == 0
+    assert len(ttft_p95_verdicts) == 0
+
+
+@pytest.mark.asyncio
+async def test_ttft_zero_does_not_affect_overall_pass(storage: Storage) -> None:
+    profile = SlaProfile(
+        name="ttft-zero-other-pass",
+        thresholds=SlaThresholds(mean_ttft_max_ms=100.0, min_tps=10.0),
+    )
+    benchmark = _make_benchmark(success=990, failed=10, p95_seconds=0.4, tps_mean=15.0)
+    benchmark.result.ttft = LatencyStats(mean=0.0, p50=0.0, p95=0.0, p99=0.0, min=0.0, max=0.0)
+
+    results = _evaluate(profile, [benchmark])
+
+    assert len(results) == 1
+    assert results[0].overall_pass is True
+    ttft_mean_verdicts = [v for v in results[0].verdicts if v.metric == "ttft_mean"]
+    assert len(ttft_mean_verdicts) == 0
+    tps_verdict = _verdict_by_metric(results[0], "min_tps")
+    assert tps_verdict.status == "pass"
+    assert tps_verdict.pass_ is True

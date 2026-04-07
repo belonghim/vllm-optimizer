@@ -73,10 +73,10 @@ describe("MonitorChartGrid", () => {
     expect(onShow).toHaveBeenCalledWith("kv");
   });
 
-  it("renders all 9 charts when visibleCharts includes all IDs", () => {
+  it("renders all 11 charts when visibleCharts includes all IDs", () => {
     const allIds = CHART_DEFINITIONS.map(c => c.id);
     render(<MonitorChartGrid {...defaultProps} visibleCharts={allIds} />);
-    expect(screen.getAllByRole("generic", { hidden: true }).length).toBeGreaterThanOrEqual(9);
+    expect(screen.getAllByRole("generic", { hidden: true }).length).toBeGreaterThanOrEqual(11);
     CHART_DEFINITIONS.forEach(def => {
       expect(screen.getByText(def.title)).toBeInTheDocument();
     });
@@ -95,8 +95,8 @@ describe("MonitorChartGrid", () => {
 });
 
 describe("CHART_DEFINITIONS", () => {
-  it("contains exactly 9 chart definitions", () => {
-    expect(CHART_DEFINITIONS).toHaveLength(9);
+  it("contains exactly 11 chart definitions", () => {
+    expect(CHART_DEFINITIONS).toHaveLength(11);
   });
 
   it("has unique IDs", () => {
@@ -180,9 +180,18 @@ describe("buildChartLinesMap", () => {
     expect(result.ttft).toHaveLength(3);
     expect(result.ttft[1].color).toBe(COLORS.cyan);
 
-    expect(result.queue).toHaveLength(2);
+    expect(result.queue).toHaveLength(3);
     expect(result.queue[0].label).toBe("Running");
     expect(result.queue[1].label).toBe("Waiting");
+    expect(result.queue[2].label).toBe("Swapped");
+
+    expect(result.tpot).toHaveLength(2);
+    expect(result.tpot[0].label).toBe("TPOT mean");
+    expect(result.tpot[1].label).toBe("TPOT p99");
+
+    expect(result.queue_time).toHaveLength(2);
+    expect(result.queue_time[0].label).toBe("Queue mean");
+    expect(result.queue_time[1].label).toBe("Queue p99");
 
     expect(result.tps).toEqual([{ key: "ns1/svc1/inferenceservice_tps", color: COLORS.accent, label: "TPS" }]);
   });
@@ -199,6 +208,8 @@ describe("buildChartLinesMap", () => {
     expect(result.tps).toHaveLength(3);
     expect(result.latency).toHaveLength(3);
     expect(result.gpu_util).toHaveLength(3);
+    expect(result.tpot).toHaveLength(3);
+    expect(result.queue_time).toHaveLength(3);
 
     expect(result.tps[0]).toEqual({ key: "ns1/svc1/inferenceservice_tps", label: "svc1", color: TARGET_COLORS[0] });
     expect(result.tps[1]).toEqual({ key: "ns2/svc2/inferenceservice_tps", label: "svc2", color: TARGET_COLORS[1] });
@@ -220,5 +231,7 @@ describe("buildChartLinesMap", () => {
     expect(result.rps).toEqual([]);
     expect(result.gpu_util).toEqual([]);
     expect(result.gpu_mem).toEqual([]);
+    expect(result.tpot).toEqual([]);
+    expect(result.queue_time).toEqual([]);
   });
 });

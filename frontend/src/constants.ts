@@ -45,7 +45,7 @@ export const TOOLTIP_STYLE: TooltipStyle = { background: COLORS.surface, border:
 
 export const TARGET_COLORS: string[] = [COLORS.accent, COLORS.cyan, COLORS.green, COLORS.red, COLORS.purple];
 
-export const METRIC_KEYS: string[] = ['tps', 'ttft', 'ttft_fill', 'lat_p99', 'lat_p99_fill', 'kv', 'running', 'waiting', 'rps', 'ttft_p99', 'lat_mean', 'kv_hit', 'gpu_util', 'gpu_mem_used', 'gpu_mem_total'];
+export const METRIC_KEYS: string[] = ['tps', 'ttft', 'ttft_fill', 'lat_p99', 'lat_p99_fill', 'kv', 'running', 'waiting', 'rps', 'ttft_p99', 'lat_mean', 'kv_hit', 'gpu_util', 'gpu_mem_used', 'gpu_mem_total', 'swapped', 'tpot_mean', 'tpot_p99', 'queue_time_mean', 'queue_time_p99'];
 
 export interface LoadTestPreset {
   name: string;

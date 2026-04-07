@@ -29,6 +29,11 @@ export interface HistoryPoint {
   gpu_util?: number;
   gpu_mem_used?: number;
   gpu_mem_total?: number;
+  swapped?: number;
+  tpot_mean?: number | null;
+  tpot_p99?: number | null;
+  queue_time_mean?: number | null;
+  queue_time_p99?: number | null;
 }
 
 export interface TargetResultData {
@@ -45,6 +50,11 @@ export interface TargetResultData {
   gpu_util?: number | null;
   gpu_mem_used?: number | null;
   gpu_mem_total?: number | null;
+  swapped?: number | null;
+  tpot_mean?: number | null;
+  tpot_p99?: number | null;
+  queue_time_mean?: number | null;
+  queue_time_p99?: number | null;
   error_rate?: number | null;
   availability?: number | null;
 }

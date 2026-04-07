@@ -26,6 +26,8 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
   { id: 'rps',      title: 'RPS (Requests/sec)' },
   { id: 'gpu_util', title: 'GPU Utilization (%)' },
   { id: 'gpu_mem',  title: 'GPU Memory (GB)' },
+  { id: 'tpot',       title: 'TPOT (ms)' },
+  { id: 'queue_time', title: 'Queue Time (ms)' },
 ];
 
 const LS_KEY = 'vllm-optimizer-chart-config';
@@ -95,6 +97,15 @@ export function buildChartLinesMap(
       queue:    [
         { key: `${defaultKey}_running`, color: COLORS.green, label: "Running" },
         { key: `${defaultKey}_waiting`, color: COLORS.red, label: "Waiting" },
+        { key: `${defaultKey}_swapped`, color: COLORS.accent, label: "Swapped" },
+      ],
+      tpot: [
+        { key: `${defaultKey}_tpot_mean`, color: COLORS.cyan, label: "TPOT mean" },
+        { key: `${defaultKey}_tpot_p99`, color: COLORS.accent, label: "TPOT p99" },
+      ],
+      queue_time: [
+        { key: `${defaultKey}_queue_time_mean`, color: COLORS.green, label: "Queue mean" },
+        { key: `${defaultKey}_queue_time_p99`, color: COLORS.accent, label: "Queue p99" },
       ],
       rps:      [{ key: `${defaultKey}_rps`, color: COLORS.green, label: "RPS" }],
       gpu_util: [{ key: `${defaultKey}_gpu_util`, color: COLORS.red, label: "GPU Util %" }],
@@ -112,6 +123,8 @@ export function buildChartLinesMap(
     rps:      makeMultiLines('rps'),
     gpu_util: makeMultiLines('gpu_util'),
     gpu_mem:  makeMultiLines('gpu_mem_used'),
+    tpot:       makeMultiLines('tpot_mean'),
+    queue_time: makeMultiLines('queue_time_mean'),
   };
 }
 
