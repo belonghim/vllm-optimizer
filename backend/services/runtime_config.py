@@ -8,6 +8,7 @@ NOTE: This module now delegates to MultiTargetCollector's first target (default 
 The actual values are stored in multi_target_collector._targets[0].
 """
 
+import logging
 import os
 
 
@@ -91,3 +92,21 @@ class RuntimeConfig:
 
     def reset_cr_type(self) -> None:
         self._cr_type_override = None
+
+    def apply_default_llmisvc(self, name: str, namespace: str) -> None:
+        if not name or not namespace:
+            return
+
+        self.set_cr_type("llminferenceservice")
+        self.set_vllm_namespace(namespace)
+        self.set_vllm_is_name(name)
+        endpoint = f"https://openshift-ai-inference-openshift-default.openshift-ingress.svc/{namespace}/{name}"
+        self._default_endpoint = endpoint
+
+        logger = logging.getLogger(__name__)
+        logger.info(
+            "[RuntimeConfig] Applied default LLMISvc: name=%s, namespace=%s, endpoint=%s",
+            name,
+            namespace,
+            endpoint,
+        )
