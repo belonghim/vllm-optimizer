@@ -236,7 +236,6 @@ class MetricsSnapshot(BaseModel):
     gpu_util: float = Field(default=0.0, description="GPU utilization percentage")
     pods: int = Field(default=0, description="Total number of vLLM pods")
     pods_ready: int = Field(default=0, description="Number of ready vLLM pods")
-    swapped: int = Field(default=0, description="Number of requests swapped to CPU")
     tpot_mean: float | None = Field(default=None, description="Time per output token (mean) in ms")
     tpot_p99: float | None = Field(default=None, description="Time per output token (P99) in ms")
     queue_time_mean: float | None = Field(default=None, description="Queue wait time (mean) in ms")

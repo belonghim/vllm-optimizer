@@ -96,7 +96,7 @@ describe("MonitorChartGrid", () => {
 
 describe("CHART_DEFINITIONS", () => {
   it("contains exactly 12 chart definitions", () => {
-    expect(CHART_DEFINITIONS).toHaveLength(12);
+    expect(CHART_DEFINITIONS).toHaveLength(11);
   });
 
   it("has unique IDs", () => {
@@ -183,10 +183,7 @@ describe("buildChartLinesMap", () => {
     expect(result.queue).toHaveLength(2);
     expect(result.queue[0].label).toBe("Running");
     expect(result.queue[1].label).toBe("Waiting");
- 
-    expect(result.swapped).toHaveLength(1);
-    expect(result.swapped[0].label).toBe("Swapped");
- 
+  
     expect(result.tpot).toHaveLength(2);
     expect(result.tpot[0].label).toBe("TPOT mean");
     expect(result.tpot[1].label).toBe("TPOT p99");
@@ -210,7 +207,6 @@ describe("buildChartLinesMap", () => {
     expect(result.tps).toHaveLength(3);
     expect(result.latency).toHaveLength(3);
     expect(result.gpu_util).toHaveLength(3);
-    expect(result.swapped).toHaveLength(3);
     expect(result.tpot).toHaveLength(3);
     expect(result.queue_time).toHaveLength(3);
 
@@ -236,6 +232,5 @@ describe("buildChartLinesMap", () => {
     expect(result.gpu_mem).toEqual([]);
     expect(result.tpot).toEqual([]);
     expect(result.queue_time).toEqual([]);
-    expect(result.swapped).toEqual([]);
   });
 });
