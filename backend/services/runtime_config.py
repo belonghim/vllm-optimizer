@@ -89,6 +89,8 @@ class RuntimeConfig:
         if value not in ("inferenceservice", "llminferenceservice"):
             raise ValueError(f"Invalid cr_type: {value}. Must be 'inferenceservice' or 'llminferenceservice'")
         self._cr_type_override = value
+        if self._multi_target_collector is not None and hasattr(self._multi_target_collector, "set_default_target"):
+            self._multi_target_collector.set_default_target(cr_type=value)
 
     def reset_cr_type(self) -> None:
         self._cr_type_override = None

@@ -338,7 +338,9 @@ class MultiTargetMetricsCollector:
         if self._cleanup_task is not None and not self._cleanup_task.done():
             _ = self._cleanup_task.cancel()
 
-    def set_default_target(self, namespace: str | None = None, is_name: str | None = None) -> None:
+    def set_default_target(
+        self, namespace: str | None = None, is_name: str | None = None, cr_type: str | None = None
+    ) -> None:
         default_target = self._get_default_target()
         if default_target is None:
             return
@@ -346,10 +348,12 @@ class MultiTargetMetricsCollector:
         old_key = default_target.key
         new_namespace = namespace if namespace is not None else default_target.namespace
         new_is_name = is_name if is_name is not None else default_target.is_name
-        new_key = self.build_target_key(new_namespace, new_is_name, default_target.cr_type)
+        new_cr_type = cr_type if cr_type is not None else default_target.cr_type
+        new_key = self.build_target_key(new_namespace, new_is_name, new_cr_type)
 
         default_target.namespace = new_namespace
         default_target.is_name = new_is_name
+        default_target.cr_type = new_cr_type
         default_target.key = new_key
 
         if old_key != new_key:
