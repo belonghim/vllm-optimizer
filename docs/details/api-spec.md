@@ -2015,10 +2015,16 @@ List all SLA profiles with pagination.
     "id": "string",
     "name": "string",
     "thresholds": {
-      "availability_min": "number",
-      "p95_latency_max_ms": "number",
-      "error_rate_max_pct": "number",
-      "min_tps": "number"
+      "availability_min": "number | null",
+      "p95_latency_max_ms": "number | null",
+      "error_rate_max_pct": "number | null",
+      "mean_ttft_max_ms": "number | null",
+      "p95_ttft_max_ms": "number | null",
+      "mean_e2e_latency_max_ms": "number | null",
+      "mean_tpot_max_ms": "number | null",
+      "p95_tpot_max_ms": "number | null",
+      "mean_queue_time_max_ms": "number | null",
+      "p95_queue_time_max_ms": "number | null"
     },
     "created_at": "string"
   }
@@ -2045,13 +2051,22 @@ Create a new SLA profile.
 {
   "name": "string",
   "thresholds": {
-    "availability_min": "number",
-    "p95_latency_max_ms": "number",
-    "error_rate_max_pct": "number",
-    "min_tps": "number"
+    "availability_min": "number | null",
+    "p95_latency_max_ms": "number | null",
+    "error_rate_max_pct": "number | null",
+    "mean_ttft_max_ms": "number | null",
+    "p95_ttft_max_ms": "number | null",
+    "mean_e2e_latency_max_ms": "number | null",
+    "mean_tpot_max_ms": "number | null",
+    "p95_tpot_max_ms": "number | null",
+    "mean_queue_time_max_ms": "number | null",
+    "p95_queue_time_max_ms": "number | null"
   }
 }
 ```
+
+> [!NOTE]
+> At least one threshold field must be non-null.
 
 **Response (201 Created):**
 
@@ -2126,13 +2141,22 @@ Update an existing SLA profile. Full replacement of the profile data.
 {
   "name": "string",
   "thresholds": {
-    "availability_min": "number",
-    "p95_latency_max_ms": "number",
-    "error_rate_max_pct": "number",
-    "min_tps": "number"
+    "availability_min": "number | null",
+    "p95_latency_max_ms": "number | null",
+    "error_rate_max_pct": "number | null",
+    "mean_ttft_max_ms": "number | null",
+    "p95_ttft_max_ms": "number | null",
+    "mean_e2e_latency_max_ms": "number | null",
+    "mean_tpot_max_ms": "number | null",
+    "p95_tpot_max_ms": "number | null",
+    "mean_queue_time_max_ms": "number | null",
+    "p95_queue_time_max_ms": "number | null"
   }
 }
 ```
+
+> [!NOTE]
+> At least one threshold field must be non-null.
 
 **Response (200 OK):**
 

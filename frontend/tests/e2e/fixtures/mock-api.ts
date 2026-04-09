@@ -1,6 +1,9 @@
 import { test as base, expect, type Page } from '@playwright/test';
 
+let createdSlaProfile: { id: number; name: string; thresholds: Record<string, unknown>; created_at: number } | null = null;
+
 export async function setupMockApi(page: Page) {
+  createdSlaProfile = null;
   await page.route('**/api/**', async (route) => {
     const req = route.request();
     const { pathname } = new URL(req.url());
@@ -156,6 +159,22 @@ export async function setupMockApi(page: Page) {
     // SLA
     if (pathname === '/api/sla/evaluate' && method === 'POST') {
       return json({ profile: null, results: [], warnings: [] });
+    }
+    if (pathname === '/api/sla/profiles' && method === 'POST') {
+      createdSlaProfile = { id: 1, name: 'Test SLA Profile', thresholds: { mean_tpot_max_ms: 100 }, created_at: Date.now() };
+      return json(createdSlaProfile);
+    }
+    if (pathname === '/api/sla/profiles' && method === 'GET') {
+      return json(createdSlaProfile ? [createdSlaProfile] : []);
+    }
+    if (pathname.match(/^\/api\/sla\/profiles\/\d+$/) && method === 'GET') {
+      return json(createdSlaProfile || { id: 1, name: 'Test Profile', thresholds: { mean_tpot_max_ms: 100 }, created_at: Date.now() });
+    }
+    if (pathname.match(/^\/api\/sla\/profiles\/\d+$/) && method === 'PUT') {
+      return json({ id: 1, name: 'Updated Profile', thresholds: { mean_tpot_max_ms: 200 }, created_at: Date.now() });
+    }
+    if (pathname.match(/^\/api\/sla\/profiles\/\d+$/) && method === 'DELETE') {
+      return json({ deleted: true });
     }
 
     // Metrics
