@@ -35,12 +35,21 @@ def evaluate_benchmarks_against_sla(
             metric_thresholds.append(("p95_latency", thresholds.p95_latency_max_ms))
         if thresholds.error_rate_max_pct is not None:
             metric_thresholds.append(("error_rate", thresholds.error_rate_max_pct))
-        if thresholds.min_tps is not None:
-            metric_thresholds.append(("min_tps", thresholds.min_tps))
+
         if thresholds.mean_ttft_max_ms is not None:
             metric_thresholds.append(("ttft_mean", thresholds.mean_ttft_max_ms))
         if thresholds.p95_ttft_max_ms is not None:
             metric_thresholds.append(("ttft_p95", thresholds.p95_ttft_max_ms))
+        if thresholds.mean_e2e_latency_max_ms is not None:
+            metric_thresholds.append(("mean_e2e_latency", thresholds.mean_e2e_latency_max_ms))
+        if thresholds.mean_tpot_max_ms is not None:
+            metric_thresholds.append(("tpot_mean", thresholds.mean_tpot_max_ms))
+        if thresholds.p95_tpot_max_ms is not None:
+            metric_thresholds.append(("tpot_p95", thresholds.p95_tpot_max_ms))
+        if thresholds.mean_queue_time_max_ms is not None:
+            metric_thresholds.append(("queue_time_mean", thresholds.mean_queue_time_max_ms))
+        if thresholds.p95_queue_time_max_ms is not None:
+            metric_thresholds.append(("queue_time_p95", thresholds.p95_queue_time_max_ms))
 
         if total == 0:
             for metric, threshold in metric_thresholds:
@@ -98,9 +107,138 @@ def evaluate_benchmarks_against_sla(
                         )
                         continue
                     pass_bool = value <= threshold
-                else:
-                    value = benchmark.result.tps.mean
-                    pass_bool = value >= threshold
+                elif metric == "mean_e2e_latency":
+                    value = benchmark.result.latency.mean * 1000
+                    if value == 0:
+                        verdicts.append(
+                            SlaVerdict.model_validate(
+                                {
+                                    "metric": metric,
+                                    "value": 0.0,
+                                    "threshold": threshold,
+                                    "pass": True,
+                                    "status": "skipped",
+                                }
+                            )
+                        )
+                        continue
+                    pass_bool = value <= threshold
+                elif metric == "tpot_mean":
+                    if benchmark.result.tpot is None:
+                        verdicts.append(
+                            SlaVerdict.model_validate(
+                                {
+                                    "metric": metric,
+                                    "value": None,
+                                    "threshold": threshold,
+                                    "pass": True,
+                                    "status": "skipped",
+                                }
+                            )
+                        )
+                        continue
+                    value = benchmark.result.tpot.mean * 1000
+                    if value == 0:
+                        verdicts.append(
+                            SlaVerdict.model_validate(
+                                {
+                                    "metric": metric,
+                                    "value": 0.0,
+                                    "threshold": threshold,
+                                    "pass": True,
+                                    "status": "skipped",
+                                }
+                            )
+                        )
+                        continue
+                    pass_bool = value <= threshold
+                elif metric == "tpot_p95":
+                    if benchmark.result.tpot is None:
+                        verdicts.append(
+                            SlaVerdict.model_validate(
+                                {
+                                    "metric": metric,
+                                    "value": None,
+                                    "threshold": threshold,
+                                    "pass": True,
+                                    "status": "skipped",
+                                }
+                            )
+                        )
+                        continue
+                    value = benchmark.result.tpot.p95 * 1000
+                    if value == 0:
+                        verdicts.append(
+                            SlaVerdict.model_validate(
+                                {
+                                    "metric": metric,
+                                    "value": 0.0,
+                                    "threshold": threshold,
+                                    "pass": True,
+                                    "status": "skipped",
+                                }
+                            )
+                        )
+                        continue
+                    pass_bool = value <= threshold
+                elif metric == "queue_time_mean":
+                    if benchmark.result.queue_time is None:
+                        verdicts.append(
+                            SlaVerdict.model_validate(
+                                {
+                                    "metric": metric,
+                                    "value": None,
+                                    "threshold": threshold,
+                                    "pass": True,
+                                    "status": "skipped",
+                                }
+                            )
+                        )
+                        continue
+                    value = benchmark.result.queue_time.mean * 1000
+                    if value == 0:
+                        verdicts.append(
+                            SlaVerdict.model_validate(
+                                {
+                                    "metric": metric,
+                                    "value": 0.0,
+                                    "threshold": threshold,
+                                    "pass": True,
+                                    "status": "skipped",
+                                }
+                            )
+                        )
+                        continue
+                    pass_bool = value <= threshold
+                elif metric == "queue_time_p95":
+                    if benchmark.result.queue_time is None:
+                        verdicts.append(
+                            SlaVerdict.model_validate(
+                                {
+                                    "metric": metric,
+                                    "value": None,
+                                    "threshold": threshold,
+                                    "pass": True,
+                                    "status": "skipped",
+                                }
+                            )
+                        )
+                        continue
+                    value = benchmark.result.queue_time.p95 * 1000
+                    if value == 0:
+                        verdicts.append(
+                            SlaVerdict.model_validate(
+                                {
+                                    "metric": metric,
+                                    "value": 0.0,
+                                    "threshold": threshold,
+                                    "pass": True,
+                                    "status": "skipped",
+                                }
+                            )
+                        )
+                        continue
+                    pass_bool = value <= threshold
 
                 verdicts.append(
                     SlaVerdict.model_validate(

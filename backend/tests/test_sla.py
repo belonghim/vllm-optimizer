@@ -78,7 +78,6 @@ async def test_evaluate_all_pass(storage: Storage) -> None:
             availability_min=99.0,
             p95_latency_max_ms=500.0,
             error_rate_max_pct=1.0,
-            min_tps=10.0,
         ),
     )
     benchmark = _make_benchmark(success=990, failed=10, p95_seconds=0.4, tps_mean=20.0)
@@ -143,20 +142,41 @@ async def test_evaluate_error_rate_fail(storage: Storage) -> None:
 
 
 @pytest.mark.asyncio
-async def test_evaluate_tps_fail(storage: Storage) -> None:
+async def test_evaluate_mean_e2e_latency_pass(storage: Storage) -> None:
     profile = SlaProfile(
-        name="tps-only",
-        thresholds=SlaThresholds(min_tps=50.0),
+        name="e2e-latency-pass",
+        thresholds=SlaThresholds(mean_e2e_latency_max_ms=500.0),
     )
-    benchmark = _make_benchmark(tps_mean=30.0)
+    benchmark = _make_benchmark(p95_seconds=0.3)
+    benchmark.result.latency = LatencyStats(mean=0.3, p50=0.3, p95=0.3, p99=0.3, min=0.3, max=0.3)
+
+    results = _evaluate(profile, [benchmark])
+
+    assert len(results) == 1
+    assert results[0].overall_pass is True
+    e2e_verdict = _verdict_by_metric(results[0], "mean_e2e_latency")
+    assert e2e_verdict.status == "pass"
+    assert e2e_verdict.pass_ is True
+    assert e2e_verdict.value == pytest.approx(300.0)
+
+
+@pytest.mark.asyncio
+async def test_evaluate_mean_e2e_latency_fail(storage: Storage) -> None:
+    profile = SlaProfile(
+        name="e2e-latency-fail",
+        thresholds=SlaThresholds(mean_e2e_latency_max_ms=200.0),
+    )
+    benchmark = _make_benchmark(p95_seconds=0.3)
+    benchmark.result.latency = LatencyStats(mean=0.3, p50=0.3, p95=0.3, p99=0.3, min=0.3, max=0.3)
 
     results = _evaluate(profile, [benchmark])
 
     assert len(results) == 1
     assert results[0].overall_pass is False
-    tps_verdict = _verdict_by_metric(results[0], "min_tps")
-    assert tps_verdict.status == "fail"
-    assert tps_verdict.pass_ is False
+    e2e_verdict = _verdict_by_metric(results[0], "mean_e2e_latency")
+    assert e2e_verdict.status == "fail"
+    assert e2e_verdict.pass_ is False
+    assert e2e_verdict.value == pytest.approx(300.0)
 
 
 @pytest.mark.asyncio
@@ -213,7 +233,7 @@ async def test_sla_profile_crud(storage: Storage) -> None:
             availability_min=99.9,
             p95_latency_max_ms=500.0,
             error_rate_max_pct=0.5,
-            min_tps=20.0,
+            mean_e2e_latency_max_ms=300.0,
         ),
     )
 
@@ -227,7 +247,7 @@ async def test_sla_profile_crud(storage: Storage) -> None:
     assert loaded.thresholds.availability_min == 99.9
     assert loaded.thresholds.p95_latency_max_ms == 500.0
     assert loaded.thresholds.error_rate_max_pct == 0.5
-    assert loaded.thresholds.min_tps == 20.0
+    assert loaded.thresholds.mean_e2e_latency_max_ms == 300.0
 
 
 @pytest.mark.asyncio
@@ -238,8 +258,8 @@ async def test_thresholds_all_none_rejected(storage: Storage) -> None:
 
 @pytest.mark.asyncio
 async def test_thresholds_at_least_one_valid(storage: Storage) -> None:
-    t = SlaThresholds(min_tps=10.0)
-    assert t.min_tps == 10.0
+    t = SlaThresholds(mean_e2e_latency_max_ms=300.0)
+    assert t.mean_e2e_latency_max_ms == 300.0
 
 
 @pytest.mark.asyncio
@@ -304,13 +324,13 @@ async def test_sla_profile_update(storage: Storage) -> None:
 
     updated_profile = SlaProfile(
         name="updated",
-        thresholds=SlaThresholds(availability_min=95.0, min_tps=5.0),
+        thresholds=SlaThresholds(availability_min=95.0, mean_e2e_latency_max_ms=300.0),
     )
     updated = await storage.update_sla_profile(saved.id, updated_profile)
     assert updated is not None
     assert updated.name == "updated"
     assert updated.thresholds.availability_min == 95.0
-    assert updated.thresholds.min_tps == 5.0
+    assert updated.thresholds.mean_e2e_latency_max_ms == 300.0
 
     loaded = await storage.get_sla_profile(saved.id)
     assert loaded is not None
@@ -321,7 +341,7 @@ async def test_sla_profile_update(storage: Storage) -> None:
 async def test_sla_profile_delete(storage: Storage) -> None:
     profile = SlaProfile(
         name="to-delete",
-        thresholds=SlaThresholds(min_tps=10.0),
+        thresholds=SlaThresholds(mean_e2e_latency_max_ms=300.0),
     )
     saved = await storage.save_sla_profile(profile)
     assert saved.id is not None
@@ -339,7 +359,7 @@ async def test_sla_profile_list(storage: Storage) -> None:
     for i in range(3):
         p = SlaProfile(
             name=f"profile-{i}",
-            thresholds=SlaThresholds(min_tps=float(i + 1)),
+            thresholds=SlaThresholds(mean_e2e_latency_max_ms=float(100 + i * 50)),
         )
         saved = await storage.save_sla_profile(p)
         profiles.append(saved)
@@ -372,7 +392,7 @@ async def test_create_profile_http_201(storage: Storage, monkeypatch: pytest.Mon
                 "availability_min": 99.9,
                 "p95_latency_max_ms": None,
                 "error_rate_max_pct": None,
-                "min_tps": None,
+                "mean_e2e_latency_max_ms": None,
             },
         }
         resp = client.post("/api/sla/profiles", json=body)
@@ -401,7 +421,7 @@ async def test_create_profile_http_422_no_thresholds(storage: Storage, monkeypat
                 "availability_min": None,
                 "p95_latency_max_ms": None,
                 "error_rate_max_pct": None,
-                "min_tps": None,
+                "mean_e2e_latency_max_ms": None,
             },
         }
         resp = client.post("/api/sla/profiles", json=body)
@@ -611,3 +631,265 @@ async def test_overall_pass_ignores_skipped(storage: Storage) -> None:
     assert results[0].verdicts[0].metric == "ttft_mean"
     assert results[0].verdicts[0].status == "skipped"
     assert results[0].verdicts[0].pass_ is True
+
+
+@pytest.mark.asyncio
+async def test_evaluate_tpot_mean_pass(storage: Storage) -> None:
+    profile = SlaProfile(
+        name="tpot-mean-pass",
+        thresholds=SlaThresholds(mean_tpot_max_ms=50.0),
+    )
+    benchmark = _make_benchmark(success=990, failed=10, p95_seconds=0.4, tps_mean=20.0)
+    benchmark.result.tpot = LatencyStats(mean=0.03, p50=0.03, p95=0.04, p99=0.05, min=0.02, max=0.05)
+
+    results = _evaluate(profile, [benchmark])
+
+    assert len(results) == 1
+    assert results[0].overall_pass is True
+    tpot_verdict = _verdict_by_metric(results[0], "tpot_mean")
+    assert tpot_verdict.status == "pass"
+    assert tpot_verdict.pass_ is True
+    assert tpot_verdict.value == pytest.approx(30.0)
+
+
+@pytest.mark.asyncio
+async def test_evaluate_tpot_mean_fail(storage: Storage) -> None:
+    profile = SlaProfile(
+        name="tpot-mean-fail",
+        thresholds=SlaThresholds(mean_tpot_max_ms=20.0),
+    )
+    benchmark = _make_benchmark(success=990, failed=10, p95_seconds=0.4, tps_mean=20.0)
+    benchmark.result.tpot = LatencyStats(mean=0.03, p50=0.03, p95=0.04, p99=0.05, min=0.02, max=0.05)
+
+    results = _evaluate(profile, [benchmark])
+
+    assert len(results) == 1
+    assert results[0].overall_pass is False
+    tpot_verdict = _verdict_by_metric(results[0], "tpot_mean")
+    assert tpot_verdict.status == "fail"
+    assert tpot_verdict.pass_ is False
+    assert tpot_verdict.value == pytest.approx(30.0)
+
+
+@pytest.mark.asyncio
+async def test_evaluate_tpot_mean_skipped_when_none(storage: Storage) -> None:
+    profile = SlaProfile(
+        name="tpot-mean-skipped",
+        thresholds=SlaThresholds(mean_tpot_max_ms=50.0),
+    )
+    benchmark = _make_benchmark(success=990, failed=10, p95_seconds=0.4, tps_mean=20.0)
+    benchmark.result.tpot = None
+
+    results = _evaluate(profile, [benchmark])
+
+    assert len(results) == 1
+    assert results[0].overall_pass is True
+    tpot_verdict = _verdict_by_metric(results[0], "tpot_mean")
+    assert tpot_verdict.status == "skipped"
+    assert tpot_verdict.pass_ is True
+
+
+@pytest.mark.asyncio
+async def test_evaluate_tpot_mean_skipped_when_zero(storage: Storage) -> None:
+    profile = SlaProfile(
+        name="tpot-mean-zero-skipped",
+        thresholds=SlaThresholds(mean_tpot_max_ms=50.0),
+    )
+    benchmark = _make_benchmark(success=990, failed=10, p95_seconds=0.4, tps_mean=20.0)
+    benchmark.result.tpot = LatencyStats(mean=0.0, p50=0.0, p95=0.0, p99=0.0, min=0.0, max=0.0)
+
+    results = _evaluate(profile, [benchmark])
+
+    assert len(results) == 1
+    assert results[0].overall_pass is True
+    tpot_verdict = _verdict_by_metric(results[0], "tpot_mean")
+    assert tpot_verdict.status == "skipped"
+    assert tpot_verdict.pass_ is True
+    assert tpot_verdict.value == 0.0
+
+
+@pytest.mark.asyncio
+async def test_evaluate_tpot_p95_pass(storage: Storage) -> None:
+    profile = SlaProfile(
+        name="tpot-p95-pass",
+        thresholds=SlaThresholds(p95_tpot_max_ms=100.0),
+    )
+    benchmark = _make_benchmark(success=990, failed=10, p95_seconds=0.4, tps_mean=20.0)
+    benchmark.result.tpot = LatencyStats(mean=0.03, p50=0.03, p95=0.04, p99=0.05, min=0.02, max=0.05)
+
+    results = _evaluate(profile, [benchmark])
+
+    assert len(results) == 1
+    assert results[0].overall_pass is True
+    tpot_verdict = _verdict_by_metric(results[0], "tpot_p95")
+    assert tpot_verdict.status == "pass"
+    assert tpot_verdict.pass_ is True
+    assert tpot_verdict.value == pytest.approx(40.0)
+
+
+@pytest.mark.asyncio
+async def test_evaluate_tpot_p95_fail(storage: Storage) -> None:
+    profile = SlaProfile(
+        name="tpot-p95-fail",
+        thresholds=SlaThresholds(p95_tpot_max_ms=30.0),
+    )
+    benchmark = _make_benchmark(success=990, failed=10, p95_seconds=0.4, tps_mean=20.0)
+    benchmark.result.tpot = LatencyStats(mean=0.03, p50=0.03, p95=0.04, p99=0.05, min=0.02, max=0.05)
+
+    results = _evaluate(profile, [benchmark])
+
+    assert len(results) == 1
+    assert results[0].overall_pass is False
+    tpot_verdict = _verdict_by_metric(results[0], "tpot_p95")
+    assert tpot_verdict.status == "fail"
+    assert tpot_verdict.pass_ is False
+    assert tpot_verdict.value == pytest.approx(40.0)
+
+
+@pytest.mark.asyncio
+async def test_evaluate_tpot_p95_skipped_when_none(storage: Storage) -> None:
+    profile = SlaProfile(
+        name="tpot-p95-skipped",
+        thresholds=SlaThresholds(p95_tpot_max_ms=50.0),
+    )
+    benchmark = _make_benchmark(success=990, failed=10, p95_seconds=0.4, tps_mean=20.0)
+    benchmark.result.tpot = None
+
+    results = _evaluate(profile, [benchmark])
+
+    assert len(results) == 1
+    assert results[0].overall_pass is True
+    tpot_verdict = _verdict_by_metric(results[0], "tpot_p95")
+    assert tpot_verdict.status == "skipped"
+    assert tpot_verdict.pass_ is True
+
+
+@pytest.mark.asyncio
+async def test_evaluate_queue_time_mean_pass(storage: Storage) -> None:
+    profile = SlaProfile(
+        name="queue-time-mean-pass",
+        thresholds=SlaThresholds(mean_queue_time_max_ms=100.0),
+    )
+    benchmark = _make_benchmark(success=990, failed=10, p95_seconds=0.4, tps_mean=20.0)
+    benchmark.result.queue_time = LatencyStats(mean=0.05, p50=0.05, p95=0.08, p99=0.1, min=0.01, max=0.1)
+
+    results = _evaluate(profile, [benchmark])
+
+    assert len(results) == 1
+    assert results[0].overall_pass is True
+    queue_verdict = _verdict_by_metric(results[0], "queue_time_mean")
+    assert queue_verdict.status == "pass"
+    assert queue_verdict.pass_ is True
+    assert queue_verdict.value == pytest.approx(50.0)
+
+
+@pytest.mark.asyncio
+async def test_evaluate_queue_time_mean_fail(storage: Storage) -> None:
+    profile = SlaProfile(
+        name="queue-time-mean-fail",
+        thresholds=SlaThresholds(mean_queue_time_max_ms=30.0),
+    )
+    benchmark = _make_benchmark(success=990, failed=10, p95_seconds=0.4, tps_mean=20.0)
+    benchmark.result.queue_time = LatencyStats(mean=0.05, p50=0.05, p95=0.08, p99=0.1, min=0.01, max=0.1)
+
+    results = _evaluate(profile, [benchmark])
+
+    assert len(results) == 1
+    assert results[0].overall_pass is False
+    queue_verdict = _verdict_by_metric(results[0], "queue_time_mean")
+    assert queue_verdict.status == "fail"
+    assert queue_verdict.pass_ is False
+    assert queue_verdict.value == pytest.approx(50.0)
+
+
+@pytest.mark.asyncio
+async def test_evaluate_queue_time_mean_skipped_when_none(storage: Storage) -> None:
+    profile = SlaProfile(
+        name="queue-time-mean-skipped",
+        thresholds=SlaThresholds(mean_queue_time_max_ms=100.0),
+    )
+    benchmark = _make_benchmark(success=990, failed=10, p95_seconds=0.4, tps_mean=20.0)
+    benchmark.result.queue_time = None
+
+    results = _evaluate(profile, [benchmark])
+
+    assert len(results) == 1
+    assert results[0].overall_pass is True
+    queue_verdict = _verdict_by_metric(results[0], "queue_time_mean")
+    assert queue_verdict.status == "skipped"
+    assert queue_verdict.pass_ is True
+
+
+@pytest.mark.asyncio
+async def test_evaluate_queue_time_mean_skipped_when_zero(storage: Storage) -> None:
+    profile = SlaProfile(
+        name="queue-time-mean-zero-skipped",
+        thresholds=SlaThresholds(mean_queue_time_max_ms=100.0),
+    )
+    benchmark = _make_benchmark(success=990, failed=10, p95_seconds=0.4, tps_mean=20.0)
+    benchmark.result.queue_time = LatencyStats(mean=0.0, p50=0.0, p95=0.0, p99=0.0, min=0.0, max=0.0)
+
+    results = _evaluate(profile, [benchmark])
+
+    assert len(results) == 1
+    assert results[0].overall_pass is True
+    queue_verdict = _verdict_by_metric(results[0], "queue_time_mean")
+    assert queue_verdict.status == "skipped"
+    assert queue_verdict.pass_ is True
+    assert queue_verdict.value == 0.0
+
+
+@pytest.mark.asyncio
+async def test_evaluate_queue_time_p95_pass(storage: Storage) -> None:
+    profile = SlaProfile(
+        name="queue-time-p95-pass",
+        thresholds=SlaThresholds(p95_queue_time_max_ms=200.0),
+    )
+    benchmark = _make_benchmark(success=990, failed=10, p95_seconds=0.4, tps_mean=20.0)
+    benchmark.result.queue_time = LatencyStats(mean=0.05, p50=0.05, p95=0.08, p99=0.1, min=0.01, max=0.1)
+
+    results = _evaluate(profile, [benchmark])
+
+    assert len(results) == 1
+    assert results[0].overall_pass is True
+    queue_verdict = _verdict_by_metric(results[0], "queue_time_p95")
+    assert queue_verdict.status == "pass"
+    assert queue_verdict.pass_ is True
+    assert queue_verdict.value == pytest.approx(80.0)
+
+
+@pytest.mark.asyncio
+async def test_evaluate_queue_time_p95_fail(storage: Storage) -> None:
+    profile = SlaProfile(
+        name="queue-time-p95-fail",
+        thresholds=SlaThresholds(p95_queue_time_max_ms=50.0),
+    )
+    benchmark = _make_benchmark(success=990, failed=10, p95_seconds=0.4, tps_mean=20.0)
+    benchmark.result.queue_time = LatencyStats(mean=0.05, p50=0.05, p95=0.08, p99=0.1, min=0.01, max=0.1)
+
+    results = _evaluate(profile, [benchmark])
+
+    assert len(results) == 1
+    assert results[0].overall_pass is False
+    queue_verdict = _verdict_by_metric(results[0], "queue_time_p95")
+    assert queue_verdict.status == "fail"
+    assert queue_verdict.pass_ is False
+    assert queue_verdict.value == pytest.approx(80.0)
+
+
+@pytest.mark.asyncio
+async def test_evaluate_queue_time_p95_skipped_when_none(storage: Storage) -> None:
+    profile = SlaProfile(
+        name="queue-time-p95-skipped",
+        thresholds=SlaThresholds(p95_queue_time_max_ms=100.0),
+    )
+    benchmark = _make_benchmark(success=990, failed=10, p95_seconds=0.4, tps_mean=20.0)
+    benchmark.result.queue_time = None
+
+    results = _evaluate(profile, [benchmark])
+
+    assert len(results) == 1
+    assert results[0].overall_pass is True
+    queue_verdict = _verdict_by_metric(results[0], "queue_time_p95")
+    assert queue_verdict.status == "skipped"
+    assert queue_verdict.pass_ is True

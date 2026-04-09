@@ -779,6 +779,8 @@ class LoadTestEngine:
         successful = [r for r in results if r.success]
         latencies = [r.latency for r in successful]
         ttfts = [r.ttft for r in successful if r.ttft is not None]
+        tpots = [r.time_per_output_token for r in successful if r.time_per_output_token is not None]
+        queue_times = [r.queue_time for r in successful if r.queue_time is not None]
         tps_values = [r.tps for r in successful if r.tps > 0]
         itl_means = [r.itl_mean for r in successful if r.itl_mean is not None]
         all_deltas = [d for r in results if r.itl_deltas for d in r.itl_deltas]
@@ -820,6 +822,14 @@ class LoadTestEngine:
             "ttft": {
                 "mean": round(statistics.mean(ttfts), 3) if ttfts else 0,
                 "p95": round(float(np.percentile(ttfts, 95, method="lower")), 3) if ttfts else 0,
+            },
+            "tpot": {
+                "mean": round(statistics.mean(tpots), 3) if tpots else 0,
+                "p95": round(float(np.percentile(tpots, 95, method="lower")), 3) if tpots else 0,
+            },
+            "queue_time": {
+                "mean": round(statistics.mean(queue_times), 3) if queue_times else 0,
+                "p95": round(float(np.percentile(queue_times, 95, method="lower")), 3) if queue_times else 0,
             },
             "tps": {
                 "mean": round(statistics.mean(tps_values), 1) if tps_values else 0,

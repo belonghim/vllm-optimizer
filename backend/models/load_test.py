@@ -68,6 +68,8 @@ class RequestResult(BaseModel):
     itl_p50: float | None = Field(default=None, description="P50 inter-token latency in seconds")
     itl_p95: float | None = Field(default=None, description="P95 inter-token latency in seconds")
     itl_p99: float | None = Field(default=None, description="P99 inter-token latency in seconds")
+    time_per_output_token: float | None = Field(default=None, description="Time per output token in seconds")
+    queue_time: float | None = Field(default=None, description="Queue wait time in seconds")
 
 
 class ErrorResponse(BaseModel):
@@ -120,6 +122,8 @@ class LoadTestResult(BaseModel):
     itl: dict | None = Field(
         default=None, description="Aggregated ITL stats: {mean, p50, p95, p99} in seconds. None for non-streaming."
     )
+    tpot: LatencyStats | None = Field(default=None, description="Time per output token stats")
+    queue_time: LatencyStats | None = Field(default=None, description="Queue wait time stats")
 
 
 class SweepConfig(BaseModel):

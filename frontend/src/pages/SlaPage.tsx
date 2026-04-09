@@ -35,7 +35,7 @@ interface SlaEvaluateResponse {
   warnings?: string[];
 }
 
-const EMPTY_FORM: SlaFormState = { name: '', availMin: '', p95Ms: '', errRate: '', minTps: '', meanTtftMs: '', p95TtftMs: '' };
+const EMPTY_FORM: SlaFormState = { name: '', availMin: '', p95Ms: '', errRate: '', meanTtftMs: '', p95TtftMs: '', meanE2eLatencyMs: '', meanTpotMs: '', p95TpotMs: '', meanQueueTimeMs: '', p95QueueTimeMs: '' };
 
 export default function SlaPage({ isActive }: { isActive: boolean }) {
   const { selectedIds } = useBenchmarkSelection();
@@ -46,7 +46,7 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
   const [loading, setLoading] = useState(false);
   const [formState, setFormState] = useState<SlaFormState>(EMPTY_FORM);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [chartMetric, setChartMetric] = useState<'p95_latency' | 'availability' | 'error_rate' | 'min_tps' | 'ttft_mean' | 'ttft_p95'>('p95_latency');
+  const [chartMetric, setChartMetric] = useState<'p95_latency' | 'availability' | 'error_rate' | 'ttft_mean' | 'ttft_p95' | 'e2e_latency_mean' | 'tpot_mean' | 'tpot_p95' | 'queue_time_mean' | 'queue_time_p95'>('p95_latency');
   const [confirmState, setConfirmState] = useState<{
     open: boolean;
     title?: string;
@@ -104,17 +104,21 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
-    const { name, availMin, p95Ms, errRate, minTps, meanTtftMs, p95TtftMs } = formState;
-    if (!availMin && !p95Ms && !errRate && !minTps && !meanTtftMs && !p95TtftMs) { setError(ERROR_MESSAGES.SLA.NO_THRESHOLD_ERROR); return; }
+    const { name, availMin, p95Ms, errRate, meanTtftMs, p95TtftMs, meanE2eLatencyMs, meanTpotMs, p95TpotMs, meanQueueTimeMs, p95QueueTimeMs } = formState;
+    if (!availMin && !p95Ms && !errRate && !meanTtftMs && !p95TtftMs && !meanE2eLatencyMs && !meanTpotMs && !p95TpotMs && !meanQueueTimeMs && !p95QueueTimeMs) { setError(ERROR_MESSAGES.SLA.NO_THRESHOLD_ERROR); return; }
     const body = {
       name,
       thresholds: {
         availability_min: availMin ? parseFloat(availMin) : null,
         p95_latency_max_ms: p95Ms ? parseFloat(p95Ms) : null,
         error_rate_max_pct: errRate ? parseFloat(errRate) : null,
-        min_tps: minTps ? parseFloat(minTps) : null,
         mean_ttft_max_ms: meanTtftMs ? parseFloat(meanTtftMs) : null,
         p95_ttft_max_ms: p95TtftMs ? parseFloat(p95TtftMs) : null,
+        mean_e2e_latency_max_ms: meanE2eLatencyMs ? parseFloat(meanE2eLatencyMs) : null,
+        mean_tpot_max_ms: meanTpotMs ? parseFloat(meanTpotMs) : null,
+        p95_tpot_max_ms: p95TpotMs ? parseFloat(p95TpotMs) : null,
+        mean_queue_time_max_ms: meanQueueTimeMs ? parseFloat(meanQueueTimeMs) : null,
+        p95_queue_time_max_ms: p95QueueTimeMs ? parseFloat(p95QueueTimeMs) : null,
       }
     };
     try {
@@ -142,9 +146,13 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
       availMin: p.thresholds.availability_min?.toString() || '',
       p95Ms: p.thresholds.p95_latency_max_ms?.toString() || '',
       errRate: p.thresholds.error_rate_max_pct?.toString() || '',
-      minTps: p.thresholds.min_tps?.toString() || '',
       meanTtftMs: p.thresholds.mean_ttft_max_ms?.toString() || '',
       p95TtftMs: p.thresholds.p95_ttft_max_ms?.toString() || '',
+      meanE2eLatencyMs: p.thresholds.mean_e2e_latency_max_ms?.toString() || '',
+      meanTpotMs: p.thresholds.mean_tpot_max_ms?.toString() || '',
+      p95TpotMs: p.thresholds.p95_tpot_max_ms?.toString() || '',
+      meanQueueTimeMs: p.thresholds.mean_queue_time_max_ms?.toString() || '',
+      p95QueueTimeMs: p.thresholds.p95_queue_time_max_ms?.toString() || '',
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -199,9 +207,12 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
                   { id: 'p95_latency' as const, label: 'P95 Latency' },
                   { id: 'availability' as const, label: 'Availability' },
                   { id: 'error_rate' as const, label: 'Error Rate' },
-                  { id: 'min_tps' as const, label: 'TPS' },
                   { id: 'ttft_mean' as const, label: 'TTFT Mean' },
-                  { id: 'ttft_p95' as const, label: 'TTFT P95' }
+                  { id: 'ttft_p95' as const, label: 'TTFT P95' },
+                  { id: 'tpot_mean' as const, label: 'TPOT Mean' },
+                  { id: 'tpot_p95' as const, label: 'TPOT P95' },
+                  { id: 'queue_time_mean' as const, label: 'Queue Mean' },
+                  { id: 'queue_time_p95' as const, label: 'Queue P95' }
                 ] as const).map(m => (
                  <button key={m.id} type="button" className={`btn-small ${chartMetric === m.id ? 'active' : ''}`} onClick={() => setChartMetric(m.id)}
                    style={{ backgroundColor: chartMetric === m.id ? COLORS.cyan : 'transparent', color: chartMetric === m.id ? COLORS.bg : COLORS.text, border: `1px solid ${chartMetric === m.id ? COLORS.cyan : COLORS.border}` }}>
@@ -233,7 +244,7 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
                    </Bar>
                   {slaThreshold != null && (
                     <ReferenceLine y={slaThreshold} stroke={COLORS.red} strokeWidth={2.5}
-                      label={{ position: 'insideTopRight', value: `SLA: ${chartMetric === 'p95_latency' || chartMetric === 'ttft_mean' || chartMetric === 'ttft_p95' ? `${slaThreshold}ms` : chartMetric === 'min_tps' ? `${slaThreshold} req/s` : `${slaThreshold}%`}`, fill: COLORS.red, fontSize: 11, fontWeight: 'bold' }}
+                      label={{ position: 'insideTopRight', value: `SLA: ${chartMetric === 'p95_latency' || chartMetric === 'ttft_mean' || chartMetric === 'ttft_p95' || chartMetric === 'e2e_latency_mean' || chartMetric === 'tpot_mean' || chartMetric === 'tpot_p95' || chartMetric === 'queue_time_mean' || chartMetric === 'queue_time_p95' ? `${slaThreshold}ms` : `${slaThreshold}%`}`, fill: COLORS.red, fontSize: 11, fontWeight: 'bold' }}
                     />
                   )}
                 </BarChart>

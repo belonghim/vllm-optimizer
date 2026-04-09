@@ -58,13 +58,6 @@ def _collect_profile_violations(profile: SlaProfile, latest_metrics: object) -> 
         getattr(latest_metrics, "p99_e2e_latency_ms", None),
         lambda actual, threshold: actual > threshold,
     )
-    add_if_violated(
-        "min_tps",
-        thresholds.min_tps,
-        getattr(latest_metrics, "tokens_per_second", None),
-        lambda actual, threshold: actual < threshold,
-    )
-
     max_error_rate = getattr(thresholds, "max_error_rate", None)
     if max_error_rate is None:
         max_error_rate = getattr(thresholds, "error_rate_max_pct", None)

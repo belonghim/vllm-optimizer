@@ -2,9 +2,13 @@ export interface SlaThresholds {
   availability_min: number | null;
   p95_latency_max_ms: number | null;
   error_rate_max_pct: number | null;
-  min_tps: number | null;
   mean_ttft_max_ms?: number | null;
   p95_ttft_max_ms?: number | null;
+  mean_e2e_latency_max_ms?: number | null;
+  mean_tpot_max_ms?: number | null;
+  p95_tpot_max_ms?: number | null;
+  mean_queue_time_max_ms?: number | null;
+  p95_queue_time_max_ms?: number | null;
 }
 
 export interface SlaProfile {
