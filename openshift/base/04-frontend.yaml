@@ -103,6 +103,7 @@ spec:
             - -provider=openshift
             - -upstream-flush=0s
             - -cookie-refresh=30m
+            - -cookie-expire=24h
             - -email-domain=*
             - -skip-auth-regex=^/health$
 
