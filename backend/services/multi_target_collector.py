@@ -243,7 +243,16 @@ class MultiTargetMetricsCollector:
             "mean_queue_time_ms": mean_queue_time_ms,
         }
 
-    def _compute_histogram_quantile(self, buckets: list[tuple[float, float]], quantile: float) -> float:
+    def _compute_histogram_quantile(
+        self, buckets: list[tuple[float, float]], quantile: float, scale: float = 1.0
+    ) -> float:
+        """Compute histogram quantile from buckets.
+
+        Args:
+            buckets: List of (le, count) tuples where le is the upper bound of the bucket.
+            quantile: Quantile to compute (0-1).
+            scale: Multiplier for le values. Default 1.0. Set to 1000.0 for seconds->ms conversion.
+        """
         if not buckets or quantile < 0 or quantile > 1:
             return 0.0
 
@@ -264,10 +273,14 @@ class MultiTargetMetricsCollector:
         for upper_bound, upper_count in sorted_buckets:
             if upper_count >= rank:
                 if upper_count == lower_count:
-                    return lower_bound
+                    return lower_bound * scale
                 if math.isinf(upper_bound):
-                    return lower_bound
-                return lower_bound + ((upper_bound - lower_bound) * (rank - lower_count) / (upper_count - lower_count))
+                    return lower_bound * scale
+                # Interpolate in original units, then scale
+                interpolated = lower_bound + (
+                    (upper_bound - lower_bound) * (rank - lower_count) / (upper_count - lower_count)
+                )
+                return interpolated * scale
 
             if not math.isinf(upper_bound):
                 lower_bound = upper_bound
@@ -919,29 +932,29 @@ class MultiTargetMetricsCollector:
                         merged[le] = merged.get(le, 0.0) + rate_count
 
         metrics.mean_ttft_ms = self._compute_histogram_quantile(
-            list(agg_hist_rate_buckets.get("ttft_buckets", {}).items()), 0.5
+            list(agg_hist_rate_buckets.get("ttft_buckets", {}).items()), 0.5, 1000.0
         )
         metrics.mean_e2e_latency_ms = self._compute_histogram_quantile(
-            list(agg_hist_rate_buckets.get("latency_buckets", {}).items()), 0.5
+            list(agg_hist_rate_buckets.get("latency_buckets", {}).items()), 0.5, 1000.0
         )
         metrics.mean_tpot_ms = self._compute_histogram_quantile(
-            list(agg_hist_rate_buckets.get("tpot_buckets", {}).items()), 0.5
+            list(agg_hist_rate_buckets.get("tpot_buckets", {}).items()), 0.5, 1000.0
         )
         metrics.mean_queue_time_ms = self._compute_histogram_quantile(
-            list(agg_hist_rate_buckets.get("queue_time_buckets", {}).items()), 0.5
+            list(agg_hist_rate_buckets.get("queue_time_buckets", {}).items()), 0.5, 1000.0
         )
 
         metrics.p99_ttft_ms = self._compute_histogram_quantile(
-            list(agg_hist_rate_buckets.get("ttft_buckets", {}).items()), 0.99
+            list(agg_hist_rate_buckets.get("ttft_buckets", {}).items()), 0.99, 1000.0
         )
         metrics.p99_e2e_latency_ms = self._compute_histogram_quantile(
-            list(agg_hist_rate_buckets.get("latency_buckets", {}).items()), 0.99
+            list(agg_hist_rate_buckets.get("latency_buckets", {}).items()), 0.99, 1000.0
         )
         metrics.p99_tpot_ms = self._compute_histogram_quantile(
-            list(agg_hist_rate_buckets.get("tpot_buckets", {}).items()), 0.99
+            list(agg_hist_rate_buckets.get("tpot_buckets", {}).items()), 0.99, 1000.0
         )
         metrics.p99_queue_time_ms = self._compute_histogram_quantile(
-            list(agg_hist_rate_buckets.get("queue_time_buckets", {}).items()), 0.99
+            list(agg_hist_rate_buckets.get("queue_time_buckets", {}).items()), 0.99, 1000.0
         )
 
         await self._check_cr_exists(target)

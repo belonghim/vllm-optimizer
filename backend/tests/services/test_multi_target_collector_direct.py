@@ -54,9 +54,16 @@ async def test_direct_tpot_mean_and_p99() -> None:
         patch("services.multi_target_collector.update_metrics", lambda *args, **kwargs: None),
     ):
         await collector._collect_target_direct(target)
+        if target.latest:
+            prev_ts = target.latest.timestamp
+        else:
+            prev_ts = 1000.0
+        target.prev_hist_buckets["10.0.0.10"] = {"tpot_buckets": {0.01: 0.0, 0.05: 0.0, 0.1: 0.0, float("inf"): 0.0}}
+        target.prev_hist_timestamps["10.0.0.10"] = prev_ts - 1
+        await collector._collect_target_direct(target)
 
     assert target.latest is not None
-    assert target.latest.mean_tpot_ms == pytest.approx(100.0)
+    assert target.latest.mean_tpot_ms == pytest.approx(42.0)
     assert target.latest.p99_tpot_ms > 0
 
 
@@ -80,9 +87,18 @@ async def test_direct_queue_time_mean_and_p99() -> None:
         patch("services.multi_target_collector.update_metrics", lambda *args, **kwargs: None),
     ):
         await collector._collect_target_direct(target)
+        if target.latest:
+            prev_ts = target.latest.timestamp
+        else:
+            prev_ts = 1000.0
+        target.prev_hist_buckets["10.0.0.10"] = {
+            "queue_time_buckets": {0.01: 0.0, 0.05: 0.0, 0.1: 0.0, float("inf"): 0.0}
+        }
+        target.prev_hist_timestamps["10.0.0.10"] = prev_ts - 1
+        await collector._collect_target_direct(target)
 
     assert target.latest is not None
-    assert target.latest.mean_queue_time_ms == pytest.approx(100.0)
+    assert target.latest.mean_queue_time_ms == pytest.approx(30.0)
     assert target.latest.p99_queue_time_ms > 0
 
 
