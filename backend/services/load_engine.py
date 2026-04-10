@@ -507,7 +507,6 @@ class LoadTestEngine:
                 metrics_collector = shared_module.multi_target_collector
                 latest_metrics = metrics_collector.latest
                 if latest_metrics is not None:
-                    # TPOT: convert from ms to seconds
                     tpot_mean_val = latest_metrics.mean_tpot_ms
                     tpot_p99_val = latest_metrics.p99_tpot_ms
                     if tpot_mean_val is not None and tpot_mean_val > 0:
@@ -515,10 +514,9 @@ class LoadTestEngine:
                             "mean": round(tpot_mean_val / 1000, 4),
                             "p95": round(tpot_p99_val / 1000, 4) if tpot_p99_val else 0,
                         }
-                    # Queue Time: convert from ms to seconds
                     qt_mean_val = latest_metrics.mean_queue_time_ms
                     qt_p99_val = latest_metrics.p99_queue_time_ms
-                    if qt_mean_val is not None and qt_mean_val >= 0:
+                    if qt_mean_val is not None and qt_mean_val > 0:
                         final_stats["queue_time"] = {
                             "mean": round(qt_mean_val / 1000, 4),
                             "p95": round(qt_p99_val / 1000, 4) if qt_p99_val else 0,
