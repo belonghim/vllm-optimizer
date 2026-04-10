@@ -50,8 +50,9 @@ export default function TunerStatusPanel({
           {ERROR_MESSAGES.TUNER.APPLY_CURRENT_VALUES_SUCCESS}
         </div>
       )}
-      <label style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+      <label htmlFor="auto-benchmark" style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
         <input
+          id="auto-benchmark"
           type="checkbox"
           checked={autoBenchmark}
           onChange={(e) => onAutoBenchmarkChange(e.target.checked)}
