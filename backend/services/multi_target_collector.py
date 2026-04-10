@@ -244,7 +244,12 @@ class MultiTargetMetricsCollector:
         }
 
     def _compute_histogram_quantile(
-        self, buckets: list[tuple[float, float]], quantile: float, scale: float = 1.0
+        self,
+        buckets: list[tuple[float, float]],
+        quantile: float,
+        scale: float = 1.0,
+        *,
+        from_rates: bool = True,
     ) -> float:
         """Compute histogram quantile from buckets.
 
@@ -252,6 +257,8 @@ class MultiTargetMetricsCollector:
             buckets: List of (le, count) tuples where le is the upper bound of the bucket.
             quantile: Quantile to compute (0-1).
             scale: Multiplier for le values. Default 1.0. Set to 1000.0 for seconds->ms conversion.
+            from_rates: If True, buckets contain rate values (from rate computation). If False, buckets contain
+                cumulative counts (direct from first scrape). Default True.
         """
         if not buckets or quantile < 0 or quantile > 1:
             return 0.0
@@ -259,8 +266,10 @@ class MultiTargetMetricsCollector:
         sorted_buckets = sorted(buckets, key=lambda item: item[0])
         total_count = 0.0
         for le, count in sorted_buckets:
+            if math.isnan(count) or count < 0:
+                continue
             if math.isinf(le):
-                total_count = count
+                total_count = max(total_count, count)
                 break
             total_count = max(total_count, count)
         if total_count <= 0:
@@ -271,12 +280,13 @@ class MultiTargetMetricsCollector:
         lower_count = 0.0
 
         for upper_bound, upper_count in sorted_buckets:
+            if math.isnan(upper_count) or upper_count < 0:
+                continue
             if upper_count >= rank:
                 if upper_count == lower_count:
                     return lower_bound * scale
                 if math.isinf(upper_bound):
                     return lower_bound * scale
-                # Interpolate in original units, then scale
                 interpolated = lower_bound + (
                     (upper_bound - lower_bound) * (rank - lower_count) / (upper_count - lower_count)
                 )
