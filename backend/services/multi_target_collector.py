@@ -941,6 +941,24 @@ class MultiTargetMetricsCollector:
                     for le, rate_count in buckets:
                         merged[le] = merged.get(le, 0.0) + rate_count
 
+        ttft_buckets = list(agg_hist_rate_buckets.get("ttft_buckets", {}).items())
+        latency_buckets = list(agg_hist_rate_buckets.get("latency_buckets", {}).items())
+        tpot_buckets = list(agg_hist_rate_buckets.get("tpot_buckets", {}).items())
+        queue_buckets = list(agg_hist_rate_buckets.get("queue_time_buckets", {}).items())
+
+        has_rate_data = any(count > 0 for _, count in ttft_buckets + latency_buckets + tpot_buckets + queue_buckets)
+
+        if not has_rate_data:
+            for raw_buckets in all_hist_buckets.values():
+                for hist_name, bucket_map in raw_buckets.items():
+                    rate_like: list[tuple[float, float]] = sorted(
+                        [(le, count) for le, count in bucket_map.items()], key=lambda x: x[0]
+                    )
+                    key = hist_name
+                    existing = agg_hist_rate_buckets.setdefault(key, {})
+                    for le, count in rate_like:
+                        existing[le] = existing.get(le, 0.0) + count
+
         metrics.mean_ttft_ms = self._compute_histogram_quantile(
             list(agg_hist_rate_buckets.get("ttft_buckets", {}).items()), 0.5, 1000.0
         )
