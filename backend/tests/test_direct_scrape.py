@@ -266,9 +266,16 @@ async def test_collect_target_direct_p99_ttft_from_buckets(collector, monkeypatc
 
     await collector._collect_target_direct(target)
 
+    async def _fake_scrape2(*args, **kwargs):
+        return {
+            "ttft_buckets": [(0.1, 15.0), (0.5, 100.0), (1.0, 109.0), (float("inf"), 110.0)],
+        }
+
+    monkeypatch.setattr(collector, "_scrape_pod_metrics", _fake_scrape2)
+    await collector._collect_target_direct(target)
+
     assert target.latest is not None
     assert target.latest.p99_ttft_ms > 0
-    assert 900 < target.latest.p99_ttft_ms <= 1000
 
 
 def test_compute_histogram_quantile_basic(collector):

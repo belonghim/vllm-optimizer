@@ -72,6 +72,8 @@ class TargetCache:
     cr_type: str = ""
     model_name: str = ""
     prev_counters: dict[str, dict[str, float]] = field(default_factory=dict)
+    prev_hist_buckets: dict[str, dict[str, dict[float, float]]] = field(default_factory=dict)
+    prev_hist_timestamps: dict[str, float] = field(default_factory=dict)
 
 
 class MultiTargetMetricsCollector:
@@ -272,6 +274,50 @@ class MultiTargetMetricsCollector:
             lower_count = upper_count
 
         return 0.0
+
+    def _compute_histogram_rates(
+        self,
+        pod_ip: str,
+        target: TargetCache,
+        current_buckets: dict[str, dict[float, float]],
+        now: float,
+    ) -> dict[str, list[tuple[float, float]]]:
+        if pod_ip not in target.prev_hist_buckets:
+            target.prev_hist_buckets[pod_ip] = {}
+            target.prev_hist_timestamps[pod_ip] = now
+
+        prev_buckets = target.prev_hist_buckets[pod_ip]
+        prev_ts = target.prev_hist_timestamps.get(pod_ip, now)
+        elapsed = now - prev_ts
+
+        result: dict[str, list[tuple[float, float]]] = {}
+
+        for hist_name, current_hist in current_buckets.items():
+            prev_hist = prev_buckets.get(hist_name, {})
+
+            if not prev_hist:
+                result[hist_name] = [(le, 0.0) for le in current_hist]
+                continue
+
+            delta_buckets: dict[float, float] = {}
+            for le, current_count in current_hist.items():
+                prev_count = prev_hist.get(le, 0.0)
+                delta = current_count - prev_count
+                if delta < 0:
+                    delta = 0.0
+                delta_buckets[le] = delta
+
+            if elapsed > 0:
+                rate_buckets = [(le, delta / elapsed) for le, delta in delta_buckets.items()]
+            else:
+                rate_buckets = [(le, 0.0) for le in delta_buckets]
+
+            result[hist_name] = sorted(rate_buckets, key=lambda x: x[0])
+
+        target.prev_hist_buckets[pod_ip] = current_buckets
+        target.prev_hist_timestamps[pod_ip] = now
+
+        return result
 
     def _get_default_target(self) -> TargetCache | None:
         if not self._targets:
@@ -769,8 +815,7 @@ class MultiTargetMetricsCollector:
         counter_fields = {v for v in COUNTER_METRIC_MAP.values() if not v.startswith("_")}
         gauge_fields = set(GAUGE_METRIC_MAP.values())
         agg_gauges: dict[str, list[float]] = {}
-        agg_hist: dict[str, float] = {}
-        agg_hist_buckets: dict[str, dict[float, float]] = {}
+        all_hist_buckets: dict[str, dict[str, dict[float, float]]] = {}
         all_counter_raws: dict[str, dict[str, float]] = {}
 
         for pod, result in zip(running_pods, scrape_results, strict=False):
@@ -778,15 +823,14 @@ class MultiTargetMetricsCollector:
                 continue
             pod_ip: str = pod.status.pod_ip
             pod_counters: dict[str, float] = {}
+            pod_hist_buckets: dict[str, dict[float, float]] = {}
             for k, v in cast(dict[str, float | list[tuple[float, float]]], result).items():
                 if k in counter_fields and isinstance(v, (float, int)):
                     pod_counters[k] = float(v)
                 elif k in gauge_fields and isinstance(v, (float, int)):
                     agg_gauges.setdefault(k, []).append(float(v))
-                elif k.endswith(("_sum", "_count")) and isinstance(v, (float, int)):
-                    agg_hist[k] = agg_hist.get(k, 0.0) + float(v)
                 elif k.endswith("_buckets") and isinstance(v, list):
-                    merged = agg_hist_buckets.setdefault(k, {})
+                    parsed_buckets: dict[float, float] = {}
                     for bucket in v:
                         if not isinstance(bucket, tuple) or len(bucket) != 2:
                             continue
@@ -795,8 +839,12 @@ class MultiTargetMetricsCollector:
                             continue
                         le_f = float(le)
                         count_f = float(count)
-                        merged[le_f] = merged.get(le_f, 0.0) + count_f
+                        parsed_buckets[le_f] = count_f
+                    if parsed_buckets:
+                        pod_hist_buckets[k] = parsed_buckets
             all_counter_raws[pod_ip] = pod_counters
+            if pod_hist_buckets:
+                all_hist_buckets[pod_ip] = pod_hist_buckets
 
         node_to_pods: dict[str, list[Any]] = {}
         for pod in running_pods:
@@ -861,27 +909,40 @@ class MultiTargetMetricsCollector:
             vals = agg_gauges["kv_cache_hit_rate"]
             metrics.kv_cache_hit_rate = sum(vals) / len(vals)
 
-        hist_stats = self._compute_histogram_stats(agg_hist)
-        metrics.mean_ttft_ms = hist_stats.get("mean_ttft_ms", 0.0)
-        metrics.mean_e2e_latency_ms = hist_stats.get("mean_e2e_latency_ms", 0.0)
-        metrics.mean_tpot_ms = hist_stats.get("mean_tpot_ms", 0.0)
-        metrics.mean_queue_time_ms = hist_stats.get("mean_queue_time_ms", 0.0)
-        if "ttft_buckets" in agg_hist_buckets:
-            metrics.p99_ttft_ms = (
-                self._compute_histogram_quantile(list(agg_hist_buckets["ttft_buckets"].items()), 0.99) * 1000
-            )
-        if "latency_buckets" in agg_hist_buckets:
-            metrics.p99_e2e_latency_ms = (
-                self._compute_histogram_quantile(list(agg_hist_buckets["latency_buckets"].items()), 0.99) * 1000
-            )
-        if "tpot_buckets" in agg_hist_buckets:
-            metrics.p99_tpot_ms = (
-                self._compute_histogram_quantile(list(agg_hist_buckets["tpot_buckets"].items()), 0.99) * 1000
-            )
-        if "queue_time_buckets" in agg_hist_buckets:
-            metrics.p99_queue_time_ms = (
-                self._compute_histogram_quantile(list(agg_hist_buckets["queue_time_buckets"].items()), 0.99) * 1000
-            )
+        agg_hist_rate_buckets: dict[str, dict[float, float]] = {}
+        for pod_ip, pod_buckets in all_hist_buckets.items():
+            rate_buckets = self._compute_histogram_rates(pod_ip, target, pod_buckets, now)
+            for hist_name, buckets in rate_buckets.items():
+                if buckets:
+                    merged = agg_hist_rate_buckets.setdefault(hist_name, {})
+                    for le, rate_count in buckets:
+                        merged[le] = merged.get(le, 0.0) + rate_count
+
+        metrics.mean_ttft_ms = self._compute_histogram_quantile(
+            list(agg_hist_rate_buckets.get("ttft_buckets", {}).items()), 0.5
+        )
+        metrics.mean_e2e_latency_ms = self._compute_histogram_quantile(
+            list(agg_hist_rate_buckets.get("latency_buckets", {}).items()), 0.5
+        )
+        metrics.mean_tpot_ms = self._compute_histogram_quantile(
+            list(agg_hist_rate_buckets.get("tpot_buckets", {}).items()), 0.5
+        )
+        metrics.mean_queue_time_ms = self._compute_histogram_quantile(
+            list(agg_hist_rate_buckets.get("queue_time_buckets", {}).items()), 0.5
+        )
+
+        metrics.p99_ttft_ms = self._compute_histogram_quantile(
+            list(agg_hist_rate_buckets.get("ttft_buckets", {}).items()), 0.99
+        )
+        metrics.p99_e2e_latency_ms = self._compute_histogram_quantile(
+            list(agg_hist_rate_buckets.get("latency_buckets", {}).items()), 0.99
+        )
+        metrics.p99_tpot_ms = self._compute_histogram_quantile(
+            list(agg_hist_rate_buckets.get("tpot_buckets", {}).items()), 0.99
+        )
+        metrics.p99_queue_time_ms = self._compute_histogram_quantile(
+            list(agg_hist_rate_buckets.get("queue_time_buckets", {}).items()), 0.99
+        )
 
         await self._check_cr_exists(target)
 
