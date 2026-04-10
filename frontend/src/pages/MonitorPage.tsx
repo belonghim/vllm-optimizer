@@ -315,7 +315,7 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
                     className={`btn btn-sm${metricsSource === src ? ' active' : ''}`}
                     onClick={() => setMetricsSource(src)}
                   >
-                    {src}
+                    {src === 'direct' ? 'Direct' : 'Thanos'}
                   </button>
                 ))}
               </div>

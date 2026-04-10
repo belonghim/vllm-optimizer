@@ -44,6 +44,27 @@ Located at the very top of the page, split into two sections:
 - Uses refs (`timeRangePointsRef`, `selectedRangeRef`) to ensure the polling interval always has the latest values
 - In "Live" mode, the API sends `history_points`; in historical modes, it sends `time_range`
 
+#### Right: Metrics Source Toggle (Live Mode Only)
+
+| Element | Type | Description |
+|---------|------|-------------|
+| Label | Text | "SOURCE:" — identifies the selector |
+| Toggle | Button Group | "Direct" / "Thanos" options |
+
+**Behavior**:
+- Toggle is **visible only in Live mode** — hidden for historical modes (1h, 6h, 24h, 7d)
+- **Direct**: Scrapes metrics directly from vLLM pods via `/metrics` endpoint
+- **Thanos**: Queries metrics from Thanos Querier (OpenShift Monitoring Stack)
+- Selection is persisted to `localStorage` with key `monitor_metrics_source`
+- On page load, restores saved preference (defaults to "Direct" if not set)
+- When source changes, the next polling cycle fetches from the new source
+- The `metrics_source` parameter is included in the API request body only in Live mode
+
+**Backend Behavior**:
+- If `metrics_source` is provided in the request, uses that source
+- If not provided, falls back to `METRICS_SOURCE` environment variable (default: "direct")
+- Historical time ranges always use Thanos regardless of this setting
+
 ---
 
 ### 2. Loading State
