@@ -259,7 +259,7 @@ function LoadTestNormalMode({ isActive, pendingConfig, onConfigConsumed, onRunni
           <div className="grid-5 gap-1">
             <MetricCard label="Mean TPS" value={fmt((result.tps as Record<string, number> | undefined)?.mean, 1)} unit="tok/s" color="amber" />
             <MetricCard label="TTFT Mean" value={fmt(((result.ttft as Record<string, number> | null)?.mean || 0) * 1000, 0)} unit="ms" color="cyan" />
-            <MetricCard label="P99 Latency" value={fmt(((result.latency as Record<string, number> | null)?.p99 || 0) * 1000, 0)} unit="ms" color="red" />
+            <MetricCard label="E2E Latency P99" value={fmt(((result.latency as Record<string, number> | null)?.p99 || 0) * 1000, 0)} unit="ms" color="red" />
             <MetricCard label="Success Rate"
               value={result.total ? fmt(((result.success as number) / (result.total as number)) * 100, 1) : "—"}
               unit="%" color="green" />
@@ -269,7 +269,7 @@ function LoadTestNormalMode({ isActive, pendingConfig, onConfigConsumed, onRunni
           </div>
 
           <div className="panel">
-            <div className="section-title">Latency Distribution</div>
+            <div className="section-title">E2E Latency Distribution</div>
             <table className="table" aria-label="Latency Detailed Results">
               <thead><tr><th>Metric</th><th>Value</th></tr></thead>
               <tbody>
@@ -277,10 +277,10 @@ function LoadTestNormalMode({ isActive, pendingConfig, onConfigConsumed, onRunni
                   ["Total Requests", (result.total_requested ?? result.total) as number],
                   ["Success", result.success as number], ["Failed", result.failed as number],
                   ["Actual RPS", fmt(result.rps_actual as number | null | undefined, 2)],
-                  ["Mean Latency", `${fmt(((result.latency as Record<string, number> | null)?.mean || 0) * 1000, 0)} ms`],
-                  ["P50 Latency", `${fmt(((result.latency as Record<string, number> | null)?.p50 || 0) * 1000, 0)} ms`],
-                  ["P95 Latency", `${fmt(((result.latency as Record<string, number> | null)?.p95 || 0) * 1000, 0)} ms`],
-                  ["P99 Latency", `${fmt(((result.latency as Record<string, number> | null)?.p99 || 0) * 1000, 0)} ms`],
+                  ["E2E Latency Mean", `${fmt(((result.latency as Record<string, number> | null)?.mean || 0) * 1000, 0)} ms`],
+                  ["E2E Latency P50", `${fmt(((result.latency as Record<string, number> | null)?.p50 || 0) * 1000, 0)} ms`],
+                  ["E2E Latency P95", `${fmt(((result.latency as Record<string, number> | null)?.p95 || 0) * 1000, 0)} ms`],
+                  ["E2E Latency P99", `${fmt(((result.latency as Record<string, number> | null)?.p99 || 0) * 1000, 0)} ms`],
                   ["TTFT Mean", `${fmt(((result.ttft as Record<string, number> | null)?.mean || 0) * 1000, 0)} ms`],
                   ["TTFT P95", `${fmt(((result.ttft as Record<string, number> | null)?.p95 || 0) * 1000, 0)} ms`],
                   ["Total TPS", `${fmt((result.tps as Record<string, number> | null)?.total, 1)} tok/s`],

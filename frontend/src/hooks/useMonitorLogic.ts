@@ -123,7 +123,7 @@ export function useMonitorLogic(isActive: boolean) {
           const { thresholds } = selectedSlaProfile;
           const { data } = result;
           checkViolation(`${key} TPS`, data.tps, thresholds.min_tps, (v, t) => v < t);
-          checkViolation(`${key} Latency`, data.latency_p99, thresholds.p95_latency_max_ms, (v, t) => v > t);
+          checkViolation(`${key} E2E Latency`, data.latency_p99, thresholds.p95_latency_max_ms, (v, t) => v > t);
         }
         const mapped = (result.history || []).map((m) => ({
           t: m.timestamp,
@@ -229,7 +229,7 @@ export function useMonitorLogic(isActive: boolean) {
     if (!selectedSlaProfile) return undefined;
     const { thresholds } = selectedSlaProfile;
     if (id === 'tps') return thresholds.min_tps || undefined;
-    if (id === 'latency') return thresholds.p95_latency_max_ms || undefined;
+    if (id === 'e2e_latency') return thresholds.p95_latency_max_ms || undefined;
     return undefined;
   };
 

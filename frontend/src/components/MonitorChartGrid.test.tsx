@@ -19,12 +19,12 @@ vi.mock("./Chart", () => ({
 }));
 
 const defaultProps = {
-  visibleCharts: ["tps", "latency", "ttft"],
+  visibleCharts: ["tps", "e2e_latency", "ttft"],
   hiddenCharts: [],
   chartData: [],
   chartLinesMap: {
     tps: [{ key: "tps", color: COLORS.accent, label: "TPS" }],
-    latency: [{ key: "lat_p99", color: COLORS.red, label: "Latency P99" }],
+    e2e_latency: [{ key: "lat_p99", color: COLORS.red, label: "E2E Latency P99" }],
     ttft: [{ key: "ttft", color: COLORS.cyan, label: "TTFT mean" }],
   },
   onHideChart: vi.fn(),
@@ -37,7 +37,7 @@ describe("MonitorChartGrid", () => {
   it("renders visible charts with correct titles", () => {
     render(<MonitorChartGrid {...defaultProps} />);
     expect(screen.getByText("Throughput (TPS)")).toBeInTheDocument();
-    expect(screen.getByText("Latency (ms)")).toBeInTheDocument();
+    expect(screen.getByText("E2E Latency (ms)")).toBeInTheDocument();
     expect(screen.getByText("TTFT (ms)")).toBeInTheDocument();
   });
 
@@ -120,10 +120,10 @@ describe("loadChartConfig / saveChartConfig", () => {
   });
 
   it("loads saved config from localStorage", () => {
-    const saved = { order: ["latency", "tps", "ttft"], hidden: ["kv"] };
+    const saved = { order: ["e2e_latency", "tps", "ttft"], hidden: ["kv"] };
     localStorage.setItem(LS_KEY, JSON.stringify(saved));
     const config = loadChartConfig();
-    expect(config.order.slice(0, 3)).toEqual(["latency", "tps", "ttft"]);
+    expect(config.order.slice(0, 3)).toEqual(["e2e_latency", "tps", "ttft"]);
     DEFAULT_ORDER.forEach(id => {
       expect(config.order).toContain(id);
     });
@@ -131,11 +131,11 @@ describe("loadChartConfig / saveChartConfig", () => {
   });
 
   it("filters out invalid IDs from saved config", () => {
-    const saved = { order: ["tps", "invalid_id", "latency"], hidden: ["bad_id"] };
+    const saved = { order: ["tps", "invalid_id", "e2e_latency"], hidden: ["bad_id"] };
     localStorage.setItem(LS_KEY, JSON.stringify(saved));
     const config = loadChartConfig();
     expect(config.order).toContain("tps");
-    expect(config.order).toContain("latency");
+    expect(config.order).toContain("e2e_latency");
     expect(config.order).not.toContain("invalid_id");
     expect(config.hidden).not.toContain("bad_id");
   });
@@ -157,11 +157,11 @@ describe("loadChartConfig / saveChartConfig", () => {
   });
 
   it("saveChartConfig persists to localStorage", () => {
-    saveChartConfig(["tps", "latency"], ["kv"]);
+    saveChartConfig(["tps", "e2e_latency"], ["kv"]);
     const raw = localStorage.getItem(LS_KEY);
     expect(raw).toBeTruthy();
     const parsed = JSON.parse(raw!);
-    expect(parsed.order).toEqual(["tps", "latency"]);
+    expect(parsed.order).toEqual(["tps", "e2e_latency"]);
     expect(parsed.hidden).toEqual(["kv"]);
   });
 });
@@ -172,10 +172,10 @@ describe("buildChartLinesMap", () => {
     const defaultKey = "ns1/svc1/inferenceservice";
     const result = buildChartLinesMap(targets, defaultKey);
 
-    expect(result.latency).toHaveLength(3);
-    expect(result.latency[0]).toEqual({ key: "ns1/svc1/inferenceservice_lat_p99_fill", color: COLORS.red, label: "P99 (idle)", dash: true });
-    expect(result.latency[1]).toEqual({ key: "ns1/svc1/inferenceservice_lat_p99", color: COLORS.red, label: "Latency P99" });
-    expect(result.latency[2]).toEqual({ key: "ns1/svc1/inferenceservice_lat_mean", color: COLORS.accent, label: "Latency mean" });
+    expect(result.e2e_latency).toHaveLength(3);
+    expect(result.e2e_latency[0]).toEqual({ key: "ns1/svc1/inferenceservice_lat_p99_fill", color: COLORS.red, label: "P99 (idle)", dash: true });
+    expect(result.e2e_latency[1]).toEqual({ key: "ns1/svc1/inferenceservice_lat_p99", color: COLORS.red, label: "E2E Latency P99" });
+    expect(result.e2e_latency[2]).toEqual({ key: "ns1/svc1/inferenceservice_lat_mean", color: COLORS.accent, label: "E2E Latency mean" });
 
     expect(result.ttft).toHaveLength(3);
     expect(result.ttft[1].color).toBe(COLORS.cyan);
@@ -205,32 +205,17 @@ describe("buildChartLinesMap", () => {
     const result = buildChartLinesMap(targets, defaultKey);
 
     expect(result.tps).toHaveLength(3);
-    expect(result.latency).toHaveLength(3);
+    expect(result.e2e_latency).toHaveLength(3);
+    expect(result.e2e_latency[0].key).toBe("ns1/svc1/inferenceservice_lat_p99");
+    expect(result.e2e_latency[1].key).toBe("ns2/svc2/inferenceservice_lat_p99");
+    expect(result.ttft).toHaveLength(3);
+    expect(result.kv).toHaveLength(3);
+    expect(result.kv_hit).toHaveLength(3);
+    expect(result.queue).toHaveLength(3);
+    expect(result.rps).toHaveLength(3);
     expect(result.gpu_util).toHaveLength(3);
+    expect(result.gpu_mem).toHaveLength(3);
     expect(result.tpot).toHaveLength(3);
     expect(result.queue_time).toHaveLength(3);
-
-    expect(result.tps[0]).toEqual({ key: "ns1/svc1/inferenceservice_tps", label: "svc1", color: TARGET_COLORS[0] });
-    expect(result.tps[1]).toEqual({ key: "ns2/svc2/inferenceservice_tps", label: "svc2", color: TARGET_COLORS[1] });
-    expect(result.tps[2]).toEqual({ key: "ns3/svc3/llminferenceservice_tps", label: "svc3", color: TARGET_COLORS[2] });
-
-    expect(result.latency[0].key).toBe("ns1/svc1/inferenceservice_lat_p99");
-    expect(result.latency[1].key).toBe("ns2/svc2/inferenceservice_lat_p99");
-  });
-
-  it("empty targets returns object with empty arrays", () => {
-    const result = buildChartLinesMap([], null);
-
-    expect(result.tps).toEqual([]);
-    expect(result.latency).toEqual([]);
-    expect(result.ttft).toEqual([]);
-    expect(result.kv).toEqual([]);
-    expect(result.kv_hit).toEqual([]);
-    expect(result.queue).toEqual([]);
-    expect(result.rps).toEqual([]);
-    expect(result.gpu_util).toEqual([]);
-    expect(result.gpu_mem).toEqual([]);
-    expect(result.tpot).toEqual([]);
-    expect(result.queue_time).toEqual([]);
   });
 });

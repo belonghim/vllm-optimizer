@@ -89,7 +89,7 @@ export default function TunerResults({ trials, bestParams, status, importance, i
           <div className="section-title section-title-accent">Best Parameters Found</div>
           <div className="grid-4 tuner-best-metrics-grid">
             <MetricCard label="Best TPS" value={fmt(bestParams.tps, 1)} unit="tok/s" color="amber" />
-            <MetricCard label="P99 Latency" value={fmt(bestParams.p99_latency, 0)} unit="ms" color="cyan" />
+            <MetricCard label="E2E Latency P99" value={fmt(bestParams.p99_latency, 0)} unit="ms" color="cyan" />
           </div>
           {bestParams.params && (
             <table className="table">
@@ -108,7 +108,7 @@ export default function TunerResults({ trials, bestParams, status, importance, i
       )}
 
       {scatterData.length > 0 && (
-        <div className="panel" aria-label="Trial distribution chart (TPS vs P99 Latency)">
+        <div className="panel" aria-label="Trial distribution chart (TPS vs E2E Latency P99)">
           <div className="section-title">Trial Distribution (TPS vs P99 Latency)</div>
           <ResponsiveContainer width="100%" height={240}>
             <ScatterChart margin={{ top: 8, right: 8, bottom: 8, left: -8 }}>

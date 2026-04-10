@@ -303,7 +303,7 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
           <div className="section-title">Sweep Results</div>
           <table className="table" aria-label="Sweep Step Results">
             <thead>
-              <tr><th>Step</th><th>RPS</th><th>P99 Latency</th><th>TPS</th><th>Success %</th><th>Status</th></tr>
+              <tr><th>Step</th><th>RPS</th><th>E2E Latency P99</th><th>TPS</th><th>Success %</th><th>Status</th></tr>
             </thead>
             <tbody>
               {sweepSteps.map((step) => (

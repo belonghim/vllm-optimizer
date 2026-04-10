@@ -213,7 +213,7 @@ describe("LoadTestNormalMode", () => {
     render(<LoadTestNormalMode isActive={true} />);
     expect(screen.getByText("Mean TPS")).toBeInTheDocument();
     expect(screen.getAllByText("TTFT Mean").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("P99 Latency").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("E2E Latency P99").length).toBeGreaterThan(0);
     expect(screen.getByText("Success Rate")).toBeInTheDocument();
   });
 
@@ -230,7 +230,7 @@ describe("LoadTestNormalMode", () => {
       gpu_efficiency: { value: 5.0, display: "5.0", mismatch: false },
     };
     render(<LoadTestNormalMode isActive={true} />);
-    expect(screen.getByText("Latency Distribution")).toBeInTheDocument();
+    expect(screen.getByText("E2E Latency Distribution")).toBeInTheDocument();
     expect(screen.getByText("Total Requests")).toBeInTheDocument();
     expect(screen.getByText("Success")).toBeInTheDocument();
     expect(screen.getByText("Failed")).toBeInTheDocument();

@@ -60,7 +60,7 @@ export default function BenchmarkTable({
                 <th>Config Model</th>
                 <th>Date</th>
                 <th>TPS</th>
-                <th>P99 ms</th>
+                <th>E2E Latency P99</th>
                 <th>RPS</th>
                 <th>GPU Eff.</th>
                 <th>Delete</th>

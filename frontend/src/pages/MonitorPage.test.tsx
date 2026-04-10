@@ -82,10 +82,10 @@ describe("buildChartLinesMap", () => {
     const defaultKey = "ns1/svc1/inferenceservice";
     const result = buildChartLinesMap(targets, defaultKey);
 
-    expect(result.latency).toHaveLength(3);
-    expect(result.latency[0]).toEqual({ key: "ns1/svc1/inferenceservice_lat_p99_fill", color: COLORS.red, label: "P99 (idle)", dash: true });
-    expect(result.latency[1]).toEqual({ key: "ns1/svc1/inferenceservice_lat_p99", color: COLORS.red, label: "Latency P99" });
-    expect(result.latency[2]).toEqual({ key: "ns1/svc1/inferenceservice_lat_mean", color: COLORS.accent, label: "Latency mean" });
+    expect(result.e2e_latency).toHaveLength(3);
+    expect(result.e2e_latency[0]).toEqual({ key: "ns1/svc1/inferenceservice_lat_p99_fill", color: COLORS.red, label: "P99 (idle)", dash: true });
+    expect(result.e2e_latency[1]).toEqual({ key: "ns1/svc1/inferenceservice_lat_p99", color: COLORS.red, label: "E2E Latency P99" });
+    expect(result.e2e_latency[2]).toEqual({ key: "ns1/svc1/inferenceservice_lat_mean", color: COLORS.accent, label: "E2E Latency mean" });
 
     expect(result.ttft).toHaveLength(3);
     expect(result.ttft[1].color).toBe(COLORS.cyan);
@@ -115,7 +115,7 @@ describe("buildChartLinesMap", () => {
     const result = buildChartLinesMap(targets, defaultKey);
 
     expect(result.tps).toHaveLength(3);
-    expect(result.latency).toHaveLength(3);
+    expect(result.e2e_latency).toHaveLength(3);
     expect(result.gpu_util).toHaveLength(3);
     expect(result.tpot).toHaveLength(3);
     expect(result.queue_time).toHaveLength(3);
@@ -124,15 +124,15 @@ describe("buildChartLinesMap", () => {
     expect(result.tps[1]).toEqual({ key: "ns2/svc2/inferenceservice_tps", label: "svc2", color: TARGET_COLORS[1] });
     expect(result.tps[2]).toEqual({ key: "ns3/svc3/llminferenceservice_tps", label: "svc3", color: TARGET_COLORS[2] });
 
-    expect(result.latency[0].key).toBe("ns1/svc1/inferenceservice_lat_p99");
-    expect(result.latency[1].key).toBe("ns2/svc2/inferenceservice_lat_p99");
+    expect(result.e2e_latency[0].key).toBe("ns1/svc1/inferenceservice_lat_p99");
+    expect(result.e2e_latency[1].key).toBe("ns2/svc2/inferenceservice_lat_p99");
   });
 
   it("empty targets returns object with empty arrays", () => {
     const result = buildChartLinesMap([], null);
 
     expect(result.tps).toEqual([]);
-    expect(result.latency).toEqual([]);
+    expect(result.e2e_latency).toEqual([]);
     expect(result.ttft).toEqual([]);
     expect(result.kv).toEqual([]);
     expect(result.kv_hit).toEqual([]);

@@ -94,7 +94,7 @@ describe("TunerResults", () => {
     );
     expect(screen.getByText("Best Parameters Found")).toBeInTheDocument();
     expect(screen.getByText("Best TPS")).toBeInTheDocument();
-    expect(screen.getByText("P99 Latency")).toBeInTheDocument();
+    expect(screen.getByText("E2E Latency P99")).toBeInTheDocument();
   });
 
   it("renders best params table with parameter names and values", () => {

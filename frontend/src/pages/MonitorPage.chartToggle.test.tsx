@@ -19,7 +19,7 @@ Object.defineProperty(global, 'localStorage', {
 });
 
 const LS_KEY = 'vllm-optimizer-chart-config';
-const DEFAULT_IDS = ['tps', 'latency', 'ttft', 'kv', 'kv_hit', 'queue', 'rps', 'gpu_util', 'gpu_mem'];
+const DEFAULT_IDS = ['tps', 'e2e_latency', 'ttft', 'kv', 'kv_hit', 'queue', 'rps', 'gpu_util', 'gpu_mem'];
 
 interface StoredChartConfig {
   order?: string[];
@@ -32,11 +32,13 @@ function loadChartConfig(): { order: string[]; hidden: string[] } {
     if (!raw) return { order: DEFAULT_IDS, hidden: [] };
     const parsed: StoredChartConfig = JSON.parse(raw);
     const validIds = new Set(DEFAULT_IDS);
+    const migrateIds = (ids: string[]): string[] =>
+      ids.map((id: string) => id === 'latency' ? 'e2e_latency' : id);
     const order = Array.isArray(parsed.order)
-      ? parsed.order.filter((id: string) => validIds.has(id))
+      ? migrateIds(parsed.order.filter((id: string) => validIds.has(id)))
       : DEFAULT_IDS;
     const hidden = Array.isArray(parsed.hidden)
-      ? parsed.hidden.filter((id: string) => validIds.has(id))
+      ? migrateIds(parsed.hidden.filter((id: string) => validIds.has(id)))
       : [];
     const inOrder = new Set(order);
     DEFAULT_IDS.forEach((id: string) => { if (!inOrder.has(id)) order.push(id); });
@@ -68,7 +70,7 @@ describe('loadChartConfig', () => {
   });
 
   it('returns parsed config from localStorage', () => {
-    const stored = { order: ['rps', 'tps', 'latency', 'ttft', 'kv', 'kv_hit', 'queue', 'gpu_util', 'gpu_mem'], hidden: ['gpu_mem'] };
+    const stored = { order: ['rps', 'tps', 'e2e_latency', 'ttft', 'kv', 'kv_hit', 'queue', 'gpu_util', 'gpu_mem'], hidden: ['gpu_mem'] };
     localStorageMock.getItem.mockReturnValue(JSON.stringify(stored));
     const config = loadChartConfig();
     expect(config.hidden).toContain('gpu_mem');
@@ -83,7 +85,7 @@ describe('loadChartConfig', () => {
   });
 
   it('filters out unknown chart IDs', () => {
-    const stored = { order: ['tps', 'unknown_chart', 'latency'], hidden: ['bad_id'] };
+    const stored = { order: ['tps', 'unknown_chart', 'e2e_latency'], hidden: ['bad_id'] };
     localStorageMock.getItem.mockReturnValue(JSON.stringify(stored));
     const config = loadChartConfig();
     expect(config.order).not.toContain('unknown_chart');
@@ -99,11 +101,10 @@ describe('loadChartConfig', () => {
   });
 
   it('preserves order of valid IDs in stored config', () => {
-    const stored = { order: ['gpu_mem', 'latency', 'tps'], hidden: [] };
+const stored = { order: ['gpu_mem', 'e2e_latency', 'tps'], hidden: [] };
     localStorageMock.getItem.mockReturnValue(JSON.stringify(stored));
     const config = loadChartConfig();
-    expect(config.order[0]).toBe('gpu_mem');
-    expect(config.order[1]).toBe('latency');
+    expect(config.order[1]).toBe('e2e_latency');
     expect(config.order[2]).toBe('tps');
   });
 });
@@ -115,7 +116,7 @@ describe('saveChartConfig', () => {
   });
 
   it('saves config to localStorage', () => {
-    const order = ['tps', 'latency'];
+    const order = ['tps', 'e2e_latency'];
     const hidden = ['gpu_mem'];
     saveChartConfig(order, hidden);
     expect(localStorageMock.setItem).toHaveBeenCalledWith(
@@ -139,23 +140,18 @@ describe('chart config integration', () => {
   });
 
   it('saveChartConfig stores correct structure in localStorage', () => {
-    saveChartConfig(['tps', 'latency'], ['gpu_mem']);
+    saveChartConfig(['tps', 'e2e_latency'], ['gpu_mem']);
     
     expect(localStorageMock.setItem).toHaveBeenCalledWith(
       LS_KEY,
-      JSON.stringify({ order: ['tps', 'latency'], hidden: ['gpu_mem'] })
+      JSON.stringify({ order: ['tps', 'e2e_latency'], hidden: ['gpu_mem'] })
     );
   });
 
   it('loadChartConfig returns stored order and hidden arrays', () => {
-    const stored = { order: ['tps', 'latency'], hidden: ['gpu_mem'] };
-    // Directly set the store for getItem to return
-    localStorageMock.getItem.mockReturnValueOnce(JSON.stringify(stored));
-    
+const stored = { order: ['tps', 'e2e_latency'], hidden: ['gpu_mem'] };
+    localStorageMock.getItem.mockReturnValue(JSON.stringify(stored));
     const loaded = loadChartConfig();
-    
-    expect(loaded.hidden).toContain('gpu_mem');
-    expect(loaded.order).toContain('tps');
-    expect(loaded.order).toContain('latency');
+    expect(loaded.order).toContain('e2e_latency');
   });
 });

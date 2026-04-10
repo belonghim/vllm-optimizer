@@ -54,7 +54,7 @@ describe("BenchmarkTable", () => {
     expect(screen.getByText("Name")).toBeInTheDocument();
     expect(screen.getByText("Model ID")).toBeInTheDocument();
     expect(screen.getByText("TPS")).toBeInTheDocument();
-    expect(screen.getByText("P99 ms")).toBeInTheDocument();
+    expect(screen.getByText("E2E Latency P99")).toBeInTheDocument();
     expect(screen.getByText("GPU Eff.")).toBeInTheDocument();
   });
 

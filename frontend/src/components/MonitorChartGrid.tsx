@@ -18,7 +18,7 @@ export interface ChartDefinition {
 
 export const CHART_DEFINITIONS: ChartDefinition[] = [
   { id: 'tps',      title: 'Throughput (TPS)' },
-  { id: 'latency',  title: 'Latency (ms)' },
+  { id: 'e2e_latency',  title: 'E2E Latency (ms)' },
   { id: 'ttft',     title: 'TTFT (ms)' },
   { id: 'kv',       title: 'KV Cache Usage (%)' },
   { id: 'kv_hit',   title: 'KV Cache Hit Rate (%)' },
@@ -44,11 +44,18 @@ export function loadChartConfig(): ChartConfig {
     if (!raw) return { order: DEFAULT_ORDER, hidden: [] };
     const parsed = JSON.parse(raw);
     const validIds = new Set(DEFAULT_ORDER);
+    
+    // Migration: rename 'latency' to 'e2e_latency' for localStorage config
+    const migrateOrder = (order: string[]): string[] => 
+      order.map((id: string) => id === 'latency' ? 'e2e_latency' : id);
+    const migrateHidden = (hidden: string[]): string[] =>
+      hidden.map((id: string) => id === 'latency' ? 'e2e_latency' : id);
+    
     const order = Array.isArray(parsed.order)
-      ? parsed.order.filter((id: string) => validIds.has(id))
+      ? migrateOrder(parsed.order.filter((id: string) => validIds.has(id)))
       : DEFAULT_ORDER;
     const hidden = Array.isArray(parsed.hidden)
-      ? parsed.hidden.filter((id: string) => validIds.has(id))
+      ? migrateHidden(parsed.hidden.filter((id: string) => validIds.has(id)))
       : [];
     const inOrder = new Set(order);
     DEFAULT_ORDER.forEach(id => { if (!inOrder.has(id)) order.push(id); });
@@ -82,10 +89,10 @@ export function buildChartLinesMap(
   if (targets.length === 1 && defaultKey) {
     return {
       tps:      [{ key: `${defaultKey}_tps`, color: COLORS.accent, label: "TPS" }],
-      latency:  [
+      e2e_latency:  [
         { key: `${defaultKey}_lat_p99_fill`, color: COLORS.red, label: "P99 (idle)", dash: true },
-        { key: `${defaultKey}_lat_p99`, color: COLORS.red, label: "Latency P99" },
-        { key: `${defaultKey}_lat_mean`, color: COLORS.accent, label: "Latency mean" },
+        { key: `${defaultKey}_lat_p99`, color: COLORS.red, label: "E2E Latency P99" },
+        { key: `${defaultKey}_lat_mean`, color: COLORS.accent, label: "E2E Latency mean" },
       ],
       ttft:     [
         { key: `${defaultKey}_ttft_fill`, color: COLORS.cyan, label: "TTFT (idle)", dash: true },
@@ -114,7 +121,7 @@ export function buildChartLinesMap(
 
   return {
     tps:      makeMultiLines('tps'),
-    latency:  makeMultiLines('lat_p99'),
+    e2e_latency:  makeMultiLines('lat_p99'),
     ttft:     makeMultiLines('ttft'),
     kv:       makeMultiLines('kv'),
     kv_hit:   makeMultiLines('kv_hit'),

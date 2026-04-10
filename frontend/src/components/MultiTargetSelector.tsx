@@ -329,7 +329,7 @@ export default function MultiTargetSelector({
               <th>TPS</th>
               <th>RPS</th>
               <th>TTFT m/p99</th>
-              <th>Lat m/p99</th>
+              <th>E2E Lat m/p99</th>
               <th>KV%</th>
               <th>KV Hit%</th>
               <th>GPU%</th>
