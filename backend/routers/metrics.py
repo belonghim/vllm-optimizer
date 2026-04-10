@@ -96,12 +96,16 @@ async def get_batch_metrics(
     for target in body.targets:
         cr_type = target.cr_type or "inferenceservice"
         key = f"{target.namespace}/{target.inferenceService}/{cr_type}"
-        registered = await collector.register_target(target.namespace, target.inferenceService, cr_type=target.cr_type)
+        registered = await collector.register_target(
+            target.namespace, target.inferenceService, cr_type=target.cr_type, metrics_source=body.metrics_source
+        )
         if not registered:
             results[key] = {"data": None, "status": "max_targets_reached"}
             continue
 
-        vllm_metrics = await collector.get_metrics(target.namespace, target.inferenceService, cr_type=target.cr_type)
+        vllm_metrics = await collector.get_metrics(
+            target.namespace, target.inferenceService, cr_type=target.cr_type, metrics_source=body.metrics_source
+        )
         has_monitoring_label = collector.get_has_monitoring_label(
             target.namespace, target.inferenceService, cr_type=target.cr_type
         )

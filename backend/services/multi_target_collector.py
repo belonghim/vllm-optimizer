@@ -74,6 +74,7 @@ class TargetCache:
     prev_counters: dict[str, dict[str, float]] = field(default_factory=dict)
     prev_hist_buckets: dict[str, dict[str, dict[float, float]]] = field(default_factory=dict)
     prev_hist_timestamps: dict[str, float] = field(default_factory=dict)
+    metrics_source: Literal["direct", "thanos"] | None = None
 
 
 class MultiTargetMetricsCollector:
@@ -469,7 +470,13 @@ class MultiTargetMetricsCollector:
             for m in history
         ]
 
-    async def get_metrics(self, namespace: str, is_name: str, cr_type: str | None = None) -> VLLMMetrics | None:
+    async def get_metrics(
+        self,
+        namespace: str,
+        is_name: str,
+        cr_type: str | None = None,
+        metrics_source: Literal["direct", "thanos"] | None = None,
+    ) -> VLLMMetrics | None:
         if cr_type is None:
             cr_type = runtime_config.cr_type
         key = self.build_target_key(namespace, is_name, cr_type)
@@ -479,12 +486,20 @@ class MultiTargetMetricsCollector:
                 return None
             target.last_accessed = time.time()
             target.is_active = True
+            if metrics_source is not None:
+                target.metrics_source = metrics_source
             latest = target.latest
 
         await self._ensure_collect_loop()
         return latest
 
-    async def register_target(self, namespace: str, is_name: str, cr_type: str | None = None) -> bool:
+    async def register_target(
+        self,
+        namespace: str,
+        is_name: str,
+        cr_type: str | None = None,
+        metrics_source: Literal["direct", "thanos"] | None = None,
+    ) -> bool:
         if cr_type is None:
             cr_type = runtime_config.cr_type
         key = self.build_target_key(namespace, is_name, cr_type)
@@ -499,6 +514,8 @@ class MultiTargetMetricsCollector:
                     existing.has_monitoring_label = await self.check_namespace_monitoring_label(namespace)
                     existing.model_name = await self._resolve_model_name(namespace, is_name, existing.cr_type)
                     existing.last_label_check = time.time()
+                if metrics_source is not None:
+                    existing.metrics_source = metrics_source
             else:
                 if len(self._targets) >= self.MAX_TARGETS:
                     return False
@@ -514,6 +531,7 @@ class MultiTargetMetricsCollector:
                     is_default=is_first,
                     cr_type=cr_type,
                     model_name=model_name,
+                    metrics_source=metrics_source,
                 )
                 new_target = self._targets[key]
 
@@ -560,7 +578,7 @@ class MultiTargetMetricsCollector:
 
                 if active_targets:
                     results = await asyncio.gather(
-                        *(self._collect_target(target) for target in active_targets),
+                        *(self._collect_target(target, target.metrics_source) for target in active_targets),
                         return_exceptions=True,
                     )
                     for target, result in zip(active_targets, results, strict=False):
@@ -769,8 +787,11 @@ class MultiTargetMetricsCollector:
             return False
         return labels_obj.get("openshift.io/cluster-monitoring") == "true"
 
-    async def _collect_target(self, target: TargetCache) -> None:
-        if os.getenv("METRICS_SOURCE", "thanos") == "direct":
+    async def _collect_target(
+        self, target: TargetCache, metrics_source: Literal["direct", "thanos"] | None = None
+    ) -> None:
+        source = metrics_source if metrics_source is not None else os.getenv("METRICS_SOURCE", "thanos")
+        if source == "direct":
             await self._collect_target_direct(target)
         else:
             await self._collect_target_thanos(target)

@@ -38,6 +38,9 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
   const [slaProfiles, setSlaProfiles] = useState<SlaProfile[]>([]);
   const [selectedSlaProfileId, setSelectedSlaProfileId] = useState<number | null>(null);
   const [selectedRange, setSelectedRange] = useState<'Live' | '1h' | '6h' | '24h' | '7d'>('Live');
+  const [metricsSource, setMetricsSource] = useState<'direct' | 'thanos'>(() => 
+    (localStorage.getItem('monitor_metrics_source') as 'direct' | 'thanos') || 'direct'
+  );
   const [initialized, setInitialized] = useState(false);
   const timeRangePointsRef = useRef(150);
   const selectedRangeRef = useRef('Live');
@@ -66,6 +69,10 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
     fetchSlaProfiles();
   }, []);
 
+  useEffect(() => {
+    localStorage.setItem('monitor_metrics_source', metricsSource);
+  }, [metricsSource]);
+
   const fetchAllTargets = useCallback(async (signal?: AbortSignal) => {
     if (isMockEnabled) {
       const newStates: Record<string, TargetState> = {};
@@ -92,11 +99,16 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
        const res = await authFetch(`${API}/metrics/batch`, {
          method: 'POST',
          headers: { 'Content-Type': 'application/json' },
-         body: JSON.stringify(
-           selectedRangeRef.current === 'Live'
-             ? { targets: batchTargets, history_points: timeRangePointsRef.current }
-             : { targets: batchTargets, time_range: selectedRangeRef.current }
-         ),
+        body: JSON.stringify(
+          selectedRangeRef.current === 'Live'
+            ? { 
+                targets: batchTargets, 
+                history_points: timeRangePointsRef.current,
+                metrics_source: metricsSource 
+              }
+            : { targets: batchTargets, time_range: selectedRangeRef.current }
+        ),
+
          signal,
        });
 
@@ -211,7 +223,7 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
     
     const id = setInterval(() => fetchAllTargets(controller.signal), 3000);
     return () => { controller.abort(); clearInterval(id); };
-  }, [isActive, targets, fetchAllTargets]);
+  }, [isActive, targets, fetchAllTargets, metricsSource]);
 
   const mergedHistory = useMemo(() => {
     const timeMap: Record<string, Record<string, unknown>> = {};
@@ -291,19 +303,38 @@ function MonitorPage({ isActive }: { isActive: boolean }) {
             ))}
           </select>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          {TIME_RANGES.map(r => (
-            <button
-              key={r.label}
-              type="button"
-              data-testid="time-range-btn"
-              aria-label={`Show last ${r.label}`}
-              className={`btn btn-sm${selectedRange === r.label ? ' active' : ''}`}
-              onClick={() => { setSelectedRange(r.label); timeRangePointsRef.current = r.points; selectedRangeRef.current = r.label; }}
-            >
-              {r.label}
-            </button>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {selectedRange === 'Live' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', paddingRight: '12px', borderRight: '1px solid var(--border-color)' }}>
+              <span className="label label-no-mb">SOURCE:</span>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                {(['direct', 'thanos'] as const).map(src => (
+                  <button
+                    key={src}
+                    type="button"
+                    className={`btn btn-sm${metricsSource === src ? ' active' : ''}`}
+                    onClick={() => setMetricsSource(src)}
+                  >
+                    {src}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            {TIME_RANGES.map(r => (
+              <button
+                key={r.label}
+                type="button"
+                data-testid="time-range-btn"
+                aria-label={`Show last ${r.label}`}
+                className={`btn btn-sm${selectedRange === r.label ? ' active' : ''}`}
+                onClick={() => { setSelectedRange(r.label); timeRangePointsRef.current = r.points; selectedRangeRef.current = r.label; }}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
       {!initialized && targets.length > 0 ? (
