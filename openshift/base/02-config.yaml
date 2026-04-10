@@ -21,8 +21,6 @@ data:
   OPTUNA_STORAGE_URL: "sqlite:////data/optuna.db"
   # vLLM CR type (inferenceservice or llminferenceservice)
   VLLM_CR_TYPE: "inferenceservice"
-  # Metrics collection source: thanos | direct (vLLM Pod direct scrape)
-  METRICS_SOURCE: "direct"
   # Default InferenceService (KServe) target
   DEFAULT_ISVC_NAME: ""
   DEFAULT_ISVC_NAMESPACE: ""
