@@ -40,9 +40,10 @@ export default function BenchmarkMetadataModal({ editing, onClose, onSave }: Ben
         </div>
         <form onSubmit={handleSubmit} className="metadata-form">
           <div className="form-group">
-            <label>Model Identifier</label>
+            <label htmlFor="benchmark-model-identifier">Model Identifier</label>
             <input
               type="text"
+              id="benchmark-model-identifier"
               value={meta.model_identifier || ""}
               onChange={e => updateField('model_identifier', e.target.value)}
               placeholder="e.g. llama-3.1-8b-instruct"
@@ -51,18 +52,20 @@ export default function BenchmarkMetadataModal({ editing, onClose, onSave }: Ben
           </div>
           <div className="form-row">
             <div className="form-group">
-              <label>Hardware Type</label>
+              <label htmlFor="benchmark-hardware-type">Hardware Type</label>
               <input
                 type="text"
+                id="benchmark-hardware-type"
                 value={meta.hardware_type || ""}
                 onChange={e => updateField('hardware_type', e.target.value)}
                 placeholder="e.g. A100, L4, CPU"
               />
             </div>
             <div className="form-group">
-              <label>Runtime</label>
+              <label htmlFor="benchmark-runtime">Runtime</label>
               <input
                 type="text"
+                id="benchmark-runtime"
                 value={meta.runtime || ""}
                 onChange={e => updateField('runtime', e.target.value)}
                 placeholder="e.g. OpenVINO, CUDA"
@@ -71,26 +74,29 @@ export default function BenchmarkMetadataModal({ editing, onClose, onSave }: Ben
           </div>
           <div className="form-row">
             <div className="form-group">
-              <label>vLLM Version</label>
+              <label htmlFor="benchmark-vllm-version">vLLM Version</label>
               <input
                 type="text"
+                id="benchmark-vllm-version"
                 value={meta.vllm_version || ""}
                 onChange={e => updateField('vllm_version', e.target.value)}
                 placeholder="e.g. 0.6.2"
               />
             </div>
             <div className="form-group">
-              <label>Replica Count</label>
+              <label htmlFor="benchmark-replica-count">Replica Count</label>
               <input
                 type="number"
+                id="benchmark-replica-count"
                 value={meta.replica_count || ""}
                 onChange={e => updateField('replica_count', e.target.value ? parseInt(e.target.value) : null)}
               />
             </div>
           </div>
           <div className="form-group">
-            <label>Notes</label>
+            <label htmlFor="benchmark-notes">Notes</label>
             <textarea
+              id="benchmark-notes"
               value={meta.notes || ""}
               onChange={e => updateField('notes', e.target.value)}
               rows={3}

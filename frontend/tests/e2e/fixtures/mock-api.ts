@@ -1,9 +1,32 @@
 import { test as base, expect, type Page } from '@playwright/test';
 
-let createdSlaProfile: { id: number; name: string; thresholds: Record<string, unknown>; created_at: number } | null = null;
+type SlaProfileState = { id: number; name: string; thresholds: Record<string, unknown>; created_at: number } | null;
 
-export async function setupMockApi(page: Page) {
-  createdSlaProfile = null;
+export const test = base.extend<{
+  mockApi: void;
+  slaState: SlaProfileState;
+}>({
+  slaState: [async ({}, use) => {
+    await use(null);
+  }, { scope: 'test' }],
+
+  mockApi: async ({ page, slaState }, use) => {
+    slaState = null;
+    await setupMockApiWithState(page, (state) => { slaState = state; });
+    await use();
+  },
+});
+
+async function setupMockApiWithState(
+  page: Page,
+  setSlaState: (state: SlaProfileState) => void
+) {
+  let currentSlaState: SlaProfileState = null;
+  const updateSlaState = (state: SlaProfileState) => {
+    currentSlaState = state;
+    setSlaState(state);
+  };
+  setSlaState(null);
   await page.route('**/api/**', async (route) => {
     const req = route.request();
     const { pathname } = new URL(req.url());
@@ -158,17 +181,35 @@ export async function setupMockApi(page: Page) {
 
     // SLA
     if (pathname === '/api/sla/evaluate' && method === 'POST') {
-      return json({ profile: null, results: [], warnings: [] });
+      const profile = currentSlaState || { id: 1, name: 'Test SLA Profile', thresholds: { mean_tpot_max_ms: 100 }, created_at: Date.now() };
+      const now = Date.now();
+      return json({
+        profile,
+        results: [{
+          benchmark_id: 1,
+          benchmark_name: 'mock-benchmark',
+          timestamp: now,
+          verdicts: [
+            { metric: 'mean_tpot', value: 45.2, threshold: 100, pass: true, status: 'pass' },
+            { metric: 'p95_tpot', value: 78.3, threshold: 150, pass: true, status: 'pass' },
+            { metric: 'mean_queue_time', value: 23.1, threshold: 100, pass: true, status: 'pass' },
+            { metric: 'p95_queue_time', value: 45.6, threshold: 200, pass: true, status: 'pass' }
+          ],
+          overall_pass: true
+        }],
+        warnings: []
+      });
     }
     if (pathname === '/api/sla/profiles' && method === 'POST') {
-      createdSlaProfile = { id: 1, name: 'Test SLA Profile', thresholds: { mean_tpot_max_ms: 100 }, created_at: Date.now() };
-      return json(createdSlaProfile);
+      currentSlaState = { id: 1, name: 'Test SLA Profile', thresholds: { mean_tpot_max_ms: 100 }, created_at: Date.now() };
+      updateSlaState(currentSlaState);
+      return json(currentSlaState);
     }
     if (pathname === '/api/sla/profiles' && method === 'GET') {
-      return json(createdSlaProfile ? [createdSlaProfile] : []);
+      return json(currentSlaState ? [currentSlaState] : []);
     }
     if (pathname.match(/^\/api\/sla\/profiles\/\d+$/) && method === 'GET') {
-      return json(createdSlaProfile || { id: 1, name: 'Test Profile', thresholds: { mean_tpot_max_ms: 100 }, created_at: Date.now() });
+      return json(currentSlaState || { id: 1, name: 'Test Profile', thresholds: { mean_tpot_max_ms: 100 }, created_at: Date.now() });
     }
     if (pathname.match(/^\/api\/sla\/profiles\/\d+$/) && method === 'PUT') {
       return json({ id: 1, name: 'Updated Profile', thresholds: { mean_tpot_max_ms: 200 }, created_at: Date.now() });
@@ -343,12 +384,5 @@ export async function setupMultiReplicaMocks(page: Page, options: MultiReplicaMo
     }
   });
 }
-
-export const test = base.extend<{ mockApi: void }>({
-  mockApi: async ({ page }, next) => {
-    await setupMockApi(page);
-    await next();
-  },
-});
 
 export { expect };
