@@ -38,16 +38,16 @@ export default function SlaProfileForm({ formState, onChange, onSubmit, onCancel
           <input id="sla-avail-min" type="number" min="0" max="100" step="0.1" value={availMin} onChange={e => onChange('availMin', e.target.value)} placeholder="99.9" />
         </div>
         <div className="form-group">
-          <label htmlFor="sla-p95-latency">E2E Latency P95 (ms)</label>
-          <input id="sla-p95-latency" type="number" min="0" step="1" value={p95Ms} onChange={e => onChange('p95Ms', e.target.value)} placeholder="3000" />
+          <label htmlFor="sla-error-rate">Error Rate Max (%)</label>
+          <input id="sla-error-rate" type="number" min="0" max="100" step="0.1" value={errRate} onChange={e => onChange('errRate', e.target.value)} placeholder="1.0" />
         </div>
         <div className="form-group">
           <label htmlFor="sla-e2e-latency">E2E Latency Mean (ms)</label>
           <input id="sla-e2e-latency" type="number" min="0" step="1" value={meanE2eLatencyMs} onChange={e => onChange('meanE2eLatencyMs', e.target.value)} placeholder="2000" />
         </div>
         <div className="form-group">
-          <label htmlFor="sla-error-rate">Error Rate Max (%)</label>
-          <input id="sla-error-rate" type="number" min="0" max="100" step="0.1" value={errRate} onChange={e => onChange('errRate', e.target.value)} placeholder="1.0" />
+          <label htmlFor="sla-p95-latency">E2E Latency P95 (ms)</label>
+          <input id="sla-p95-latency" type="number" min="0" step="1" value={p95Ms} onChange={e => onChange('p95Ms', e.target.value)} placeholder="3000" />
         </div>
         <div className="form-group">
           <label htmlFor="sla-ttft-mean">TTFT Mean (ms)</label>
