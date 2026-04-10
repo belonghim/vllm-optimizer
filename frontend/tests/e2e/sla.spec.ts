@@ -13,11 +13,11 @@ test('SLA 폼에서 새로운 threshold 필드들이 표시됨', async ({ page, 
   await page.goto('/');
   await page.getByRole('tab', { name: 'SLA' }).click();
 
-  await expect(page.getByLabel('Mean TPOT (ms)')).toBeVisible();
-  await expect(page.getByLabel('P95 TPOT (ms)')).toBeVisible();
-  await expect(page.getByLabel('Mean Queue Time (ms)')).toBeVisible();
-  await expect(page.getByLabel('P95 Queue Time (ms)')).toBeVisible();
-  await expect(page.getByLabel('Mean E2E Latency (ms)')).toBeVisible();
+  await expect(page.getByLabel('TPOT Mean (ms)')).toBeVisible();
+  await expect(page.getByLabel('TPOT P95 (ms)')).toBeVisible();
+  await expect(page.getByLabel('Queue Time Mean (ms)')).toBeVisible();
+  await expect(page.getByLabel('Queue Time P95 (ms)')).toBeVisible();
+  await expect(page.getByLabel('E2E Latency Mean (ms)')).toBeVisible();
 });
 
 test('SLA 폼 제출 시 프로필 생성됨', async ({ page, mockApi }) => {
@@ -25,12 +25,12 @@ test('SLA 폼 제출 시 프로필 생성됨', async ({ page, mockApi }) => {
   await page.getByRole('tab', { name: 'SLA' }).click();
 
   await page.getByLabel('Profile Name *').fill('Test SLA Profile');
-  await page.getByLabel('Mean TPOT (ms)').fill('100');
+  await page.getByLabel('TPOT Mean (ms)').fill('100');
 
   await page.getByRole('button', { name: 'Create Profile' }).click();
 
   await expect(page.getByLabel('Profile Name *')).toHaveValue('');
-  await expect(page.getByLabel('Mean TPOT (ms)')).toHaveValue('');
+  await expect(page.getByLabel('TPOT Mean (ms)')).toHaveValue('');
 });
 
 test.skip('SLA 차트에서 새로운 메트릭 선택 가능', async ({ page, mockApi }) => {
@@ -38,7 +38,7 @@ test.skip('SLA 차트에서 새로운 메트릭 선택 가능', async ({ page, m
   await page.getByRole('tab', { name: 'SLA' }).click();
 
   await page.getByLabel('Profile Name *').fill('Test SLA Profile');
-  await page.getByLabel('Mean TPOT (ms)').fill('100');
+  await page.getByLabel('TPOT Mean (ms)').fill('100');
   await page.getByRole('button', { name: 'Create Profile' }).click();
 
   await page.waitForTimeout(1000);
@@ -49,8 +49,8 @@ test.skip('SLA 차트에서 새로운 메트릭 선택 가능', async ({ page, m
 
   await page.waitForTimeout(500);
 
-  await expect(page.getByRole('button', { name: 'Mean TPOT' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'P95 TPOT' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Mean Queue' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'P95 Queue' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'TPOT Mean' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'TPOT P95' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Queue Time Mean' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Queue Time P95' })).toBeVisible();
 });
