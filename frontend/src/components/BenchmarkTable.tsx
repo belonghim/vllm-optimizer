@@ -2,6 +2,7 @@ import { Fragment } from "react";
 import { useThemeColors } from "../contexts/ThemeContext";
 import { fmt } from "../utils/format";
 import { calcGpuEfficiency } from "../utils/metrics";
+import { CHART_LABELS } from "../constants";
 import type { BenchmarkItem, BenchmarkRunConfig } from "../pages/BenchmarkPage";
 
 interface BenchmarkTableProps {
@@ -60,7 +61,7 @@ export default function BenchmarkTable({
                 <th>Config Model</th>
                 <th>Date</th>
                 <th>TPS</th>
-                <th>E2E Latency P99</th>
+                <th>{CHART_LABELS.e2eLatency.p99}</th>
                 <th>RPS</th>
                 <th>GPU Eff.</th>
                 <th>Delete</th>

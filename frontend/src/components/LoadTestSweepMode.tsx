@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { authFetch } from '../utils/authFetch';
-import { API, SWEEP_PRESETS } from "../constants";
+import { API, SWEEP_PRESETS, CHART_LABELS } from "../constants";
 import { useThemeColors } from "../contexts/ThemeContext";
 import { fmt } from "../utils/format";
 import MetricCard from "./MetricCard";
@@ -303,7 +303,7 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
           <div className="section-title">Sweep Results</div>
           <table className="table" aria-label="Sweep Step Results">
             <thead>
-              <tr><th>Step</th><th>RPS</th><th>E2E Latency P99</th><th>TPS</th><th>Success %</th><th>Status</th></tr>
+              <tr><th>Step</th><th>RPS</th><th>{CHART_LABELS.e2eLatency.p99}</th><th>TPS</th><th>Success %</th><th>Status</th></tr>
             </thead>
             <tbody>
               {sweepSteps.map((step) => (

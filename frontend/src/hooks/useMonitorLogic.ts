@@ -3,7 +3,7 @@ import { authFetch } from '../utils/authFetch';
 import { mockMetrics, mockHistory } from "../mockData";
 import { useMockData } from "../contexts/MockDataContext";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
-import { API, METRIC_KEYS } from "../constants";
+import { API, METRIC_KEYS, CHART_LABELS } from "../constants";
 import { useThemeColors } from "../contexts/ThemeContext";
 import { buildGapFill } from "../utils/gapFill";
 import { showSlaViolation } from "../components/Toast";
@@ -123,7 +123,7 @@ export function useMonitorLogic(isActive: boolean) {
           const { thresholds } = selectedSlaProfile;
           const { data } = result;
           checkViolation(`${key} TPS`, data.tps, thresholds.min_tps, (v, t) => v < t);
-          checkViolation(`${key} E2E Latency`, data.latency_p99, thresholds.p95_latency_max_ms, (v, t) => v > t);
+          checkViolation(`${key} ${CHART_LABELS.e2eLatency.violation}`, data.latency_p99, thresholds.p95_latency_max_ms, (v, t) => v > t);
         }
         const mapped = (result.history || []).map((m) => ({
           t: m.timestamp,

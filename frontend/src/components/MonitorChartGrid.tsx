@@ -1,5 +1,5 @@
 import Chart from "./Chart";
-import { TARGET_COLORS, COLORS as DARK_COLORS } from "../constants";
+import { TARGET_COLORS, COLORS as DARK_COLORS, CHART_LABELS } from "../constants";
 import type { ClusterTarget } from "../types";
 
 export interface ChartLine {
@@ -18,7 +18,7 @@ export interface ChartDefinition {
 
 export const CHART_DEFINITIONS: ChartDefinition[] = [
   { id: 'tps',      title: 'Throughput (TPS)' },
-  { id: 'e2e_latency',  title: 'E2E Latency (ms)' },
+  { id: 'e2e_latency',  title: CHART_LABELS.e2eLatency.chartTitle },
   { id: 'ttft',     title: 'TTFT (ms)' },
   { id: 'kv',       title: 'KV Cache Usage (%)' },
   { id: 'kv_hit',   title: 'KV Cache Hit Rate (%)' },
@@ -90,9 +90,9 @@ export function buildChartLinesMap(
     return {
       tps:      [{ key: `${defaultKey}_tps`, color: COLORS.accent, label: "TPS" }],
       e2e_latency:  [
-        { key: `${defaultKey}_lat_p99_fill`, color: COLORS.red, label: "P99 (idle)", dash: true },
-        { key: `${defaultKey}_lat_p99`, color: COLORS.red, label: "E2E Latency P99" },
-        { key: `${defaultKey}_lat_mean`, color: COLORS.accent, label: "E2E Latency mean" },
+        { key: `${defaultKey}_lat_p99_fill`, color: COLORS.red, label: CHART_LABELS.e2eLatency.p99Idle, dash: true },
+        { key: `${defaultKey}_lat_p99`, color: COLORS.red, label: CHART_LABELS.e2eLatency.p99 },
+        { key: `${defaultKey}_lat_mean`, color: COLORS.accent, label: CHART_LABELS.e2eLatency.mean },
       ],
       ttft:     [
         { key: `${defaultKey}_ttft_fill`, color: COLORS.cyan, label: "TTFT (idle)", dash: true },

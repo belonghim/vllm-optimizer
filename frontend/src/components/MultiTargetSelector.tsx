@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, Fragment } from "react";
 import { getTargetKey, parseTargetKey } from "../utils/targetKey";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
-import { TARGET_COLORS } from "../constants";
+import { TARGET_COLORS, CHART_LABELS } from "../constants";
 import { fmt } from "../utils/format";
 import { authFetch } from "../utils/authFetch";
 import type { ClusterTarget, PerPodMetricSnapshot, PerPodMetricsDict } from "../types";
@@ -329,7 +329,7 @@ export default function MultiTargetSelector({
               <th>TPS</th>
               <th>RPS</th>
               <th>TTFT m/p99</th>
-              <th>E2E Lat m/p99</th>
+              <th>{CHART_LABELS.e2eLatency.tableShort}</th>
               <th>KV%</th>
               <th>KV Hit%</th>
               <th>GPU%</th>

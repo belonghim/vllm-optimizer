@@ -3,6 +3,7 @@ import {
   ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, ResponsiveContainer, DotProps
 } from 'recharts';
 import { useThemeColors } from '../contexts/ThemeContext';
+import { CHART_LABELS } from '../constants';
 
 export interface SweepStepResult {
   step: number;
@@ -109,11 +110,11 @@ const SweepChart: React.FC<SweepChartProps> = ({ steps, saturationRps }) => {
             <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
             <XAxis dataKey="rps" type="number" domain={['dataMin', 'dataMax']} tick={{ fontSize: 9, fill: COLORS.muted }} label={{ value: 'Target RPS', position: 'insideBottom', offset: -5, fill: COLORS.muted, fontSize: 10 }} />
             <YAxis yAxisId="left" stroke={COLORS.cyan} tick={{ fontSize: 9, fill: COLORS.cyan }} label={{ value: 'Throughput (TPS)', angle: -90, position: 'insideLeft', fill: COLORS.cyan, fontSize: 10 }} />
-            <YAxis yAxisId="right" orientation="right" stroke={COLORS.accent} tick={{ fontSize: 9, fill: COLORS.accent }} label={{ value: 'E2E Latency P99 (ms)', angle: 90, position: 'insideRight', fill: COLORS.accent, fontSize: 10 }} />
+            <YAxis yAxisId="right" orientation="right" stroke={COLORS.accent} tick={{ fontSize: 9, fill: COLORS.accent }} label={{ value: CHART_LABELS.e2eLatency.chartYAxis, angle: 90, position: 'insideRight', fill: COLORS.accent, fontSize: 10 }} />
             <Tooltip content={<CustomTooltip />} />
             <Legend wrapperStyle={{ fontSize: '12px' }} />
             <Line yAxisId="left" type="monotone" dataKey="throughput" stroke={COLORS.cyan} name="Throughput" dot={(props) => <CustomizedDot {...props} saturated={props.payload.saturated} />} />
-            <Line yAxisId="right" type="monotone" dataKey="p99_latency" stroke={COLORS.accent} name="E2E Latency P99" dot={(props) => <CustomizedDot {...props} saturated={props.payload.saturated} />} />
+            <Line yAxisId="right" type="monotone" dataKey="p99_latency" stroke={COLORS.accent} name={CHART_LABELS.e2eLatency.p99} dot={(props) => <CustomizedDot {...props} saturated={props.payload.saturated} />} />
             {saturationRps != null && (
               <ReferenceLine
                 x={saturationRps}

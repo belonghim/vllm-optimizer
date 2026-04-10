@@ -4,6 +4,7 @@ import MetricCard from './MetricCard';
 import { downloadJSON, downloadCSV, trialsToCSV } from '../utils/export';
 import { ScatterChart, Scatter, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { useThemeColors } from '../contexts/ThemeContext';
+import { CHART_LABELS } from '../constants';
 
 interface TrialParams {
   [key: string]: unknown;
@@ -89,7 +90,7 @@ export default function TunerResults({ trials, bestParams, status, importance, i
           <div className="section-title section-title-accent">Best Parameters Found</div>
           <div className="grid-4 tuner-best-metrics-grid">
             <MetricCard label="Best TPS" value={fmt(bestParams.tps, 1)} unit="tok/s" color="amber" />
-            <MetricCard label="E2E Latency P99" value={fmt(bestParams.p99_latency, 0)} unit="ms" color="cyan" />
+            <MetricCard label={CHART_LABELS.e2eLatency.tunerBest} value={fmt(bestParams.p99_latency, 0)} unit="ms" color="cyan" />
           </div>
           {bestParams.params && (
             <table className="table">
@@ -108,7 +109,7 @@ export default function TunerResults({ trials, bestParams, status, importance, i
       )}
 
       {scatterData.length > 0 && (
-        <div className="panel" aria-label="Trial distribution chart (TPS vs E2E Latency P99)">
+        <div className="panel" aria-label={CHART_LABELS.e2eLatency.tunerAria}>
           <div className="section-title">Trial Distribution (TPS vs P99 Latency)</div>
           <ResponsiveContainer width="100%" height={240}>
             <ScatterChart margin={{ top: 8, right: 8, bottom: 8, left: -8 }}>

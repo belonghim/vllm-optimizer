@@ -77,3 +77,21 @@ export const SWEEP_PRESETS: SweepPreset[] = [
   { name: "Quick Sweep", description: "Quick saturation point detection", rps_start: 1, rps_end: 20, rps_step: 5, requests_per_step: 10, concurrency: 5 },
   { name: "Full Sweep", description: "Precision saturation point detection", rps_start: 1, rps_end: 50, rps_step: 2, requests_per_step: 30, concurrency: 10 },
 ];
+
+export const CHART_LABELS = {
+  e2eLatency: {
+    chartTitle: "E2E Latency (ms)",
+    p99: "E2E Latency P99",
+    mean: "E2E Latency mean",
+    p99Idle: "P99 (idle)",
+    distribution: "E2E Latency Distribution",
+    meanFull: "E2E Latency Mean",
+    p50: "E2E Latency P50",
+    p95: "E2E Latency P95",
+    tableShort: "E2E Lat m/p99",
+    violation: "E2E Latency",
+    chartYAxis: "E2E Latency P99 (ms)",
+    tunerBest: "E2E Latency P99",
+    tunerAria: "Trial distribution chart (TPS vs E2E Latency P99)",
+  },
+} as const;

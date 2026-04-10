@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { authFetch } from '../utils/authFetch';
 import { useMockData } from "../contexts/MockDataContext";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
-import { API, LOAD_TEST_PRESETS } from "../constants";
+import { API, LOAD_TEST_PRESETS, CHART_LABELS } from "../constants";
 import { ERROR_MESSAGES } from "../constants/errorMessages";
 import { useThemeColors } from "../contexts/ThemeContext";
 import { fmt } from "../utils/format";
@@ -259,7 +259,7 @@ function LoadTestNormalMode({ isActive, pendingConfig, onConfigConsumed, onRunni
           <div className="grid-5 gap-1">
             <MetricCard label="Mean TPS" value={fmt((result.tps as Record<string, number> | undefined)?.mean, 1)} unit="tok/s" color="amber" />
             <MetricCard label="TTFT Mean" value={fmt(((result.ttft as Record<string, number> | null)?.mean || 0) * 1000, 0)} unit="ms" color="cyan" />
-            <MetricCard label="E2E Latency P99" value={fmt(((result.latency as Record<string, number> | null)?.p99 || 0) * 1000, 0)} unit="ms" color="red" />
+            <MetricCard label={CHART_LABELS.e2eLatency.p99} value={fmt(((result.latency as Record<string, number> | null)?.p99 || 0) * 1000, 0)} unit="ms" color="red" />
             <MetricCard label="Success Rate"
               value={result.total ? fmt(((result.success as number) / (result.total as number)) * 100, 1) : "—"}
               unit="%" color="green" />
@@ -269,7 +269,7 @@ function LoadTestNormalMode({ isActive, pendingConfig, onConfigConsumed, onRunni
           </div>
 
           <div className="panel">
-            <div className="section-title">E2E Latency Distribution</div>
+            <div className="section-title">{CHART_LABELS.e2eLatency.distribution}</div>
             <table className="table" aria-label="Latency Detailed Results">
               <thead><tr><th>Metric</th><th>Value</th></tr></thead>
               <tbody>
@@ -277,10 +277,10 @@ function LoadTestNormalMode({ isActive, pendingConfig, onConfigConsumed, onRunni
                   ["Total Requests", (result.total_requested ?? result.total) as number],
                   ["Success", result.success as number], ["Failed", result.failed as number],
                   ["Actual RPS", fmt(result.rps_actual as number | null | undefined, 2)],
-                  ["E2E Latency Mean", `${fmt(((result.latency as Record<string, number> | null)?.mean || 0) * 1000, 0)} ms`],
-                  ["E2E Latency P50", `${fmt(((result.latency as Record<string, number> | null)?.p50 || 0) * 1000, 0)} ms`],
-                  ["E2E Latency P95", `${fmt(((result.latency as Record<string, number> | null)?.p95 || 0) * 1000, 0)} ms`],
-                  ["E2E Latency P99", `${fmt(((result.latency as Record<string, number> | null)?.p99 || 0) * 1000, 0)} ms`],
+                  [CHART_LABELS.e2eLatency.meanFull, `${fmt(((result.latency as Record<string, number> | null)?.mean || 0) * 1000, 0)} ms`],
+                  [CHART_LABELS.e2eLatency.p50, `${fmt(((result.latency as Record<string, number> | null)?.p50 || 0) * 1000, 0)} ms`],
+                  [CHART_LABELS.e2eLatency.p95, `${fmt(((result.latency as Record<string, number> | null)?.p95 || 0) * 1000, 0)} ms`],
+                  [CHART_LABELS.e2eLatency.p99, `${fmt(((result.latency as Record<string, number> | null)?.p99 || 0) * 1000, 0)} ms`],
                   ["TTFT Mean", `${fmt(((result.ttft as Record<string, number> | null)?.mean || 0) * 1000, 0)} ms`],
                   ["TTFT P95", `${fmt(((result.ttft as Record<string, number> | null)?.p95 || 0) * 1000, 0)} ms`],
                   ["Total TPS", `${fmt((result.tps as Record<string, number> | null)?.total, 1)} tok/s`],
