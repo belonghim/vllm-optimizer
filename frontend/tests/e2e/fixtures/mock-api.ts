@@ -4,15 +4,9 @@ type SlaProfileState = { id: number; name: string; thresholds: Record<string, un
 
 export const test = base.extend<{
   mockApi: void;
-  slaState: SlaProfileState;
 }>({
-  slaState: [async ({}, use) => {
-    await use(null);
-  }, { scope: 'test' }],
-
-  mockApi: async ({ page, slaState }, use) => {
-    slaState = null;
-    await setupMockApiWithState(page, (state) => { slaState = state; });
+  mockApi: async ({ page }, use) => {
+    await setupMockApiWithState(page, () => {});
     await use();
   },
 });

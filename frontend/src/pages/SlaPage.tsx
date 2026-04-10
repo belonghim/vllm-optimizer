@@ -204,15 +204,15 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
             <div className="section-title" style={{ margin: 0 }}>{currentEval?.profile.name ?? profiles.find(p => p.id === selectedProfileId)?.name} - Metrics Trend</div>
             <div className="tab-group" style={{ display: 'flex', gap: '4px' }}>
 {([
-                  { id: 'p95_latency' as const, label: 'P95 Latency' },
+                  { id: 'p95_latency' as const, label: 'P95 E2E Latency' },
                   { id: 'availability' as const, label: 'Availability' },
                   { id: 'error_rate' as const, label: 'Error Rate' },
-                  { id: 'ttft_mean' as const, label: 'TTFT Mean' },
-                  { id: 'ttft_p95' as const, label: 'TTFT P95' },
-                  { id: 'tpot_mean' as const, label: 'TPOT Mean' },
-                  { id: 'tpot_p95' as const, label: 'TPOT P95' },
-                  { id: 'queue_time_mean' as const, label: 'Queue Mean' },
-                  { id: 'queue_time_p95' as const, label: 'Queue P95' }
+                  { id: 'ttft_mean' as const, label: 'Mean TTFT' },
+                  { id: 'ttft_p95' as const, label: 'P95 TTFT' },
+                  { id: 'tpot_mean' as const, label: 'Mean TPOT' },
+                  { id: 'tpot_p95' as const, label: 'P95 TPOT' },
+                  { id: 'queue_time_mean' as const, label: 'Mean Queue' },
+                  { id: 'queue_time_p95' as const, label: 'P95 Queue' }
                 ] as const).map(m => (
                  <button key={m.id} type="button" className={`btn-small ${chartMetric === m.id ? 'active' : ''}`} onClick={() => setChartMetric(m.id)}
                    style={{ backgroundColor: chartMetric === m.id ? COLORS.cyan : 'transparent', color: chartMetric === m.id ? COLORS.bg : COLORS.text, border: `1px solid ${chartMetric === m.id ? COLORS.cyan : COLORS.border}` }}>

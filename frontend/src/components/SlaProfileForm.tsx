@@ -38,7 +38,7 @@ export default function SlaProfileForm({ formState, onChange, onSubmit, onCancel
           <input id="sla-avail-min" type="number" min="0" max="100" step="0.1" value={availMin} onChange={e => onChange('availMin', e.target.value)} placeholder="99.9" />
         </div>
         <div className="form-group">
-          <label htmlFor="sla-p95-latency">P95 Latency (ms)</label>
+          <label htmlFor="sla-p95-latency">P95 E2E Latency (ms)</label>
           <input id="sla-p95-latency" type="number" min="0" step="1" value={p95Ms} onChange={e => onChange('p95Ms', e.target.value)} placeholder="1000" />
         </div>
         <div className="form-group">
