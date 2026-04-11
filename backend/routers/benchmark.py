@@ -133,12 +133,8 @@ async def benchmarks_by_model(
     groups: dict[str, list[Any]] = {}
     for b in benchmarks:
         model_key = (b.config.model if b.config else None) or "unknown"
-        gpu_efficiency = None
-        if b.result and b.result.gpu_utilization_avg and b.result.gpu_utilization_avg > 0:
-            gpu_efficiency = b.result.tps.mean / b.result.gpu_utilization_avg
         entry = {
             **b.model_dump(),
-            "gpu_efficiency": gpu_efficiency,
         }
         groups.setdefault(model_key, []).append(entry)
     return {"models": groups}

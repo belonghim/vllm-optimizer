@@ -81,6 +81,7 @@ class MultiTargetMetricsCollector:
     MAX_TARGETS: int = 5
     INACTIVE_TIMEOUT: int = 300
     COLLECT_INTERVAL: float = 5.0
+    IMMEDIATE_COLLECT_TIMEOUT: float = 10.0
 
     def __init__(self) -> None:
         self._targets: dict[str, TargetCache] = {}
@@ -480,6 +481,9 @@ class MultiTargetMetricsCollector:
         if cr_type is None:
             cr_type = runtime_config.cr_type
         key = self.build_target_key(namespace, is_name, cr_type)
+        target: TargetCache | None = None
+        collect_source: Literal["direct", "thanos"] | None = None
+        should_collect_immediately = False
         async with self._lock:
             target = self._targets.get(key)
             if target is None:
@@ -487,10 +491,35 @@ class MultiTargetMetricsCollector:
             target.last_accessed = time.time()
             target.is_active = True
             if metrics_source is not None:
+                should_collect_immediately = True
                 target.metrics_source = metrics_source
+                collect_source = metrics_source
             latest = target.latest
 
         await self._ensure_collect_loop()
+
+        if target is not None and collect_source is not None and should_collect_immediately:
+            try:
+                await asyncio.wait_for(
+                    self._collect_target(target, collect_source),
+                    timeout=self.IMMEDIATE_COLLECT_TIMEOUT,
+                )
+            except TimeoutError:
+                logger.warning(
+                    "[MultiTargetMetricsCollector] immediate collect timed out: target=%s source=%s timeout=%ss",
+                    target.key,
+                    collect_source,
+                    self.IMMEDIATE_COLLECT_TIMEOUT,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "[MultiTargetMetricsCollector] immediate collect failed: target=%s source=%s error=%s",
+                    target.key,
+                    collect_source,
+                    exc,
+                )
+            return target.latest
+
         return latest
 
     async def register_target(
@@ -686,8 +715,8 @@ class MultiTargetMetricsCollector:
                 f"or (sum(DCGM_FI_DEV_FB_USED{{{dcgm_selector}}} + DCGM_FI_DEV_FB_FREE{{{dcgm_selector}}} + DCGM_FI_DEV_FB_RESERVED{{{dcgm_selector}}}) / 1024)"
             ),
             "gpu_utilization_pct": (
-                f"(avg({prefix}gpu_utilization_perc{{{selector}}}) * 100) "
-                f"or (avg({prefix}gpu_utilization{{{selector}}}) * 100) "
+                f"(sum({prefix}gpu_utilization_perc{{{selector}}}) * 100) "
+                f"or (sum({prefix}gpu_utilization{{{selector}}}) * 100) "
                 f"or sum(DCGM_FI_DEV_GPU_UTIL{{{dcgm_selector}}})"
             ),
         }
@@ -757,7 +786,7 @@ class MultiTargetMetricsCollector:
                 f"({prefix}gpu_utilization_perc{{{selector}}} * 100) "
                 f"or ({prefix}gpu_utilization{{{selector}}} * 100) "
                 f"or DCGM_FI_DEV_GPU_UTIL{{{dcgm_selector}}}",
-                "avg",
+                "sum",
             ),
         }
 
@@ -935,8 +964,7 @@ class MultiTargetMetricsCollector:
             vals = agg_gauges["kv_cache_usage_pct"]
             metrics.kv_cache_usage_pct = (sum(vals) / len(vals)) * 100
         if "gpu_utilization_pct" in agg_gauges:
-            vals = agg_gauges["gpu_utilization_pct"]
-            metrics.gpu_utilization_pct = sum(vals) / len(vals)
+            metrics.gpu_utilization_pct = sum(agg_gauges["gpu_utilization_pct"])
         if "gpu_memory_used_gb" in agg_gauges:
             metrics.gpu_memory_used_gb = sum(agg_gauges["gpu_memory_used_gb"])
         if (
@@ -1359,7 +1387,7 @@ class MultiTargetMetricsCollector:
         for pod in pod_names:
             entry: dict[str, float] = {}
             if pod_util.get(pod):
-                entry["gpu_utilization_pct"] = sum(pod_util[pod]) / len(pod_util[pod])
+                entry["gpu_utilization_pct"] = sum(pod_util[pod])
             if pod_fb_used.get(pod):
                 entry["gpu_memory_used_gb"] = sum(pod_fb_used[pod]) / 1024.0
             if pod_fb_free.get(pod):

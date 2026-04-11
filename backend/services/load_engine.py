@@ -4,7 +4,6 @@
 """
 
 import asyncio
-import contextlib
 import importlib
 import json
 import logging
@@ -20,7 +19,6 @@ from urllib.parse import urlparse
 
 import httpx
 import numpy as np
-import psutil
 from models.load_test import LoadTestConfig, RequestResult, SweepConfig, SweepResult, SweepStepResult
 from services.prompt_generator import generate_prompt
 
@@ -106,38 +104,12 @@ class LoadTestEngine:
         for q in targets:
             await q.put(data)
 
-    async def _sample_metrics(self, samples: list[dict[str, float]], stop_event: asyncio.Event):
-        """Background task: sample CPU and GPU metrics every 30 seconds."""
-        proc = psutil.Process(os.getpid())
-        while not stop_event.is_set():
-            cpu = await asyncio.to_thread(proc.cpu_percent)
-            gpu = 0.0
-            try:
-                from services.shared import get_external_client
-
-                external_client = get_external_client()
-                resp = await external_client.get(
-                    f"{SELF_METRICS_URL}/api/metrics/latest", timeout=LOAD_ENGINE_SHORT_TIMEOUT
-                )
-                if resp.status_code == 200:
-                    gpu = resp.json().get("gpu_util", 0.0)
-            except httpx.HTTPError as e:
-                logger.debug("[LoadEngine] GPU metrics unavailable: %s", e)
-            samples.append({"cpu": cpu, "gpu": gpu})
-            for _ in range(30):
-                if stop_event.is_set():
-                    return
-                await asyncio.sleep(1)
-
     def _init_run_state(self, config: LoadTestConfig):
         """Initialize run state, stats tracking, and result containers."""
         self._stop_event.clear()
         semaphore = asyncio.Semaphore(config.concurrency)
-        metric_samples = []
-        sample_stop = asyncio.Event()
-        sampling_task = asyncio.create_task(self._sample_metrics(metric_samples, sample_stop))
-        interval = 1.0 / config.rps if config.rps > 0 else 0
-        return semaphore, metric_samples, sample_stop, sampling_task, interval
+        interval = 1.0 / config.rps if config.rps > 0 else 0.0
+        return semaphore, interval
 
     async def _preflight_check(self, config: "LoadTestConfig") -> dict[str, Any]:
         from services.shared import get_internal_client
@@ -424,8 +396,6 @@ class LoadTestEngine:
     async def _fail_run(
         self,
         error_data: dict[str, Any],
-        sample_stop: asyncio.Event,
-        sampling_task: asyncio.Task[Any],
         pending_tasks: list[asyncio.Task[Any]],
     ) -> dict[str, Any]:
         error = str(error_data.get("error", "부하 테스트 실패"))
@@ -448,10 +418,6 @@ class LoadTestEngine:
                 task.cancel()
         if pending_tasks:
             await asyncio.gather(*pending_tasks, return_exceptions=True)
-        sample_stop.set()
-        sampling_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await sampling_task
         async with self._state_lock:
             self._state.status = LoadTestStatus.FAILED
         return {
@@ -463,40 +429,18 @@ class LoadTestEngine:
     async def _finalize_results(
         self,
         config: LoadTestConfig,
-        metric_samples: list[dict[str, float]],
-        sample_stop: asyncio.Event,
-        sampling_task: asyncio.Task[Any],
     ) -> dict[str, Any]:
-        """Finalize test: set status, stop sampling, compute final stats, broadcast, return."""
+        """Finalize test: set status, compute final stats, broadcast, return."""
         shared_module = importlib.import_module("services.shared")
         runtime_config = shared_module.runtime_config
 
         async with self._state_lock:
             self._state.status = LoadTestStatus.COMPLETED
-        sample_stop.set()
-        sampling_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await sampling_task
         final_stats = self._compute_stats()
 
-        # Check if load test target matches monitored vLLM endpoint
         test_endpoint = config.endpoint if config.endpoint else runtime_config.vllm_endpoint
         monitored_endpoint = runtime_config.vllm_endpoint
         endpoints_match = _normalize_url(test_endpoint) == _normalize_url(monitored_endpoint)
-
-        if metric_samples:
-            cpu_values = [s["cpu"] for s in metric_samples]
-            gpu_values = [s["gpu"] for s in metric_samples]
-            final_stats["backend_cpu_avg"] = round(sum(cpu_values) / len(cpu_values), 2)
-
-            # Only include GPU metrics if target matches monitored endpoint
-            if endpoints_match:
-                final_stats["gpu_utilization_avg"] = round(sum(gpu_values) / len(gpu_values), 2)
-            else:
-                final_stats["gpu_utilization_avg"] = None
-        else:
-            final_stats["backend_cpu_avg"] = 0.0
-            final_stats["gpu_utilization_avg"] = None if not endpoints_match else 0.0
 
         final_stats["metrics_target_matched"] = endpoints_match
         final_stats["tokens_per_sec"] = final_stats.get("tps", {}).get("mean", 0.0)
@@ -660,18 +604,18 @@ class LoadTestEngine:
                 _running_row_id = await _storage.set_running("loadtest")
             except (sqlite3.Error, OSError) as e:
                 logger.warning("[LoadEngine] Failed to record running state: %s", e)
-            semaphore, metric_samples, sample_stop, sampling_task, interval = self._init_run_state(config)
+            semaphore, interval = self._init_run_state(config)
             if not skip_preflight:
                 preflight = await self._preflight_check(config)
                 if not preflight.get("success"):
-                    return await self._fail_run(preflight, sample_stop, sampling_task, [])
+                    return await self._fail_run(preflight, [])
             check_consecutive_failures = self._create_consecutive_failure_checker(min(5, config.total_requests))
             consecutive_failure, pending_tasks = await self._execute_requests(
                 config, semaphore, interval, check_consecutive_failures
             )
             if consecutive_failure:
-                return await self._fail_run(consecutive_failure, sample_stop, sampling_task, pending_tasks)
-            return await self._finalize_results(config, metric_samples, sample_stop, sampling_task)
+                return await self._fail_run(consecutive_failure, pending_tasks)
+            return await self._finalize_results(config)
         finally:
             if _running_row_id is not None:
                 try:

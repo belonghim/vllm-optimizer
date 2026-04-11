@@ -116,27 +116,13 @@ def test_by_model_grouping(client):
     assert "model-B" in data["models"]
 
 
-def test_by_model_gpu_efficiency(client):
+def test_by_model_returns_items(client):
     client.post("/api/benchmark/save", json=_BASE_PAYLOAD)
 
     resp = client.get("/api/benchmark/by-model")
     assert resp.status_code == 200
     items = resp.json()["models"]["model-A"]
     assert len(items) == 1
-    assert abs(items[0]["gpu_efficiency"] - 2.0) < 0.001
-
-
-def test_by_model_gpu_zero(client):
-    payload = {
-        **_BASE_PAYLOAD,  # type: ignore  # dict spread type inference limitation
-        "result": {**_BASE_PAYLOAD["result"], "gpu_utilization_avg": 0.0},
-    }
-    client.post("/api/benchmark/save", json=payload)
-
-    resp = client.get("/api/benchmark/by-model")
-    assert resp.status_code == 200
-    items = resp.json()["models"]["model-A"]
-    assert items[0]["gpu_efficiency"] is None
 
 
 _VALID_GUIDELLM = {
