@@ -756,8 +756,8 @@ class MultiTargetMetricsCollector:
             "kv_cache_hit_rate": PodQuery(
                 f"{prefix}kv_cache_hit_rate{{{selector}}} or {prefix}cache_config_info{{{selector}}}"
             ),
-            "running_requests": PodQuery(f"{prefix}num_requests_running{{{selector}}}"),
-            "waiting_requests": PodQuery(f"{prefix}num_requests_waiting{{{selector}}}"),
+            "running_requests": PodQuery(f"{prefix}num_requests_running{{{selector}}}", "sum"),
+            "waiting_requests": PodQuery(f"{prefix}num_requests_waiting{{{selector}}}", "sum"),
             "mean_tpot_ms": PodQuery(
                 f"histogram_quantile(0.5, rate({prefix}request_time_per_output_token_seconds_bucket{{{selector}}}[1m])) * 1000"
             ),
