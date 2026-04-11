@@ -819,7 +819,13 @@ class MultiTargetMetricsCollector:
     async def _collect_target(
         self, target: TargetCache, metrics_source: Literal["direct", "thanos"] | None = None
     ) -> None:
-        source = metrics_source if metrics_source is not None else os.getenv("METRICS_SOURCE", "thanos")
+        source = metrics_source if metrics_source is not None else target.metrics_source
+        if source is None:
+            logger.debug(
+                "[MultiTargetMetricsCollector] no metrics_source set, skipping collection: target=%s",
+                target.key,
+            )
+            return
         if source == "direct":
             await self._collect_target_direct(target)
         else:

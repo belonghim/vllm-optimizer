@@ -128,32 +128,44 @@ def test_compute_histogram_mean_latency(collector):
     assert result["mean_e2e_latency_ms"] == pytest.approx(1200.0, rel=1e-3)
 
 
-async def test_collect_target_uses_thanos_by_default(collector, monkeypatch):
+async def test_collect_target_skips_when_source_unset(collector):
     from services.multi_target_collector import TargetCache
 
-    monkeypatch.delenv("METRICS_SOURCE", raising=False)
     target = TargetCache(key="ns/is/inferenceservice", namespace="ns", is_name="is", cr_type="inferenceservice")
     called = []
 
     async def _fake_thanos(t):
         called.append("thanos")
 
+    async def _fake_direct(t):
+        called.append("direct")
+
     collector._collect_target_thanos = _fake_thanos
-    await collector._collect_target(target)
-    assert called == ["thanos"]
+    collector._collect_target_direct = _fake_direct
+    await collector._collect_target(target, None)
+    assert called == []
 
 
-async def test_collect_target_uses_direct_when_env_set(collector, monkeypatch):
+async def test_collect_target_uses_direct_from_target(collector):
     from services.multi_target_collector import TargetCache
 
-    monkeypatch.setenv("METRICS_SOURCE", "direct")
-    target = TargetCache(key="ns/is/inferenceservice", namespace="ns", is_name="is", cr_type="inferenceservice")
+    target = TargetCache(
+        key="ns/is/inferenceservice",
+        namespace="ns",
+        is_name="is",
+        cr_type="inferenceservice",
+        metrics_source="direct",
+    )
     called = []
 
     async def _fake_direct(t):
         called.append("direct")
 
+    async def _fake_thanos(t):
+        called.append("thanos")
+
     collector._collect_target_direct = _fake_direct
+    collector._collect_target_thanos = _fake_thanos
     await collector._collect_target(target)
     assert called == ["direct"]
 

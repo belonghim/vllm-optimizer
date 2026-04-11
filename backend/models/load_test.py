@@ -329,7 +329,7 @@ class BatchMetricsRequest(BaseModel):
     )
     metrics_source: Literal["direct", "thanos"] | None = Field(
         default=None,
-        description="Metrics collection source: 'direct' (vLLM pod scrape) or 'thanos' (Thanos Querier). Falls back to METRICS_SOURCE env var if not provided.",
+        description="Metrics collection source: 'direct' (vLLM pod scrape) or 'thanos' (Thanos Querier). No fallback is applied when omitted.",
     )
 
 
