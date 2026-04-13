@@ -15,7 +15,7 @@ from errors import OptimizerError
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from logging_config import configure_logging
-from routers import alerts, benchmark, load_test, metrics, sla, status, tuner, vllm_config
+from routers import alerts, benchmark, load_test, metrics, sla, status, tuner, vllm_config, targets
 from routers import config as config_router
 from routers.status import check_prometheus_health
 from services.rate_limiter import limiter
@@ -223,6 +223,7 @@ app.include_router(config_router)
 app.include_router(status, prefix="/api", tags=["status"])
 app.include_router(sla, prefix="/api/sla", tags=["sla"])
 app.include_router(alerts, prefix="/api/alerts", tags=["alerts"])
+app.include_router(targets, prefix="/api/targets", tags=["targets"])
 
 
 @app.get("/health", tags=["health"], response_model=None)

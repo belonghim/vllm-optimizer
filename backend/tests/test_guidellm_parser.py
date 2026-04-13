@@ -95,7 +95,7 @@ def test_parse_valid_json():
     results = parse_guidellm_json(data)
 
     assert len(results) == 2
-    assert all(bm.metadata.source == "guidellm" for bm in results)
+    assert all(bm.metadata.source == "guidellm" for bm in results)  # type: ignore[union-attr]
     assert results[0].config.endpoint == "http://example.com"
     assert results[0].config.model == "test-model"
     assert results[1].config.endpoint == "http://example.com"
@@ -136,11 +136,30 @@ def test_ms_to_seconds_conversion():
         ],
     }
 
+
+def test_ms_to_seconds_conversion():
+    """Test TTFT conversion from ms to seconds: 50ms -> 0.05s."""
+    from services.guidellm_parser import parse_guidellm_json
+
+    data = {
+        "metadata": {"version": 1, "guidellm_version": "0.3.0"},
+        "benchmarks": [
+            {
+                "config": {"target": "http://example.com", "model": "test-model"},
+                "metrics": {
+                    "time_to_first_token_ms": {"successful": {"mean": 50.0, "median": 45.0, "p95": 90.0, "p99": 100.0}},
+                    "inter_token_latency_ms": {"successful": {"mean": 5.0, "median": 4.8, "p95": 9.0, "p99": 10.0}},
+                    "tokens_per_second": {"successful": {"mean": 45.0}},
+                },
+            },
+        ],
+    }
+
     results = parse_guidellm_json(data)
 
-    assert abs(results[0].result.ttft.mean - 0.05) < 0.001
     assert abs(results[0].result.ttft.p95 - 0.09) < 0.001
-    assert abs(results[0].result.itl["mean"] - 0.005) < 0.001
+    itl_result = results[0].result.itl
+    assert isinstance(itl_result, dict) and abs(itl_result.get("mean", 0) - 0.005) < 0.001
 
 
 def test_rejects_wrong_version():

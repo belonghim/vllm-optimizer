@@ -9,9 +9,13 @@ const defaultFormState: SlaFormState = {
   availMin: "",
   p95Ms: "",
   errRate: "",
-  minTps: "",
   meanTtftMs: "",
   p95TtftMs: "",
+  meanE2eLatencyMs: "",
+  meanTpotMs: "",
+  p95TpotMs: "",
+  meanQueueTimeMs: "",
+  p95QueueTimeMs: "",
 };
 
 function makeProps(overrides = {}) {

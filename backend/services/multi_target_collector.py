@@ -78,7 +78,6 @@ class TargetCache:
 
 
 class MultiTargetMetricsCollector:
-    MAX_TARGETS: int = 5
     INACTIVE_TIMEOUT: int = 300
     COLLECT_INTERVAL: float = 5.0
     IMMEDIATE_COLLECT_TIMEOUT: float = 10.0
@@ -100,26 +99,10 @@ class MultiTargetMetricsCollector:
         self._k8s_custom: client.CustomObjectsApi | None = None
         self._dcgm_exporter_cache: dict[str, str] = {}
         self._dcgm_exporter_cache_time: dict[str, float] = {}
-        self._default_namespace = os.getenv("VLLM_NAMESPACE", "vllm-lab-dev")
-        self._default_is_name = os.getenv("VLLM_DEPLOYMENT_NAME", "llm-ov")
         self._init_k8s()
-        self._register_default_target()
 
     def _adapter_for(self, target: TargetCache) -> CRAdapter:
         return get_cr_adapter(target.cr_type)
-
-    def _register_default_target(self) -> None:
-        cr_type = os.getenv("VLLM_CR_TYPE", "inferenceservice")
-        key = self.build_target_key(self._default_namespace, self._default_is_name, cr_type)
-        self._targets[key] = TargetCache(
-            key=key,
-            namespace=self._default_namespace,
-            is_name=self._default_is_name,
-            is_default=True,
-            has_monitoring_label=None,
-            cr_type=cr_type,
-            model_name=self._default_is_name,
-        )
 
     async def _resolve_model_name(self, namespace: str, is_name: str, cr_type: str) -> str:
         if not self._k8s_available or self._k8s_custom is None:
@@ -344,31 +327,13 @@ class MultiTargetMetricsCollector:
 
         return result
 
-    def _get_default_target(self) -> TargetCache | None:
-        if not self._targets:
-            return None
-        for target in self._targets.values():
-            if target.is_default:
-                return target
-        return next(iter(self._targets.values()))
-
-    def _is_default_target(self, namespace: str, is_name: str) -> bool:
-        default_target = self._get_default_target()
-        if default_target is None:
-            return False
-        return default_target.namespace == namespace and default_target.is_name == is_name
-
     @property
     def latest(self) -> VLLMMetrics | None:
-        default_target = self._get_default_target()
-        return default_target.latest if default_target else None
+        return None
 
     @property
     def history(self) -> list[VLLMMetrics]:
-        default_target = self._get_default_target()
-        if default_target is None:
-            return []
-        return list(default_target.history)
+        return []
 
     @property
     def version(self) -> str:
@@ -409,36 +374,8 @@ class MultiTargetMetricsCollector:
         if self._cleanup_task is not None and not self._cleanup_task.done():
             _ = self._cleanup_task.cancel()
 
-    def set_default_target(
-        self, namespace: str | None = None, is_name: str | None = None, cr_type: str | None = None
-    ) -> None:
-        default_target = self._get_default_target()
-        if default_target is None:
-            return
-
-        old_key = default_target.key
-        new_namespace = namespace if namespace is not None else default_target.namespace
-        new_is_name = is_name if is_name is not None else default_target.is_name
-        new_cr_type = cr_type if cr_type is not None else default_target.cr_type
-        new_key = self.build_target_key(new_namespace, new_is_name, new_cr_type)
-
-        default_target.namespace = new_namespace
-        default_target.is_name = new_is_name
-        default_target.cr_type = new_cr_type
-        default_target.key = new_key
-
-        if old_key != new_key:
-            _ = self._targets.pop(old_key, None)
-            self._targets[new_key] = default_target
-
-        self._default_namespace = new_namespace
-        self._default_is_name = new_is_name
-
     def get_history_dict(self, last_n: int = 60, include_metadata: bool = True) -> list[dict[str, Any]]:
-        default_target = self._get_default_target()
-        if default_target is None:
-            return []
-        history = list(default_target.history)[-last_n:]
+        return []
         return [
             {
                 "timestamp": m.timestamp,
@@ -546,9 +483,6 @@ class MultiTargetMetricsCollector:
                 if metrics_source is not None:
                     existing.metrics_source = metrics_source
             else:
-                if len(self._targets) >= self.MAX_TARGETS:
-                    return False
-
                 has_monitoring_label = await self.check_namespace_monitoring_label(namespace)
                 model_name = await self._resolve_model_name(namespace, is_name, cr_type)
                 is_first = not self._targets
@@ -1073,9 +1007,6 @@ class MultiTargetMetricsCollector:
             else:
                 missing_metrics.append(metric_name)
 
-        if self._is_default_target(namespace, is_name):
-            self._missing_metrics = missing_metrics
-
         return result
 
     async def _fetch_prometheus_metric(
@@ -1247,7 +1178,8 @@ class MultiTargetMetricsCollector:
         }
 
     def get_has_monitoring_label(self, namespace: str, is_name: str, cr_type: str | None = None) -> bool:
-        key = self.build_target_key(namespace, is_name, cr_type)
+        cr_type_val = cr_type if cr_type is not None else ""
+        key = self.build_target_key(namespace, is_name, cr_type_val)
         target = self._targets.get(key)
         return target.has_monitoring_label is not None and target.has_monitoring_label if target else False
 
@@ -1513,7 +1445,7 @@ class MultiTargetMetricsCollector:
                 key = f"{alias}_{suffix}"
                 hist_acc[key] = hist_acc.get(key, 0.0) + value
 
-        result: dict[str, float | list[tuple[float, float]]] = {}
+        result: dict[str, float] = {}
         for metric_name, field_name in GAUGE_METRIC_MAP.items():
             if metric_name in gauge_acc:
                 result[field_name] = result.get(field_name, 0.0) + gauge_acc[metric_name]

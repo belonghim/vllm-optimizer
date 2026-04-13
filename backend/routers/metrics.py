@@ -1,7 +1,10 @@
 import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
+from kubernetes import client as k8s_client
+from kubernetes import config as k8s_config
+from kubernetes.client.exceptions import ApiException
 from models.load_test import (
     BatchMetricsRequest,
     BatchMetricsResponse,
@@ -77,11 +80,10 @@ async def get_latest_metrics(
             crExists=collector.get_cr_exists(namespace, is_name),
         )
 
-    default_namespace = rt_config.vllm_namespace
-    default_is_name = rt_config.vllm_is_name
-    _ = await collector.register_target(default_namespace, default_is_name)
-    vllm_metrics = await collector.get_metrics(default_namespace, default_is_name)
-    return _convert_to_snapshot(vllm_metrics)
+    raise HTTPException(
+        status_code=400,
+        detail="namespace and is_name are required",
+    )
 
 
 @router.post("/batch", response_model=BatchMetricsResponse)
@@ -364,3 +366,90 @@ async def get_prometheus_metrics() -> PlainTextResponse:
     from metrics.prometheus_metrics import generate_metrics
 
     return PlainTextResponse(generate_metrics(), media_type="text/plain; version=0.0.4")
+
+
+@router.get("/discover")
+@limiter.limit("60/minute")
+async def discover_services(
+    request: Request,
+    namespace: str | None = Query(default=None, description="Namespace to query for CRs"),
+) -> JSONResponse:
+    """Discover InferenceService and LLMInferenceService CRs in a namespace.
+
+    Returns a list of both CR types found in the specified namespace.
+    Requires namespace query parameter.
+    """
+    if not namespace:
+        raise HTTPException(
+            status_code=400,
+            detail="namespace query parameter is required",
+        )
+
+    try:
+        try:
+            k8s_config.load_incluster_config()
+        except k8s_config.ConfigException:
+            k8s_config.load_kube_config()
+        custom_api = k8s_client.CustomObjectsApi()
+    except k8s_config.ConfigException:
+        return JSONResponse(
+            status_code=503,
+            content={"isvc": [], "llmisvc": [], "error": "K8s client unavailable"},
+        )
+
+    isvc_list: list[dict[str, str]] = []
+    llmisvc_list: list[dict[str, str]] = []
+
+    try:
+        isvc_adapter = get_cr_adapter("inferenceservice")
+        isvc_result = await asyncio.wait_for(
+            asyncio.to_thread(
+                custom_api.list_namespaced_custom_object,
+                group=isvc_adapter.api_group(),
+                version=isvc_adapter.api_version(),
+                namespace=namespace,
+                plural=isvc_adapter.api_plural(),
+            ),
+            timeout=10.0,
+        )
+        if isinstance(isvc_result, dict):
+            items = isvc_result.get("items", [])
+            for item in items:
+                metadata = item.get("metadata", {})
+                name = metadata.get("name")
+                ns = metadata.get("namespace")
+                if name and ns:
+                    isvc_list.append({"name": name, "namespace": ns})
+    except ApiException as e:
+        if e.status == 403:
+            pass
+    except TimeoutError:
+        pass
+
+    try:
+        llmisvc_adapter = get_cr_adapter("llminferenceservice")
+        llmisvc_result = await asyncio.wait_for(
+            asyncio.to_thread(
+                custom_api.list_namespaced_custom_object,
+                group=llmisvc_adapter.api_group(),
+                version=llmisvc_adapter.api_version(),
+                namespace=namespace,
+                plural=llmisvc_adapter.api_plural(),
+            ),
+            timeout=10.0,
+        )
+        if isinstance(llmisvc_result, dict):
+            items = llmisvc_result.get("items", [])
+            for item in items:
+                metadata = item.get("metadata", {})
+                name = metadata.get("name")
+                ns = metadata.get("namespace")
+                if name and ns:
+                    llmisvc_list.append({"name": name, "namespace": ns})
+    except ApiException as e:
+        if e.status == 403:
+            pass
+    except TimeoutError:
+        pass
+
+    return JSONResponse(content={"isvc": isvc_list, "llmisvc": llmisvc_list})

@@ -8,7 +8,7 @@ function makeProfile(id: number, name: string): SlaProfile {
   return {
     id,
     name,
-    thresholds: { availability_min: 99, p95_latency_max_ms: null, error_rate_max_pct: null, min_tps: null },
+    thresholds: { availability_min: 99, p95_latency_max_ms: null, error_rate_max_pct: null },
     created_at: 0,
   };
 }

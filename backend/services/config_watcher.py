@@ -17,13 +17,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# ConfigMap fields to watch
-_WATCHED_FIELDS = (
-    "DEFAULT_ISVC_NAME",
-    "DEFAULT_ISVC_NAMESPACE",
-    "DEFAULT_LLMISVC_NAME",
-    "DEFAULT_LLMISVC_NAMESPACE",
-)
+# ConfigMap fields to watch (empty - removed default target auto-apply)
+_WATCHED_FIELDS = ()
 
 # Default polling interval (5 minutes)
 _DEFAULT_POLL_INTERVAL_SEC = 300
@@ -81,7 +76,8 @@ class ConfigMapWatcher:
 
         v1 = k8s_client.CoreV1Api()
         cm = v1.read_namespaced_config_map(name=_CONFIGMAP_NAME, namespace=self._namespace)
-        data = cm.data if cm.data else {}
+        cm_data: dict[str, str] = cm.data if cm.data else {}  # type: ignore[reportOptionalMemberAccess]
+        data = cm_data
 
         return {field: data.get(field, "") for field in _WATCHED_FIELDS}
 
@@ -119,13 +115,6 @@ class ConfigMapWatcher:
                     new_values,
                 )
 
-                llmisvc_name = new_values.get("DEFAULT_LLMISVC_NAME", "")
-                llmisvc_namespace = new_values.get("DEFAULT_LLMISVC_NAMESPACE", "")
-                if llmisvc_name and llmisvc_namespace:
-                    from services.shared import runtime_config
-
-                    runtime_config.apply_default_llmisvc(llmisvc_name, llmisvc_namespace)
-
                 await self._broadcaster.broadcast(
                     {
                         "type": "configmap_update",
@@ -161,13 +150,6 @@ class ConfigMapWatcher:
             initial_values = await asyncio.to_thread(self._read_configmap)
             self._update_cache(initial_values)
             logger.info("[ConfigMapWatcher] Initial cache populated: %s", initial_values)
-
-            llmisvc_name = initial_values.get("DEFAULT_LLMISVC_NAME", "")
-            llmisvc_namespace = initial_values.get("DEFAULT_LLMISVC_NAMESPACE", "")
-            if llmisvc_name and llmisvc_namespace:
-                from services.shared import runtime_config
-
-                runtime_config.apply_default_llmisvc(llmisvc_name, llmisvc_namespace)
         except Exception as e:
             logger.warning("[ConfigMapWatcher] Initial ConfigMap read failed: %s", e)
 

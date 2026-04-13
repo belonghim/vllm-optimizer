@@ -133,6 +133,7 @@ class Storage:
         await self._create_load_test_tables()
         await self._create_sla_tables()
         await self._create_tuner_tables()
+        await self._create_target_tables()
         await self._conn.commit()
         logger.debug("[Storage] Tables created successfully")
 
@@ -269,6 +270,16 @@ class Storage:
                 timestamp REAL NOT NULL,
                 config_json TEXT NOT NULL,
                 result_json TEXT NOT NULL
+            )
+        """)
+
+    async def _create_target_tables(self) -> None:
+        assert self._conn is not None
+        await self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS target_saved (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                targets_json TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
 
@@ -1397,6 +1408,42 @@ class Storage:
         except sqlite3.Error as e:  # intentional: fail-open, returns False so callers can continue without crashing
             logger.error("[Storage] Failed to delete sweep result sweep_id=%s: %s", sweep_id, e)
             return False
+
+    async def save_targets(self, targets_json: str, updated_at: str) -> None:
+        if self._conn is None:
+            logger.error("[Storage] Cannot save targets: database not initialized")
+            return
+
+        try:
+            await self._conn.execute(
+                """
+                INSERT OR REPLACE INTO target_saved (id, targets_json, updated_at)
+                VALUES (1, ?, ?)
+                """,
+                (targets_json, updated_at),
+            )
+            await self._conn.commit()
+            logger.debug("[Storage] Saved targets")
+        except sqlite3.Error as e:
+            logger.error("[Storage] Failed to save targets: %s", e)
+
+    async def load_targets(self) -> dict[str, Any] | None:
+        if self._conn is None:
+            logger.error("[Storage] Cannot load targets: database not initialized")
+            return None
+
+        try:
+            cursor = await self._conn.execute(
+                "SELECT targets_json, updated_at FROM target_saved WHERE id = 1",
+            )
+            row = await cursor.fetchone()
+            if row is None:
+                return None
+
+            return {"targets": json.loads(row[0]), "updated_at": row[1]}
+        except sqlite3.Error as e:
+            logger.error("[Storage] Failed to load targets: %s", e)
+            return None
 
 
 # Use `from services.shared import storage` instead.

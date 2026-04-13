@@ -126,7 +126,7 @@ class AutoTuner:
         return self._tuner_logic.suggest_params(trial, config)
 
     async def _evaluate(
-        self, endpoint: str, config: TuningConfig, trial=None, trial_num: int = 0
+        self, endpoint: str, config: TuningConfig, trial=None, trial_num: int = 0, broadcaster=None
     ) -> tuple[float, float, float]:
         return await self._tuner_logic.evaluate(
             endpoint,
@@ -351,4 +351,4 @@ class AutoTuner:
         return {"success": True, "message": "Tuning stopped."}
 
     async def get_importance(self) -> dict[str, Any]:
-        return await self._tuner_logic.get_importance(self._study, self._trials)
+        return await self._tuner_logic.get_importance(self._study, self._trials)  # type: ignore[arg-type]

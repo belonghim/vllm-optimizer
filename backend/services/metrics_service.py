@@ -3,6 +3,7 @@ import math
 import os
 import time as time_mod
 from datetime import UTC, datetime
+from typing import Any
 
 import httpx
 from models.load_test import MetricsSnapshot
@@ -146,8 +147,8 @@ async def _fetch_query_range_multi_result(
 def _build_snapshots_from_ts_data(
     all_timestamps: set[float],
     ts_data: dict[float, dict[str, float]],
-) -> list[dict]:
-    snapshots = []
+) -> list[dict[str, Any]]:
+    snapshots: list[dict[str, Any]] = []
     for ts in sorted(all_timestamps):
         d = ts_data[ts]
         snap = MetricsSnapshot(
@@ -178,7 +179,7 @@ def _build_snapshots_from_ts_data(
 
 def _build_per_pod_snapshots_from_ts_data(
     pod_metric_series: dict[str, dict[str, list[tuple[float, float]]]],
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """
     Build snapshots from per-pod metric series.
 
@@ -255,7 +256,7 @@ async def _get_history_from_thanos(
     time_range: str,
     collector,
     per_pod: bool = False,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     cfg = _TIME_RANGE_CONFIG.get(time_range)
     if not cfg:
         return []

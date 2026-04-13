@@ -10,6 +10,7 @@ Converts GuideLLM GenerativeBenchmarksReport JSON (version 1) to vllm-optimizer 
 
 import logging
 import time
+from typing import Any
 
 from models.load_test import (
     Benchmark,
@@ -25,7 +26,7 @@ logger = logging.getLogger(__name__)
 SUPPORTED_VERSION = 1
 
 
-def _extract_latency_stats(dist: dict, ms_to_seconds: bool = False) -> LatencyStats:
+def _extract_latency_stats(dist: dict[str, Any], ms_to_seconds: bool = False) -> LatencyStats:
     """
     Extract LatencyStats from a GuideLLM StatusDistributionSummary or plain dict.
     Uses 'successful' subset if available, else root-level values.
@@ -51,7 +52,7 @@ def _extract_latency_stats(dist: dict, ms_to_seconds: bool = False) -> LatencySt
     )
 
 
-def _extract_tps_stats(dist: dict) -> TpsStats:
+def _extract_tps_stats(dist: dict[str, float]) -> TpsStats:
     data = dist.get("successful", dist) if isinstance(dist, dict) else {}
     mean = float(data.get("mean", 0.0))
     return TpsStats(
@@ -60,7 +61,7 @@ def _extract_tps_stats(dist: dict) -> TpsStats:
     )
 
 
-def parse_guidellm_json(data: dict) -> list[Benchmark]:
+def parse_guidellm_json(data: dict[str, Any]) -> list[Benchmark]:
     """
     Parse GuideLLM JSON report into a list of Benchmark objects.
 
@@ -102,7 +103,9 @@ def parse_guidellm_json(data: dict) -> list[Benchmark]:
     return results
 
 
-def _parse_single_benchmark(bm: dict, index: int, import_timestamp: float, guidellm_version: str) -> Benchmark:
+def _parse_single_benchmark(
+    bm: dict[str, Any], index: int, import_timestamp: float, guidellm_version: str
+) -> Benchmark:
     metrics = bm.get("metrics", {})
     scheduler = bm.get("scheduler_metrics", {})
     bm_config = bm.get("config", {})

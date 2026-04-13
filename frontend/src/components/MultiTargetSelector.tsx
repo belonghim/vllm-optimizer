@@ -6,6 +6,7 @@ import { fmt } from "../utils/format";
 import { authFetch } from "../utils/authFetch";
 import type { ClusterTarget, PerPodMetricSnapshot, PerPodMetricsDict } from "../types";
 import ExpandablePodRow from "./ExpandablePodRow";
+import TargetAddForm from "./TargetAddForm";
 import "./MultiTargetSelector.css";
 
 const POD_CACHE_TTL_MS = 10_000;
@@ -63,6 +64,8 @@ export default function MultiTargetSelector({
   const [isValidating, setIsValidating] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [applyError, setApplyError] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
+  const [loadStatus, setLoadStatus] = useState<string | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [podData, setPodData] = useState<Record<string, PodCacheEntry>>({});
   const pendingFetches = useRef<Map<string, Promise<void>>>(new Map());
@@ -94,6 +97,57 @@ export default function MultiTargetSelector({
       } finally {
         setIsValidating(false);
       }
+    }
+  };
+
+  const handleSaveTargets = async () => {
+    try {
+      setSaveStatus("Saving...");
+      const response = await authFetch("/api/targets/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targets })
+      });
+      if (response.ok) {
+        setSaveStatus("Saved!");
+        setTimeout(() => setSaveStatus(null), 3000);
+      } else {
+        setSaveStatus("Save failed");
+      }
+    } catch (err) {
+      console.error("Save error:", err);
+      setSaveStatus("Save error");
+    }
+  };
+
+  const handleLoadTargets = async () => {
+    try {
+      setLoadStatus("Loading...");
+      const response = await authFetch("/api/targets/load");
+      if (response.ok) {
+        const data = await response.json();
+        const loadedTargets: ClusterTarget[] = data.targets || [];
+        if (loadedTargets.length > 0) {
+          for (const target of loadedTargets) {
+            if (!targets.some(t => 
+              t.namespace === target.namespace && 
+              t.inferenceService === target.inferenceService && 
+              t.crType === target.crType
+            )) {
+              addTarget(target.namespace, target.inferenceService, target.crType);
+            }
+          }
+          setLoadStatus("Loaded!");
+          setTimeout(() => setLoadStatus(null), 3000);
+        } else {
+          setLoadStatus("No targets");
+        }
+      } else {
+        setLoadStatus("Load failed");
+      }
+    } catch (err) {
+      console.error("Load error:", err);
+      setLoadStatus("Load error");
     }
   };
 
@@ -278,6 +332,22 @@ export default function MultiTargetSelector({
       <div className="section-title multi-target-header">
         <span>Monitoring Targets ({targets.length}/{maxTargets})</span>
         <div className="multi-target-header-actions">
+          <button
+            type="button"
+            className="btn btn-secondary multi-target-add-btn"
+            onClick={handleSaveTargets}
+            title="Save current targets"
+          >
+            {saveStatus || "Save Targets"}
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary multi-target-add-btn"
+            onClick={handleLoadTargets}
+            title="Load saved targets"
+          >
+            {loadStatus || "Load Targets"}
+          </button>
           {targets.length > 1 && userSelectedKey !== null && userSelectedKey !== getTargetKey(targets[0]) && (
             <button
               type="button"
@@ -317,9 +387,7 @@ export default function MultiTargetSelector({
       </div>
 
       {targets.length === 0 ? (
-        <div className="multi-target-empty">
-          Add a monitoring target
-        </div>
+        <TargetAddForm />
       ) : (
         <table className="monitor-table">
           <thead>

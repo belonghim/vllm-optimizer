@@ -9,5 +9,6 @@ from routers.sla import router as sla
 from routers.status import router as status
 from routers.tuner import router as tuner
 from routers.vllm_config import router as vllm_config
+from routers.targets import router as targets
 
-__all__ = ["load_test", "metrics", "benchmark", "tuner", "vllm_config", "config", "status", "sla", "alerts"]
+__all__ = ["load_test", "metrics", "benchmark", "tuner", "vllm_config", "config", "status", "sla", "alerts", "targets"]

@@ -27,14 +27,15 @@ from .model_resolver import resolve_model_name
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 logger = logging.getLogger(__name__)
 
-_EvalFn = Callable[
-    [str, TuningConfig, optuna.trial.Trial | None, int],
-    Awaitable[tuple[float, float, float]],
-]
-
 
 class _Broadcaster(Protocol):
     async def broadcast(self, data: dict[str, Any]) -> None: ...
+
+
+_EvalFn = Callable[
+    [str, TuningConfig, optuna.trial.Trial | None, int, _Broadcaster | None],
+    Awaitable[tuple[float, float, float]],
+]
 
 
 class TunerLogic:
@@ -320,7 +321,7 @@ class TunerLogic:
             return score, score, 0.0
 
         evaluator = evaluate_fn if evaluate_fn is not None else self.evaluate
-        return await evaluator(endpoint, config, trial=trial, trial_num=trial_num)
+        return await evaluator(endpoint, config, trial=trial, trial_num=trial_num, broadcaster=broadcaster)  # type: ignore[call-args]
 
     async def get_importance(
         self, study: optuna.Study | None, trials: list[optuna.trial.FrozenTrial]

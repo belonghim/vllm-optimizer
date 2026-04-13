@@ -8,10 +8,6 @@ import { targetMatches } from "../utils/targetKey";
 
 const STORAGE_KEY = "vllm-opt-cluster-config";
 const SCHEMA_VERSION = 3;
-const MAX_TARGETS = 5;
-const DEFAULT_NAMESPACE = "vllm-lab-dev";
-const DEFAULT_INFERENCESERVICE = "llm-ov";
-const DEFAULT_CR_TYPE = "inferenceservice";
 const CONFIGMAP_TIMEOUT_MS = 5000;
 const POLLING_INTERVAL_MS = 300000; // 5 minutes
 
@@ -35,16 +31,16 @@ export interface ClusterConfigContextValue {
 
 const ClusterConfigContext = createContext<ClusterConfigContextValue>({
   endpoint: "",
-  namespace: DEFAULT_NAMESPACE,
-  inferenceservice: DEFAULT_INFERENCESERVICE,
+  namespace: "",
+  inferenceservice: "",
   isLoading: true,
   updateConfig: () => {},
   targets: [],
-  maxTargets: MAX_TARGETS,
+  maxTargets: Infinity,
   addTarget: () => {},
   removeTarget: () => {},
   setDefaultTarget: async () => {},
-  crType: DEFAULT_CR_TYPE,
+  crType: "inferenceservice",
   resolvedModelName: "",
 
   isvcTargets: [],
@@ -71,23 +67,21 @@ function migrateLegacyConfig(stored: Record<string, unknown>): ClusterConfig {
     const { namespace, inferenceservice, ...rest } = stored;
     return {
       endpoint: typeof rest.endpoint === "string" ? rest.endpoint : "",
-      maxTargets: typeof rest.maxTargets === "number" ? rest.maxTargets : MAX_TARGETS,
+      maxTargets: typeof rest.maxTargets === "number" ? rest.maxTargets : Infinity,
       version: typeof rest.version === "number" ? rest.version : SCHEMA_VERSION,
       targets: [{
         namespace: typeof namespace === "string" ? namespace : "",
         inferenceService: typeof inferenceservice === "string" ? inferenceservice : "",
-        crType: DEFAULT_CR_TYPE,
+        crType: "inferenceservice",
       }],
     };
   }
   const targets = isClusterTargetArray(stored.targets) ? stored.targets : [];
     return {
       endpoint: typeof stored.endpoint === "string" ? stored.endpoint : "",
-      maxTargets: typeof stored.maxTargets === "number" ? stored.maxTargets : MAX_TARGETS,
+      maxTargets: typeof stored.maxTargets === "number" ? stored.maxTargets : Infinity,
       version: typeof stored.version === "number" ? stored.version : SCHEMA_VERSION,
-      targets: targets.length > 0
-        ? targets
-        : [{ namespace: DEFAULT_NAMESPACE, inferenceService: DEFAULT_INFERENCESERVICE, crType: DEFAULT_CR_TYPE }],
+      targets: targets.length > 0 ? targets : [],
     };
 }
 
@@ -131,13 +125,13 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
     }
     return {
       endpoint: "",
-      targets: [{ namespace: DEFAULT_NAMESPACE, inferenceService: DEFAULT_INFERENCESERVICE, crType: DEFAULT_CR_TYPE }],
-      maxTargets: MAX_TARGETS,
+      targets: [],
+      maxTargets: Infinity,
       version: SCHEMA_VERSION,
     };
   });
   const [isLoading, setIsLoading] = useState(true);
-  const [crType, setCrType] = useState<string>(DEFAULT_CR_TYPE);
+  const [crType, setCrType] = useState<string>("inferenceservice");
   // Ref to access latest crType inside stable callbacks (updateConfig) without
   // changing their identity and causing downstream re-renders.
   const crTypeRef = useRef(crType);
@@ -172,7 +166,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
         const vllmEndpoint = typeof data.vllm_endpoint === "string" ? data.vllm_endpoint : "";
         const vllmNamespace = typeof data.vllm_namespace === "string" ? data.vllm_namespace : "";
         const vllmIsName = typeof data.vllm_is_name === "string" ? data.vllm_is_name : "";
-        const resolvedCrType = typeof data.cr_type === "string" ? data.cr_type : DEFAULT_CR_TYPE;
+        const resolvedCrType = typeof data.cr_type === "string" ? data.cr_type : "inferenceservice";
         const resolvedModel = typeof data.resolved_model_name === "string" ? data.resolved_model_name : "";
 
         // Only override defaults if API returned non-empty values
@@ -182,15 +176,11 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
         if (!hasValidNamespace && !hasValidIsName) return;
 
         setConfig(prev => {
-          const nonDefaultTargets = prev.targets.slice(1);
-          const resolvedNamespace = vllmNamespace || DEFAULT_NAMESPACE;
-          const resolvedIsName = vllmIsName || DEFAULT_INFERENCESERVICE;
           return {
             ...prev,
             endpoint: vllmEndpoint,
             targets: [
-              { namespace: resolvedNamespace, inferenceService: resolvedIsName, crType: resolvedCrType, source: "manual" as const },
-              ...nonDefaultTargets,
+              { namespace: vllmNamespace, inferenceService: vllmIsName, crType: resolvedCrType, source: "manual" as const },
             ],
           };
         });
@@ -460,12 +450,11 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
   const addTarget = useCallback((namespace: string, inferenceService: string, crType?: string): void => {
     setConfig(prev => {
       const currentTargets = prev.targets;
-      if (currentTargets.length >= MAX_TARGETS) return prev;
 
       const newTarget: ClusterTarget = {
         namespace: namespace || "",
         inferenceService: inferenceService || "",
-        crType: crType || DEFAULT_CR_TYPE,
+        crType: crType || "inferenceservice",
         source: "manual",
       };
 
@@ -539,12 +528,12 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
     const defaultTarget = config.targets[0];
     return {
       endpoint: config.endpoint,
-      namespace: defaultTarget?.namespace || DEFAULT_NAMESPACE,
-      inferenceservice: defaultTarget?.inferenceService || DEFAULT_INFERENCESERVICE,
+      namespace: defaultTarget?.namespace || "",
+      inferenceservice: defaultTarget?.inferenceService || "",
       isLoading,
       updateConfig,
       targets: config.targets,
-      maxTargets: config.maxTargets || MAX_TARGETS,
+      maxTargets: config.maxTargets || Infinity,
       addTarget,
       removeTarget,
       setDefaultTarget,
