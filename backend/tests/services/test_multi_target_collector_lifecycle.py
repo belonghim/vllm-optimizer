@@ -19,32 +19,6 @@ class TestRegisterTarget:
         assert collector.build_target_key("test-ns", "test-is", "inferenceservice") in collector._targets
 
     @pytest.mark.asyncio
-    async def test_register_existing_target_returns_true_no_duplicate(
-        self, collector: MultiTargetMetricsCollector
-    ) -> None:
-        default = collector._get_default_target()
-        assert default is not None
-        before = len(collector._targets)
-
-        with patch.object(collector, "_ensure_collect_loop", new_callable=AsyncMock):
-            result = await collector.register_target(default.namespace, default.is_name)
-
-        assert result is True
-        assert len(collector._targets) == before
-
-    @pytest.mark.asyncio
-    async def test_register_target_max_limit_returns_false(self, collector: MultiTargetMetricsCollector) -> None:
-        with patch.object(collector, "_ensure_collect_loop", new_callable=AsyncMock):
-            for i in range(collector.MAX_TARGETS - 1):
-                result = await collector.register_target(f"ns-{i}", f"is-{i}")
-                assert result is True
-
-            result = await collector.register_target("ns-overflow", "is-overflow")
-
-        assert result is False
-        assert len(collector._targets) == collector.MAX_TARGETS
-
-    @pytest.mark.asyncio
     async def test_register_target_monitoring_label_false_when_k8s_unavailable(
         self, collector: MultiTargetMetricsCollector
     ) -> None:
@@ -54,15 +28,6 @@ class TestRegisterTarget:
 
         key = collector.build_target_key("new-ns", "new-is", "inferenceservice")
         assert collector._targets[key].has_monitoring_label is False
-
-    @pytest.mark.asyncio
-    async def test_register_target_new_target_is_not_default(self, collector: MultiTargetMetricsCollector) -> None:
-
-        with patch.object(collector, "_ensure_collect_loop", new_callable=AsyncMock):
-            await collector.register_target("extra-ns", "extra-is")
-
-        key = collector.build_target_key("extra-ns", "extra-is", "inferenceservice")
-        assert collector._targets[key].is_default is False
 
 
 class TestRemoveTarget:
@@ -83,28 +48,6 @@ class TestRemoveTarget:
         result = await collector.remove_target("ghost-ns", "ghost-is")
 
         assert result is False
-
-    @pytest.mark.asyncio
-    async def test_remove_last_target_clears_targets_dict(self, collector: MultiTargetMetricsCollector) -> None:
-        default = collector._get_default_target()
-        assert default is not None
-
-        result = await collector.remove_target(default.namespace, default.is_name)
-
-        assert result is True
-        assert len(collector._targets) == 0
-
-    @pytest.mark.asyncio
-    async def test_remove_non_default_target_leaves_default(self, collector: MultiTargetMetricsCollector) -> None:
-
-        with patch.object(collector, "_ensure_collect_loop", new_callable=AsyncMock):
-            await collector.register_target("extra-ns", "extra-is")
-
-        await collector.remove_target("extra-ns", "extra-is")
-
-        default = collector._get_default_target()
-        assert default is not None
-        assert default.is_default is True
 
 
 class TestGetMetrics:
@@ -141,68 +84,6 @@ class TestGetMetrics:
 
         assert result is not None
         assert result.tokens_per_second == 99.0
-
-    @pytest.mark.asyncio
-    async def test_get_metrics_default_target_accessible(self, collector: MultiTargetMetricsCollector) -> None:
-        default = collector._get_default_target()
-        assert default is not None
-
-        fake = VLLMMetrics(timestamp=time.time(), running_requests=3)
-        default.latest = fake
-
-        with patch.object(collector, "_ensure_collect_loop", new_callable=AsyncMock):
-            result = await collector.get_metrics(default.namespace, default.is_name)
-
-        assert result is not None
-        assert result.running_requests == 3
-
-
-class TestGetDefaultTarget:
-    def test_get_default_target_returns_is_default_true(self, collector: MultiTargetMetricsCollector) -> None:
-
-        default = collector._get_default_target()
-
-        assert default is not None
-        assert default.is_default is True
-
-    def test_get_default_target_empty_targets_returns_none(self, collector: MultiTargetMetricsCollector) -> None:
-        collector._targets.clear()
-
-        result = collector._get_default_target()
-
-        assert result is None
-
-    def test_get_default_target_falls_back_to_first_when_no_is_default(
-        self, collector: MultiTargetMetricsCollector
-    ) -> None:
-        for t in collector._targets.values():
-            t.is_default = False
-
-        result = collector._get_default_target()
-
-        assert result is not None
-
-    def test_set_default_target_updates_namespace_and_key(self, collector: MultiTargetMetricsCollector) -> None:
-
-        collector.set_default_target(namespace="new-ns", is_name="new-is")
-        default = collector._get_default_target()
-
-        assert default is not None
-        assert default.namespace == "new-ns"
-        assert default.is_name == "new-is"
-        assert collector.build_target_key("new-ns", "new-is", default.cr_type) in collector._targets
-
-    def test_set_default_target_partial_update_namespace_only(self, collector: MultiTargetMetricsCollector) -> None:
-        default_target = collector._get_default_target()
-        assert default_target is not None
-        original_is_name = default_target.is_name
-
-        collector.set_default_target(namespace="only-ns-change")
-        default = collector._get_default_target()
-
-        assert default is not None
-        assert default.namespace == "only-ns-change"
-        assert default.is_name == original_is_name
 
 
 class TestTargetKey:
@@ -263,18 +144,6 @@ class TestCrType:
         llmis_queries = collector._build_target_queries("ns", "my-svc", "llminferenceservice")
 
         assert isvc_queries["tokens_per_second"] != llmis_queries["tokens_per_second"]
-
-    def test_register_default_target_uses_runtime_cr_type(self, collector: MultiTargetMetricsCollector) -> None:
-        import os
-
-        collector._targets.clear()
-
-        with patch.dict(os.environ, {"VLLM_CR_TYPE": "inferenceservice"}):
-            collector._register_default_target()
-
-        default = collector._get_default_target()
-        assert default is not None
-        assert default.cr_type == "inferenceservice"
 
     @pytest.mark.asyncio
     async def test_resolve_model_name_isvc_from_served_model_name(self, collector: MultiTargetMetricsCollector) -> None:

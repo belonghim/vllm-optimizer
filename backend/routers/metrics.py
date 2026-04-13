@@ -419,7 +419,7 @@ async def discover_services(
                 name = metadata.get("name")
                 ns = metadata.get("namespace")
                 if name and ns:
-                    isvc_list.append({"name": name, "namespace": ns})
+                    isvc_list.append(name)
     except ApiException as e:
         if e.status == 403:
             pass
@@ -445,7 +445,7 @@ async def discover_services(
                 name = metadata.get("name")
                 ns = metadata.get("namespace")
                 if name and ns:
-                    llmisvc_list.append({"name": name, "namespace": ns})
+                    llmisvc_list.append(name)
     except ApiException as e:
         if e.status == 403:
             pass
