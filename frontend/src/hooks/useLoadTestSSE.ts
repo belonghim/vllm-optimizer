@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { API } from '../constants';
+import { API, SSE_MAX_RETRIES, SSE_MAX_RETRY_DELAY_MS } from '../constants';
 import type { SSEState, SSEErrorPayload } from '../types';
 
 interface LatencyPoint {
@@ -103,10 +103,10 @@ export function useLoadTestSSE(): UseLoadTestSSEReturn {
         esRef.current = null;
         const count = retryCountRef.current + 1;
         retryCountRef.current = count;
-        if (count <= 3) {
+        if (count <= SSE_MAX_RETRIES) {
           setIsReconnecting(true);
           setRetryCount(count);
-          const delay = Math.min(1000 * Math.pow(2, count - 1), 8000);
+          const delay = Math.min(1000 * Math.pow(2, count - 1), SSE_MAX_RETRY_DELAY_MS);
           setTimeout(() => { openConnection(reqCount); }, delay);
         } else {
           setIsReconnecting(false);

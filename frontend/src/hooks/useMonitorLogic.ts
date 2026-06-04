@@ -3,7 +3,7 @@ import { authFetch } from '../utils/authFetch';
 import { mockMetrics, mockHistory } from "../mockData";
 import { useMockData } from "../contexts/MockDataContext";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
-import { API, METRIC_KEYS, CHART_LABELS } from "../constants";
+import { API, METRIC_KEYS, CHART_LABELS, MONITOR_POLL_INTERVAL_MS, MONITOR_HISTORY_SLICE, MONITOR_LIVE_CUTOFF_SECS } from "../constants";
 import { useThemeColors } from "../contexts/ThemeContext";
 import { buildGapFill } from "../utils/gapFill";
 import { showSlaViolation } from "../components/Toast";
@@ -25,8 +25,11 @@ export function useMonitorLogic(isActive: boolean) {
   const [slaProfiles, setSlaProfiles] = useState<SlaProfile[]>([]);
   const [selectedSlaProfileId, setSelectedSlaProfileId] = useState<number | null>(null);
   const [selectedRange, setSelectedRange] = useState<'Live' | '1h' | '6h' | '24h' | '7d'>('Live');
+  const [metricsSource, setMetricsSource] = useState<'direct' | 'thanos'>(
+    () => (localStorage.getItem('monitor_metrics_source') as 'direct' | 'thanos') || 'direct'
+  );
   const [initialized, setInitialized] = useState(false);
-  const timeRangePointsRef = useRef(60);
+  const timeRangePointsRef = useRef(150);
   const selectedRangeRef = useRef('Live');
   const lastViolationTime = useRef<Record<string, number>>({});
 
@@ -38,6 +41,11 @@ export function useMonitorLogic(isActive: boolean) {
     [slaProfiles, selectedSlaProfileId]
   );
 
+  const selectedSlaProfileRef = useRef<SlaProfile | undefined>(undefined);
+  useEffect(() => {
+    selectedSlaProfileRef.current = selectedSlaProfile;
+  }, [selectedSlaProfile]);
+
   useEffect(() => {
     const fetchSlaProfiles = async () => {
       try {
@@ -48,10 +56,15 @@ export function useMonitorLogic(isActive: boolean) {
         }
       } catch (err) {
         console.error("Failed to load SLA profiles", err);
+        setError("Failed to load SLA profiles");
       }
     };
     fetchSlaProfiles();
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem('monitor_metrics_source', metricsSource);
+  }, [metricsSource]);
 
   const fetchAllTargets = useCallback(async (signal?: AbortSignal) => {
     if (isMockEnabled) {
@@ -60,7 +73,7 @@ export function useMonitorLogic(isActive: boolean) {
         const key = getTargetKey(target);
         newStates[key] = {
           metrics: { ...mockMetrics() },
-          history: buildGapFill(mockHistory().map(h => ({ ...h, t: h.t })), ['ttft', 'lat_p99']).slice(-450),
+          history: buildGapFill(mockHistory().map(h => ({ ...h, t: h.t })), ['ttft', 'lat_p99']).slice(-MONITOR_HISTORY_SLICE),
           status: 'ready',
           error: null,
         };
@@ -81,15 +94,24 @@ export function useMonitorLogic(isActive: boolean) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(
           selectedRangeRef.current === 'Live'
-            ? { targets: batchTargets, history_points: timeRangePointsRef.current }
+            ? { targets: batchTargets, history_points: timeRangePointsRef.current, metrics_source: metricsSource }
             : { targets: batchTargets, time_range: selectedRangeRef.current }
         ),
         signal,
       });
 
       if (signal?.aborted) return;
+      if (res.status === 401 || res.status === 403) throw new Error(`Auth error: ${res.status}`);
       if (!res.ok) throw new Error(`Batch HTTP ${res.status}`);
-      const batchData = await res.json();
+
+      let batchData: { results?: Record<string, TargetResult> };
+      try {
+        batchData = await res.json();
+      } catch {
+        throw new Error('Failed to parse metrics response as JSON');
+      }
+
+      if (!batchData.results) throw new Error('Invalid metrics response: missing results');
 
       const newStates: Record<string, TargetState> = {};
       const now = Date.now();
@@ -108,7 +130,7 @@ export function useMonitorLogic(isActive: boolean) {
         showSlaViolation(metric, value, threshold);
       };
 
-      Object.entries(batchData.results as Record<string, TargetResult>).forEach(([key, result]) => {
+      Object.entries(batchData.results).forEach(([key, result]) => {
         if (result.status === 'error') {
           newStates[key] = {
             status: 'error',
@@ -119,10 +141,9 @@ export function useMonitorLogic(isActive: boolean) {
           };
           return;
         }
-        if (selectedSlaProfile && result.data) {
-          const { thresholds } = selectedSlaProfile;
+        if (selectedSlaProfileRef.current && result.data) {
+          const { thresholds } = selectedSlaProfileRef.current;
           const { data } = result;
-          checkViolation(`${key} TPS`, data.tps, thresholds.min_tps, (v, t) => v < t);
           checkViolation(`${key} ${CHART_LABELS.e2eLatency.violation}`, data.latency_p99, thresholds.p95_latency_max_ms, (v, t) => v > t);
         }
         const mapped = (result.history || []).map((m) => ({
@@ -132,8 +153,10 @@ export function useMonitorLogic(isActive: boolean) {
           rps: m.rps, ttft_p99: m.ttft_p99, lat_mean: m.latency_mean,
           kv_hit: m.kv_hit_rate, gpu_util: m.gpu_util,
           gpu_mem_used: m.gpu_mem_used, gpu_mem_total: m.gpu_mem_total,
+          tpot_mean: m.tpot_mean, tpot_p99: m.tpot_p99,
+          queue_time_mean: m.queue_time_mean, queue_time_p99: m.queue_time_p99,
         }));
-        const history = buildGapFill(mapped, ['ttft', 'lat_p99', 'ttft_p99', 'lat_mean']);
+        const history = buildGapFill(mapped, ['ttft', 'lat_p99', 'ttft_p99', 'lat_mean', 'tpot_mean', 'tpot_p99', 'queue_time_mean', 'queue_time_p99']);
         newStates[key] = {
           data: result.data || null,
           history,
@@ -150,7 +173,7 @@ export function useMonitorLogic(isActive: boolean) {
       if (err instanceof Error && err.name === 'AbortError') return;
       setError(`Query failed: ${(err as Error).message}`);
     }
-  }, [targets, isMockEnabled, crType, selectedSlaProfile]);
+  }, [targets, isMockEnabled, crType, metricsSource]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -172,7 +195,7 @@ export function useMonitorLogic(isActive: boolean) {
       await fetchAllTargets(controller.signal);
       if (!controller.signal.aborted) setInitialized(true);
     })();
-    const id = setInterval(() => fetchAllTargets(controller.signal), 3000);
+    const id = setInterval(() => fetchAllTargets(controller.signal), MONITOR_POLL_INTERVAL_MS);
     return () => { controller.abort(); clearInterval(id); };
   }, [isActive, targets, fetchAllTargets]);
 
@@ -188,7 +211,7 @@ export function useMonitorLogic(isActive: boolean) {
     });
     const sorted = Object.values(timeMap).sort((a, b) => Number(a.t) - Number(b.t));
     if (selectedRange === 'Live') {
-      const cutoff = Date.now() / 1000 - 300;
+      const cutoff = Date.now() / 1000 - MONITOR_LIVE_CUTOFF_SECS;
       return sorted.filter(p => Number(p.t) >= cutoff);
     }
     return sorted;
@@ -228,7 +251,6 @@ export function useMonitorLogic(isActive: boolean) {
   const getSlaThreshold = (id: string) => {
     if (!selectedSlaProfile) return undefined;
     const { thresholds } = selectedSlaProfile;
-    if (id === 'tps') return thresholds.min_tps || undefined;
     if (id === 'e2e_latency') return thresholds.p95_latency_max_ms || undefined;
     return undefined;
   };
@@ -238,5 +260,6 @@ export function useMonitorLogic(isActive: boolean) {
     chartOrder, hiddenCharts, mergedHistory, targetStatuses, targetStates, chartLinesMap,
     hideChart, showChart, getSlaThreshold,
     selectedRange, setSelectedRange, timeRangePointsRef, selectedRangeRef,
+    metricsSource, setMetricsSource,
   };
 }

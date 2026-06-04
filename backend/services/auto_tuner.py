@@ -4,11 +4,9 @@ import os
 from typing import Any, Literal
 
 import optuna
-from kubernetes import client as k8s_client
-from kubernetes import config as k8s_config
 from models.load_test import SweepConfig, TuningConfig, TuningTrial
 from services.event_broadcaster import EventBroadcaster
-from services.k8s_operator import K8sOperator, _get_k8s_namespace, _get_vllm_is_name
+from services.k8s_operator import K8sOperator
 from services.shared import storage
 from services.tuner_logic import (
     TunerLogic,
@@ -24,7 +22,6 @@ from .model_resolver import resolve_model_name
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 OPTUNA_AVAILABLE = True
 logger = logging.getLogger(__name__)
-_ = (k8s_client, k8s_config, _get_k8s_namespace, _get_vllm_is_name)
 
 
 class AutoTuner:

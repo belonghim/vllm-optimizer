@@ -1,9 +1,10 @@
 import { Fragment } from "react";
 import { useThemeColors } from "../contexts/ThemeContext";
+import LoadingSpinner from "./LoadingSpinner";
 import { fmt } from "../utils/format";
 import { calcGpuEfficiency } from "../utils/metrics";
 import { CHART_LABELS } from "../constants";
-import type { BenchmarkItem, BenchmarkRunConfig } from "../pages/BenchmarkPage";
+import type { BenchmarkItem, BenchmarkRunConfig } from "../types";
 
 interface BenchmarkTableProps {
   benchmarks: BenchmarkItem[];
@@ -34,7 +35,7 @@ export default function BenchmarkTable({
     <div className="panel">
       <div className="section-title">Saved Benchmarks</div>
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '40px', color: COLORS.muted }}>Loading...</div>
+        <LoadingSpinner />
       ) : (
         <>
           <div style={{ marginBottom: '16px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>

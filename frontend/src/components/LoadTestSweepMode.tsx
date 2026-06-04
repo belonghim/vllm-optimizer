@@ -76,27 +76,6 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
   useEffect(() => { setLocalModel(model); }, [model]);
 
   useEffect(() => {
-    if (!localEndpoint || localEndpoint === "") return;
-    const controller = new AbortController();
-    const fetchModel = async () => {
-      try {
-        const resp = await authFetch(`${localEndpoint}/v1/models`, { signal: controller.signal });
-        if (!resp.ok) return;
-        const data = await resp.json();
-        if (data.data && data.data.length > 0) {
-          setLocalModel(data.data[0].id);
-        }
-      } catch (err) {
-        if ((err as Error).name !== 'AbortError') {
-          console.warn('Failed to fetch model name from endpoint:', err);
-        }
-      }
-    };
-    fetchModel();
-    return () => controller.abort();
-  }, [localEndpoint]);
-
-  useEffect(() => {
     onRunningChange?.(sweepStatus === 'running');
   }, [sweepStatus, onRunningChange]);
 
@@ -215,10 +194,10 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
        const resp = await authFetch(`${API}/load_test/sweep/history/${sweepId}`, { method: "DELETE" });
        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
        await fetchSweepHistory();
-     } catch (e) {
-       console.error('Failed to delete sweep result', e);
-       // fail silently
-     }
+      } catch (e) {
+        console.error('Failed to delete sweep result', e);
+        setSweepError(`Failed to delete sweep result: ${(e as Error).message}`);
+      }
    };
 
   return (

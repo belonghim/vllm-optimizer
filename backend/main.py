@@ -15,7 +15,7 @@ from errors import OptimizerError
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from logging_config import configure_logging
-from routers import alerts, benchmark, load_test, metrics, sla, status, tuner, vllm_config, targets
+from routers import alerts, benchmark, load_test, metrics, sla, status, targets, tuner, vllm_config
 from routers import config as config_router
 from routers.status import check_prometheus_health
 from services.rate_limiter import limiter
@@ -98,15 +98,6 @@ async def lifespan(app: FastAPI):
     except Exception as e:  # intentional: fail-open
         logger.warning("[Lifespan] Storage health monitor start failed (continuing): %s", e)
 
-    # ── ConfigMap watcher startup (fail-open) ──
-    try:
-        from services.shared import config_watcher
-
-        await config_watcher.start()
-        logger.info("[Lifespan] ConfigMap watcher started")
-    except Exception as e:  # intentional: fail-open
-        logger.warning("[Lifespan] ConfigMap watcher start failed (continuing): %s", e)
-
     # ── Startup configuration validation ──
     _required_env = ["VLLM_ENDPOINT"]
     _optional_env = ["PROMETHEUS_URL", "K8S_DEPLOYMENT_NAME"]
@@ -123,15 +114,6 @@ async def lifespan(app: FastAPI):
 
     async with _create_lifespan(app)(app):
         yield
-
-    # ── ConfigMap watcher shutdown (fail-open) ──
-    try:
-        from services.shared import config_watcher
-
-        await config_watcher.stop()
-        logger.info("[Lifespan] ConfigMap watcher stopped")
-    except Exception as e:  # intentional: fail-open
-        logger.debug("[Lifespan] ConfigMap watcher stop failed (non-critical): %s", e)
 
     # ── Storage health monitor shutdown (fail-open) ──
     try:
@@ -219,7 +201,7 @@ app.include_router(metrics, prefix="/api/metrics", tags=["metrics"])
 app.include_router(benchmark, prefix="/api/benchmark", tags=["benchmark"])
 app.include_router(tuner, prefix="/api/tuner", tags=["tuner"])
 app.include_router(vllm_config, prefix="/api/vllm-config", tags=["vllm-config"])
-app.include_router(config_router)
+app.include_router(config_router, prefix="/api/config", tags=["config"])
 app.include_router(status, prefix="/api", tags=["status"])
 app.include_router(sla, prefix="/api/sla", tags=["sla"])
 app.include_router(alerts, prefix="/api/alerts", tags=["alerts"])

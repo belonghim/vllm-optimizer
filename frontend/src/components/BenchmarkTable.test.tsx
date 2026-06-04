@@ -65,7 +65,7 @@ describe("BenchmarkTable", () => {
 
   it("shows loading indicator when loading is true", () => {
     render(<BenchmarkTable {...makeProps({ loading: true })} />);
-    expect(screen.getByText("Loading...")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toBeInTheDocument();
     expect(screen.queryByText("Saved load test results will appear here.")).not.toBeInTheDocument();
   });
 

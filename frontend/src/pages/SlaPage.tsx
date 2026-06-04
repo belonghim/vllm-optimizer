@@ -85,7 +85,8 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ profile_id: profileId, benchmark_ids: selectedIds.map(Number) }),
       });
-      setCurrentEval(res.ok ? await res.json() as SlaEvaluateResponse : null);
+      if (!res.ok) { setError(`Failed to evaluate SLA profile: HTTP ${res.status}`); setCurrentEval(null); return; }
+      setCurrentEval(await res.json() as SlaEvaluateResponse);
     } catch (err) {
       console.error('Failed to evaluate SLA profile:', err);
       setError(`Failed to evaluate SLA profile: ${(err as Error).message}`);

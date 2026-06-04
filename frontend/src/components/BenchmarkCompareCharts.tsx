@@ -65,11 +65,11 @@ export default function BenchmarkCompareCharts({ compareData }: BenchmarkCompare
               <Tooltip contentStyle={TOOLTIP_STYLE} />
               <Bar dataKey="gpuEff" name="GPU Eff.">
                 {compareData
-                  .filter(d => d.metricsTargetMatched)
-                  .map((item) => {
-                    const index = compareData.indexOf(item);
-                    return <Cell key={index} fill={TARGET_COLORS[index % TARGET_COLORS.length]} />;
-                  })}
+                  .map((item, index) => ({ item, index }))
+                  .filter(({ item }) => item.metricsTargetMatched)
+                  .map(({ index }) => (
+                    <Cell key={index} fill={TARGET_COLORS[index % TARGET_COLORS.length]} />
+                  ))}
               </Bar>
             </BarChart>
           </ResponsiveContainer>

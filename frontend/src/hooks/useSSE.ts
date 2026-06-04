@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { SSE_MAX_RETRIES, SSE_MAX_RETRY_DELAY_MS } from '../constants';
 
 export interface UseSSEOptions {
   onError?: () => void;
@@ -53,8 +54,8 @@ export function useSSE(
         if (optionsRef.current.reconnect) {
           const count = retryCount + 1;
           retryCount = count;
-          if (count <= 3) {
-            const delay = Math.min(1000 * Math.pow(2, count - 1), 8000);
+          if (count <= SSE_MAX_RETRIES) {
+            const delay = Math.min(1000 * Math.pow(2, count - 1), SSE_MAX_RETRY_DELAY_MS);
             retryTimer = setTimeout(openConnection, delay);
           } else {
             optionsRef.current.onError?.();

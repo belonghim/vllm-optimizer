@@ -147,11 +147,11 @@ async def _auto_save_tuning_session() -> None:
             best = auto_tuner.best
             session_data = {
                 "timestamp": time.time(),
-                "objective": getattr(auto_tuner, "_last_objective", "balanced"),
+                "objective": auto_tuner._config.objective if auto_tuner._config else "balanced",
                 "n_trials": len(existing_trials),
                 "best_tps": best.tps if best else None,
                 "best_p99": best.p99_latency * 1000 if best else None,
-                "best_score": getattr(auto_tuner, "_best_score", None),
+                "best_score": auto_tuner._best_trial.score if auto_tuner._best_trial else None,
                 "trials_json": json.dumps([t.model_dump() for t in existing_trials], default=str),
                 "importance_json": json.dumps(await auto_tuner.get_importance()),
             }

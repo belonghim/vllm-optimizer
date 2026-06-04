@@ -62,7 +62,7 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status,
     onInitialConfigApplied?.();
   }, [initialConfig, onChange, onInitialConfigApplied]);
 
-  const presets = useMemo(() => loadPresets(), []);
+  const [presets, setPresets] = useState(() => loadPresets());
   const presetNames = useMemo(() => Object.keys(presets), [presets]);
 
   const handlePresetSelect = (presetName: string) => {
@@ -91,10 +91,10 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status,
           temperature: config.temperature,
           stream: config.stream,
         });
+        setPresets(loadPresets());
         setSelectedPreset(name);
-        window.location.reload();
       } catch (e) {
-        alert((e as Error).message);
+        console.error('Failed to save preset:', e);
       }
     }
   };
@@ -104,10 +104,10 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status,
     if (confirm(`Delete preset "${selectedPreset}"?`)) {
       try {
         deletePreset(selectedPreset);
+        setPresets(loadPresets());
         setSelectedPreset("");
-        window.location.reload();
       } catch (e) {
-        alert((e as Error).message);
+        console.error('Failed to delete preset:', e);
       }
     }
   };

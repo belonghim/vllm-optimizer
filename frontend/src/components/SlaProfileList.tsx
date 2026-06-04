@@ -1,6 +1,7 @@
 import { COLORS } from "../constants";
 import { ERROR_MESSAGES } from "../constants/errorMessages";
 import type { SlaProfile, SlaThresholds } from "../types";
+import LoadingSpinner from "./LoadingSpinner";
 
 interface SlaProfileListProps {
   profiles: SlaProfile[];
@@ -31,7 +32,7 @@ export default function SlaProfileList({ profiles, onEdit, onDelete, selectedPro
     <div className="panel">
       <div className="section-title">SLA Profile List</div>
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '40px', color: COLORS.muted }}>Loading...</div>
+        <LoadingSpinner />
       ) : (
         <table className="table">
           <thead>

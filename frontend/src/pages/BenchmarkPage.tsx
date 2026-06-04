@@ -12,34 +12,8 @@ import BenchmarkTable from "../components/BenchmarkTable";
 import BenchmarkMetadataModal from "../components/BenchmarkMetadataModal";
 import BenchmarkCompareCharts from "../components/BenchmarkCompareCharts";
 import ConfirmDialog from "../components/ConfirmDialog";
+import type { BenchmarkItem, BenchmarkRunConfig, BenchmarkMetadata } from "../types";
 
-export interface BenchmarkMetadata {
-  model_identifier?: string | null;
-  hardware_type?: string | null;
-  runtime?: string | null;
-  vllm_version?: string | null;
-  replica_count?: number | null;
-  notes?: string | null;
-  extra?: Record<string, string>;
-  source?: string | null;
-}
-export interface BenchmarkRunConfig { model?: string; [key: string]: unknown; }
-export interface BenchmarkResultData {
-  tps?: { mean?: number } | null;
-  latency?: { p99?: number } | null;
-  ttft?: { mean?: number } | null;
-  rps_actual?: number;
-  gpu_utilization_avg?: number | null;
-  metrics_target_matched?: boolean;
-}
-export interface BenchmarkItem {
-  id: string | number;
-  name: string;
-  timestamp: number;
-  config?: BenchmarkRunConfig;
-  result: BenchmarkResultData;
-  metadata?: BenchmarkMetadata | null;
-}
 interface BenchmarkPageProps { isActive: boolean; onRerun?: (config: BenchmarkRunConfig) => void; }
 
 function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
@@ -201,7 +175,6 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
       }
       const data = await resp.json();
       setError(null); fetchBenchmarks();
-      alert(`${data.imported_count} benchmark(s) imported successfully.`);
     } catch (err: unknown) {
       console.error('Failed to import benchmarks:', err);
       setError(err instanceof Error ? err.message : "Import failed");

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { BenchmarkItem, BenchmarkMetadata } from "../pages/BenchmarkPage";
+import type { BenchmarkItem, BenchmarkMetadata } from "../types";
 
 interface BenchmarkMetadataModalProps {
   editing: BenchmarkItem;

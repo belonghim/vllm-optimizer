@@ -110,10 +110,10 @@ def _get_k8s_custom() -> CustomObjectsApi | None:
 
         try:
             k8s_config.load_incluster_config()
-        except OSError:  # intentional: non-critical
+        except (OSError, k8s_config.ConfigException):  # intentional: non-critical
             k8s_config.load_kube_config()
         return client.CustomObjectsApi()
-    except (ImportError, OSError, RuntimeError) as e:  # intentional: non-critical
+    except Exception as e:  # intentional: non-critical
         logger.warning("[VllmConfig] K8s client not available: %s", e)
         return None
 

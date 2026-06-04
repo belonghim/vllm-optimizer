@@ -13,7 +13,7 @@ from services.shared import runtime_config
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/config", tags=["config"])
+router = APIRouter()
 
 
 class ConfigResponse(BaseModel):

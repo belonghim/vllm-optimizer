@@ -361,7 +361,7 @@ export default function MultiTargetSelector({
                     await setDefaultTarget(parsed.namespace, parsed.inferenceService, parsed.crType);
                     setUserSelectedKey(null);
                   } catch {
-                    setApplyError("기본 타겟 업데이트 실패");
+                    setApplyError("Failed to update default target");
                   }
                 }
               }}

@@ -1,5 +1,12 @@
 export const API: string = "/api";
 
+export const SSE_MAX_RETRIES = 3;
+export const SSE_MAX_RETRY_DELAY_MS = 8000;
+
+export const MONITOR_POLL_INTERVAL_MS = 3000;
+export const MONITOR_HISTORY_SLICE = 450;
+export const MONITOR_LIVE_CUTOFF_SECS = 300;
+
 interface ColorPalette {
   bg: string;
   surface: string;

@@ -92,6 +92,11 @@ validate_prerequisites() {
     err "OpenShift CLI 'oc' not found in PATH"
     exit 1
   fi
+
+  if [[ "$SKIP_BUILD" != "true" && "$DRY_RUN" != "true" ]] && ! command -v podman >/dev/null 2>&1; then
+    err "Podman not found in PATH (required for image build)"
+    exit 1
+  fi
   
   # Skip cluster checks in dry-run mode
   if [[ "$DRY_RUN" == "true" ]]; then
@@ -315,7 +320,7 @@ fi
 ## Push phase (non-dry-run)
 if [[ "$DRY_RUN" != "true" && "$SKIP_BUILD" != "true" ]]; then
   log "Logging in to registry..."
-  podman login "${REGISTRY}" || echo "WARNING: podman login failed (may already be authenticated)"
+  podman login "${REGISTRY}" || warn "podman login failed (may already be authenticated)"
 
   log "Pushing backend image..."
   podman push "${REGISTRY}/vllm-optimizer-backend:${IMAGE_TAG}"
@@ -356,19 +361,21 @@ else
     oc kustomize "${OVERLAY_PATH}" | oc apply -n "${NAMESPACE}" -f -
   fi
 fi
-log "Waiting for vllm-optimizer-backend deployment to be ready..."
-oc rollout status deployment/vllm-optimizer-backend -n "${NAMESPACE}" --timeout=5m
+if [[ "$DRY_RUN" != "true" ]]; then
+  log "Waiting for vllm-optimizer-backend deployment to be ready..."
+  oc rollout status deployment/vllm-optimizer-backend -n "${NAMESPACE}" --timeout=5m
 
-log "Performing health check for vllm-optimizer-backend..."
-if ! health_check_deployment "${NAMESPACE}" "app=vllm-optimizer-backend" "8000"; then
-  warn "Health check failed; rolling back vllm-optimizer-backend..."
-  rollback_deployment "${NAMESPACE}" "vllm-optimizer-backend"
-  exit 1
+  log "Performing health check for vllm-optimizer-backend..."
+  if ! health_check_deployment "${NAMESPACE}" "app=vllm-optimizer-backend" "8000"; then
+    warn "Health check failed; rolling back vllm-optimizer-backend..."
+    rollback_deployment "${NAMESPACE}" "vllm-optimizer-backend"
+    exit 1
+  fi
+  ok "Backend deployment healthy"
+
+  log "Waiting for vllm-optimizer-frontend deployment to be ready..."
+  oc rollout status deployment/vllm-optimizer-frontend -n "${NAMESPACE}" --timeout=5m
 fi
-ok "Backend deployment healthy"
-
-log "Waiting for vllm-optimizer-frontend deployment to be ready..."
-oc rollout status deployment/vllm-optimizer-frontend -n "${NAMESPACE}" --timeout=5m
 
 VLLM_DEP_PATH="${SCRIPT_DIR}/openshift/vllm-dependency/${ENV}"
 VLLM_DEP_NAMESPACE="vllm-lab-${ENV}"

@@ -35,9 +35,9 @@ describe("SlaProfileList", () => {
     expect(screen.getByText("No profiles registered.")).toBeInTheDocument();
   });
 
-  it("shows Loading... when loading is true", () => {
+  it("shows spinner when loading is true", () => {
     render(<SlaProfileList {...makeProps({ loading: true })} />);
-    expect(screen.getByText("Loading...")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toBeInTheDocument();
     expect(screen.queryByText("No profiles registered.")).not.toBeInTheDocument();
   });
 

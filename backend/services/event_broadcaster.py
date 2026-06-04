@@ -71,11 +71,12 @@ class EventBroadcaster:
         self, trial_start: float, status: str, best_trial: TuningTrial | None, config: TuningConfig | None
     ) -> None:
         try:
-            if _metrics_available:
-                tuner_trial_duration_seconds.observe(time.monotonic() - trial_start)  # type: ignore[reportOptionalMemberAccess]
-                tuner_trials_total.labels(status=status).inc()  # type: ignore[reportOptionalMemberAccess]
-                if status == "completed" and best_trial is not None:
-                    assert config is not None
-                    tuner_best_score.labels(objective=config.objective).set(best_trial.score)  # type: ignore[reportOptionalMemberAccess]
+            if tuner_trial_duration_seconds is not None:
+                tuner_trial_duration_seconds.observe(time.monotonic() - trial_start)
+            if tuner_trials_total is not None:
+                tuner_trials_total.labels(status=status).inc()
+            if status == "completed" and best_trial is not None and tuner_best_score is not None:
+                assert config is not None
+                tuner_best_score.labels(objective=config.objective).set(best_trial.score)
         except Exception as _e:  # intentional: non-critical metrics
             logger.debug("[AutoTuner] Metrics emit failed (non-critical): %s", _e)

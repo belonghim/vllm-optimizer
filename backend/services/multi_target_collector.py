@@ -329,11 +329,17 @@ class MultiTargetMetricsCollector:
 
     @property
     def latest(self) -> VLLMMetrics | None:
-        return None
+        default = next((t for t in self._targets.values() if t.is_default), None)
+        if default is None:
+            default = next(iter(self._targets.values()), None)
+        return default.latest if default is not None else None
 
     @property
     def history(self) -> list[VLLMMetrics]:
-        return []
+        default = next((t for t in self._targets.values() if t.is_default), None)
+        if default is None:
+            default = next(iter(self._targets.values()), None)
+        return list(default.history) if default is not None else []
 
     @property
     def version(self) -> str:
@@ -375,7 +381,6 @@ class MultiTargetMetricsCollector:
             _ = self._cleanup_task.cancel()
 
     def get_history_dict(self, last_n: int = 60, include_metadata: bool = True) -> list[dict[str, Any]]:
-        return []
         return [
             {
                 "timestamp": m.timestamp,
@@ -405,7 +410,7 @@ class MultiTargetMetricsCollector:
                 if include_metadata
                 else None,
             }
-            for m in history
+            for m in self.history[-last_n:]
         ]
 
     async def get_metrics(
