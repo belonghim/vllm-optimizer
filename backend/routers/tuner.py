@@ -14,7 +14,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from kubernetes.client.exceptions import ApiException
-from models.load_test import ErrorResponse, SweepConfig, TuningConfig, TuningSessionDetail, TuningSessionSummary
+from models.load_test import TUNING_DEFAULTS, ErrorResponse, SweepConfig, TuningConfig, TuningSessionDetail, TuningSessionSummary
 from pydantic import BaseModel, Field, model_validator
 from services.auto_tuner import AutoTuner
 from services.model_config_reader import get_model_config_reader
@@ -61,25 +61,25 @@ class ApplyBestResponse(BaseModel):
 class TuningStartRequest(BaseModel):
     """Request to start auto-tuning (flat schema matching frontend)"""
 
-    objective: str = "balanced"
-    n_trials: int = Field(default=10, ge=1, le=100)
-    eval_requests: int = Field(default=100, ge=1, le=1000)
+    objective: str = TUNING_DEFAULTS["objective"]
+    n_trials: int = Field(default=TUNING_DEFAULTS["n_trials"], ge=1, le=100)
+    eval_requests: int = Field(default=TUNING_DEFAULTS["eval_requests"], ge=1, le=1000)
     vllm_endpoint: str = ""
-    max_num_seqs_min: int = 64
-    max_num_seqs_max: int = 512
-    gpu_memory_min: float = 0.80
-    gpu_memory_max: float = 0.95
-    max_model_len_min: int = 2048
-    max_model_len_max: int = 8192
+    max_num_seqs_min: int = TUNING_DEFAULTS["max_num_seqs_min"]
+    max_num_seqs_max: int = TUNING_DEFAULTS["max_num_seqs_max"]
+    gpu_memory_min: float = TUNING_DEFAULTS["gpu_memory_min"]
+    gpu_memory_max: float = TUNING_DEFAULTS["gpu_memory_max"]
+    max_model_len_min: int = TUNING_DEFAULTS["max_model_len_min"]
+    max_model_len_max: int = TUNING_DEFAULTS["max_model_len_max"]
     # Expanded tuning controls
-    max_num_batched_tokens_min: int = 256
-    max_num_batched_tokens_max: int = 2048
-    block_size_options: list[int] = [8, 16, 32]
-    include_swap_space: bool = False
-    swap_space_min: float = 1.0
-    swap_space_max: float = 8.0
-    eval_concurrency: int = Field(default=16, ge=1, le=128)
-    eval_rps: float = Field(default=20.0, ge=0.1, le=500.0)
+    max_num_batched_tokens_min: int = TUNING_DEFAULTS["max_num_batched_tokens_min"]
+    max_num_batched_tokens_max: int = TUNING_DEFAULTS["max_num_batched_tokens_max"]
+    block_size_options: list[int] = TUNING_DEFAULTS["block_size_options"]
+    include_swap_space: bool = TUNING_DEFAULTS["include_swap_space"]
+    swap_space_min: float = TUNING_DEFAULTS["swap_space_min"]
+    swap_space_max: float = TUNING_DEFAULTS["swap_space_max"]
+    eval_concurrency: int = Field(default=TUNING_DEFAULTS["eval_concurrency"], ge=1, le=128)
+    eval_rps: float = Field(default=TUNING_DEFAULTS["eval_rps"], ge=0.1, le=500.0)
     auto_benchmark: bool = False
     evaluation_mode: Literal["single", "sweep"] = "single"
     sweep_config: SweepConfig | None = None
@@ -197,8 +197,7 @@ async def _build_tuning_config(body: TuningStartRequest) -> tuple[TuningConfig, 
     served_model_name_warning: str | None = None
 
     try:
-        cr_spec = await auto_tuner._k8s_operator.read_current_spec()
-        adapter = auto_tuner._k8s_operator._cr_adapter
+        cr_spec, adapter = await auto_tuner.get_cr_context()
         namespace = runtime_config.vllm_namespace or "default"
         is_name = runtime_config.vllm_is_name or "llm-ov"
 

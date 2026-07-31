@@ -28,6 +28,19 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
+def _power_of_2_range(low: int, high: int) -> list[int]:
+    p = 1
+    while p < low:
+        p <<= 1
+    result: list[int] = []
+    while p <= high:
+        result.append(p)
+        p <<= 1
+    if not result:
+        result = [max(low, min(high, (low + high) // 2))]
+    return result
+
+
 class _Broadcaster(Protocol):
     async def broadcast(self, data: dict[str, Any]) -> None: ...
 
@@ -138,12 +151,7 @@ class TunerLogic:
         if config.model_max_position_embeddings:
             _max_len_upper = min(_max_len_upper, config.model_max_position_embeddings)
 
-        _model_len_choices = [
-            v for v in [2048, 4096, 8192] if config.max_model_len_range[0] <= v <= _max_len_upper
-        ]
-        if not _model_len_choices:
-            _mid = (config.max_model_len_range[0] + _max_len_upper) // 2
-            _model_len_choices = [_mid]
+        _model_len_choices = _power_of_2_range(config.max_model_len_range[0], _max_len_upper)
 
         params["max_model_len"] = trial.suggest_categorical(
             "max_model_len",
@@ -352,6 +360,21 @@ class TunerLogic:
             return {}
 
 
+def classify_failure_from_logs(logs: str | None) -> str:
+    if not logs:
+        return "unknown"
+    low = logs.lower()
+    if "out of memory" in low or "cuda out of memory" in low or "oom killer" in low:
+        return "OOM"
+    if any(kw in low for kw in ("invalid argument", "invalid configuration", "unrecognized", "unsupported")):
+        return "invalid_config"
+    if "timeout" in low or "timed out" in low or "deadline exceeded" in low:
+        return "timeout"
+    if "error" in low or "exception" in low or "traceback" in low or "crash" in low or "killed" in low:
+        return "crash"
+    return "unknown"
+
+
 async def update_pareto_front_for_tuner(tuner: Any) -> None:  # AutoTuner — avoid circular import
     try:
         assert tuner._study is not None
@@ -454,6 +477,15 @@ async def execute_trial_for_tuner(
         score, tps, p99_lat = await tuner._run_trial_evaluation(trial, trial_num)
     except Exception as e:  # intentional: trial evaluation recovery (specific errors caught earlier)
         logger.warning("[AutoTuner] Trial %d evaluation failed: %s", trial_num, e)
+        failure_reason = "unknown"
+        if hasattr(tuner, "_read_failure_logs"):
+            try:
+                logs = await tuner._read_failure_logs()
+                failure_reason = classify_failure_from_logs(logs)
+                logger.debug("[AutoTuner] Trial %d failure classified as: %s", trial_num, failure_reason)
+            except Exception:
+                pass
+        trial.set_user_attr("failure_reason", failure_reason)
         await tuner._broadcast(
             {
                 "type": "error",

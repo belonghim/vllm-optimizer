@@ -162,36 +162,71 @@ class SweepResult(BaseModel):
     total_duration: float = Field(default=0.0, description="Total sweep duration in seconds")
 
 
+TUNING_DEFAULTS: dict[str, Any] = {
+    "max_num_seqs_min": 64,
+    "max_num_seqs_max": 512,
+    "gpu_memory_min": 0.80,
+    "gpu_memory_max": 0.95,
+    "max_model_len_min": 2048,
+    "max_model_len_max": 8192,
+    "max_num_batched_tokens_min": 256,
+    "max_num_batched_tokens_max": 2048,
+    "block_size_options": [8, 16, 32],
+    "include_swap_space": False,
+    "swap_space_min": 1.0,
+    "swap_space_max": 8.0,
+    "eval_concurrency": 16,
+    "eval_rps": 20.0,
+    "eval_requests": 100,
+    "n_trials": 10,
+    "objective": "balanced",
+    "warmup_requests": 20,
+}
+
+_D = TUNING_DEFAULTS
+
+
 class TuningConfig(BaseModel):
     """Configuration for auto-tuning parameters"""
 
     # Search space ranges
-    max_num_seqs_range: tuple[int, int] = Field(default=(64, 512), description="Range for max-num-seqs parameter")
-    gpu_memory_utilization_range: tuple[float, float] = Field(
-        default=(0.80, 0.95), description="Range for GPU memory utilization"
+    max_num_seqs_range: tuple[int, int] = Field(
+        default=(_D["max_num_seqs_min"], _D["max_num_seqs_max"]), description="Range for max-num-seqs parameter"
     )
-    max_model_len_range: tuple[int, int] = Field(default=(2048, 8192), description="Range for max-model-len parameter")
+    gpu_memory_utilization_range: tuple[float, float] = Field(
+        default=(_D["gpu_memory_min"], _D["gpu_memory_max"]), description="Range for GPU memory utilization"
+    )
+    max_model_len_range: tuple[int, int] = Field(
+        default=(_D["max_model_len_min"], _D["max_model_len_max"]), description="Range for max-model-len parameter"
+    )
     # Expanded search space and tuning controls
     max_num_batched_tokens_range: tuple[int, int] = Field(
-        default=(256, 2048), description="Range for max-num-batched-tokens parameter"
+        default=(_D["max_num_batched_tokens_min"], _D["max_num_batched_tokens_max"]),
+        description="Range for max-num-batched-tokens parameter",
     )
-    block_size_options: list[int] = Field(default=[8, 16, 32], description="KV cache block size options")
+    block_size_options: list[int] = Field(default=_D["block_size_options"], description="KV cache block size options")
     include_swap_space: bool = Field(
-        default=False, description="Enable swap_space parameter search (disable on CPU/OpenVINO)"
+        default=_D["include_swap_space"], description="Enable swap_space parameter search (disable on CPU/OpenVINO)"
     )
-    swap_space_range: tuple[float, float] = Field(default=(1.0, 8.0), description="Range for swap-space parameter (GB)")
+    swap_space_range: tuple[float, float] = Field(
+        default=(_D["swap_space_min"], _D["swap_space_max"]), description="Range for swap-space parameter (GB)"
+    )
     eval_concurrency: int = Field(
-        default=16, ge=1, le=128, description="Concurrent requests during evaluation load test"
+        default=_D["eval_concurrency"], ge=1, le=128, description="Concurrent requests during evaluation load test"
     )
-    eval_rps: int = Field(default=20, ge=0, le=500, description="Requests per second during evaluation (0=unlimited)")
+    eval_rps: float = Field(
+        default=_D["eval_rps"], ge=0, le=500, description="Requests per second during evaluation (0=unlimited)"
+    )
     eval_fast_fraction: float = Field(
         default=0.5, ge=0.1, le=1.0, description="Fraction of eval_requests for MedianPruner fast probe"
     )
     # Optimization objectives
-    objective: str = Field(default="tps", description="Optimization objective: tps, latency, or balanced")
-    n_trials: int = Field(default=10, ge=1, le=100, description="Number of optimization trials")
-    warmup_requests: int = Field(default=20, ge=0, description="Number of warmup requests per trial")
-    eval_requests: int = Field(default=100, ge=1, le=1000, description="Number of evaluation requests per trial")
+    objective: str = Field(default=_D["objective"], description="Optimization objective: tps, latency, or balanced")
+    n_trials: int = Field(default=_D["n_trials"], ge=1, le=100, description="Number of optimization trials")
+    warmup_requests: int = Field(default=_D["warmup_requests"], ge=0, description="Number of warmup requests per trial")
+    eval_requests: int = Field(
+        default=_D["eval_requests"], ge=1, le=1000, description="Number of evaluation requests per trial"
+    )
     model_max_position_embeddings: int | None = Field(default=None, description="Model's actual max context length — clamps max_model_len search space")
     model_weight_gib: float | None = Field(default=None, description="Model weight size in GiB (from openvino_model.bin or safetensors)")
     pod_memory_gib: float | None = Field(default=None, description="Pod memory budget in GiB (from CR requests.memory) — used to derive safe gpu_memory_utilization floor")

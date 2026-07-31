@@ -10,6 +10,7 @@ from services.k8s_operator import K8sOperator
 from services.shared import storage
 from services.tuner_logic import (
     TunerLogic,
+    classify_failure_from_logs,
     execute_trial_for_tuner,
     finalize_tuning_for_tuner,
     handle_trial_result_for_tuner,
@@ -268,6 +269,11 @@ class AutoTuner:
 
     async def _finalize_tuning(self, auto_benchmark: bool = False) -> int | None:
         return await finalize_tuning_for_tuner(self, auto_benchmark=auto_benchmark)
+
+    async def get_cr_context(self) -> tuple[dict[str, Any] | None, Any]:
+        """Return (cr_spec, cr_adapter) without exposing _k8s_operator internals."""
+        cr_spec = await self._k8s_operator.read_current_spec()
+        return cr_spec, self._k8s_operator._cr_adapter
 
     async def start(
         self,

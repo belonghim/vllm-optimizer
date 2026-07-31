@@ -184,6 +184,32 @@ class K8sOperator:
         except ApiException:
             return None
 
+    async def get_pod_logs(self, tail_lines: int = 100) -> str | None:
+        if not self._k8s_available:
+            return None
+        namespace = _get_k8s_namespace()
+        is_name = _get_vllm_is_name()
+        label_selector = self._cr_adapter.pod_label_selector(is_name)
+        try:
+            core = k8s_client.CoreV1Api()
+            pods = await asyncio.to_thread(
+                core.list_namespaced_pod,
+                namespace=namespace,
+                label_selector=label_selector,
+            )
+            if not pods.items:
+                return None
+            pod_name: str = pods.items[0].metadata.name
+            return await asyncio.to_thread(
+                core.read_namespaced_pod_log,
+                name=pod_name,
+                namespace=namespace,
+                tail_lines=tail_lines,
+            )
+        except Exception as e:
+            logger.debug("[K8sOperator] Failed to read pod logs: %s", e)
+            return None
+
     async def preflight_check(self) -> dict[str, Any]:
         if not self._k8s_available:
             return {

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import time
 from dataclasses import dataclass
 
 import httpx
@@ -42,12 +43,16 @@ class ModelConfigReader:
     All failures degrade gracefully — None is returned instead of raising.
     """
 
+    _CACHE_TTL = 3600.0
+
     def __init__(self) -> None:
         self._cache: dict[str, ModelConfigInfo] = {}
+        self._cache_times: dict[str, float] = {}
 
     def invalidate(self, storage_uri: str) -> None:
         """Evict cached info when storageUri changes."""
         self._cache.pop(storage_uri, None)
+        self._cache_times.pop(storage_uri, None)
 
     async def read(
         self,
@@ -57,8 +62,9 @@ class ModelConfigReader:
         pod_label_selector: str | None = None,
     ) -> ModelConfigInfo | None:
         cache_key = storage_uri or vllm_endpoint
-        if cache_key in self._cache:
-            return self._cache[cache_key]
+        cached = self._cache.get(cache_key)
+        if cached is not None and time.time() - self._cache_times.get(cache_key, 0.0) < self._CACHE_TTL:
+            return cached
 
         info = ModelConfigInfo(storage_uri=storage_uri)
         found_anything = False
@@ -100,6 +106,7 @@ class ModelConfigReader:
 
         if found_anything:
             self._cache[cache_key] = info
+            self._cache_times[cache_key] = time.time()
             return info
         return None
 
