@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import toast from "react-hot-toast";
 import { useSSE } from "./useSSE";
 import { authFetch } from '../utils/authFetch';
 import { API } from "../constants";
@@ -7,7 +8,7 @@ import { useMockData } from "../contexts/MockDataContext";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
 import { mockTrials } from "../mockData";
 import { buildDefaultEndpoint } from "../utils/endpointUtils";
-import type { SSEErrorPayload, SSEWarningPayload, TunerPhase, TunerStatus, TunerTrial, TunerConfig, ClusterTarget } from "../types";
+import type { SSEErrorPayload, SSEWarningPayload, TunerPhase, TunerStatus, TunerTrial, TunerConfig, ClusterTarget, TuningWarmupSuggestionsPayload, TuningFailureExplanationPayload, TuningReportPayload } from "../types";
 
 const DEFAULT_CONFIG: TunerConfig = {
   objective: "balanced",
@@ -24,6 +25,7 @@ const DEFAULT_CONFIG: TunerConfig = {
   eval_concurrency: 16,
   eval_rps: 20,
   eval_requests: 100,
+  enable_llm_assistant: true,
 };
 
 export function useTunerLogic({ isActive, onRunningChange, targetOverride }: { isActive: boolean; onRunningChange?: (running: boolean) => void; targetOverride?: ClusterTarget | null }) {
@@ -41,6 +43,8 @@ export function useTunerLogic({ isActive, onRunningChange, targetOverride }: { i
   const [benchmarkSaved, setBenchmarkSaved] = useState(false);
   const [benchmarkSavedId, setBenchmarkSavedId] = useState<number | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const [warmupSuggestions, setWarmupSuggestions] = useState<TuningWarmupSuggestionsPayload | null>(null);
+  const [tuningReport, setTuningReport] = useState<TuningReportPayload | null>(null);
   const userEditedRef = useRef<Record<string, boolean>>({});
   const [config, setConfig] = useState<TunerConfig>(DEFAULT_CONFIG);
 
@@ -117,6 +121,20 @@ export function useTunerLogic({ isActive, onRunningChange, targetOverride }: { i
     },
     trial_complete: () => { setCurrentPhase(null); fetchStatus(); },
     tuning_complete: () => { setCurrentPhase(null); fetchStatus(); },
+    tuning_warmup_suggestions: (data) => {
+      setWarmupSuggestions(data as TuningWarmupSuggestionsPayload | null);
+    },
+    tuning_failure_explanation: (data) => {
+      const payload = data as TuningFailureExplanationPayload | undefined;
+      if (!payload) return;
+      toast.error(`Trial ${payload.trial_id} [${payload.reason}]: ${payload.explanation}`, {
+        duration: 10000,
+        style: { maxWidth: '480px', fontSize: '12px' },
+      });
+    },
+    tuning_report: (data) => {
+      setTuningReport(data as TuningReportPayload | null);
+    },
   }, { reconnect: true, onError: () => setError(ERROR_MESSAGES.TUNER.SSE_MAX_RETRIES_EXCEEDED) });
 
   useEffect(() => {
@@ -208,6 +226,7 @@ export function useTunerLogic({ isActive, onRunningChange, targetOverride }: { i
 
   const start = async () => {
     setError(null); setWarning(null); setBenchmarkSaved(false); setBenchmarkSavedId(null);
+    setWarmupSuggestions(null); setTuningReport(null);
     try {
       const targetNs = targetOverride?.namespace || namespace;
       const targetIsName = targetOverride?.inferenceService || inferenceservice;
@@ -215,7 +234,15 @@ export function useTunerLogic({ isActive, onRunningChange, targetOverride }: { i
       const resolvedEndpoint = targetOverride
         ? buildDefaultEndpoint(targetCrType, targetNs, targetIsName)
         : (endpoint || config.vllm_endpoint);
-      const payload: Record<string, unknown> = { ...config, auto_benchmark: autoBenchmark, vllm_endpoint: resolvedEndpoint, vllm_namespace: targetNs, vllm_is_name: targetIsName, vllm_cr_type: targetCrType };
+      const payload: Record<string, unknown> = {
+        ...config,
+        auto_benchmark: autoBenchmark,
+        vllm_endpoint: resolvedEndpoint,
+        vllm_namespace: targetNs,
+        vllm_is_name: targetIsName,
+        vllm_cr_type: targetCrType,
+        p99_latency_sla_ms: config.p99_latency_sla_ms || null,
+      };
       if (config.evaluation_mode === "sweep") {
         const baseRps = Math.max(1, config.eval_rps);
         const sweepStep = Math.max(1, Math.floor(baseRps / 2));
@@ -257,5 +284,6 @@ export function useTunerLogic({ isActive, onRunningChange, targetOverride }: { i
     interruptedWarning, autoBenchmark, benchmarkSaved, benchmarkSavedId,
     initialized, config, setError, setInterruptedWarning, setAutoBenchmark,
     handleConfigChange, handleApplySuccess, start, stop, applyBest,
+    warmupSuggestions, tuningReport,
   };
 }

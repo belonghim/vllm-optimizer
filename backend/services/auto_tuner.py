@@ -7,9 +7,11 @@ import optuna
 from models.load_test import SweepConfig, TuningConfig, TuningTrial
 from services.event_broadcaster import EventBroadcaster
 from services.k8s_operator import K8sOperator
+from services.llm_assistant import get_llm_assistant
 from services.shared import storage
 from services.tuner_logic import (
     TunerLogic,
+    _power_of_2_range,
     classify_failure_from_logs,
     execute_trial_for_tuner,
     finalize_tuning_for_tuner,
@@ -232,6 +234,19 @@ class AutoTuner:
             {"type": "tuning_warning", "data": {"message": "IS가 준비되지 않아 롤백합니다", "trial": trial_num}}
         )
         await self._rollback_to_snapshot(trial_num)
+        startup_logs: str | None = None
+        failure_reason = "startup_timeout"
+        try:
+            startup_logs = await self._read_failure_logs()
+            failure_reason = classify_failure_from_logs(startup_logs) if startup_logs else "startup_timeout"
+            trial.set_user_attr("failure_reason", failure_reason)
+            logger.debug("[AutoTuner] Trial %d startup failure classified as: %s", trial_num, failure_reason)
+        except Exception:
+            pass
+        try:
+            await self._explain_failure(trial_num, trial.params, failure_reason, startup_logs)
+        except Exception as e:
+            logger.debug("[AutoTuner] Startup failure explanation call failed: %s", e)
         async with self._study_lock:
             assert self._study is not None
             self._study.tell(trial, state=optuna.trial.TrialState.FAIL)
@@ -270,6 +285,192 @@ class AutoTuner:
     async def _finalize_tuning(self, auto_benchmark: bool = False) -> int | None:
         return await finalize_tuning_for_tuner(self, auto_benchmark=auto_benchmark)
 
+    async def _read_failure_logs(self) -> str | None:
+        return await self._k8s_operator.get_pod_logs()
+
+    async def _generate_report(self) -> None:
+        if self._config is None or not self._config.enable_llm_assistant:
+            return
+        if self._best_trial is None or not self._trials:
+            return
+        failure_breakdown: dict[str, int] = {}
+        status_counts = {"completed": 0, "failed": 0, "pruned": 0}
+        try:
+            for ft in self._study.trials if self._study is not None else []:
+                reason = ft.user_attrs.get("failure_reason") if hasattr(ft, "user_attrs") else None
+                if reason:
+                    failure_breakdown[reason] = failure_breakdown.get(reason, 0) + 1
+        except Exception as e:
+            logger.debug("[AutoTuner] Report failure_breakdown scan failed: %s", e)
+        for t in self._trials:
+            if getattr(t, "pruned", False):
+                status_counts["pruned"] += 1
+            elif t.status == "completed":
+                status_counts["completed"] += 1
+            else:
+                status_counts["failed"] += 1
+        try:
+            importance = await self.get_importance()
+        except Exception:
+            importance = {}
+        summary: dict[str, Any] = {
+            "objective": self._config.objective,
+            "best_params": self._best_trial.params,
+            "best_tps": self._best_trial.tps,
+            "best_p99_latency_ms": self._best_trial.p99_latency * 1000,
+            "best_score": self._best_trial.score,
+            "total_trials": len(self._trials),
+            "status_counts": status_counts,
+            "failure_breakdown": failure_breakdown,
+            "parameter_importance": {k: round(v, 4) for k, v in list(importance.items())[:5]},
+            "pareto_front_size": self._pareto_front_size,
+            "model_architecture": {
+                "num_hidden_layers": self._config.model_num_layers,
+                "num_key_value_heads": self._config.model_num_kv_heads,
+                "head_dim": self._config.model_head_dim,
+                "max_position_embeddings": self._config.model_max_position_embeddings,
+                "weight_size_gib": self._config.model_weight_gib,
+            },
+        }
+        try:
+            report = await get_llm_assistant().generate_tuning_report(
+                endpoint=self._vllm_endpoint, summary=summary
+            )
+        except Exception as e:
+            logger.debug("[AutoTuner] Report generation failed: %s", e)
+            return
+        if report:
+            await self._broadcast({"type": "tuning_report", "data": {"markdown": report, "summary": summary}})
+
+    async def _explain_failure(
+        self, trial_num: int, params: dict[str, Any], failure_reason: str, logs: str | None
+    ) -> None:
+        if self._config is None or not self._config.enable_llm_assistant:
+            return
+        try:
+            explanation = await get_llm_assistant().summarize_failure(
+                endpoint=self._vllm_endpoint,
+                params=params,
+                failure_reason=failure_reason,
+                logs=logs,
+            )
+        except Exception as e:
+            logger.debug("[AutoTuner] Failure explanation call failed: %s", e)
+            return
+        if explanation:
+            await self._broadcast(
+                {
+                    "type": "tuning_failure_explanation",
+                    "data": {"trial_id": trial_num, "reason": failure_reason, "explanation": explanation},
+                }
+            )
+
+    def _sanitize_suggestion(self, suggestion: dict[str, Any], config: TuningConfig) -> dict[str, Any] | None:
+        try:
+            max_len_upper = config.max_model_len_range[1]
+            if config.model_max_position_embeddings:
+                max_len_upper = min(max_len_upper, config.model_max_position_embeddings)
+            len_choices = _power_of_2_range(config.max_model_len_range[0], max_len_upper)
+
+            mns = int(suggestion.get("max_num_seqs", config.max_num_seqs_range[0]))
+            mns = max(config.max_num_seqs_range[0], min(config.max_num_seqs_range[1], mns))
+            mns = (mns // 32) * 32 or config.max_num_seqs_range[0]
+
+            gmu = float(suggestion.get("gpu_memory_utilization", config.gpu_memory_utilization_range[0]))
+            gmu = max(config.gpu_memory_utilization_range[0], min(config.gpu_memory_utilization_range[1], gmu))
+
+            mml_raw = int(suggestion.get("max_model_len", len_choices[0]))
+            mml = min(len_choices, key=lambda v: abs(v - mml_raw))
+
+            mnbt_raw = int(suggestion.get("max_num_batched_tokens", config.max_num_batched_tokens_range[0]))
+            batched_low = max(config.max_num_batched_tokens_range[0], mns)
+            batched_low = -(-batched_low // 256) * 256
+            batched_high = max(config.max_num_batched_tokens_range[1], batched_low)
+            batched_high = (batched_high // 256) * 256
+            mnbt = max(batched_low, min(batched_high, mnbt_raw))
+            mnbt = (mnbt // 256) * 256 or batched_low
+
+            clean: dict[str, Any] = {
+                "max_num_seqs": mns,
+                "gpu_memory_utilization": gmu,
+                "max_model_len": mml,
+                "max_num_batched_tokens": mnbt,
+                "enable_chunked_prefill": bool(suggestion.get("enable_chunked_prefill", False)),
+                "enable_enforce_eager": bool(suggestion.get("enable_enforce_eager", False)),
+            }
+            if config.block_size_options:
+                bs_raw = suggestion.get("block_size", config.block_size_options[0])
+                clean["block_size"] = (
+                    int(bs_raw) if int(bs_raw) in config.block_size_options else config.block_size_options[0]
+                )
+            if config.include_swap_space:
+                sws = float(suggestion.get("swap_space", config.swap_space_range[0]))
+                clean["swap_space"] = max(config.swap_space_range[0], min(config.swap_space_range[1], sws))
+            return clean
+        except (ValueError, TypeError, KeyError) as e:
+            logger.debug("[AutoTuner] Warmup suggestion sanitize failed: %s (input=%s)", e, suggestion)
+            return None
+
+    async def _run_warmup_suggestions(self, config: TuningConfig) -> None:
+        if not config.enable_llm_assistant or self._study is None:
+            return
+        model_info = {
+            "num_hidden_layers": config.model_num_layers,
+            "num_key_value_heads": config.model_num_kv_heads,
+            "head_dim": config.model_head_dim,
+            "kv_dtype_bytes": config.model_kv_dtype_bytes,
+            "max_position_embeddings": config.model_max_position_embeddings,
+            "weight_size_gib": config.model_weight_gib,
+        }
+        search_space = {
+            "max_num_seqs": {"min": config.max_num_seqs_range[0], "max": config.max_num_seqs_range[1], "step": 32},
+            "gpu_memory_utilization": {
+                "min": config.gpu_memory_utilization_range[0],
+                "max": config.gpu_memory_utilization_range[1],
+            },
+            "max_model_len": {
+                "min": config.max_model_len_range[0],
+                "max": config.max_model_len_range[1],
+                "note": "power-of-2 preferred",
+            },
+            "max_num_batched_tokens": {
+                "min": config.max_num_batched_tokens_range[0],
+                "max": config.max_num_batched_tokens_range[1],
+                "step": 256,
+            },
+            "block_size": {"choices": config.block_size_options},
+            "enable_chunked_prefill": {"choices": [True, False]},
+            "enable_enforce_eager": {"choices": [True, False]},
+        }
+        hw_context = {"pod_memory_gib": config.pod_memory_gib, "runtime": "OpenVINO or CUDA"}
+        try:
+            suggestions = await get_llm_assistant().suggest_warmup_params(
+                endpoint=self._vllm_endpoint,
+                model_info=model_info,
+                search_space=search_space,
+                hw_context=hw_context,
+                count=3,
+            )
+        except Exception as e:
+            logger.debug("[AutoTuner] Warmup suggestion call failed: %s", e)
+            return
+        if not suggestions:
+            return
+        enqueued: list[dict[str, Any]] = []
+        for s in suggestions:
+            clean = self._sanitize_suggestion(s, config)
+            if clean is not None:
+                try:
+                    self._study.enqueue_trial(clean, skip_if_exists=True)
+                    enqueued.append(clean)
+                except Exception as e:
+                    logger.debug("[AutoTuner] enqueue_trial failed: %s", e)
+        if enqueued:
+            logger.info("[AutoTuner] LLM warmup enqueued %d configurations", len(enqueued))
+            await self._broadcast(
+                {"type": "tuning_warmup_suggestions", "data": {"count": len(enqueued), "configurations": enqueued}}
+            )
+
     async def get_cr_context(self) -> tuple[dict[str, Any] | None, Any]:
         """Return (cr_spec, cr_adapter) without exposing _k8s_operator internals."""
         cr_spec = await self._k8s_operator.read_current_spec()
@@ -300,6 +501,7 @@ class AutoTuner:
             readiness_error = await self._validate_initial_readiness()
             if readiness_error is not None:
                 return readiness_error
+            await self._run_warmup_suggestions(config)
             for trial_num in range(config.n_trials):
                 if self._cancel_event.is_set() or not self._running:
                     break
@@ -314,6 +516,7 @@ class AutoTuner:
                     "trials": len(self._trials),
                 }
             benchmark_id = await self._finalize_tuning(auto_benchmark=auto_benchmark)
+            await self._generate_report()
             result: dict[str, Any] = {
                 "completed": True,
                 "best_params": self._best_trial.params if self._best_trial else {},

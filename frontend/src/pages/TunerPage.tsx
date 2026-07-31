@@ -3,6 +3,8 @@ import { useTunerLogic } from "../hooks/useTunerLogic";
 import TunerConfigSection from "../components/TunerConfigSection";
 import TunerResults from "../components/TunerResults";
 import TunerHistoryPanel from "../components/TunerHistoryPanel";
+import TunerWarmupSuggestions from "../components/TunerWarmupSuggestions";
+import TunerReport from "../components/TunerReport";
 import LoadingSpinner from "../components/LoadingSpinner";
 import TargetSelector from "../components/TargetSelector";
 import type { ClusterTarget } from "../types";
@@ -20,6 +22,7 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
     interruptedWarning, autoBenchmark, benchmarkSaved, benchmarkSavedId,
     initialized, config, setError, setInterruptedWarning, setAutoBenchmark,
     handleConfigChange, handleApplySuccess, start, stop, applyBest,
+    warmupSuggestions, tuningReport,
   } = useTunerLogic({ isActive, onRunningChange, targetOverride: selectedTarget });
 
   return (
@@ -56,6 +59,9 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
         onError={setError}
         onApplySuccess={handleApplySuccess}
       />
+      {warmupSuggestions && warmupSuggestions.configurations.length > 0 && (
+        <TunerWarmupSuggestions configurations={warmupSuggestions.configurations} />
+      )}
       {!initialized ? (
         <LoadingSpinner />
       ) : (
@@ -67,6 +73,9 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
             isRunning={status.running}
             importance={importance}
           />
+          {tuningReport && (
+            <TunerReport markdown={tuningReport.markdown} summary={tuningReport.summary} />
+          )}
           <TunerHistoryPanel />
         </>
       )}

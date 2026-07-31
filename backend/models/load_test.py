@@ -181,6 +181,7 @@ TUNING_DEFAULTS: dict[str, Any] = {
     "n_trials": 10,
     "objective": "balanced",
     "warmup_requests": 20,
+    "enable_llm_assistant": True,
 }
 
 _D = TUNING_DEFAULTS
@@ -231,6 +232,12 @@ class TuningConfig(BaseModel):
     model_weight_gib: float | None = Field(default=None, description="Model weight size in GiB (from openvino_model.bin or safetensors)")
     pod_memory_gib: float | None = Field(default=None, description="Pod memory budget in GiB (from CR requests.memory) — used to derive safe gpu_memory_utilization floor")
     served_model_name_warning: str | None = Field(default=None, description="Non-None when --served-model-name in CR differs from the name vLLM actually reports")
+    model_num_kv_heads: int | None = Field(default=None, description="KV heads count from config.json — used for KV cache OOM pre-filter")
+    model_num_layers: int | None = Field(default=None, description="Transformer layer count — used for KV cache OOM pre-filter")
+    model_head_dim: int | None = Field(default=None, description="Attention head dimension (hidden_size/num_heads) — used for KV cache OOM pre-filter")
+    model_kv_dtype_bytes: int = Field(default=2, description="KV cache dtype bytes: 2=fp16/bf16, 4=fp32")
+    p99_latency_sla_ms: int | None = Field(default=None, description="P99 latency SLA in ms — used with objective='sla_tps' to maximize TPS within latency budget")
+    enable_llm_assistant: bool = Field(default=_D["enable_llm_assistant"], description="Enable LLM-based tuning assistant (warmup suggestions, failure explanations, final report) using the target vLLM endpoint")
 
     @model_validator(mode="after")
     def validate_ranges(self) -> "TuningConfig":

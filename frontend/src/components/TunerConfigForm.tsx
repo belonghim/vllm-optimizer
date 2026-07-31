@@ -28,6 +28,8 @@ export interface TunerConfig {
   eval_concurrency: number;
   eval_rps: number;
   eval_requests: number;
+  enable_llm_assistant?: boolean;
+  p99_latency_sla_ms?: number | null;
 }
 
 interface TunerConfigFormProps {
@@ -210,7 +212,7 @@ export default function TunerConfigForm({
       </div>
 
       <div className="section-title">Evaluation Settings</div>
-      <div className="grid-form grid-form-compact" style={{ marginBottom: '20px' }}>
+      <div className="grid-form grid-form-compact" style={{ marginBottom: '12px' }}>
         <div>
           <label className="label" htmlFor="tuner-eval-requests">Eval Request Count</label>
           <input id="tuner-eval-requests" className="input" type="number" min={10} max={10000} step={10}
@@ -226,6 +228,25 @@ export default function TunerConfigForm({
           <input id="tuner-eval-rps" className="input" type="number" min={1} max={1000}
             value={config.eval_rps} onChange={e => onChange("eval_rps", +e.target.value)} />
         </div>
+        <div>
+          <label className="label" htmlFor="tuner-p99-sla">P99 Latency SLA (ms)</label>
+          <input id="tuner-p99-sla" className="input" type="number" min={0} max={60000} step={100}
+            placeholder="Disabled"
+            value={config.p99_latency_sla_ms ?? ""}
+            onChange={e => onChange("p99_latency_sla_ms", e.target.value === "" ? 0 : +e.target.value)} />
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '20px' }}>
+        <input
+          id="tuner-llm-assistant"
+          type="checkbox"
+          checked={config.enable_llm_assistant ?? true}
+          onChange={e => onChange("enable_llm_assistant", e.target.checked)}
+          disabled={isRunning}
+        />
+        <label className="label" htmlFor="tuner-llm-assistant" style={{ margin: 0, cursor: isRunning ? 'default' : 'pointer' }}>
+          Enable LLM Tuning Assistant (warm-start suggestions, failure analysis, final report)
+        </label>
       </div>
 
       <div className="tuner-config-actions">

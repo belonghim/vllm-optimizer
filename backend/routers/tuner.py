@@ -83,6 +83,8 @@ class TuningStartRequest(BaseModel):
     auto_benchmark: bool = False
     evaluation_mode: Literal["single", "sweep"] = "single"
     sweep_config: SweepConfig | None = None
+    p99_latency_sla_ms: int | None = None
+    enable_llm_assistant: bool = TUNING_DEFAULTS["enable_llm_assistant"]
 
     @model_validator(mode="after")
     def validate_sweep_mode(self) -> "TuningStartRequest":
@@ -195,6 +197,10 @@ async def _build_tuning_config(body: TuningStartRequest) -> tuple[TuningConfig, 
     model_weight_gib: float | None = None
     pod_memory_gib: float | None = None
     served_model_name_warning: str | None = None
+    model_num_kv_heads: int | None = None
+    model_num_layers: int | None = None
+    model_head_dim: int | None = None
+    model_kv_dtype_bytes: int = 2
 
     try:
         cr_spec, adapter = await auto_tuner.get_cr_context()
@@ -220,6 +226,10 @@ async def _build_tuning_config(body: TuningStartRequest) -> tuple[TuningConfig, 
         if model_info:
             model_max_position_embeddings = model_info.max_position_embeddings
             model_weight_gib = model_info.model_weight_gib
+            model_num_kv_heads = model_info.num_key_value_heads
+            model_num_layers = model_info.num_hidden_layers
+            model_head_dim = model_info.head_dim
+            model_kv_dtype_bytes = model_info.kv_dtype_bytes
             if model_info.actual_served_name and cr_spec is not None:
                 cr_served_name = adapter.resolve_model_name(cr_spec, is_name)
                 if model_info.actual_served_name != cr_served_name:
@@ -248,6 +258,12 @@ async def _build_tuning_config(body: TuningStartRequest) -> tuple[TuningConfig, 
         model_weight_gib=model_weight_gib,
         pod_memory_gib=pod_memory_gib,
         served_model_name_warning=served_model_name_warning,
+        model_num_kv_heads=model_num_kv_heads,
+        model_num_layers=model_num_layers,
+        model_head_dim=model_head_dim,
+        model_kv_dtype_bytes=model_kv_dtype_bytes,
+        p99_latency_sla_ms=body.p99_latency_sla_ms,
+        enable_llm_assistant=body.enable_llm_assistant,
     )
     return config, vllm_endpoint, sweep_config
 

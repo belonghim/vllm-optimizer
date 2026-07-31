@@ -1,6 +1,5 @@
 # AGENTS.md — vLLM Optimizer (OpenShift Deployment)
-
-Refer to `~/.config/opencode/AGENTS.md` first.
+Upon completion, proceed to git push.
 
 ---
 

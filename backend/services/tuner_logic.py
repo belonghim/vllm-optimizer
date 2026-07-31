@@ -41,6 +41,30 @@ def _power_of_2_range(low: int, high: int) -> list[int]:
     return result
 
 
+def kv_cache_oom_risk(params: dict[str, Any], config: TuningConfig) -> bool:
+    """Return True when theoretical KV cache exceeds 90% of available memory.
+
+    Skips the check and returns False if any required model dimension is unknown.
+    """
+    if not (config.model_num_kv_heads and config.model_num_layers and
+            config.model_head_dim and config.pod_memory_gib):
+        return False
+    max_num_seqs = params.get("max_num_seqs", 256)
+    max_model_len = params.get("max_model_len", 4096)
+    gpu_util = params.get("gpu_memory_utilization", 0.9)
+    kv_bytes = (
+        2  # K + V
+        * config.model_num_kv_heads
+        * config.model_head_dim
+        * config.model_kv_dtype_bytes
+        * config.model_num_layers
+        * max_num_seqs
+        * max_model_len
+    )
+    available_bytes = config.pod_memory_gib * gpu_util * (1024 ** 3)
+    return kv_bytes > available_bytes * 0.9
+
+
 class _Broadcaster(Protocol):
     async def broadcast(self, data: dict[str, Any]) -> None: ...
 
@@ -68,7 +92,7 @@ class TunerLogic:
             _study_name = "vllm-tuner-pareto"
             direction_kwarg: dict[str, Any] = {"directions": ["maximize", "minimize"]}
         else:
-            direction = "maximize" if config.objective == "tps" else "minimize"
+            direction = "maximize" if config.objective in ("tps", "sla_tps") else "minimize"
             sampler = optuna.samplers.TPESampler(seed=42)
             pruner = optuna.pruners.MedianPruner(n_startup_trials=3, n_warmup_steps=0)
             _study_name = f"vllm-tuner-{config.objective}"
@@ -194,6 +218,10 @@ class TunerLogic:
             return tps
         if config.objective == "latency":
             return -p99_lat
+        if config.objective == "sla_tps":
+            if config.p99_latency_sla_ms and p99_lat * 1000 > config.p99_latency_sla_ms:
+                return tps * 0.01
+            return tps
         return tps / (p99_lat + 1) * 100
 
     async def run_warmup_load(
@@ -466,6 +494,19 @@ async def execute_trial_for_tuner(
         trial = tuner._study.ask()
     params = tuner._suggest_params(trial, config)
     trial_start = time.monotonic()
+    if kv_cache_oom_risk(params, config):
+        trial.set_user_attr("failure_reason", "OOM_predicted")
+        logger.info("[AutoTuner] Trial %d skipped: predicted KV cache OOM (params=%s)", trial_num, params)
+        await tuner._broadcast(
+            {
+                "type": "tuning_warning",
+                "data": {"message": f"Trial {trial_num}: KV cache OOM 예측으로 건너뜁니다", "trial": trial_num},
+            }
+        )
+        async with tuner._study_lock:
+            assert tuner._study is not None
+            tuner._study.tell(trial, state=optuna.trial.TrialState.PRUNED)
+        return
     await tuner._broadcast({"type": "trial_start", "data": {"trial_id": trial_num, "params": params}})
     if not await tuner._apply_trial_params(trial, trial_num, params):
         return
@@ -478,14 +519,17 @@ async def execute_trial_for_tuner(
     except Exception as e:  # intentional: trial evaluation recovery (specific errors caught earlier)
         logger.warning("[AutoTuner] Trial %d evaluation failed: %s", trial_num, e)
         failure_reason = "unknown"
+        failure_logs: str | None = None
         if hasattr(tuner, "_read_failure_logs"):
             try:
-                logs = await tuner._read_failure_logs()
-                failure_reason = classify_failure_from_logs(logs)
+                failure_logs = await tuner._read_failure_logs()
+                failure_reason = classify_failure_from_logs(failure_logs)
                 logger.debug("[AutoTuner] Trial %d failure classified as: %s", trial_num, failure_reason)
             except Exception:
                 pass
         trial.set_user_attr("failure_reason", failure_reason)
+        if hasattr(tuner, "_explain_failure"):
+            await tuner._explain_failure(trial_num, params, failure_reason, failure_logs)
         await tuner._broadcast(
             {
                 "type": "error",

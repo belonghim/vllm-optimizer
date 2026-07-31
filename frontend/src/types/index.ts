@@ -209,4 +209,22 @@ export interface TunerConfig {
   eval_concurrency: number;
   eval_rps: number;
   eval_requests: number;
+  enable_llm_assistant?: boolean;
+  p99_latency_sla_ms?: number | null;
+}
+
+export interface TuningWarmupSuggestionsPayload {
+  count: number;
+  configurations: Record<string, unknown>[];
+}
+
+export interface TuningFailureExplanationPayload {
+  trial_id: number;
+  reason: string;
+  explanation: string;
+}
+
+export interface TuningReportPayload {
+  markdown: string;
+  summary?: Record<string, unknown>;
 }
