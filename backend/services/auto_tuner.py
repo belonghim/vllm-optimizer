@@ -286,6 +286,8 @@ class AutoTuner:
             if init_error is not None:
                 return init_error
             self._vllm_endpoint = vllm_endpoint
+            if config.served_model_name_warning:
+                await self._broadcast({"type": "tuning_warning", "data": {"message": config.served_model_name_warning}})
             preflight_error = await self._validate_preflight(skip_preflight)
             if preflight_error is not None:
                 return preflight_error

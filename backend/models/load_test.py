@@ -192,6 +192,10 @@ class TuningConfig(BaseModel):
     n_trials: int = Field(default=10, ge=1, le=100, description="Number of optimization trials")
     warmup_requests: int = Field(default=20, ge=0, description="Number of warmup requests per trial")
     eval_requests: int = Field(default=100, ge=1, le=1000, description="Number of evaluation requests per trial")
+    model_max_position_embeddings: int | None = Field(default=None, description="Model's actual max context length — clamps max_model_len search space")
+    model_weight_gib: float | None = Field(default=None, description="Model weight size in GiB (from openvino_model.bin or safetensors)")
+    pod_memory_gib: float | None = Field(default=None, description="Pod memory budget in GiB (from CR requests.memory) — used to derive safe gpu_memory_utilization floor")
+    served_model_name_warning: str | None = Field(default=None, description="Non-None when --served-model-name in CR differs from the name vLLM actually reports")
 
     @model_validator(mode="after")
     def validate_ranges(self) -> "TuningConfig":

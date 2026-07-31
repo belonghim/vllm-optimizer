@@ -17,8 +17,9 @@ from kubernetes.client.exceptions import ApiException
 from models.load_test import ErrorResponse, SweepConfig, TuningConfig, TuningSessionDetail, TuningSessionSummary
 from pydantic import BaseModel, Field, model_validator
 from services.auto_tuner import AutoTuner
+from services.model_config_reader import get_model_config_reader
 from services.rate_limiter import limiter
-from services.shared import load_engine, multi_target_collector, storage
+from services.shared import load_engine, multi_target_collector, runtime_config, storage
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -164,8 +165,72 @@ async def _auto_save_tuning_session() -> None:
         logger.warning("[Tuner] Failed to auto-save tuning session before new run: %s", e)
 
 
-def _build_tuning_config(body: TuningStartRequest) -> tuple[TuningConfig, str, SweepConfig | None]:
+def _parse_memory_gib(value: str) -> float | None:
+    v = value.strip()
+    try:
+        if v.endswith("Gi"):
+            return float(v[:-2])
+        if v.endswith("Mi"):
+            return float(v[:-2]) / 1024
+        if v.endswith("Ki"):
+            return float(v[:-2]) / (1024**2)
+        if v.endswith("G"):
+            return float(v[:-1]) * 1e9 / (1024**3)
+        if v.endswith("M"):
+            return float(v[:-1]) * 1e6 / (1024**3)
+        return float(v) / (1024**3)
+    except ValueError:
+        return None
+
+
+async def _build_tuning_config(body: TuningStartRequest) -> tuple[TuningConfig, str, SweepConfig | None]:
     import os
+
+    vllm_endpoint = body.vllm_endpoint or os.getenv("VLLM_ENDPOINT", "http://localhost:8000")
+    sweep_config = body.sweep_config
+    if body.evaluation_mode == "sweep" and sweep_config is not None and not sweep_config.endpoint:
+        sweep_config = sweep_config.model_copy(update={"endpoint": vllm_endpoint})
+
+    model_max_position_embeddings: int | None = None
+    model_weight_gib: float | None = None
+    pod_memory_gib: float | None = None
+    served_model_name_warning: str | None = None
+
+    try:
+        cr_spec = await auto_tuner._k8s_operator.read_current_spec()
+        adapter = auto_tuner._k8s_operator._cr_adapter
+        namespace = runtime_config.vllm_namespace or "default"
+        is_name = runtime_config.vllm_is_name or "llm-ov"
+
+        if cr_spec is not None:
+            storage_uri = adapter.read_model_uri(cr_spec)
+            pod_selector = adapter.pod_label_selector(is_name)
+            mem_str = adapter.read_resources(cr_spec).get("requests", {}).get("memory")
+            if mem_str:
+                pod_memory_gib = _parse_memory_gib(mem_str)
+        else:
+            storage_uri = None
+            pod_selector = None
+
+        model_info = await get_model_config_reader().read(
+            vllm_endpoint=vllm_endpoint,
+            storage_uri=storage_uri,
+            namespace=namespace if pod_selector else None,
+            pod_label_selector=pod_selector,
+        )
+        if model_info:
+            model_max_position_embeddings = model_info.max_position_embeddings
+            model_weight_gib = model_info.model_weight_gib
+            if model_info.actual_served_name and cr_spec is not None:
+                cr_served_name = adapter.resolve_model_name(cr_spec, is_name)
+                if model_info.actual_served_name != cr_served_name:
+                    served_model_name_warning = (
+                        f"--served-model-name 불일치: CR에 설정된 '{cr_served_name}'이(가) "
+                        f"vLLM이 실제 서빙 중인 '{model_info.actual_served_name}'과 다릅니다. "
+                        f"CR의 --served-model-name을 수정하세요."
+                    )
+    except Exception as e:
+        logger.warning("[Tuner] Model config read failed, using blind search: %s", e)
 
     config = TuningConfig(
         max_num_seqs_range=(body.max_num_seqs_min, body.max_num_seqs_max),
@@ -180,11 +245,11 @@ def _build_tuning_config(body: TuningStartRequest) -> tuple[TuningConfig, str, S
         eval_requests=body.eval_requests,
         objective=body.objective,
         n_trials=body.n_trials,
+        model_max_position_embeddings=model_max_position_embeddings,
+        model_weight_gib=model_weight_gib,
+        pod_memory_gib=pod_memory_gib,
+        served_model_name_warning=served_model_name_warning,
     )
-    vllm_endpoint = body.vllm_endpoint or os.getenv("VLLM_ENDPOINT", "http://localhost:8000")
-    sweep_config = body.sweep_config
-    if body.evaluation_mode == "sweep" and sweep_config is not None and not sweep_config.endpoint:
-        sweep_config = sweep_config.model_copy(update={"endpoint": vllm_endpoint})
     return config, vllm_endpoint, sweep_config
 
 
@@ -245,7 +310,7 @@ async def start_tuning(request: Request, body: TuningStartRequest) -> dict[str, 
         RuntimeError,
     ) as e:  # intentional: fail-open, storage clear failure must not block new tuning session
         logger.warning("[Tuner] Failed to clear trials from storage before new session: %s", e)
-    config, vllm_endpoint, sweep_config = _build_tuning_config(body)
+    config, vllm_endpoint, sweep_config = await _build_tuning_config(body)
     await _run_preflight_or_raise()
     tuning_id = str(uuid.uuid4())
     auto_tuner._current_task = asyncio.create_task(

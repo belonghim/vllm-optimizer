@@ -121,17 +121,28 @@ class TunerLogic:
             step=32,
         )
 
+        _gpu_util_low = config.gpu_memory_utilization_range[0]
+        if config.model_weight_gib and config.pod_memory_gib and config.pod_memory_gib > 0:
+            _weight_fraction = config.model_weight_gib / config.pod_memory_gib
+            _floor = math.ceil(_weight_fraction * 1.1 * 100) / 100
+            _floor = min(_floor, config.gpu_memory_utilization_range[1] - 0.05)
+            _gpu_util_low = max(_gpu_util_low, _floor)
+
         params["gpu_memory_utilization"] = trial.suggest_float(
             "gpu_memory_utilization",
-            config.gpu_memory_utilization_range[0],
+            _gpu_util_low,
             config.gpu_memory_utilization_range[1],
         )
 
+        _max_len_upper = config.max_model_len_range[1]
+        if config.model_max_position_embeddings:
+            _max_len_upper = min(_max_len_upper, config.model_max_position_embeddings)
+
         _model_len_choices = [
-            v for v in [2048, 4096, 8192] if config.max_model_len_range[0] <= v <= config.max_model_len_range[1]
+            v for v in [2048, 4096, 8192] if config.max_model_len_range[0] <= v <= _max_len_upper
         ]
         if not _model_len_choices:
-            _mid = (config.max_model_len_range[0] + config.max_model_len_range[1]) // 2
+            _mid = (config.max_model_len_range[0] + _max_len_upper) // 2
             _model_len_choices = [_mid]
 
         params["max_model_len"] = trial.suggest_categorical(

@@ -164,6 +164,26 @@ class K8sOperator:
 
             await asyncio.sleep(interval)
 
+    async def read_current_spec(self) -> dict[str, Any] | None:
+        if not self._k8s_available or self._k8s_custom is None:
+            return None
+        namespace = _get_k8s_namespace()
+        is_name = _get_vllm_is_name()
+        custom_api = cast(Any, self._k8s_custom)
+        try:
+            cr_obj = await asyncio.to_thread(
+                custom_api.get_namespaced_custom_object,
+                group=self._cr_adapter.api_group(),
+                version=self._cr_adapter.api_version(),
+                name=is_name,
+                namespace=namespace,
+                plural=self._cr_adapter.api_plural(),
+            )
+            cr: dict[str, Any] = cast(dict[str, Any], cr_obj) if cr_obj else {}
+            return cr.get("spec", {})
+        except ApiException:
+            return None
+
     async def preflight_check(self) -> dict[str, Any]:
         if not self._k8s_available:
             return {
