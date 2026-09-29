@@ -20,6 +20,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - **`backend/.dockerignore`**, **`frontend/.dockerignore`**: `deploy.sh`는 각 하위 디렉터리를 빌드 컨텍스트로 사용하는데 루트 `.dockerignore`만 있어 적용되지 않았음. frontend는 `node_modules`가 이미지로 복사되던 문제 해결. `backend/tests/`는 인-파드 테스트 실행(`docs/integration_test_guide.md`) 때문에 의도적으로 유지.
+- **`openshift/base/kustomization.yaml`**: `06-backup-cronjob.yaml`(일 02:00 SQLite 백업 CronJob + `pods/exec` Role/RoleBinding)을 resources에 등록. 작성(eb927ed)만 되고 kustomization에 포함된 적이 없어 **한 번도 배포되지 않던** 누락 수정. ⚠️ 다음 `deploy.sh dev` 시 CronJob/RBAC E2E 검증 필요.
 
 ### Verification
 - `oc kustomize` 4개 오버레이(dev/prod × optimizer/vllm-dependency) 빌드 OK — diff는 의도한 제거만 포함.
