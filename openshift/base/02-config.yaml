@@ -9,16 +9,11 @@ data:
   VLLM_DEPLOYMENT_NAME: "llm-ov"
   # OpenShift Monitoring Stack — Thanos Querier
   PROMETHEUS_URL: "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091"
-  PROMETHEUS_USE_TLS: "true"
-  PROMETHEUS_TOKEN_PATH: "/var/run/secrets/kubernetes.io/serviceaccount/token"
-  PROMETHEUS_CA_PATH: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
-  APP_ENV: "production"
-  LOG_LEVEL: "info"
-  METRICS_INTERVAL_SEC: "2"
   # SQLite storage path (PVC mount point)
   STORAGE_PATH: "/data/app.db"
   # Optuna RDBStorage URL for persistent study across restarts
   OPTUNA_STORAGE_URL: "sqlite:////data/optuna.db"
+  LOG_LEVEL: "info"
   # vLLM CR type (inferenceservice or llminferenceservice)
   VLLM_CR_TYPE: "inferenceservice"
   # Default InferenceService (KServe) target
@@ -38,17 +33,6 @@ type: kubernetes.io/dockerconfigjson
 data:
   # PLACEHOLDER — oc create secret docker-registry 로 교체 필요
   .dockerconfigjson: eyJhdXRocyI6eyJxdWF5LmlvIjp7InVzZXJuYW1lIjoiUExBQ0VIT0xERVIiLCJwYXNzd29yZCI6IlBMQUNFSE9MREVSIn19fQ==
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: vllm-optimizer-secret
-type: Opaque
-stringData:
-  VLLM_API_KEY: ""
-  # ⚠️  WARNING: Replace this value with a cryptographically random secret in production.
-  # ⚠️  Generate with: python3 -c "import secrets; print(secrets.token_hex(32))"
-  SECRET_KEY: "CHANGE_ME_IN_PRODUCTION"
 ---
 apiVersion: v1
 kind: Secret

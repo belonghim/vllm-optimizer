@@ -14,9 +14,8 @@ USER root
 # curl is pre-installed in ubi9/python-311; no additional packages needed for healthchecks.
 COPY --from=builder /opt/app-root /opt/app-root
 COPY . /app
-COPY requirements.txt /app/requirements.txt
 RUN chown -R 1001:0 /app && chmod -R g+rwX /app
 USER 1001
 EXPOSE 8000
-HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3     CMD curl -f http://localhost:8000/health || exit 1
+HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 CMD curl -f http://localhost:8000/health || exit 1
 CMD /opt/app-root/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1

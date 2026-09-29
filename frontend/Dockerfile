@@ -5,7 +5,7 @@ WORKDIR /build
 COPY package*.json ./
 # Switch to root for npm install to avoid permission issues with node_modules
 USER root
-RUN npm install
+RUN npm ci
 COPY . /build
 RUN npm run build
 

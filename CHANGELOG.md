@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-09-30] - 배포/빌드 메타데이터 정리
+
+**Status**: Completed
+
+`oc kustomize`로 dev/prod/vllm-dependency 오버레이를 검증하며 미사용 배포 메타데이터와 깨진 스크립트를 정리.
+
+### Removed (OpenShift)
+- `vllm-optimizer-config`에서 코드가 읽지 않는 키 제거: `APP_ENV`, `METRICS_INTERVAL_SEC`, `PROMETHEUS_USE_TLS`/`PROMETHEUS_TOKEN_PATH`/`PROMETHEUS_CA_PATH` (코드는 SA 토큰 경로를 하드코딩하고 `verify=False` 사용).
+- 미사용 `vllm-optimizer-secret`(`VLLM_API_KEY`, `SECRET_KEY`)과 backend `secretRef` 제거. (`oc apply`는 prune하지 않으므로 기존 클러스터의 Secret은 잔존 — 필요 시 수동 삭제.)
+- dev 오버레이의 `APP_ENV` replace 패치 제거.
+
+### Fixed
+- **`scripts/collect_baseline.sh`**: `namespace`/`is_name` 없이 `/api/metrics/latest`를 호출해 400을 받던 문제 수정 — 타겟 파라미터(`VLLM_*`, 기본 `vllm-lab-dev`/`llm-ov`)를 전달하고 응답 `data`에서 스냅샷 필드(`rps`/`latency_mean`/`latency_p99`/`tps`/`gpu_util`)를 읽도록 수정. 문서에 사용법 반영.
+- **`backend/Dockerfile`**: 중복 `COPY requirements.txt` 제거, `HEALTHCHECK` 공백 정리.
+- **`frontend/Dockerfile`**: `npm install` → `npm ci` (lockfile 재현성).
+
+### Added
+- **`backend/.dockerignore`**, **`frontend/.dockerignore`**: `deploy.sh`는 각 하위 디렉터리를 빌드 컨텍스트로 사용하는데 루트 `.dockerignore`만 있어 적용되지 않았음. frontend는 `node_modules`가 이미지로 복사되던 문제 해결. `backend/tests/`는 인-파드 테스트 실행(`docs/integration_test_guide.md`) 때문에 의도적으로 유지.
+
+### Verification
+- `oc kustomize` 4개 오버레이(dev/prod × optimizer/vllm-dependency) 빌드 OK — diff는 의도한 제거만 포함.
+- `./scripts/check.sh` → **ALL CHECKS PASSED**, `--smoke` OK, `bash -n` 통과.
+
+---
+
 ## [2026-09-30] - 메타데이터 정합화 + Prettier 강제
 
 **Status**: Completed

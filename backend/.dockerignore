@@ -1,0 +1,17 @@
+# Build context: backend/ (see deploy.sh)
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# local env / secrets
+.env
+.env.*
+
+# build metadata (tests/ are intentionally kept — docs/integration_test_guide.md
+# runs pytest inside the pod via `oc exec`)
+Dockerfile
+.dockerignore
+*.md

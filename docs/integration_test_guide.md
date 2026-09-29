@@ -1,7 +1,7 @@
 ---
 title: "vLLM Optimizer 통합 테스트 가이드"
 date: 2026-03-08
-updated: 2026-03-15
+updated: 2026-09-30
 tags: [integration-test, performance, vllm, korean]
 status: published
 ---
@@ -49,7 +49,11 @@ cd backend && python3 -m pytest tests/ -x -q -m "not integration"
 `scripts/collect_baseline.sh` 스크립트를 사용하여 성능 테스트의 기준값(baseline)을 수집하고 관리할 수 있습니다. 이 기준값은 `baseline.dev.json` 파일에 저장되며, 향후 테스트 결과와 비교하는 데 사용됩니다.
 
 ```bash
+# 기본 타겟(VLLM_NAMESPACE=vllm-lab-dev, VLLM_DEPLOYMENT_NAME=llm-ov) 기준
 ./scripts/collect_baseline.sh
+
+# 타겟 오버라이드
+VLLM_NAMESPACE=my-ns VLLM_DEPLOYMENT_NAME=my-isvc VLLM_CR_TYPE=llminferenceservice ./scripts/collect_baseline.sh
 ```
 
 ## 5. 클러스터에서 직접 실행 (Pod exec)

@@ -61,8 +61,6 @@ spec:
           envFrom:
             - configMapRef:
                 name: vllm-optimizer-config
-            - secretRef:
-                name: vllm-optimizer-secret
           env:
             - name: POD_NAME
               valueFrom:

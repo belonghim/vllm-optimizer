@@ -1,0 +1,16 @@
+# Build context: frontend/ (see deploy.sh)
+node_modules/
+dist/
+test-results/
+playwright-report/
+playwright-test/
+coverage/
+
+# local env
+.env
+.env.*
+
+# build metadata
+Dockerfile
+.dockerignore
+*.md

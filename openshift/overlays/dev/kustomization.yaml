@@ -66,9 +66,6 @@ patches:
       kind: ConfigMap
       name: vllm-optimizer-config
     patch: |-
-      - op: replace
-        path: /data/APP_ENV
-        value: "development"
       - op: add
         path: /data/VLLM_NAMESPACE
         value: "vllm-lab-dev"
