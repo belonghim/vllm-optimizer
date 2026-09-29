@@ -5,11 +5,12 @@ import type { ClusterTarget, ClusterConfig } from "../types";
 import { authFetch } from "../utils/authFetch";
 import { buildDefaultEndpoint } from "../utils/endpointUtils";
 import { targetMatches } from "../utils/targetKey";
+import { useConfigMapTargets } from "./useConfigMapTargets";
+import { useResolvedModelName } from "./useResolvedModelName";
+import { CONFIGMAP_TIMEOUT_MS, isRecord } from "./clusterConfigShared";
 
 const STORAGE_KEY = "vllm-opt-cluster-config";
 const SCHEMA_VERSION = 3;
-const CONFIGMAP_TIMEOUT_MS = 5000;
-const POLLING_INTERVAL_MS = 300000; // 5 minutes
 
 export interface ClusterConfigContextValue {
   endpoint: string;
@@ -46,10 +47,6 @@ const ClusterConfigContext = createContext<ClusterConfigContextValue>({
   isvcTargets: [],
   llmisvcTargets: [],
 });
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function isClusterTargetArray(value: unknown): value is ClusterTarget[] {
   if (!Array.isArray(value)) return false;
@@ -104,10 +101,6 @@ function migrateSchema(stored: Record<string, unknown>): ClusterConfig {
 
 interface ClusterConfigProviderProps {
   children: ReactNode;
-}
-
-function createConfigMapTarget(namespace: string, name: string, crType: "inferenceservice" | "llminferenceservice"): ClusterTarget {
-  return { namespace, inferenceService: name, crType, source: "configmap" };
 }
 
 export function ClusterConfigProvider({ children }: ClusterConfigProviderProps): React.JSX.Element {
@@ -205,176 +198,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
     configRef.current = config;
   }, [config]);
 
-  // Initial fetch of ConfigMap default targets (runs once after isLoading becomes false)
-  const initialConfigMapFetchRef = useRef(false);
-  useEffect(() => {
-    if (isLoading) return;
-    if (initialConfigMapFetchRef.current) return;
-    initialConfigMapFetchRef.current = true;
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), CONFIGMAP_TIMEOUT_MS);
-
-    authFetch(`${API}/config/default-targets`, { signal: controller.signal })
-      .then(r => r.json())
-      .then((data: unknown) => {
-        if (!isRecord(data)) return;
-        const isvc = isRecord(data.isvc) ? data.isvc : null;
-        const llmisvc = isRecord(data.llmisvc) ? data.llmisvc : null;
-
-        const isvcHasValue = isvc && typeof isvc.name === "string" && isvc.name !== "";
-        const llmisvcHasValue = llmisvc && typeof llmisvc.name === "string" && llmisvc.name !== "";
-
-        if (!isvcHasValue && !llmisvcHasValue) return;
-
-        setConfig(prev => {
-          let targets = [...prev.targets];
-
-          if (isvcHasValue && typeof isvc.name === "string" && typeof isvc.namespace === "string") {
-            const newIsvcTarget = createConfigMapTarget(isvc.namespace, isvc.name, "inferenceservice");
-            targets = targets.filter(t => t.crType !== "inferenceservice");
-            targets.unshift(newIsvcTarget);
-          }
-
-          if (llmisvcHasValue && typeof llmisvc.name === "string" && typeof llmisvc.namespace === "string") {
-            const newLlmisvcTarget = createConfigMapTarget(llmisvc.namespace, llmisvc.name, "llminferenceservice");
-            targets = targets.filter(t => t.crType !== "llminferenceservice");
-            targets.unshift(newLlmisvcTarget);
-          }
-
-          return { ...prev, targets };
-        });
-
-        const resolveTargetModels = async (targets: ClusterTarget[], signal: AbortSignal) => {
-          const updated = await Promise.all(
-            targets.map(async (t) => {
-              try {
-                const params = new URLSearchParams({
-                  namespace: t.namespace,
-                  is_name: t.inferenceService,
-                  ...(t.crType ? { cr_type: t.crType } : {}),
-                });
-                const r = await authFetch(`${API}/vllm-config?${params}`, { signal });
-                if (!r.ok) return t;
-                const d = await r.json();
-                const modelName = d.resolvedModelName || d.modelName;
-                return modelName ? { ...t, modelName } : t;
-              } catch (err) {
-                console.warn('model resolve failed', err);
-                return t;
-              }
-            })
-          );
-          if (signal.aborted) return;
-          setConfig(prev => ({
-            ...prev,
-            targets: prev.targets.map(pt => {
-              const match = updated.find(
-                u => u.namespace === pt.namespace && u.inferenceService === pt.inferenceService && u.crType === pt.crType
-              );
-              return match?.modelName ? { ...pt, modelName: match.modelName } : pt;
-            }),
-          }));
-        };
-
-        const newTargets: ClusterTarget[] = [];
-        if (isvcHasValue && typeof isvc.name === "string" && typeof isvc.namespace === "string") {
-          newTargets.push(createConfigMapTarget(isvc.namespace, isvc.name, "inferenceservice"));
-        }
-        if (llmisvcHasValue && typeof llmisvc.name === "string" && typeof llmisvc.namespace === "string") {
-          newTargets.push(createConfigMapTarget(llmisvc.namespace, llmisvc.name, "llminferenceservice"));
-        }
-        if (newTargets.length > 0) {
-          resolveTargetModels(newTargets, controller.signal).catch(console.warn);
-        }
-      })
-      .catch((err: Error) => {
-        if (err.name !== "AbortError") {
-          console.warn("Failed to fetch ConfigMap default targets:", err);
-        }
-      })
-      .finally(() => {
-        clearTimeout(timeoutId);
-      });
-
-    return () => {
-      controller.abort();
-      clearTimeout(timeoutId);
-    };
-  }, [isLoading, crType]);
-
-  // 5-minute periodic polling to detect ConfigMap changes
-  useEffect(() => {
-    if (isLoading) return;
-
-    const pollConfigMap = () => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), CONFIGMAP_TIMEOUT_MS);
-
-      authFetch(`${API}/config/default-targets`, { signal: controller.signal })
-        .then(r => r.json())
-        .then((data: unknown) => {
-          if (!isRecord(data)) return;
-          const isvc = isRecord(data.isvc) ? data.isvc : null;
-          const llmisvc = isRecord(data.llmisvc) ? data.llmisvc : null;
-
-          const isvcHasValue = isvc && typeof isvc.name === "string" && isvc.name !== "";
-          const llmisvcHasValue = llmisvc && typeof llmisvc.name === "string" && llmisvc.name !== "";
-
-          setConfig(prev => {
-            const current = configRef.current;
-            let updated = false;
-            const newTargets = [...current.targets];
-
-            if (isvcHasValue && typeof isvc.name === "string" && typeof isvc.namespace === "string") {
-              const newIsvcTarget = createConfigMapTarget(isvc.namespace, isvc.name, "inferenceservice");
-
-              const cmIdx = newTargets.findIndex(t => t.source === "configmap" && t.crType === "inferenceservice");
-              if (cmIdx >= 0) {
-                if (newTargets[cmIdx].namespace !== isvc.namespace || newTargets[cmIdx].inferenceService !== isvc.name) {
-                  newTargets[cmIdx] = newIsvcTarget;
-                  updated = true;
-                }
-              } else {
-                newTargets.unshift(newIsvcTarget);
-                updated = true;
-              }
-            }
-
-            if (llmisvcHasValue && typeof llmisvc.name === "string" && typeof llmisvc.namespace === "string") {
-              const newLlmisvcTarget = createConfigMapTarget(llmisvc.namespace, llmisvc.name, "llminferenceservice");
-
-              const cmIdx = newTargets.findIndex(t => t.source === "configmap" && t.crType === "llminferenceservice");
-              if (cmIdx >= 0) {
-                if (newTargets[cmIdx].namespace !== llmisvc.namespace || newTargets[cmIdx].inferenceService !== llmisvc.name) {
-                  newTargets[cmIdx] = newLlmisvcTarget;
-                  updated = true;
-                }
-              } else {
-                newTargets.unshift(newLlmisvcTarget);
-                updated = true;
-              }
-            }
-
-            return updated ? { ...prev, targets: newTargets } : prev;
-          });
-        })
-        .catch((err: Error) => {
-          if (err.name !== "AbortError") {
-            console.warn("Polling failed to fetch ConfigMap default targets:", err);
-          }
-        })
-        .finally(() => {
-          clearTimeout(timeoutId);
-        });
-    };
-
-    const intervalId = setInterval(pollConfigMap, POLLING_INTERVAL_MS);
-
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [isLoading, crType]);
+  useConfigMapTargets({ isLoading, crType, setConfig, configRef });
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
@@ -393,30 +217,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
     setConfig(prev => ({ ...prev, endpoint: newEndpoint }));
   }, [crType, stableTargets]);
 
-  useEffect(() => {
-    const defaultTarget = stableTargets[0];
-    if (!defaultTarget || !crType) return;
-
-    const namespace = defaultTarget.namespace;
-    const inferenceService = defaultTarget.inferenceService;
-    if (!namespace || !inferenceService) return;
-
-    const controller = new AbortController();
-    // No auth required — /config endpoint reads env variables with no auth middleware
-    authFetch(`${API}/config`, { signal: controller.signal })
-      .then(r => r.json())
-      .then((data: unknown) => {
-        if (isRecord(data) && typeof data.resolved_model_name === "string") {
-          setResolvedModelName(data.resolved_model_name);
-        }
-      })
-      .catch((err: Error) => {
-        if (err.name !== "AbortError") {
-          console.error("Failed to re-fetch resolved model name", err);
-        }
-      });
-    return () => controller.abort();
-  }, [crType, stableTargets]);
+  useResolvedModelName(crType, stableTargets, setResolvedModelName);
 
 
   const updateConfig = useCallback((field: string, value: string): void => {

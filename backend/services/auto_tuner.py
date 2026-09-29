@@ -333,9 +333,7 @@ class AutoTuner:
             },
         }
         try:
-            report = await get_llm_assistant().generate_tuning_report(
-                endpoint=self._vllm_endpoint, summary=summary
-            )
+            report = await get_llm_assistant().generate_tuning_report(endpoint=self._vllm_endpoint, summary=summary)
         except Exception as e:
             logger.debug("[AutoTuner] Report generation failed: %s", e)
             return

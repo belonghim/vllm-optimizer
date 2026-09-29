@@ -7,8 +7,8 @@ from routers.load_test import router as load_test
 from routers.metrics import router as metrics
 from routers.sla import router as sla
 from routers.status import router as status
+from routers.targets import router as targets
 from routers.tuner import router as tuner
 from routers.vllm_config import router as vllm_config
-from routers.targets import router as targets
 
 __all__ = ["load_test", "metrics", "benchmark", "tuner", "vllm_config", "config", "status", "sla", "alerts", "targets"]

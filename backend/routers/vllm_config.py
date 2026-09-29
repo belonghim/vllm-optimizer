@@ -9,21 +9,12 @@ from kubernetes.client.exceptions import ApiException as K8sApiException
 from models.vllm_config import VllmConfigPatchResponse, VllmConfigResponse
 from pydantic import BaseModel
 from services.cr_adapter import deep_merge, get_cr_adapter
+from services.k8s_operator import get_k8s_namespace, get_vllm_is_name
 from services.rate_limiter import limiter
-from services.shared import runtime_config
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-def _get_k8s_namespace() -> str:
-    namespace = runtime_config.vllm_namespace
-    return namespace if namespace else "default"
-
-
-def _get_vllm_is_name() -> str:
-    return runtime_config.vllm_is_name or "llm-ov"
 
 
 ALLOWED_RESOURCE_KEYS = {"cpu", "memory", "nvidia.com/gpu"}
@@ -131,8 +122,8 @@ async def get_vllm_config(
     if _custom is None:
         raise HTTPException(status_code=503, detail="Kubernetes not available")
     _api = _custom
-    namespace = namespace or _get_k8s_namespace()
-    is_name = is_name or _get_vllm_is_name()
+    namespace = namespace or get_k8s_namespace()
+    is_name = is_name or get_vllm_is_name()
     adapter = get_cr_adapter(cr_type)
     try:
         is_obj = cast(
@@ -201,8 +192,8 @@ async def patch_vllm_config(request: Request, config: VllmConfigPatchRequest) ->
     if custom is None:
         raise HTTPException(status_code=503, detail="Kubernetes not available")
 
-    namespace = _get_k8s_namespace()
-    is_name = _get_vllm_is_name()
+    namespace = get_k8s_namespace()
+    is_name = get_vllm_is_name()
     adapter = get_cr_adapter()
 
     try:

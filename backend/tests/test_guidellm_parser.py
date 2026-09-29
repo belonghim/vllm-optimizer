@@ -110,42 +110,6 @@ def test_ms_to_seconds_conversion():
         "benchmarks": [
             {
                 "config": {"target": "http://example.com", "model": "test-model"},
-                "scheduler_metrics": {
-                    "requests_made": {"total": 10, "successful": 10, "errored": 0, "incomplete": 0},
-                    "measure_start_time": 1000.0,
-                    "measure_end_time": 1010.0,
-                },
-                "metrics": {
-                    "request_latency": {
-                        "successful": {"mean": 0.5, "median": 0.45, "p95": 0.9, "p99": 1.0, "min": 0.2, "max": 1.2}
-                    },
-                    "time_to_first_token_ms": {
-                        "successful": {
-                            "mean": 50.0,
-                            "median": 48.0,
-                            "p95": 90.0,
-                            "p99": 100.0,
-                            "min": 20.0,
-                            "max": 120.0,
-                        }
-                    },
-                    "inter_token_latency_ms": {"successful": {"mean": 5.0, "median": 4.8, "p95": 9.0, "p99": 10.0}},
-                    "tokens_per_second": {"successful": {"mean": 45.0}},
-                },
-            },
-        ],
-    }
-
-
-def test_ms_to_seconds_conversion():
-    """Test TTFT conversion from ms to seconds: 50ms -> 0.05s."""
-    from services.guidellm_parser import parse_guidellm_json
-
-    data = {
-        "metadata": {"version": 1, "guidellm_version": "0.3.0"},
-        "benchmarks": [
-            {
-                "config": {"target": "http://example.com", "model": "test-model"},
                 "metrics": {
                     "time_to_first_token_ms": {"successful": {"mean": 50.0, "median": 45.0, "p95": 90.0, "p99": 100.0}},
                     "inter_token_latency_ms": {"successful": {"mean": 5.0, "median": 4.8, "p95": 9.0, "p99": 10.0}},

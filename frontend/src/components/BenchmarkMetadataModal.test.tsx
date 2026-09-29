@@ -2,7 +2,7 @@ import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { vi, describe, it, expect } from "vitest";
 import BenchmarkMetadataModal from "./BenchmarkMetadataModal";
-import type { BenchmarkItem } from "../pages/BenchmarkPage";
+import type { BenchmarkItem } from "../types";
 
 const mockItem: BenchmarkItem = {
   id: 1,

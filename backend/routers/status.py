@@ -67,7 +67,7 @@ async def check_prometheus_health() -> bool:
 
         token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
         token = None
-        if os.path.exists(token_path):
+        if await asyncio.to_thread(os.path.exists, token_path):
             token = await asyncio.to_thread(_read_file, token_path)
             token = token.strip() if token else None
 

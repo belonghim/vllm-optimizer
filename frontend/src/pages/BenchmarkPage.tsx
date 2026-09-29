@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from "react";
 import { authFetch } from '../utils/authFetch';
 import { API } from "../constants";
 import { mockBenchmarks } from "../mockData";
@@ -10,9 +10,11 @@ import ErrorAlert from "../components/ErrorAlert";
 import LoadingSpinner from "../components/LoadingSpinner";
 import BenchmarkTable from "../components/BenchmarkTable";
 import BenchmarkMetadataModal from "../components/BenchmarkMetadataModal";
-import BenchmarkCompareCharts from "../components/BenchmarkCompareCharts";
 import ConfirmDialog from "../components/ConfirmDialog";
 import type { BenchmarkItem, BenchmarkRunConfig, BenchmarkMetadata } from "../types";
+
+// Lazy: keeps recharts out of the Benchmark page chunk until comparison charts render
+const BenchmarkCompareCharts = lazy(() => import("../components/BenchmarkCompareCharts"));
 
 interface BenchmarkPageProps { isActive: boolean; onRerun?: (config: BenchmarkRunConfig) => void; }
 
@@ -173,7 +175,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
         const err = await resp.json().catch(() => ({ detail: "Unknown error" }));
         throw new Error(err.detail || `HTTP ${resp.status}`);
       }
-      const data = await resp.json();
+      await resp.json();
       setError(null); fetchBenchmarks();
     } catch (err: unknown) {
       console.error('Failed to import benchmarks:', err);
@@ -209,7 +211,11 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
           {editing && (
             <BenchmarkMetadataModal editing={editing} onClose={() => setEditing(null)} onSave={handleSaveMetadata} />
           )}
-          {compareData.length >= 2 && <BenchmarkCompareCharts compareData={compareData} />}
+          {compareData.length >= 2 && (
+            <Suspense fallback={<div style={{ height: 200 }} />}>
+              <BenchmarkCompareCharts compareData={compareData} />
+            </Suspense>
+          )}
         </>
       )}
       <ConfirmDialog

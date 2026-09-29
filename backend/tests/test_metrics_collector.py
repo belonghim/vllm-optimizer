@@ -16,17 +16,18 @@ def _build_collector() -> MultiTargetMetricsCollector:
 
 
 class TestMultiTargetMetricsCollector:
-    def test_registers_default_target_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_does_not_register_default_target_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Default target auto-registration was removed.
+
+        The collector must start with an empty target set; targets are added
+        explicitly via register_target (manual discovery flow).
+        """
         monkeypatch.setenv("VLLM_NAMESPACE", "env-namespace")
         monkeypatch.setenv("VLLM_DEPLOYMENT_NAME", "env-is")
 
         collector = _build_collector()
-        default_target = collector._get_default_target()
 
-        assert default_target is not None
-        assert default_target.namespace == "env-namespace"
-        assert default_target.is_name == "env-is"
-        assert default_target.is_default is True
+        assert collector._targets == {}
 
     def test_build_target_queries_include_namespace_and_job(self) -> None:
         collector = _build_collector()

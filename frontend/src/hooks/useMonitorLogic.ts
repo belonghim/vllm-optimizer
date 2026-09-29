@@ -47,19 +47,22 @@ export function useMonitorLogic(isActive: boolean) {
   }, [selectedSlaProfile]);
 
   useEffect(() => {
+    const controller = new AbortController();
     const fetchSlaProfiles = async () => {
       try {
-        const res = await authFetch(`${API}/sla/profiles`);
+        const res = await authFetch(`${API}/sla/profiles`, { signal: controller.signal });
         if (res.ok) {
           const data = await res.json();
           setSlaProfiles(data);
         }
       } catch (err) {
+        if (controller.signal.aborted) return;
         console.error("Failed to load SLA profiles", err);
         setError("Failed to load SLA profiles");
       }
     };
-    fetchSlaProfiles();
+    void fetchSlaProfiles();
+    return () => controller.abort();
   }, []);
 
   useEffect(() => {
@@ -137,7 +140,7 @@ export function useMonitorLogic(isActive: boolean) {
             error: result.error,
             data: null,
             history: [],
-            crExists: (result as any).crExists ?? null,
+            crExists: result.crExists ?? null,
           };
           return;
         }
@@ -162,7 +165,7 @@ export function useMonitorLogic(isActive: boolean) {
           history,
           status: result.status || 'ready',
           hasMonitoringLabel: result.hasMonitoringLabel,
-          crExists: (result as any).crExists ?? null,
+          crExists: result.crExists ?? null,
           error: null,
         };
       });

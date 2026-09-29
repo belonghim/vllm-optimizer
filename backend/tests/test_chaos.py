@@ -37,14 +37,12 @@ def _benchmark_payload() -> dict[str, object]:
 
 def test_chaos_thanos_unavailable_returns_gracefully(isolated_client: TestClient):
     with patch("routers.metrics._default_collector.get_metrics", new=AsyncMock(return_value=None)):
-        response = isolated_client.get("/api/metrics/latest")
+        response = isolated_client.get("/api/metrics/latest?namespace=chaos-ns&is_name=chaos-is")
 
-    assert response.status_code in (200, 204)
-    assert response.status_code != 500
-    if response.status_code == 200:
-        body = cast(dict[str, object], response.json())
-        assert body.get("tps") == 0.0
-        assert body.get("latency_p99") == 0.0
+    assert response.status_code == 200, response.text
+    body = cast(dict[str, object], response.json())
+    assert body.get("status") == "collecting"
+    assert body.get("data") is None
 
 
 def test_chaos_k8s_forbidden_tuner_sse_error(isolated_client: TestClient):
@@ -162,8 +160,8 @@ def test_chaos_storage_error_benchmark_fails_open(isolated_client: TestClient):
     finally:
         del isolated_client.app.dependency_overrides[get_storage]
 
-    assert save_resp.status_code in (500, 503)
+    assert save_resp.status_code in (500, 503), save_resp.text
     assert save_resp.status_code != 200
 
-    follow_up = isolated_client.get("/api/metrics/latest")
+    follow_up = isolated_client.get("/api/metrics/latest?namespace=chaos-ns&is_name=chaos-is")
     assert follow_up.status_code == 200

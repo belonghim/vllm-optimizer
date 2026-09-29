@@ -19,12 +19,14 @@ from services.shared import (
 logger = logging.getLogger(__name__)
 
 
-def _get_k8s_namespace() -> str:
+def get_k8s_namespace() -> str:
+    """Resolve the default vLLM workload namespace (shared by routers and operator)."""
     namespace = runtime_config.vllm_namespace
     return namespace if namespace else "default"
 
 
-def _get_vllm_is_name() -> str:
+def get_vllm_is_name() -> str:
+    """Resolve the default vLLM InferenceService name (shared by routers and operator)."""
     return runtime_config.vllm_is_name or "llm-ov"
 
 
@@ -70,8 +72,8 @@ class K8sOperator:
             logger.warning("K8s client unavailable: %s", e)
 
     async def wait_for_ready(self, cancel_event: asyncio.Event, timeout: int = 300, interval: int = 5) -> bool:
-        namespace = _get_k8s_namespace()
-        is_name = _get_vllm_is_name()
+        namespace = get_k8s_namespace()
+        is_name = get_vllm_is_name()
         custom_api = cast(Any, self._k8s_custom)
         logger.info(f"[AutoTuner] InferenceService '{is_name}' 준비 대기 중...")
         wait_start = time.monotonic()
@@ -167,8 +169,8 @@ class K8sOperator:
     async def read_current_spec(self) -> dict[str, Any] | None:
         if not self._k8s_available or self._k8s_custom is None:
             return None
-        namespace = _get_k8s_namespace()
-        is_name = _get_vllm_is_name()
+        namespace = get_k8s_namespace()
+        is_name = get_vllm_is_name()
         custom_api = cast(Any, self._k8s_custom)
         try:
             cr_obj = await asyncio.to_thread(
@@ -187,8 +189,8 @@ class K8sOperator:
     async def get_pod_logs(self, tail_lines: int = 100) -> str | None:
         if not self._k8s_available:
             return None
-        namespace = _get_k8s_namespace()
-        is_name = _get_vllm_is_name()
+        namespace = get_k8s_namespace()
+        is_name = get_vllm_is_name()
         label_selector = self._cr_adapter.pod_label_selector(is_name)
         try:
             core = k8s_client.CoreV1Api()
@@ -217,8 +219,8 @@ class K8sOperator:
                 "error": "K8s 클라이언트를 초기화할 수 없습니다. 클러스터 연결을 확인하세요.",
                 "error_type": "k8s_unavailable",
             }
-        namespace = _get_k8s_namespace()
-        is_name = _get_vllm_is_name()
+        namespace = get_k8s_namespace()
+        is_name = get_vllm_is_name()
         custom_api = cast(Any, self._k8s_custom)
         try:
             await asyncio.to_thread(
@@ -252,9 +254,9 @@ class K8sOperator:
     async def get_model_name(self) -> str:
         """Resolve the model name from the InferenceService spec."""
         if not self._k8s_available or self._k8s_custom is None:
-            return _get_vllm_is_name()
-        namespace = _get_k8s_namespace()
-        is_name = _get_vllm_is_name()
+            return get_vllm_is_name()
+        namespace = get_k8s_namespace()
+        is_name = get_vllm_is_name()
         custom_api = cast(Any, self._k8s_custom)
         try:
             cr_obj = await asyncio.to_thread(
@@ -311,8 +313,8 @@ class K8sOperator:
 
         try:
             async with k8s_lock:
-                namespace = _get_k8s_namespace()
-                is_name = _get_vllm_is_name()
+                namespace = get_k8s_namespace()
+                is_name = get_vllm_is_name()
                 custom_api = cast(Any, self._k8s_custom)
                 logger.info(f"[AutoTuner] InferenceService '{is_name}' in namespace '{namespace}'")
                 cr_obj = await asyncio.to_thread(
@@ -386,8 +388,8 @@ class K8sOperator:
                     "error_type": "rbac",
                 }
             if e.status == 404:
-                namespace = _get_k8s_namespace()
-                is_name = _get_vllm_is_name()
+                namespace = get_k8s_namespace()
+                is_name = get_vllm_is_name()
                 return {
                     "success": False,
                     "error": f"InferenceService '{is_name}'을(를) '{namespace}'에서 찾을 수 없습니다.",
@@ -404,8 +406,8 @@ class K8sOperator:
             return False
         try:
             async with k8s_lock:
-                namespace = _get_k8s_namespace()
-                is_name = _get_vllm_is_name()
+                namespace = get_k8s_namespace()
+                is_name = get_vllm_is_name()
                 custom_api = cast(Any, self._k8s_custom)
 
                 restore_body = self._cr_adapter.restore_cr_from_snapshot(self._is_args_snapshot)

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import type { ReactNode } from "react";
 import { authFetch } from '../utils/authFetch';
 import { useMockData } from "../contexts/MockDataContext";
@@ -8,12 +8,14 @@ import { ERROR_MESSAGES } from "../constants/errorMessages";
 import { useThemeColors } from "../contexts/ThemeContext";
 import { fmt } from "../utils/format";
 import MetricCard from "./MetricCard";
-import Chart from "./Chart";
 import { simulateLoadTest } from "../mockData";
 import LoadTestConfig, { type RerunConfig } from "./LoadTestConfig";
 import ErrorAlert from "./ErrorAlert";
 import { useLoadTestSSE } from "../hooks/useLoadTestSSE";
 import { calcGpuEfficiency } from "../utils/metrics";
+
+// Lazy: keeps recharts out of the Load Test page chunk until a chart renders
+const Chart = lazy(() => import("./Chart"));
 
 interface LoadTestConfigState {
   endpoint: string;
@@ -257,11 +259,11 @@ function LoadTestNormalMode({ isActive, pendingConfig, onConfigConsumed, onRunni
       {result && gpuEff && (
         <div aria-live="polite">
           <div className="grid-5 gap-1">
-            <MetricCard label="Mean TPS" value={fmt((result.tps as Record<string, number> | undefined)?.mean, 1)} unit="tok/s" color="amber" />
-            <MetricCard label="TTFT Mean" value={fmt(((result.ttft as Record<string, number> | null)?.mean || 0) * 1000, 0)} unit="ms" color="cyan" />
-            <MetricCard label={CHART_LABELS.e2eLatency.p99} value={fmt(((result.latency as Record<string, number> | null)?.p99 || 0) * 1000, 0)} unit="ms" color="red" />
+            <MetricCard label="Mean TPS" value={fmt(result.tps?.mean, 1)} unit="tok/s" color="amber" />
+            <MetricCard label="TTFT Mean" value={fmt((result.ttft?.mean || 0) * 1000, 0)} unit="ms" color="cyan" />
+            <MetricCard label={CHART_LABELS.e2eLatency.p99} value={fmt((result.latency?.p99 || 0) * 1000, 0)} unit="ms" color="red" />
             <MetricCard label="Success Rate"
-              value={result.total ? fmt(((result.success as number) / (result.total as number)) * 100, 1) : "—"}
+              value={result.total ? fmt(((result.success ?? 0) / result.total) * 100, 1) : "—"}
               unit="%" color="green" />
             <MetricCard label="GPU Eff."
               value={gpuEff.mismatch ? <span title="GPU metrics mismatch">N/A</span> : gpuEff.display}
@@ -274,16 +276,16 @@ function LoadTestNormalMode({ isActive, pendingConfig, onConfigConsumed, onRunni
               <thead><tr><th>Metric</th><th>Value</th></tr></thead>
               <tbody>
                 {([
-                  ["Total Requests", (result.total_requested ?? result.total) as number],
-                  ["Success", result.success as number], ["Failed", result.failed as number],
-                  ["Actual RPS", fmt(result.rps_actual as number | null | undefined, 2)],
-                  [CHART_LABELS.e2eLatency.meanFull, `${fmt(((result.latency as Record<string, number> | null)?.mean || 0) * 1000, 0)} ms`],
-                  [CHART_LABELS.e2eLatency.p50, `${fmt(((result.latency as Record<string, number> | null)?.p50 || 0) * 1000, 0)} ms`],
-                  [CHART_LABELS.e2eLatency.p95, `${fmt(((result.latency as Record<string, number> | null)?.p95 || 0) * 1000, 0)} ms`],
-                  [CHART_LABELS.e2eLatency.p99, `${fmt(((result.latency as Record<string, number> | null)?.p99 || 0) * 1000, 0)} ms`],
-                  ["TTFT Mean", `${fmt(((result.ttft as Record<string, number> | null)?.mean || 0) * 1000, 0)} ms`],
-                  ["TTFT P95", `${fmt(((result.ttft as Record<string, number> | null)?.p95 || 0) * 1000, 0)} ms`],
-                  ["Total TPS", `${fmt((result.tps as Record<string, number> | null)?.total, 1)} tok/s`],
+                  ["Total Requests", result.total_requested ?? result.total ?? 0],
+                  ["Success", result.success], ["Failed", result.failed],
+                  ["Actual RPS", fmt(result.rps_actual, 2)],
+                  [CHART_LABELS.e2eLatency.meanFull, `${fmt((result.latency?.mean || 0) * 1000, 0)} ms`],
+                  [CHART_LABELS.e2eLatency.p50, `${fmt((result.latency?.p50 || 0) * 1000, 0)} ms`],
+                  [CHART_LABELS.e2eLatency.p95, `${fmt((result.latency?.p95 || 0) * 1000, 0)} ms`],
+                  [CHART_LABELS.e2eLatency.p99, `${fmt((result.latency?.p99 || 0) * 1000, 0)} ms`],
+                  ["TTFT Mean", `${fmt((result.ttft?.mean || 0) * 1000, 0)} ms`],
+                  ["TTFT P95", `${fmt((result.ttft?.p95 || 0) * 1000, 0)} ms`],
+                  ["Total TPS", `${fmt(result.tps?.total, 1)} tok/s`],
                   ["GPU Efficiency", gpuEff.mismatch ? <span title="GPU metrics mismatch">N/A</span> : gpuEff.value ? `${gpuEff.display} tok/s/%` : "—"],
                 ] as [string, ReactNode][]).map(([k, v]) => (
                   <tr key={k}>
@@ -296,10 +298,12 @@ function LoadTestNormalMode({ isActive, pendingConfig, onConfigConsumed, onRunni
           </div>
 
           {latencyData.length > 0 && (
-            <Chart data={latencyData} title={ERROR_MESSAGES.LOAD_TEST.REALTIME_LATENCY} height={160} lines={[
-              { key: "lat", color: COLORS.red, label: "Latency ms" },
-              { key: "tps", color: COLORS.accent, label: "TPS" },
-            ]} />
+            <Suspense fallback={<div style={{ height: 160 }} />}>
+              <Chart data={latencyData} title={ERROR_MESSAGES.LOAD_TEST.REALTIME_LATENCY} height={160} lines={[
+                { key: "lat", color: COLORS.red, label: "Latency ms" },
+                { key: "tps", color: COLORS.accent, label: "TPS" },
+              ]} />
+            </Suspense>
           )}
 
           {status === "completed" && result && !isMockEnabled && (

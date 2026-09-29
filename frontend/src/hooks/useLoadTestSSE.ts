@@ -1,23 +1,12 @@
-import { useRef, useState } from 'react';
-import { API, SSE_MAX_RETRIES, SSE_MAX_RETRY_DELAY_MS } from '../constants';
-import type { SSEState, SSEErrorPayload } from '../types';
+import { useEffect, useRef, useState } from 'react';
+import { API } from '../constants';
+import { openReconnectingEventSource, type ReconnectingEventSource } from '../utils/reconnectingEventSource';
+import type { SSEState, SSEErrorPayload, LoadTestResult } from '../types';
 
 interface LatencyPoint {
   t: number;
   lat: number;
   tps: number;
-}
-
-interface SSEProgressData {
-  total?: number;
-  latency?: { mean: number };
-  tps?: { mean: number };
-  [key: string]: unknown;
-}
-
-interface SSEMessage {
-  type: string;
-  data?: SSEProgressData;
 }
 
 interface UseLoadTestSSEReturn {
@@ -27,8 +16,8 @@ interface UseLoadTestSSEReturn {
   retryCount: number;
   error: string | null;
   setError: React.Dispatch<React.SetStateAction<string | null>>;
-  result: Record<string, unknown> | null;
-  setResult: React.Dispatch<React.SetStateAction<Record<string, unknown> | null>>;
+  result: LoadTestResult | null;
+  setResult: React.Dispatch<React.SetStateAction<LoadTestResult | null>>;
   progress: number;
   setProgress: React.Dispatch<React.SetStateAction<number>>;
   latencyData: LatencyPoint[];
@@ -38,93 +27,75 @@ interface UseLoadTestSSEReturn {
 }
 
 export function useLoadTestSSE(): UseLoadTestSSEReturn {
-  const esRef = useRef<EventSource | null>(null);
-  const retryCountRef = useRef<number>(0);
+  const handleRef = useRef<ReconnectingEventSource | null>(null);
   const [status, setStatus] = useState<SSEState['status']>('idle');
   const [isReconnecting, setIsReconnecting] = useState<boolean>(false);
   const [retryCount, setRetryCount] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<Record<string, unknown> | null>(null);
+  const [result, setResult] = useState<LoadTestResult | null>(null);
   const [progress, setProgress] = useState<number>(0);
   const [latencyData, setLatencyData] = useState<LatencyPoint[]>([]);
 
-  const connectRef = useRef<((reqCount: number) => void) | null>(null);
+  useEffect(() => () => {
+    handleRef.current?.dispose();
+  }, []);
 
   const connect = (totalRequests: number): void => {
-    retryCountRef.current = 0;
     setRetryCount(0);
     setIsReconnecting(false);
 
-    const openConnection = (reqCount: number): void => {
-      const es = new EventSource(`${API}/load_test/stream`);
-      esRef.current = es;
-
-       es.onmessage = (e: MessageEvent) => {
-         retryCountRef.current = 0;
-         setRetryCount(0);
-         setIsReconnecting(false);
-         let data: SSEMessage;
-         try {
-           data = JSON.parse(e.data as string) as SSEMessage;
-         } catch (err) {
-           console.error('Failed to parse SSE message data', err);
-           return;
-         }
+    const handle = openReconnectingEventSource<LoadTestResult>({
+      url: `${API}/load_test/stream`,
+      onMessageReceived: () => {
+        setRetryCount(0);
+        setIsReconnecting(false);
+      },
+      onMessage: (data) => {
         if (data.type === 'error') {
-           setError((data.data as SSEErrorPayload | undefined)?.error ?? "Load test error occurred.");
+          setError((data.data as SSEErrorPayload | undefined)?.error ?? "Load test error occurred.");
           setStatus('error');
-          es.close();
-          esRef.current = null;
+          handle.closeSocket();
           return;
         }
         if (data.type === 'progress' && data.data) {
           const d = data.data;
           if (d.total != null) {
-            setProgress(Math.round((d.total / reqCount) * 100));
+            setProgress(Math.round((d.total / totalRequests) * 100));
           }
           setLatencyData(prev => [...prev.slice(-60), {
             t: prev.length,
             lat: (d.latency?.mean ?? 0) * 1000 | 0,
             tps: d.tps?.mean ?? 0 | 0,
           }]);
-          setResult(d as Record<string, unknown>);
+          setResult(d);
         }
         if (data.type === 'completed') {
           setStatus('completed');
           setProgress(100);
-          es.close();
-          esRef.current = null;
-          setResult((data.data ?? null) as Record<string, unknown> | null);
+          handle.closeSocket();
+          setResult(data.data ?? null);
         }
-      };
+      },
+      onParseError: (err) => {
+        console.error('Failed to parse SSE message data', err);
+      },
+      shouldReconnect: () => true,
+      onRetry: (count) => {
+        setIsReconnecting(true);
+        setRetryCount(count);
+      },
+      onError: () => {
+        setIsReconnecting(false);
+        setError('SSE connection failed: cannot connect to load test stream. (max retries exceeded)');
+        setStatus('error');
+      },
+    });
 
-      es.onerror = () => {
-        es.close();
-        esRef.current = null;
-        const count = retryCountRef.current + 1;
-        retryCountRef.current = count;
-        if (count <= SSE_MAX_RETRIES) {
-          setIsReconnecting(true);
-          setRetryCount(count);
-          const delay = Math.min(1000 * Math.pow(2, count - 1), SSE_MAX_RETRY_DELAY_MS);
-          setTimeout(() => { openConnection(reqCount); }, delay);
-        } else {
-          setIsReconnecting(false);
-          setError('SSE connection failed: cannot connect to load test stream. (max retries exceeded)');
-          setStatus('error');
-        }
-      };
-    };
-
-    connectRef.current = openConnection;
-    openConnection(totalRequests);
+    handleRef.current = handle;
   };
 
   const disconnect = (): void => {
-    if (esRef.current) {
-      esRef.current.close();
-      esRef.current = null;
-    }
+    handleRef.current?.closeSocket();
   };
 
   return {

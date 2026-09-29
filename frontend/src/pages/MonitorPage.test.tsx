@@ -51,8 +51,11 @@ describe("MonitorPage", () => {
   });
 
   it("renders chart titles", async () => {
+    vi.useRealTimers();
     render(<MonitorPage isActive={true} />);
     await act(async () => {});
+    // Charts are lazy-loaded; wait for the first chart title to resolve
+    await screen.findByText("Throughput (TPS)");
     // Chart titles may be conditionally rendered; verify at least some key charts exist
     const tpsTitle = screen.queryByText("Throughput (TPS)");
     const latencyTitle = screen.queryByText("Latency (ms)");

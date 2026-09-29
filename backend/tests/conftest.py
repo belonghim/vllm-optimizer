@@ -166,6 +166,9 @@ class _StubMultiTargetMetricsCollector:
     def get_has_monitoring_label(self, namespace: str, is_name: str, cr_type: str | None = None) -> bool:
         return self._has_label is not None and self._has_label
 
+    def get_cr_exists(self, namespace: str, is_name: str, cr_type: str | None = None) -> bool | None:
+        return None
+
     def get_history_dict(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
         return list(self._history)
 
@@ -201,19 +204,6 @@ class _StubEventBroadcaster:
     async def broadcast(self, data: dict[str, Any]) -> None:
         for q in list(self._subscribers):
             await q.put(data)
-
-
-class _StubConfigMapWatcher:
-    """Lightweight stand-in for ConfigMapWatcher."""
-
-    def __init__(self, broadcaster: _StubEventBroadcaster):
-        self._broadcaster = broadcaster
-
-    async def start(self) -> None:
-        pass
-
-    async def stop(self) -> None:
-        pass
 
 
 class _DummyCustomObjectsApi:
@@ -315,7 +305,6 @@ def _install_stub_metrics_collector_modules() -> list[str]:
 
     stub_multi_target_instance = _StubMultiTargetMetricsCollector()
     stub_event_broadcaster = _StubEventBroadcaster()
-    stub_config_watcher = _StubConfigMapWatcher(stub_event_broadcaster)
     load_engine_module = importlib.import_module("services.load_engine")
     backend_load_engine_module = importlib.import_module("backend.services.load_engine")
     from services.runtime_config import RuntimeConfig
@@ -338,7 +327,6 @@ def _install_stub_metrics_collector_modules() -> list[str]:
         stub_any.internal_client = None
         stub_any.external_client = None
         stub_any.event_broadcaster = stub_event_broadcaster
-        stub_any.config_watcher = stub_config_watcher
         sys.modules[module_name] = stub_module
         injected_names.append(module_name)
 

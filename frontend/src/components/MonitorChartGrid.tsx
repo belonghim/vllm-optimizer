@@ -1,6 +1,9 @@
-import Chart from "./Chart";
+import { lazy, Suspense } from "react";
 import { TARGET_COLORS, COLORS as DARK_COLORS, CHART_LABELS } from "../constants";
 import type { ClusterTarget } from "../types";
+
+// recharts is heavy (~370 kB); load it lazily so it stays out of the initial bundle
+const Chart = lazy(() => import("./Chart"));
 
 export interface ChartLine {
   key: string;
@@ -163,14 +166,16 @@ function MonitorChartGrid({
           if (!def) return null;
           return (
             <section key={id} aria-label={def.title}>
-              <Chart
-                data={chartData}
-                title={def.title}
-                lines={chartLinesMap[id] || []}
-                onHide={() => onHideChart(id)}
-                threshold={getSlaThreshold(id)}
-                timeRange={timeRange}
-              />
+              <Suspense fallback={<div style={{ height: 180 }} />}>
+                <Chart
+                  data={chartData}
+                  title={def.title}
+                  lines={chartLinesMap[id] || []}
+                  onHide={() => onHideChart(id)}
+                  threshold={getSlaThreshold(id)}
+                  timeRange={timeRange}
+                />
+              </Suspense>
             </section>
           );
         })}

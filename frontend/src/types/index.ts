@@ -88,6 +88,7 @@ export interface TargetResult {
   data?: TargetResultData | null;
   history?: HistoryPoint[];
   hasMonitoringLabel?: boolean;
+  crExists?: boolean | null;
 }
 
 export interface TargetState {
@@ -178,6 +179,30 @@ export interface BenchmarkResultData {
   rps_actual?: number;
   gpu_utilization_avg?: number | null;
   metrics_target_matched?: boolean;
+}
+
+export interface LoadTestMetricStats {
+  mean?: number | null;
+  p50?: number | null;
+  p95?: number | null;
+  p99?: number | null;
+  total?: number | null;
+  min?: number | null;
+  max?: number | null;
+}
+
+export interface LoadTestResult {
+  total?: number;
+  total_requested?: number;
+  success?: number;
+  failed?: number;
+  rps_actual?: number;
+  tps?: LoadTestMetricStats | null;
+  ttft?: LoadTestMetricStats | null;
+  latency?: LoadTestMetricStats | null;
+  gpu_utilization_avg?: number | null;
+  metrics_target_matched?: boolean;
+  [key: string]: unknown;
 }
 
 export interface BenchmarkItem {

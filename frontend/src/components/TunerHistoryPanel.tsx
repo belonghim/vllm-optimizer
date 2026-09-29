@@ -43,19 +43,21 @@ export default function TunerHistoryPanel() {
     onConfirm: () => {},
   });
 
-  const fetchSessions = async () => {
-    try {
-      const res = await authFetch(`${API}/tuner/sessions`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setSessions(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setError(`Failed to fetch history: ${(err as Error).message}`);
-    }
-  };
-
   useEffect(() => {
-    fetchSessions();
+    const controller = new AbortController();
+    const fetchSessions = async () => {
+      try {
+        const res = await authFetch(`${API}/tuner/sessions`, { signal: controller.signal });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        setSessions(Array.isArray(data) ? data : []);
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        setError(`Failed to fetch history: ${(err as Error).message}`);
+      }
+    };
+    void fetchSessions();
+    return () => controller.abort();
   }, []);
 
   const toggleSelect = (id: number) => {

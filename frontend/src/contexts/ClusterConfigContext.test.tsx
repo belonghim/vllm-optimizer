@@ -11,8 +11,9 @@ beforeEach(() => {
     json: () =>
       Promise.resolve({
         vllm_endpoint: "",
-        vllm_namespace: "",
-        vllm_is_name: "",
+        vllm_namespace: "vllm-lab-dev",
+        vllm_is_name: "llm-ov",
+        cr_type: "inferenceservice",
       }),
   } as unknown as Response);
 });
@@ -26,6 +27,7 @@ describe("ClusterConfigContext", () => {
     namespace: "vllm-lab-dev",
     inferenceService: "llm-ov",
     crType: "inferenceservice",
+    source: "manual",
   };
 
   const wrapper = ({ children }: { children: React.ReactNode }) => (
@@ -35,10 +37,10 @@ describe("ClusterConfigContext", () => {
   it("has initial state with default target and isLoading false after effect", async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
-    expect(result.current.targets).toEqual([defaultTarget]);
     expect(result.current.isLoading).toBe(true);
 
     await waitFor(() => {
+      expect(result.current.targets).toEqual([defaultTarget]);
       expect(result.current.isLoading).toBe(false);
     });
   });
@@ -61,30 +63,6 @@ describe("ClusterConfigContext", () => {
       crType: "inferenceservice",
       source: "manual",
     });
-  });
-
-  it("addTarget does not exceed MAX_TARGETS limit (5)", async () => {
-    const { result } = renderHook(() => useClusterConfig(), { wrapper });
-
-    await waitFor(() => {
-      expect(result.current.targets).toEqual([defaultTarget]);
-    });
-
-    act(() => {
-      result.current.addTarget("ns1", "svc1");
-      result.current.addTarget("ns2", "svc2");
-      result.current.addTarget("ns3", "svc3");
-      result.current.addTarget("ns4", "svc4");
-      result.current.addTarget("ns5", "svc5");
-    });
-
-    expect(result.current.targets.length).toBe(5);
-
-    act(() => {
-      result.current.addTarget("ns6", "svc6");
-    });
-
-    expect(result.current.targets.length).toBe(5);
   });
 
   it("removeTarget removes non-first target by (namespace, inferenceService) key", async () => {
@@ -239,7 +217,7 @@ describe("ClusterConfigContext", () => {
       }
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ vllm_endpoint: "", vllm_namespace: "", vllm_is_name: "" }),
+        json: () => Promise.resolve({ vllm_endpoint: "", vllm_namespace: "vllm-lab-dev", vllm_is_name: "llm-ov", cr_type: "inferenceservice" }),
       } as unknown as Response);
     }) as typeof fetch);
 
@@ -250,14 +228,6 @@ describe("ClusterConfigContext", () => {
     });
 
     expect(result.current.targets).toEqual(originalTargets);
-  });
-
-  it("exposes maxTargets constant as 5", async () => {
-    const { result } = renderHook(() => useClusterConfig(), { wrapper });
-
-    await waitFor(() => {
-      expect(result.current.maxTargets).toBe(5);
-    });
   });
 
   it("migrates versionless config and preserves fields", async () => {
@@ -335,6 +305,7 @@ describe("ClusterConfigContext", () => {
       namespace: "ns2",
       inferenceService: "svc2",
       crType: "inferenceservice",
+      source: "manual",
     });
   });
 
@@ -361,6 +332,7 @@ describe("ClusterConfigContext", () => {
       namespace: "ns3",
       inferenceService: "llm-ov",
       crType: "inferenceservice",
+      source: "manual",
     });
     expect(result.current.targets[1]).toEqual({
       namespace: "ns1",
@@ -528,7 +500,7 @@ describe("ClusterConfigContext", () => {
           });
         }
         return Promise.resolve({
-          json: () => Promise.resolve({ vllm_endpoint: "", vllm_namespace: "", vllm_is_name: "" }),
+          json: () => Promise.resolve({ vllm_endpoint: "", vllm_namespace: "vllm-lab-dev", vllm_is_name: "llm-ov", cr_type: "inferenceservice" }),
         });
       }) as unknown as typeof fetch;
       vi.spyOn(global, "fetch").mockImplementation(fetchMock);
@@ -551,7 +523,7 @@ describe("ClusterConfigContext", () => {
           return Promise.reject(new Error("ConfigMap fetch failed"));
         }
         return Promise.resolve({
-          json: () => Promise.resolve({ vllm_endpoint: "", vllm_namespace: "", vllm_is_name: "" }),
+          json: () => Promise.resolve({ vllm_endpoint: "", vllm_namespace: "vllm-lab-dev", vllm_is_name: "llm-ov", cr_type: "inferenceservice" }),
         });
       }) as unknown as typeof fetch;
       vi.spyOn(global, "fetch").mockImplementation(fetchMock);
@@ -646,6 +618,11 @@ describe("ClusterConfigContext", () => {
         version: 2,
       }));
 
+      vi.spyOn(global, "fetch").mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ vllm_endpoint: "", vllm_namespace: "", vllm_is_name: "" }),
+      } as unknown as Response);
+
       const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
       await waitFor(() => {
@@ -668,6 +645,11 @@ describe("ClusterConfigContext", () => {
         maxTargets: 5,
         version: 2,
       }));
+
+      vi.spyOn(global, "fetch").mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ vllm_endpoint: "", vllm_namespace: "", vllm_is_name: "" }),
+      } as unknown as Response);
 
       const { result } = renderHook(() => useClusterConfig(), { wrapper });
 

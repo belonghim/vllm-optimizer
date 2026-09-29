@@ -8,10 +8,10 @@ import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
-from services.storage import Storage
-from services.rate_limiter import limiter
 from models.load_test import ErrorResponse
+from pydantic import BaseModel
+from services.rate_limiter import limiter
+from services.storage import Storage
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -67,7 +67,7 @@ async def save_targets(
         raise HTTPException(
             status_code=500,
             detail=ErrorResponse(error="Failed to save targets", error_type="storage").model_dump(),
-        )
+        ) from e
 
 
 @router.get(
@@ -102,4 +102,4 @@ async def load_targets(
         raise HTTPException(
             status_code=500,
             detail=ErrorResponse(error="Failed to load targets", error_type="storage").model_dump(),
-        )
+        ) from e

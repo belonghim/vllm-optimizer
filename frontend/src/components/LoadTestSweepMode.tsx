@@ -1,12 +1,14 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { authFetch } from '../utils/authFetch';
 import { API, SWEEP_PRESETS, CHART_LABELS } from "../constants";
 import { useThemeColors } from "../contexts/ThemeContext";
 import { fmt } from "../utils/format";
 import MetricCard from "./MetricCard";
-import SweepChart from "./SweepChart";
 import ErrorAlert from "./ErrorAlert";
 import { useSSE } from "../hooks/useSSE";
+
+// Lazy: keeps recharts out of the Load Test page chunk until a sweep completes
+const SweepChart = lazy(() => import("./SweepChart"));
 
 export interface SweepStepResult {
   step: number;
@@ -309,7 +311,9 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
             <MetricCard label="Duration" value={`${fmt(sweepResult.total_duration, 1)}s`} unit="" color="amber" />
           </div>
           {sweepResult.steps && sweepResult.steps.length > 0 && (
-            <SweepChart steps={sweepResult.steps} saturationRps={sweepResult.saturation_point} />
+            <Suspense fallback={<div style={{ height: '30vh', minHeight: '220px' }} />}>
+              <SweepChart steps={sweepResult.steps} saturationRps={sweepResult.saturation_point} />
+            </Suspense>
           )}
           {sweepStatus === 'completed' && (
             <div className="loadtest-save-row">

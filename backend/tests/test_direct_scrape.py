@@ -9,10 +9,9 @@ from services.multi_target_collector import MultiTargetMetricsCollector
 @pytest.fixture
 def collector():
     with patch.object(MultiTargetMetricsCollector, "_init_k8s", return_value=None):
-        with patch.object(MultiTargetMetricsCollector, "_register_default_target", return_value=None):
-            c = MultiTargetMetricsCollector()
-            c._targets = {}
-            return c
+        c = MultiTargetMetricsCollector()
+        c._targets = {}
+        return c
 
 
 def _make_mock_client(text: str):

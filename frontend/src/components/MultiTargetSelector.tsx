@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, Fragment } from "react";
 import { getTargetKey, parseTargetKey } from "../utils/targetKey";
 import { useClusterConfig } from "../contexts/ClusterConfigContext";
-import { TARGET_COLORS, CHART_LABELS } from "../constants";
+import { API, TARGET_COLORS, CHART_LABELS } from "../constants";
 import { fmt } from "../utils/format";
 import { authFetch } from "../utils/authFetch";
 import type { ClusterTarget, PerPodMetricSnapshot, PerPodMetricsDict } from "../types";
@@ -84,7 +84,7 @@ export default function MultiTargetSelector({
       setIsValidating(true);
       setAddError(null);
       try {
-        const response = await authFetch(`/api/metrics/latest?namespace=${newTarget.namespace}&is_name=${newTarget.inferenceService}&cr_type=${newTarget.crType}`);
+        const response = await authFetch(`${API}/metrics/latest?namespace=${newTarget.namespace}&is_name=${newTarget.inferenceService}&cr_type=${newTarget.crType}`);
         if (!response.ok) {
           setAddError("Target not found");
           return;
@@ -103,7 +103,7 @@ export default function MultiTargetSelector({
   const handleSaveTargets = async () => {
     try {
       setSaveStatus("Saving...");
-      const response = await authFetch("/api/targets/save", {
+      const response = await authFetch(`${API}/targets/save`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ targets })
@@ -123,7 +123,7 @@ export default function MultiTargetSelector({
   const handleLoadTargets = async () => {
     try {
       setLoadStatus("Loading...");
-      const response = await authFetch("/api/targets/load");
+      const response = await authFetch(`${API}/targets/load`);
       if (response.ok) {
         const data = await response.json();
         const loadedTargets: ClusterTarget[] = data.targets || [];
@@ -177,7 +177,7 @@ export default function MultiTargetSelector({
 
     const fetchPromise = (async () => {
       try {
-        const response = await authFetch("/api/metrics/pods", {
+        const response = await authFetch(`${API}/metrics/pods`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

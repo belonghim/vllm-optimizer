@@ -46,8 +46,7 @@ def kv_cache_oom_risk(params: dict[str, Any], config: TuningConfig) -> bool:
 
     Skips the check and returns False if any required model dimension is unknown.
     """
-    if not (config.model_num_kv_heads and config.model_num_layers and
-            config.model_head_dim and config.pod_memory_gib):
+    if not (config.model_num_kv_heads and config.model_num_layers and config.model_head_dim and config.pod_memory_gib):
         return False
     max_num_seqs = params.get("max_num_seqs", 256)
     max_model_len = params.get("max_model_len", 4096)
@@ -61,7 +60,7 @@ def kv_cache_oom_risk(params: dict[str, Any], config: TuningConfig) -> bool:
         * max_num_seqs
         * max_model_len
     )
-    available_bytes = config.pod_memory_gib * gpu_util * (1024 ** 3)
+    available_bytes = config.pod_memory_gib * gpu_util * (1024**3)
     return kv_bytes > available_bytes * 0.9
 
 

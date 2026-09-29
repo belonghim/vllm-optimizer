@@ -161,8 +161,7 @@ class LLMAssistant:
             "Keep the total under ~250 words."
         )
         user = (
-            f"Tuning session summary:\n{json.dumps(summary, indent=2, default=str)}\n\n"
-            f"Write the markdown report now."
+            f"Tuning session summary:\n{json.dumps(summary, indent=2, default=str)}\n\nWrite the markdown report now."
         )
         return await self._chat(endpoint, system, user, max_tokens=768, temperature=0.4)
 

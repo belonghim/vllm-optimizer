@@ -28,6 +28,55 @@ const DEFAULT_CONFIG: TunerConfig = {
   enable_llm_assistant: true,
 };
 
+function asNumber(value: unknown, fallback: number): number {
+  return typeof value === "number" && !Number.isNaN(value) ? value : fallback;
+}
+
+function asString(value: unknown, fallback: string): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+function asBoolean(value: unknown, fallback: boolean): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function asNumberArray(value: unknown, fallback: number[]): number[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "number") ? value : fallback;
+}
+
+function toTunerConfig(draft: Record<string, unknown>, prev: TunerConfig): TunerConfig {
+  return {
+    objective: asString(draft.objective, prev.objective),
+    evaluation_mode:
+      draft.evaluation_mode === "single" || draft.evaluation_mode === "sweep"
+        ? draft.evaluation_mode
+        : prev.evaluation_mode,
+    n_trials: asNumber(draft.n_trials, prev.n_trials),
+    vllm_endpoint: asString(draft.vllm_endpoint, prev.vllm_endpoint),
+    max_num_seqs_min: asNumber(draft.max_num_seqs_min, prev.max_num_seqs_min),
+    max_num_seqs_max: asNumber(draft.max_num_seqs_max, prev.max_num_seqs_max),
+    gpu_memory_min: asNumber(draft.gpu_memory_min, prev.gpu_memory_min),
+    gpu_memory_max: asNumber(draft.gpu_memory_max, prev.gpu_memory_max),
+    max_model_len_min: asNumber(draft.max_model_len_min, prev.max_model_len_min),
+    max_model_len_max: asNumber(draft.max_model_len_max, prev.max_model_len_max),
+    max_num_batched_tokens_min: asNumber(draft.max_num_batched_tokens_min, prev.max_num_batched_tokens_min),
+    max_num_batched_tokens_max: asNumber(draft.max_num_batched_tokens_max, prev.max_num_batched_tokens_max),
+    block_size_options: asNumberArray(draft.block_size_options, prev.block_size_options),
+    include_swap_space: asBoolean(draft.include_swap_space, prev.include_swap_space),
+    swap_space_min: asNumber(draft.swap_space_min, prev.swap_space_min),
+    swap_space_max: asNumber(draft.swap_space_max, prev.swap_space_max),
+    eval_concurrency: asNumber(draft.eval_concurrency, prev.eval_concurrency),
+    eval_rps: asNumber(draft.eval_rps, prev.eval_rps),
+    eval_requests: asNumber(draft.eval_requests, prev.eval_requests),
+    enable_llm_assistant:
+      typeof draft.enable_llm_assistant === "boolean" ? draft.enable_llm_assistant : prev.enable_llm_assistant,
+    p99_latency_sla_ms:
+      draft.p99_latency_sla_ms === null || typeof draft.p99_latency_sla_ms === "number"
+        ? draft.p99_latency_sla_ms
+        : prev.p99_latency_sla_ms,
+  };
+}
+
 export function useTunerLogic({ isActive, onRunningChange, targetOverride }: { isActive: boolean; onRunningChange?: (running: boolean) => void; targetOverride?: ClusterTarget | null }) {
   const { isMockEnabled } = useMockData();
   const { endpoint, namespace, inferenceservice, crType } = useClusterConfig();
@@ -174,7 +223,7 @@ export function useTunerLogic({ isActive, onRunningChange, targetOverride }: { i
         if (!data?.success || !data?.data) return;
         const fetchedData = data.data as Record<string, unknown>;
         setConfig((prev) => {
-          const next = { ...prev } as Record<string, any>;
+          const next: Record<string, unknown> = { ...prev };
           Object.entries(fetchedData).forEach(([key, value]) => {
             if (value === undefined || value === null) return;
 
@@ -205,7 +254,7 @@ export function useTunerLogic({ isActive, onRunningChange, targetOverride }: { i
               if (!userEditedRef.current.include_swap_space && numVal > 0) next.include_swap_space = true;
             }
           });
-          return next as unknown as TunerConfig;
+          return toTunerConfig(next, prev);
         });
       })
       .catch((err: Error) => { if (err.name === "AbortError") return; console.error("Failed to fetch vLLM config:", err); });

@@ -1,7 +1,7 @@
 ---
 title: vLLM Optimizer System Architecture
 date: 2026-03-08
-updated: 2026-04-01
+updated: 2026-09-29
 tags: [architecture, vllm, openshift]
 status: published
 ---
@@ -159,6 +159,8 @@ The backend is a FastAPI application written in Python, running on port `8000`. 
 -   **`services/k8s_operator.py`**: Handles all Kubernetes API operations — InferenceService readiness checks, args patching, rollback, and preflight permission validation. Lock-free; receives locks as parameters from AutoTuner.
 -   **`services/event_broadcaster.py`**: Manages SSE event queues (subscribe/unsubscribe/broadcast) and Prometheus metrics emission. Includes one-time persistence warning broadcast.
 -   **`services/tuner_logic.py`**: Contains Optuna study management, parameter search space definition, trial evaluation (warmup + probe + full), score computation, and FAnova importance analysis. Stateless; receives study/trial as parameters.
+-   **`services/metric_math.py`**: Pure histogram/rate math extracted from `multi_target_collector.py` (quantiles, means, counter rates). The collector keeps thin delegating methods for compatibility.
+-   **`services/storage_schema.py`**: SQLite DDL/table-creation extracted from `storage.py`; `Storage._create_*_tables` methods delegate here.
 -   **`metrics/prometheus_metrics.py`**: This module defines custom Prometheus metrics (gauges, counters, histograms) used by the vLLM Optimizer. It also exposes the `/metrics` endpoint, which Prometheus can scrape.
 
 #### Singleton Pattern for `MetricsCollector`:

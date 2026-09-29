@@ -1,8 +1,8 @@
 """Unit tests for the /api/metrics/discover endpoint."""
 
-import pytest
 from unittest.mock import MagicMock
-from fastapi.testclient import TestClient
+
+import pytest
 
 pytestmark = pytest.mark.slow
 

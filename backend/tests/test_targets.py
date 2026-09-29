@@ -1,6 +1,3 @@
-import pytest
-
-
 def test_load_empty(isolated_client) -> None:
     resp = isolated_client.get("/api/targets/load")
     assert resp.status_code == 200
@@ -11,9 +8,7 @@ def test_load_empty(isolated_client) -> None:
 
 def test_save_and_load_roundtrip(isolated_client) -> None:
     payload = {
-        "targets": [
-            {"namespace": "ns1", "name": "svc1", "cr_type": "inferenceservice", "metrics_source": "prometheus"}
-        ]
+        "targets": [{"namespace": "ns1", "name": "svc1", "cr_type": "inferenceservice", "metrics_source": "prometheus"}]
     }
     save_resp = isolated_client.post("/api/targets/save", json=payload)
     assert save_resp.status_code == 200
@@ -31,8 +26,12 @@ def test_save_and_load_roundtrip(isolated_client) -> None:
 
 
 def test_save_overwrites_previous(isolated_client) -> None:
-    first = {"targets": [{"namespace": "ns1", "name": "a", "cr_type": "inferenceservice", "metrics_source": "prometheus"}]}
-    second = {"targets": [{"namespace": "ns2", "name": "b", "cr_type": "llminferenceservice", "metrics_source": "prometheus"}]}
+    first = {
+        "targets": [{"namespace": "ns1", "name": "a", "cr_type": "inferenceservice", "metrics_source": "prometheus"}]
+    }
+    second = {
+        "targets": [{"namespace": "ns2", "name": "b", "cr_type": "llminferenceservice", "metrics_source": "prometheus"}]
+    }
 
     isolated_client.post("/api/targets/save", json=first)
     isolated_client.post("/api/targets/save", json=second)
@@ -88,7 +87,12 @@ def test_save_invalid_payload_returns_422(isolated_client) -> None:
 def test_llminferenceservice_cr_type_preserved(isolated_client) -> None:
     payload = {
         "targets": [
-            {"namespace": "llm-d-demo", "name": "small-llm-d", "cr_type": "llminferenceservice", "metrics_source": "prometheus"}
+            {
+                "namespace": "llm-d-demo",
+                "name": "small-llm-d",
+                "cr_type": "llminferenceservice",
+                "metrics_source": "prometheus",
+            }
         ]
     }
     isolated_client.post("/api/targets/save", json=payload)

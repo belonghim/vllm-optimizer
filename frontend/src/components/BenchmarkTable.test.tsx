@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createRef } from "react";
 import BenchmarkTable from "./BenchmarkTable";
-import type { BenchmarkItem } from "../pages/BenchmarkPage";
+import type { BenchmarkItem } from "../types";
 
 function makeBenchmark(id: number, name: string): BenchmarkItem {
   return {

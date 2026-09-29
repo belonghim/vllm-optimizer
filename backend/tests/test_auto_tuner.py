@@ -6,6 +6,7 @@ from kubernetes.client.exceptions import ApiException
 
 from ..models.load_test import TuningConfig, TuningTrial
 from ..services import auto_tuner as auto_tuner_module
+from ..services import k8s_operator as k8s_operator_module
 from ..services.auto_tuner import AutoTuner
 
 
@@ -13,9 +14,13 @@ class _DummyTrial:
     def __init__(self, number: int):
         self.number = number
         self.report = MagicMock()
+        self.user_attrs: dict[str, object] = {}
 
     def should_prune(self) -> bool:
         return False
+
+    def set_user_attr(self, key: str, value: object) -> None:
+        self.user_attrs[key] = value
 
 
 class _DummyStudy:
@@ -37,10 +42,10 @@ class _DummyStudy:
 @pytest.fixture
 def mock_k8s_clients():
     with (
-        patch.object(auto_tuner_module.k8s_config, "load_incluster_config", return_value=None),
-        patch.object(auto_tuner_module.k8s_config, "load_kube_config", return_value=None),
-        patch.object(auto_tuner_module.k8s_client, "AppsV1Api") as mock_apps_cls,
-        patch.object(auto_tuner_module.k8s_client, "CustomObjectsApi") as mock_custom_cls,
+        patch.object(k8s_operator_module.k8s_config, "load_incluster_config", return_value=None),
+        patch.object(k8s_operator_module.k8s_config, "load_kube_config", return_value=None),
+        patch.object(k8s_operator_module.k8s_client, "AppsV1Api") as mock_apps_cls,
+        patch.object(k8s_operator_module.k8s_client, "CustomObjectsApi") as mock_custom_cls,
     ):
         mock_apps_api = MagicMock()
         mock_custom_api = MagicMock()
@@ -241,7 +246,7 @@ async def test_evaluate_uses_mocked_httpx_async_client_for_model_lookup(auto_tun
     ) as resolve_mock:
         score, tps, p99 = await tuner._evaluate(
             "http://mock-vllm:8080",
-            TuningConfig(eval_requests=2, warmup_requests=0, eval_concurrency=1, eval_rps=0),
+            TuningConfig(eval_requests=2, warmup_requests=0, eval_concurrency=1, eval_rps=0, objective="tps"),
         )
 
     resolve_mock.assert_awaited_once_with("http://mock-vllm:8080")

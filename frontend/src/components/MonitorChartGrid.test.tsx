@@ -7,7 +7,7 @@ import MonitorChartGrid, {
   saveChartConfig,
   buildChartLinesMap,
 } from "./MonitorChartGrid";
-import { COLORS, TARGET_COLORS } from "../constants";
+import { COLORS } from "../constants";
 
 vi.mock("./Chart", () => ({
   default: ({ title, onHide }: { title: string; onHide?: () => void }) => (
@@ -34,23 +34,24 @@ const defaultProps = {
 };
 
 describe("MonitorChartGrid", () => {
-  it("renders visible charts with correct titles", () => {
+  it("renders visible charts with correct titles", async () => {
     render(<MonitorChartGrid {...defaultProps} />);
-    expect(screen.getByText("Throughput (TPS)")).toBeInTheDocument();
+    await screen.findByText("Throughput (TPS)");
     expect(screen.getByText("E2E Latency (ms)")).toBeInTheDocument();
     expect(screen.getByText("TTFT (ms)")).toBeInTheDocument();
   });
 
-  it("does not render charts not in visibleCharts", () => {
+  it("does not render charts not in visibleCharts", async () => {
     render(<MonitorChartGrid {...defaultProps} />);
+    await screen.findByText("Throughput (TPS)");
     expect(screen.queryByText("KV Cache Usage (%)")).not.toBeInTheDocument();
     expect(screen.queryByText("GPU Utilization (%)")).not.toBeInTheDocument();
   });
 
-  it("calls onHideChart when chart hide button is clicked", () => {
+  it("calls onHideChart when chart hide button is clicked", async () => {
     const onHide = vi.fn();
     render(<MonitorChartGrid {...defaultProps} onHideChart={onHide} />);
-    fireEvent.click(screen.getByLabelText("Hide Throughput (TPS) chart"));
+    fireEvent.click(await screen.findByLabelText("Hide Throughput (TPS) chart"));
     expect(onHide).toHaveBeenCalledWith("tps");
   });
 
@@ -73,23 +74,24 @@ describe("MonitorChartGrid", () => {
     expect(onShow).toHaveBeenCalledWith("kv");
   });
 
-  it("renders all 12 charts when visibleCharts includes all IDs", () => {
+  it("renders all 12 charts when visibleCharts includes all IDs", async () => {
     const allIds = CHART_DEFINITIONS.map(c => c.id);
     render(<MonitorChartGrid {...defaultProps} visibleCharts={allIds} />);
+    await screen.findByText("Throughput (TPS)");
     expect(screen.getAllByRole("generic", { hidden: true }).length).toBeGreaterThanOrEqual(12);
     CHART_DEFINITIONS.forEach(def => {
       expect(screen.getByText(def.title)).toBeInTheDocument();
     });
   });
 
-  it("renders with empty chartData without crashing", () => {
+  it("renders with empty chartData without crashing", async () => {
     render(<MonitorChartGrid {...defaultProps} chartData={[]} />);
-    expect(screen.getByText("Throughput (TPS)")).toBeInTheDocument();
+    expect(await screen.findByText("Throughput (TPS)")).toBeInTheDocument();
   });
 
-  it("skips unknown chart IDs gracefully", () => {
+  it("skips unknown chart IDs gracefully", async () => {
     render(<MonitorChartGrid {...defaultProps} visibleCharts={["tps", "nonexistent"]} />);
-    expect(screen.getByText("Throughput (TPS)")).toBeInTheDocument();
+    expect(await screen.findByText("Throughput (TPS)")).toBeInTheDocument();
     expect(screen.queryByText("nonexistent")).not.toBeInTheDocument();
   });
 });

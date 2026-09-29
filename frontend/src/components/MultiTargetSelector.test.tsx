@@ -84,7 +84,8 @@ describe("MultiTargetSelector", () => {
     };
     vi.mocked(useClusterConfig).mockReturnValue(emptyMock as unknown as ClusterConfigContextValue);
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
-    expect(screen.getByText("Add a monitoring target")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Namespace")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Discover" })).toBeInTheDocument();
   });
 
   it("renders target row with data-testid", () => {
@@ -246,7 +247,7 @@ describe("MultiTargetSelector", () => {
     fireEvent.click(screen.getByTestId("apply-default-btn"));
     
     await waitFor(() => {
-      expect(screen.getByText("기본 타겟 업데이트 실패")).toBeInTheDocument();
+      expect(screen.getByText("Failed to update default target")).toBeInTheDocument();
     });
   });
 

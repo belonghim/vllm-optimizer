@@ -10,7 +10,8 @@ from pydantic import ValidationError
 
 from ..main import app
 from ..models.load_test import LoadTestConfig, SweepConfig, SweepResult, TuningConfig, TuningTrial
-from ..services.auto_tuner import AutoTuner, _get_k8s_namespace, _get_vllm_is_name
+from ..services.auto_tuner import AutoTuner
+from ..services.k8s_operator import get_k8s_namespace, get_vllm_is_name
 from ..services.load_engine import LoadTestEngine
 from ..services.multi_target_collector import MultiTargetMetricsCollector
 
@@ -1244,7 +1245,7 @@ async def test_rollback_uses_inferenceservice_annotation(auto_tuner_instance, mo
     mock_custom_api = mock_k8s_clients[2].return_value
 
     tuner._is_args_snapshot = {
-        "metadata": {"name": _get_vllm_is_name(), "namespace": _get_k8s_namespace()},
+        "metadata": {"name": get_vllm_is_name(), "namespace": get_k8s_namespace()},
         "spec": {"predictor": {"model": {"args": ["--max-num-seqs=64"]}}},
     }
 
@@ -1252,7 +1253,7 @@ async def test_rollback_uses_inferenceservice_annotation(auto_tuner_instance, mo
 
     mock_custom_api.create_namespaced_custom_object.assert_called_once()
     call_args = mock_custom_api.create_namespaced_custom_object.call_args
-    assert call_args.kwargs["namespace"] == _get_k8s_namespace()
+    assert call_args.kwargs["namespace"] == get_k8s_namespace()
     patch_body = call_args.kwargs["body"]
     assert patch_body["spec"]["predictor"]["model"]["args"] == ["--max-num-seqs=64"]
 

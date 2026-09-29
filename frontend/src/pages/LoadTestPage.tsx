@@ -7,6 +7,7 @@ import TargetSelector from "../components/TargetSelector";
 import type { ClusterTarget } from "../types";
 import { buildDefaultEndpoint } from "../utils/endpointUtils";
 import { authFetch } from '../utils/authFetch';
+import { API } from "../constants";
 
 interface LoadTestPageProps {
   isActive: boolean;
@@ -19,7 +20,6 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
   const { endpoint: globalEndpoint, isLoading: globalIsLoading, resolvedModelName, crType } = useClusterConfig();
   const [mode, setMode] = useState<'normal' | 'sweep'>('normal');
   const [sharedEndpoint, setSharedEndpoint] = useState("");
-  const [sharedModel, setSharedModel] = useState(resolvedModelName || "auto");
   const [sweepModel, setSweepModel] = useState(resolvedModelName || "auto");
   const [targetModel, setTargetModel] = useState<string | undefined>(undefined);
   const [selectedTarget, setSelectedTarget] = useState<ClusterTarget | null>(null);
@@ -42,7 +42,6 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
 
   useEffect(() => {
     if (!globalIsLoading && resolvedModelName) {
-      setSharedModel(prev => (prev === "" || prev === "auto" || prev === resolvedModelName) ? resolvedModelName : prev);
       setSweepModel(prev => (prev === "" || prev === "auto" || prev === resolvedModelName) ? resolvedModelName : prev);
     }
   }, [globalIsLoading, resolvedModelName]);
@@ -63,7 +62,7 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
           is_name: selectedTarget.inferenceService,
           ...(selectedTarget.crType ? { cr_type: selectedTarget.crType } : {}),
         });
-        const resp = await authFetch(`/api/vllm-config?${params}`, { signal: controller.signal });
+        const resp = await authFetch(`${API}/vllm-config?${params}`, { signal: controller.signal });
         if (!resp.ok) return;
         const data = await resp.json();
         const modelName = data.resolvedModelName || data.modelName;
@@ -112,7 +111,6 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
               onConfigConsumed={onConfigConsumed}
               onRunningChange={onRunningChange}
               onEndpointChange={setSharedEndpoint}
-              onModelChange={setSharedModel}
               targetEndpoint={targetEndpoint}
               targetModel={targetModel}
             />

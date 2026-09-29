@@ -1,4 +1,3 @@
-import pytest
 from services.multi_target_collector import MultiTargetMetricsCollector
 
 

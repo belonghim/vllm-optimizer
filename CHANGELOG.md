@@ -2,6 +2,43 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-09-29] - 코드베이스 재정비: 테스트 그린 복구 + 최적화
+
+**Status**: Completed
+
+장기 미점검 후 전체 검토. `24b0fa0`(default target 자동등록 제거) 리팩터 이후 방치된 백엔드/프론트엔드 테스트 불일치를 전면 복구하고, 코드 품질·번들·모듈 구조를 최적화.
+
+### Fixed (Backend)
+- **`backend/tests/test_tuner.py`**: `auto_tuner`에서 이동한 `get_k8s_namespace`/`get_vllm_is_name` import를 `k8s_operator`로 수정 — 기본 `pytest` 수집 실패(전체 중단) 해소.
+- **stale 테스트 복구**: `_register_default_target`/`_get_default_target` 제거 반영(`test_direct_scrape`, `test_metrics_collector`), `auto_tuner.k8s_config` → `k8s_operator.k8s_config` 패치(`test_auto_tuner`), `/api/metrics/latest`의 namespace+is_name 계약 반영(`test_chaos`), `_DummyTrial.set_user_attr` 추가, conftest 스텁 `get_cr_exists` 추가.
+- **`backend/services/multi_target_collector.py`**: `gpu_utilization_pct` 집계를 `sum` → `avg`로 복원 (`8dfe8c7` 회귀; 백분율 합산은 100% 초과 가능).
+- **ruff 13건 + 포맷 정리**: import 정렬, 미사용 변수, `B904`, `SIM108` 등.
+
+### Removed
+- **`backend/services/config_watcher.py` + `test_config_watcher.py`**: `main.py` 미배선 + `_WATCHED_FIELDS = ()` 상태의 dead code 삭제 (기능 은퇴).
+- **`debug_routes.py`** (루트 잔재), **`test_guidellm_parser.py`**의 중복·미완성 `test_ms_to_seconds_conversion` 삭제.
+
+### Changed (Backend)
+- **env 헬퍼 중복 제거**: `_get_k8s_namespace`/`_get_vllm_is_name`을 `k8s_operator.py` 단일 정의로 통합, `vllm_config.py`는 import 사용.
+- **`backend/routers/status.py`**: async 내 블로킹 `os.path.exists` → `asyncio.to_thread`.
+- **대형 파일 분해**: `metric_math.py`(히스토그램·rate 순수 계산)와 `storage_schema.py`(DDL) 추출, 기존 메서드는 위임(delegator)으로 유지.
+
+### Fixed (Frontend)
+- **`BenchmarkItem` import 경로** 수정(`pages/BenchmarkPage` → `types`) — `tsc` 2 errors 해소.
+- **stale 테스트 복구**: `ClusterConfigContext` 15건(ConfigMap/default target 계약), `MultiTargetSelector` 2건(빈 상태·에러 문구) — 현 구현 기준으로 정렬.
+- **타입 안전성/일관성**: `any` 캐스트 제거(`useTunerLogic`의 `toTunerConfig` 검증 매핑, `TargetResult.crExists` 타입 추가), `/api/...` 하드코딩 → `${API}`, fetch `AbortController` cleanup(`useMonitorLogic`/`TunerHistoryPanel`/`useSweepHistory`), `useLoadTestSSE` 타이머 cleanup.
+
+### Changed (Frontend)
+- **recharts 지연 로딩**: 차트 컴포넌트를 `React.lazy` + `Suspense`로 분리 — 초기 엔트리 청크에서 recharts 제거(엔트리 gzip 57 kB, `generateCategoricalChart` gzip 103 kB는 lazy chunk).
+- **`ClusterConfigContext.tsx` 556 → 357줄**: `useConfigMapTargets`, `useResolvedModelName`, `clusterConfigShared`로 추출(공개 API·동작 불변).
+- **SSE 재연결 로직 공용화**: `utils/reconnectingEventSource.ts` 신설 — `useSSE` 77→40줄, `useLoadTestSSE` 137→110줄.
+
+### Verification
+- Backend: **536 passed, 0 failed**, 24 skipped, 172 deselected (`not integration and not slow`); `ruff check`/`ruff format --check` clean.
+- Frontend: **435 passed, 0 failed**; `tsc --noEmit` 0 errors; `eslint` 0 errors / 0 warnings; production build 성공.
+
+---
+
 ## [2026-03-31] - architecture-hardening
 
 **Status**: Completed

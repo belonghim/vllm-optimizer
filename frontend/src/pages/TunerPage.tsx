@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { useTunerLogic } from "../hooks/useTunerLogic";
 import TunerConfigSection from "../components/TunerConfigSection";
-import TunerResults from "../components/TunerResults";
 import TunerHistoryPanel from "../components/TunerHistoryPanel";
 import TunerWarmupSuggestions from "../components/TunerWarmupSuggestions";
 import TunerReport from "../components/TunerReport";
 import LoadingSpinner from "../components/LoadingSpinner";
 import TargetSelector from "../components/TargetSelector";
 import type { ClusterTarget } from "../types";
+
+// Lazy: keeps recharts out of the Tuner page chunk until tuning results exist
+const TunerResults = lazy(() => import("../components/TunerResults"));
 
 interface TunerPageProps {
   isActive: boolean;
@@ -66,13 +68,15 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
         <LoadingSpinner />
       ) : (
         <>
-          <TunerResults
-            trials={trials}
-            bestParams={status.best}
-            status={status}
-            isRunning={status.running}
-            importance={importance}
-          />
+          <Suspense fallback={<LoadingSpinner />}>
+            <TunerResults
+              trials={trials}
+              bestParams={status.best}
+              status={status}
+              isRunning={status.running}
+              importance={importance}
+            />
+          </Suspense>
           {tuningReport && (
             <TunerReport markdown={tuningReport.markdown} summary={tuningReport.summary} />
           )}

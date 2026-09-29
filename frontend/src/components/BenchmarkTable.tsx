@@ -1,5 +1,4 @@
 import { Fragment } from "react";
-import { useThemeColors } from "../contexts/ThemeContext";
 import LoadingSpinner from "./LoadingSpinner";
 import { fmt } from "../utils/format";
 import { calcGpuEfficiency } from "../utils/metrics";
@@ -29,8 +28,6 @@ export default function BenchmarkTable({
   onToggleSelect, onToggleExpand, onDelete, onEdit,
   onExportJSON, onExportCSV, onImport, onBulkDelete, onRerun,
 }: BenchmarkTableProps) {
-  const { COLORS } = useThemeColors();
-
   return (
     <div className="panel">
       <div className="section-title">Saved Benchmarks</div>
