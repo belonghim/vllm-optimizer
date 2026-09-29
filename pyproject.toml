@@ -7,10 +7,11 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["E501", "B008", "SIM117"]
 
 [tool.ruff.lint.per-file-ignores]
-"backend/tests/*" = ["E501", "F811"]
+"backend/tests/**" = ["E501", "F811"]
 
 [tool.pytest.ini_options]
 pythonpath = ["backend"]
+testpaths = ["backend/tests"]
 asyncio_mode = "auto"
 addopts = "--strict-markers -m 'not integration and not slow'"
 markers = [

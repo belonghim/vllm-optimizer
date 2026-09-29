@@ -11,7 +11,7 @@ interface BenchmarkTableProps {
   expanded: (string | number)[];
   loading: boolean;
   importing: boolean;
-  importInputRef: React.RefObject<HTMLInputElement | null>;
+  importInputRef: React.MutableRefObject<HTMLInputElement | null>;
   onToggleSelect: (id: string | number, e: React.MouseEvent) => void;
   onToggleExpand: (id: string | number) => void;
   onDelete: (b: BenchmarkItem, e: React.MouseEvent) => void;

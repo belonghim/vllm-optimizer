@@ -1,7 +1,7 @@
 ---
 title: vLLM Optimizer System Architecture
 date: 2026-03-08
-updated: 2026-09-29
+updated: 2026-09-30
 tags: [architecture, vllm, openshift]
 status: published
 ---
@@ -156,11 +156,11 @@ The backend is a FastAPI application written in Python, running on port `8000`. 
 
 #### Key Backend Components:
 
--   **`main.py`**: This is the entry point for the FastAPI application. It initializes the application, registers routers for different functionalities (load test, metrics, benchmark, tuner), and starts background services like the `MetricsCollector`.
+-   **`main.py`**: This is the entry point for the FastAPI application. It initializes the application, registers routers for different functionalities (load test, metrics, benchmark, tuner), and starts background services like the multi-target metrics collector.
 -   **`services/load_engine.py`**: This module contains the asynchronous engine responsible for generating load against the vLLM endpoint. It handles concurrent requests and collects response statistics during load tests.
 -   **`services/multi_target_collector.py`**: This critical background service periodically collects metrics from the OpenShift cluster. It performs two main tasks:
     1.  **Thanos Querier Integration**: Queries the Thanos Querier (part of the OpenShift Monitoring Stack) for vLLM-specific metrics (e.g., `vllm:num_requests_running`, `vllm:num_requests_waiting`, token counters, latency histograms). It uses a Bearer token for authentication and `verify=False` for self-signed certificates.
-    2.  **Direct Pod Scraping**: Optionally scrapes metrics directly from vLLM pods via their `/metrics` endpoint when `METRICS_SOURCE=direct` is set. Includes retry logic for transient network errors and proper handling of connection issues.
+    2.  **Direct Pod Scraping**: Optionally scrapes metrics directly from vLLM pods via their `/metrics` endpoint when the target's `metrics_source` is `direct` (`thanos` queries Thanos only). Includes retry logic for transient network errors and proper handling of connection issues.
     The collected metrics are then used to update Prometheus client gauges, counters, and histograms, which are exposed via the `/metrics` endpoint.
 -   **`services/auto_tuner.py`**: Thin facade that composes K8sOperator, EventBroadcaster, and TunerLogic. Manages the tuning loop, state, and public API (start, stop, subscribe, unsubscribe, get_importance). Owns all asyncio.Lock instances.
 -   **`services/k8s_operator.py`**: Handles all Kubernetes API operations — InferenceService readiness checks, args patching, rollback, and preflight permission validation. Lock-free; receives locks as parameters from AutoTuner.
@@ -170,15 +170,15 @@ The backend is a FastAPI application written in Python, running on port `8000`. 
 -   **`services/storage_schema.py`**: SQLite DDL/table-creation extracted from `storage.py`; `Storage._create_*_tables` methods delegate here.
 -   **`metrics/prometheus_metrics.py`**: This module defines custom Prometheus metrics (gauges, counters, histograms) used by the vLLM Optimizer. It also exposes the `/metrics` endpoint, which Prometheus can scrape.
 
-#### Singleton Pattern for `MetricsCollector`:
+#### Singleton Pattern for `MultiTargetMetricsCollector`:
 
-The `MetricsCollector` is designed as a singleton to ensure only one instance runs and manages metric collection. It is accessed throughout the application using `from services.shared import metrics_collector`, preventing direct instantiation.
+The `MultiTargetMetricsCollector` is designed as a singleton to ensure only one instance runs and manages metric collection. It is accessed throughout the application using `from services.shared import multi_target_collector`, preventing direct instantiation.
 
 ## Data Flows
 
 ### Metrics Flow
 
-1.  The `MetricsCollector` runs as a background loop, periodically querying:
+1.  The `MultiTargetMetricsCollector` runs as a background loop, periodically querying:
     -   Thanos Querier for vLLM performance metrics.
     -   Kubernetes API for vLLM pod status.
 2.  The collected data updates internal Prometheus client metrics within the FastAPI backend.
@@ -211,8 +211,8 @@ The `MetricsCollector` is designed as a singleton to ensure only one instance ru
 The vLLM instance is deployed on OpenShift using KServe. KServe follows a specific naming convention that the vLLM Optimizer must adhere to for proper interaction.
 
 -   **InferenceService Name**: If the KServe `InferenceService` is named `llm-ov`, configured via `VLLM_DEPLOYMENT_NAME` environment variable.
--   **Deployment Name**: KServe automatically creates a Deployment named `{InferenceService_name}-predictor`, e.g., `llm-ov-predictor`. This is the value used for the `K8S_DEPLOYMENT_NAME` environment variable (used by `MetricsCollector` for pod listing).
--   **Pod Label**: KServe assigns a pod label `app=isvc.{Deployment_name}`, e.g., `app=isvc.llm-ov-predictor`. This label is crucial for the `MetricsCollector` to identify and monitor the correct vLLM pods.
+-   **Deployment Name**: KServe automatically creates a Deployment named `{InferenceService_name}-predictor`, e.g., `llm-ov-predictor`. This is the value used for the `K8S_DEPLOYMENT_NAME` environment variable (legacy; pod listing now uses the target's `pod_label_selector`).
+-   **Pod Label**: The collector lists pods via the CR adapter's label selector — `serving.kserve.io/inferenceservice={name}` for KServe, `app.kubernetes.io/name={name},kserve.io/component=workload` for LLMIS.
 -   **vLLM Endpoint**: The internal service endpoint for the vLLM instance will be `http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080`.
 -   **Auto-Tuner Restart**: The auto-tuner uses `K8S_DEPLOYMENT_NAME` (Deployment name, `llm-ov-predictor`) for pod restarts, and `VLLM_DEPLOYMENT_NAME` (InferenceService name, `llm-ov`) is kept separate. Do not confuse the two.
 

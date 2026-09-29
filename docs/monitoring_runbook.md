@@ -1,7 +1,7 @@
 ---
 title: "Monitoring Runbook - vLLM Optimizer Prometheus Integration"
 date: 2026-02-24
-updated: 2026-04-04
+updated: 2026-09-30
 author: GPS Consultant
 tags: [monitoring, prometheus, vllm, runbook, llmisvc]
 status: published
@@ -27,7 +27,7 @@ Targets are registered via the `/api/metrics/latest` endpoint:
 curl "http://localhost:8000/api/metrics/latest?namespace=vllm-lab-dev&is_name=llm-ov&cr_type=inferenceservice"
 
 # Register an LLMInferenceService target
-curl "http://localhost:8000/api/metrics/latest?namespace=llm-d-demo&is_name=gemma-4&cr_type=llminferenceservice"
+curl "http://localhost:8000/api/metrics/latest?namespace=vllm-lab-dev&is_name=my-llmisvc&cr_type=llminferenceservice"
 ```
 
 ### Batch Metrics Query
@@ -40,7 +40,7 @@ curl -X POST http://localhost:8000/api/metrics/batch \
   -d '{
     "targets": [
       {"namespace": "vllm-lab-dev", "inferenceService": "llm-ov", "cr_type": "inferenceservice"},
-      {"namespace": "llm-d-demo", "inferenceService": "gemma-4", "cr_type": "llminferenceservice"}
+      {"namespace": "vllm-lab-dev", "inferenceService": "my-llmisvc", "cr_type": "llminferenceservice"}
     ]
   }'
 ```
@@ -54,7 +54,7 @@ curl -X POST http://localhost:8000/api/metrics/pods \
   -H "Content-Type: application/json" \
   -d '{
     "targets": [
-      {"namespace": "llm-d-demo", "inferenceService": "gemma-4", "cr_type": "llminferenceservice"}
+      {"namespace": "vllm-lab-dev", "inferenceService": "my-llmisvc", "cr_type": "llminferenceservice"}
     ]
   }'
 ```

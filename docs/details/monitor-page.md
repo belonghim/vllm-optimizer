@@ -62,7 +62,7 @@ Located at the very top of the page, split into two sections:
 
 **Backend Behavior**:
 - If `metrics_source` is provided in the request, uses that source
-- If not provided, falls back to `METRICS_SOURCE` environment variable (default: "direct")
+- If not provided, the target's configured `metrics_source` is used (default: `direct`)
 - Historical time ranges always use Thanos regardless of this setting
 
 ---
@@ -258,15 +258,15 @@ Monitor 페이지에 진입했을 때 타겟이 하나도 등록되어 있지 �
 
 ### Thanos 연결 실패
 
-`METRICS_SOURCE=thanos` 환경 변수로 Thanos Querier를 사용하는 경우:
+타겟의 `metrics_source`가 `thanos`인 경우:
 - Thanos Querier에 연결할 수 없거나 인증 실패 시 응답의 `collector_version`이 "unknown"으로 반환
 - 모든 메트릭 값이 0이거나 null로 표시됨
-- 这种 상태에서는 GPU%, GPU Mem 등 메트릭이 모두 "-"로 표시됨
+- 이러한 상태에서는 GPU%, GPU Mem 등 메트릭이 모두 "-"로 표시됨
 - ErrorAlert에 Thanos 연결 오류 메시지가 표시될 수 있음
 
 ### Direct 모드에서 Pod IP 없음
 
-`METRICS_SOURCE=direct` 모드에서 메트릭을 수집하는 경우:
+`direct` 모드에서 메트릭을 수집하는 경우:
 - Pod IP를 가져올 수 없는 타겟 (예: Pod이 아직 Running 상태가 아닌 경우) 해당 타겟의 메트릭이 빈값으로 표시
 - Pods 컬럼에 해당 타겟이 "0/0" 또는 "—"로 표시됨
 - 해당 타겟의 모든 메트릭(tps, latency, gpu 등)이 "—" 대시로 표시됨
