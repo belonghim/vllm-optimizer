@@ -15,7 +15,9 @@ interface LoadTestResultInput {
  * @param result - Load test result object
  * @returns GPU efficiency metrics
  */
-export function calcGpuEfficiency(result: LoadTestResultInput | null | undefined): GpuEfficiencyResult {
+export function calcGpuEfficiency(
+  result: LoadTestResultInput | null | undefined
+): GpuEfficiencyResult {
   if (result?.metrics_target_matched === false) {
     return { value: null, display: 'N/A', mismatch: true };
   }

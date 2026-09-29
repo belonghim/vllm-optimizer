@@ -1,6 +1,15 @@
-import { useThemeColors } from "../contexts/ThemeContext";
-import { TARGET_COLORS } from "../constants";
-import { BarChart, Bar, Cell, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { useThemeColors } from '../contexts/ThemeContext';
+import { TARGET_COLORS } from '../constants';
+import {
+  BarChart,
+  Bar,
+  Cell,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
 
 export interface CompareDataItem {
   name: string;
@@ -58,7 +67,7 @@ export default function BenchmarkCompareCharts({ compareData }: BenchmarkCompare
         <div>
           <div className="label">GPU Efficiency Comparison (TPS/GPU%)</div>
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={compareData.filter(d => d.metricsTargetMatched)}>
+            <BarChart data={compareData.filter((d) => d.metricsTargetMatched)}>
               <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
               <XAxis dataKey="name" tick={{ fontSize: 9, fill: COLORS.muted }} />
               <YAxis tick={{ fontSize: 9, fill: COLORS.muted }} />

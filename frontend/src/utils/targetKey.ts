@@ -6,7 +6,9 @@ export function getTargetKey(target: ClusterTarget): string {
   return `${target.namespace}/${target.inferenceService}/${target.crType || CR_TYPE_DEFAULT}`;
 }
 
-export function parseTargetKey(key: string): { namespace: string; inferenceService: string; crType: string } | null {
+export function parseTargetKey(
+  key: string
+): { namespace: string; inferenceService: string; crType: string } | null {
   const parts = key.split('/');
   if (parts.length !== 3) return null;
   const [namespace, inferenceService, crType] = parts;
@@ -17,5 +19,9 @@ export function targetMatches(
   t: ClusterTarget,
   key: { namespace: string; inferenceService: string; crType: string }
 ): boolean {
-  return t.namespace === key.namespace && t.inferenceService === key.inferenceService && t.crType === key.crType;
+  return (
+    t.namespace === key.namespace &&
+    t.inferenceService === key.inferenceService &&
+    t.crType === key.crType
+  );
 }

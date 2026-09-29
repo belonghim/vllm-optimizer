@@ -5,11 +5,19 @@ const localStorageMock = (() => {
   let store: Record<string, string> = {};
   return {
     getItem: vi.fn((key: string): string | null => store[key] ?? null),
-    setItem: vi.fn((key: string, val: string) => { store[key] = val; }),
-    removeItem: vi.fn((key: string) => { delete store[key]; }),
-    clear: vi.fn(() => { store = {}; }),
+    setItem: vi.fn((key: string, val: string) => {
+      store[key] = val;
+    }),
+    removeItem: vi.fn((key: string) => {
+      delete store[key];
+    }),
+    clear: vi.fn(() => {
+      store = {};
+    }),
     _getStore: () => store,
-    _setStore: (s: Record<string, string>) => { store = s; },
+    _setStore: (s: Record<string, string>) => {
+      store = s;
+    },
   };
 })();
 
@@ -19,7 +27,17 @@ Object.defineProperty(global, 'localStorage', {
 });
 
 const LS_KEY = 'vllm-optimizer-chart-config';
-const DEFAULT_IDS = ['tps', 'e2e_latency', 'ttft', 'kv', 'kv_hit', 'queue', 'rps', 'gpu_util', 'gpu_mem'];
+const DEFAULT_IDS = [
+  'tps',
+  'e2e_latency',
+  'ttft',
+  'kv',
+  'kv_hit',
+  'queue',
+  'rps',
+  'gpu_util',
+  'gpu_mem',
+];
 
 interface StoredChartConfig {
   order?: string[];
@@ -33,7 +51,7 @@ function loadChartConfig(): { order: string[]; hidden: string[] } {
     const parsed: StoredChartConfig = JSON.parse(raw);
     const validIds = new Set(DEFAULT_IDS);
     const migrateIds = (ids: string[]): string[] =>
-      ids.map((id: string) => id === 'latency' ? 'e2e_latency' : id);
+      ids.map((id: string) => (id === 'latency' ? 'e2e_latency' : id));
     const order = Array.isArray(parsed.order)
       ? migrateIds(parsed.order.filter((id: string) => validIds.has(id)))
       : DEFAULT_IDS;
@@ -41,7 +59,9 @@ function loadChartConfig(): { order: string[]; hidden: string[] } {
       ? migrateIds(parsed.hidden.filter((id: string) => validIds.has(id)))
       : [];
     const inOrder = new Set(order);
-    DEFAULT_IDS.forEach((id: string) => { if (!inOrder.has(id)) order.push(id); });
+    DEFAULT_IDS.forEach((id: string) => {
+      if (!inOrder.has(id)) order.push(id);
+    });
     return { order, hidden };
   } catch {
     return { order: DEFAULT_IDS, hidden: [] };
@@ -70,7 +90,10 @@ describe('loadChartConfig', () => {
   });
 
   it('returns parsed config from localStorage', () => {
-    const stored = { order: ['rps', 'tps', 'e2e_latency', 'ttft', 'kv', 'kv_hit', 'queue', 'gpu_util', 'gpu_mem'], hidden: ['gpu_mem'] };
+    const stored = {
+      order: ['rps', 'tps', 'e2e_latency', 'ttft', 'kv', 'kv_hit', 'queue', 'gpu_util', 'gpu_mem'],
+      hidden: ['gpu_mem'],
+    };
     localStorageMock.getItem.mockReturnValue(JSON.stringify(stored));
     const config = loadChartConfig();
     expect(config.hidden).toContain('gpu_mem');
@@ -97,11 +120,11 @@ describe('loadChartConfig', () => {
     localStorageMock.getItem.mockReturnValue(JSON.stringify(stored));
     const config = loadChartConfig();
     // All 9 IDs must be in order
-    DEFAULT_IDS.forEach(id => expect(config.order).toContain(id));
+    DEFAULT_IDS.forEach((id) => expect(config.order).toContain(id));
   });
 
   it('preserves order of valid IDs in stored config', () => {
-const stored = { order: ['gpu_mem', 'e2e_latency', 'tps'], hidden: [] };
+    const stored = { order: ['gpu_mem', 'e2e_latency', 'tps'], hidden: [] };
     localStorageMock.getItem.mockReturnValue(JSON.stringify(stored));
     const config = loadChartConfig();
     expect(config.order[1]).toBe('e2e_latency');
@@ -125,12 +148,12 @@ describe('saveChartConfig', () => {
     );
   });
 
-   it('handles empty arrays', () => {
-     saveChartConfig([], []);
-     const stored = JSON.parse(localStorageMock._getStore()[LS_KEY]!);
-     expect(stored.order).toEqual([]);
-     expect(stored.hidden).toEqual([]);
-   });
+  it('handles empty arrays', () => {
+    saveChartConfig([], []);
+    const stored = JSON.parse(localStorageMock._getStore()[LS_KEY]!);
+    expect(stored.order).toEqual([]);
+    expect(stored.hidden).toEqual([]);
+  });
 });
 
 describe('chart config integration', () => {
@@ -141,7 +164,7 @@ describe('chart config integration', () => {
 
   it('saveChartConfig stores correct structure in localStorage', () => {
     saveChartConfig(['tps', 'e2e_latency'], ['gpu_mem']);
-    
+
     expect(localStorageMock.setItem).toHaveBeenCalledWith(
       LS_KEY,
       JSON.stringify({ order: ['tps', 'e2e_latency'], hidden: ['gpu_mem'] })
@@ -149,7 +172,7 @@ describe('chart config integration', () => {
   });
 
   it('loadChartConfig returns stored order and hidden arrays', () => {
-const stored = { order: ['tps', 'e2e_latency'], hidden: ['gpu_mem'] };
+    const stored = { order: ['tps', 'e2e_latency'], hidden: ['gpu_mem'] };
     localStorageMock.getItem.mockReturnValue(JSON.stringify(stored));
     const loaded = loadChartConfig();
     expect(loaded.order).toContain('e2e_latency');

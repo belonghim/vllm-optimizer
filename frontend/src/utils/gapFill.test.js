@@ -22,7 +22,10 @@ describe('buildGapFill', () => {
   });
 
   it('mixed gaps filled correctly', () => {
-    const result = buildGapFill([{ ttft: 80 }, { ttft: null }, { ttft: null }, { ttft: 95 }], ['ttft']);
+    const result = buildGapFill(
+      [{ ttft: 80 }, { ttft: null }, { ttft: null }, { ttft: 95 }],
+      ['ttft']
+    );
     expect(result[1].ttft_fill).toBe(80);
     expect(result[2].ttft_fill).toBe(80);
     expect(result[3].ttft_fill).toBe(95);
@@ -45,7 +48,10 @@ describe('buildGapFill', () => {
 
   it('handles multiple keys independently', () => {
     const result = buildGapFill(
-      [{ ttft: 80, lat_p99: 500 }, { ttft: null, lat_p99: null }],
+      [
+        { ttft: 80, lat_p99: 500 },
+        { ttft: null, lat_p99: null },
+      ],
       ['ttft', 'lat_p99']
     );
     expect(result[1].ttft_fill).toBe(80);

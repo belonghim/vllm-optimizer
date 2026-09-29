@@ -5,72 +5,72 @@ describe('calcGpuEfficiency', () => {
   it('valid case: calculates efficiency correctly', () => {
     const result = calcGpuEfficiency({
       gpu_utilization_avg: 50,
-      tps: { mean: 100 }
+      tps: { mean: 100 },
     });
     expect(result).toEqual({
       value: 2,
       display: '2.0',
-      mismatch: false
+      mismatch: false,
     });
   });
 
   it('null tps: returns null value with dash display', () => {
     const result = calcGpuEfficiency({
       gpu_utilization_avg: 50,
-      tps: null
+      tps: null,
     });
     expect(result).toEqual({
       value: null,
       display: '—',
-      mismatch: false
+      mismatch: false,
     });
   });
 
   it('null tps.mean: returns null value with dash display', () => {
     const result = calcGpuEfficiency({
       gpu_utilization_avg: 50,
-      tps: { mean: null }
+      tps: { mean: null },
     });
     expect(result).toEqual({
       value: null,
       display: '—',
-      mismatch: false
+      mismatch: false,
     });
   });
 
   it('undefined tps: returns null value with dash display', () => {
     const result = calcGpuEfficiency({
       gpu_utilization_avg: 50,
-      tps: undefined
+      tps: undefined,
     });
     expect(result).toEqual({
       value: null,
       display: '—',
-      mismatch: false
+      mismatch: false,
     });
   });
 
   it('missing gpu_utilization_avg: returns null value with dash display', () => {
     const result = calcGpuEfficiency({
       gpu_utilization_avg: undefined,
-      tps: { mean: 100 }
+      tps: { mean: 100 },
     });
     expect(result).toEqual({
       value: null,
       display: '—',
-      mismatch: false
+      mismatch: false,
     });
   });
 
   it('zero gpu_utilization_avg: returns null value with dash display', () => {
     const result = calcGpuEfficiency({
       gpu_utilization_avg: 0,
-      tps: { mean: 100 }
+      tps: { mean: 100 },
     });
     expect(result).toEqual({
       value: null,
       display: '—',
-      mismatch: false
+      mismatch: false,
     });
   });
 
@@ -78,12 +78,12 @@ describe('calcGpuEfficiency', () => {
     const result = calcGpuEfficiency({
       metrics_target_matched: false,
       gpu_utilization_avg: 50,
-      tps: { mean: 100 }
+      tps: { mean: 100 },
     });
     expect(result).toEqual({
       value: null,
       display: 'N/A',
-      mismatch: true
+      mismatch: true,
     });
   });
 
@@ -92,7 +92,7 @@ describe('calcGpuEfficiency', () => {
     expect(result).toEqual({
       value: null,
       display: '—',
-      mismatch: false
+      mismatch: false,
     });
   });
 
@@ -101,7 +101,7 @@ describe('calcGpuEfficiency', () => {
     expect(result).toEqual({
       value: null,
       display: '—',
-      mismatch: false
+      mismatch: false,
     });
   });
 });

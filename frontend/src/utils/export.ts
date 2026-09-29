@@ -42,9 +42,9 @@ interface Trial {
 }
 
 function escapeCsv(value: unknown): string {
-  if (value == null) return "";
+  if (value == null) return '';
   const str = String(value);
-  if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
     return `"${str.replace(/"/g, '""')}"`;
   }
   return str;
@@ -52,10 +52,10 @@ function escapeCsv(value: unknown): string {
 
 export function downloadJSON(data: unknown, filename: string): void {
   const jsonStr = JSON.stringify(data, null, 2);
-  const blob = new Blob([jsonStr], { type: "application/json" });
+  const blob = new Blob([jsonStr], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
 
-  const link = document.createElement("a");
+  const link = document.createElement('a');
   link.href = url;
   link.download = filename;
   document.body.appendChild(link);
@@ -64,21 +64,17 @@ export function downloadJSON(data: unknown, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
-export function downloadCSV(
-  headers: string[],
-  rows: string[][],
-  filename: string
-): void {
-  const headerRow = headers.map(escapeCsv).join(",");
-  const dataRows = rows.map((row) => row.map(escapeCsv).join(",")).join("\n");
-  const csv = headerRow + "\n" + dataRows;
+export function downloadCSV(headers: string[], rows: string[][], filename: string): void {
+  const headerRow = headers.map(escapeCsv).join(',');
+  const dataRows = rows.map((row) => row.map(escapeCsv).join(',')).join('\n');
+  const csv = headerRow + '\n' + dataRows;
 
   // UTF-8 BOM for Excel to display Korean correctly
-  const bomCSV = "\uFEFF" + csv;
-  const blob = new Blob([bomCSV], { type: "text/csv;charset=utf-8" });
+  const bomCSV = '\uFEFF' + csv;
+  const blob = new Blob([bomCSV], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
 
-  const link = document.createElement("a");
+  const link = document.createElement('a');
   link.href = url;
   link.download = filename;
   document.body.appendChild(link);
@@ -87,28 +83,16 @@ export function downloadCSV(
   URL.revokeObjectURL(url);
 }
 
-export function benchmarksToCSV(
-  benchmarks: Benchmark[]
-): { headers: string[]; rows: string[][] } {
-  const headers = [
-    "Name",
-    "Date",
-    "TPS(mean)",
-    "P99 Latency(ms)",
-    "TTFT(ms)",
-    "RPS",
-    "Model",
-  ];
+export function benchmarksToCSV(benchmarks: Benchmark[]): { headers: string[]; rows: string[][] } {
+  const headers = ['Name', 'Date', 'TPS(mean)', 'P99 Latency(ms)', 'TTFT(ms)', 'RPS', 'Model'];
 
   const rows = benchmarks.map((benchmark) => {
-    const date = new Date(benchmark.timestamp * 1000).toLocaleString(
-      "ko-KR"
-    );
-    const tpsMean = benchmark.result.tps?.mean ?? "";
-    const latencyP99 = benchmark.result.latency?.p99 ?? "";
-    const ttftMean = benchmark.result.ttft?.mean ?? "";
-    const rpsActual = benchmark.result.rps_actual ?? "";
-    const model = benchmark.config?.model ?? "";
+    const date = new Date(benchmark.timestamp * 1000).toLocaleString('ko-KR');
+    const tpsMean = benchmark.result.tps?.mean ?? '';
+    const latencyP99 = benchmark.result.latency?.p99 ?? '';
+    const ttftMean = benchmark.result.ttft?.mean ?? '';
+    const rpsActual = benchmark.result.rps_actual ?? '';
+    const model = benchmark.config?.model ?? '';
 
     return [
       String(benchmark.name),
@@ -124,9 +108,7 @@ export function benchmarksToCSV(
   return { headers, rows };
 }
 
-export function trialsToCSV(
-  trials: Trial[]
-): { headers: string[]; rows: string[][] } {
+export function trialsToCSV(trials: Trial[]): { headers: string[]; rows: string[][] } {
   const paramKeys = new Set<string>();
   trials.forEach((trial) => {
     Object.keys(trial.params).forEach((key) => paramKeys.add(key));
@@ -134,12 +116,12 @@ export function trialsToCSV(
   const sortedParamKeys = Array.from(paramKeys).sort();
 
   const headers = [
-    "Trial ID",
-    "TPS",
-    "P99 Latency(ms)",
-    "Score",
-    "Status",
-    "Pareto",
+    'Trial ID',
+    'TPS',
+    'P99 Latency(ms)',
+    'Score',
+    'Status',
+    'Pareto',
     ...sortedParamKeys,
   ];
 
@@ -150,15 +132,15 @@ export function trialsToCSV(
       String(trial.p99_latency),
       String(trial.score),
       String(trial.status),
-      trial.is_pareto_optimal ? "Y" : "N",
+      trial.is_pareto_optimal ? 'Y' : 'N',
     ];
 
     const paramValues = sortedParamKeys.map((key) => {
       const value = trial.params[key];
-      if (typeof value === "object" && value !== null) {
+      if (typeof value === 'object' && value !== null) {
         return JSON.stringify(value);
       }
-      return String(value ?? "");
+      return String(value ?? '');
     });
 
     return [...baseRow, ...paramValues];

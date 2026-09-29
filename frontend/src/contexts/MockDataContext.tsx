@@ -1,7 +1,7 @@
-import { createContext, useState, useEffect, useMemo, useContext } from "react";
-import type { ReactNode } from "react";
+import { createContext, useState, useEffect, useMemo, useContext } from 'react';
+import type { ReactNode } from 'react';
 
-const STORAGE_KEY = "vllm-opt-mock-enabled";
+const STORAGE_KEY = 'vllm-opt-mock-enabled';
 
 interface MockDataContextValue {
   isMockEnabled: boolean;
@@ -20,25 +20,18 @@ interface MockDataProviderProps {
 export function MockDataProvider({ children }: MockDataProviderProps) {
   const [isMockEnabled, setIsMockEnabled] = useState(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return stored === null ? false : stored === "true";
+    return stored === null ? false : stored === 'true';
   });
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, String(isMockEnabled));
   }, [isMockEnabled]);
 
-  const toggleMockEnabled = () => setIsMockEnabled(prev => !prev);
+  const toggleMockEnabled = () => setIsMockEnabled((prev) => !prev);
 
-  const value = useMemo(
-    () => ({ isMockEnabled, toggleMockEnabled }),
-    [isMockEnabled]
-  );
+  const value = useMemo(() => ({ isMockEnabled, toggleMockEnabled }), [isMockEnabled]);
 
-  return (
-    <MockDataContext.Provider value={value}>
-      {children}
-    </MockDataContext.Provider>
-  );
+  return <MockDataContext.Provider value={value}>{children}</MockDataContext.Provider>;
 }
 
 export function useMockData(): MockDataContextValue {

@@ -1,8 +1,8 @@
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { vi, describe, it, expect, afterEach } from "vitest";
-import SlaProfileList from "./SlaProfileList";
-import type { SlaProfile } from "../types";
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { vi, describe, it, expect, afterEach } from 'vitest';
+import SlaProfileList from './SlaProfileList';
+import type { SlaProfile } from '../types';
 
 function makeProfile(id: number, name: string): SlaProfile {
   return {
@@ -29,46 +29,46 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("SlaProfileList", () => {
-  it("shows empty state message when no profiles", () => {
+describe('SlaProfileList', () => {
+  it('shows empty state message when no profiles', () => {
     render(<SlaProfileList {...makeProps()} />);
-    expect(screen.getByText("No profiles registered.")).toBeInTheDocument();
+    expect(screen.getByText('No profiles registered.')).toBeInTheDocument();
   });
 
-  it("shows spinner when loading is true", () => {
+  it('shows spinner when loading is true', () => {
     render(<SlaProfileList {...makeProps({ loading: true })} />);
-    expect(screen.getByRole("status")).toBeInTheDocument();
-    expect(screen.queryByText("No profiles registered.")).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.queryByText('No profiles registered.')).not.toBeInTheDocument();
   });
 
-  it("renders profile names in table rows", () => {
-    const profiles = [makeProfile(1, "Production SLA"), makeProfile(2, "Dev SLA")];
+  it('renders profile names in table rows', () => {
+    const profiles = [makeProfile(1, 'Production SLA'), makeProfile(2, 'Dev SLA')];
     render(<SlaProfileList {...makeProps({ profiles })} />);
-    expect(screen.getByText("Production SLA")).toBeInTheDocument();
-    expect(screen.getByText("Dev SLA")).toBeInTheDocument();
+    expect(screen.getByText('Production SLA')).toBeInTheDocument();
+    expect(screen.getByText('Dev SLA')).toBeInTheDocument();
   });
 
-  it("shows threshold summary text for profiles", () => {
-    const profiles = [makeProfile(1, "My SLA")];
+  it('shows threshold summary text for profiles', () => {
+    const profiles = [makeProfile(1, 'My SLA')];
     render(<SlaProfileList {...makeProps({ profiles })} />);
     expect(screen.getByText(/Availability≥99%/)).toBeInTheDocument();
   });
 
-  it("calls onDelete when Delete button is clicked", async () => {
+  it('calls onDelete when Delete button is clicked', async () => {
     const onDelete = vi.fn();
     const user = userEvent.setup();
-    const profiles = [makeProfile(42, "Test SLA")];
+    const profiles = [makeProfile(42, 'Test SLA')];
     render(<SlaProfileList {...makeProps({ profiles, onDelete })} />);
-    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
     expect(onDelete).toHaveBeenCalledWith(42);
   });
 
-  it("calls onEdit when Edit button is clicked", async () => {
+  it('calls onEdit when Edit button is clicked', async () => {
     const onEdit = vi.fn();
     const user = userEvent.setup();
-    const profiles = [makeProfile(5, "Edit Me SLA")];
+    const profiles = [makeProfile(5, 'Edit Me SLA')];
     render(<SlaProfileList {...makeProps({ profiles, onEdit })} />);
-    await user.click(screen.getByRole("button", { name: "Edit" }));
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
     expect(onEdit).toHaveBeenCalledWith(profiles[0]);
   });
 });

@@ -1,22 +1,25 @@
-import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 import { authFetch } from '../utils/authFetch';
-import { API } from "../constants";
-import { mockBenchmarks } from "../mockData";
-import { calcGpuEfficiency } from "../utils/metrics";
+import { API } from '../constants';
+import { mockBenchmarks } from '../mockData';
+import { calcGpuEfficiency } from '../utils/metrics';
 import { downloadJSON, downloadCSV, benchmarksToCSV } from '../utils/export';
-import { useMockData } from "../contexts/MockDataContext";
-import { useBenchmarkSelection } from "../contexts/BenchmarkSelectionContext";
-import ErrorAlert from "../components/ErrorAlert";
-import LoadingSpinner from "../components/LoadingSpinner";
-import BenchmarkTable from "../components/BenchmarkTable";
-import BenchmarkMetadataModal from "../components/BenchmarkMetadataModal";
-import ConfirmDialog from "../components/ConfirmDialog";
-import type { BenchmarkItem, BenchmarkRunConfig, BenchmarkMetadata } from "../types";
+import { useMockData } from '../contexts/MockDataContext';
+import { useBenchmarkSelection } from '../contexts/BenchmarkSelectionContext';
+import ErrorAlert from '../components/ErrorAlert';
+import LoadingSpinner from '../components/LoadingSpinner';
+import BenchmarkTable from '../components/BenchmarkTable';
+import BenchmarkMetadataModal from '../components/BenchmarkMetadataModal';
+import ConfirmDialog from '../components/ConfirmDialog';
+import type { BenchmarkItem, BenchmarkRunConfig, BenchmarkMetadata } from '../types';
 
 // Lazy: keeps recharts out of the Benchmark page chunk until comparison charts render
-const BenchmarkCompareCharts = lazy(() => import("../components/BenchmarkCompareCharts"));
+const BenchmarkCompareCharts = lazy(() => import('../components/BenchmarkCompareCharts'));
 
-interface BenchmarkPageProps { isActive: boolean; onRerun?: (config: BenchmarkRunConfig) => void; }
+interface BenchmarkPageProps {
+  isActive: boolean;
+  onRerun?: (config: BenchmarkRunConfig) => void;
+}
 
 function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
   const [benchmarks, setBenchmarks] = useState<BenchmarkItem[]>([]);
@@ -36,23 +39,31 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
   }>({
     open: false,
     title: undefined,
-    message: "",
+    message: '',
     onConfirm: () => {},
   });
 
   const fetchBenchmarks = useCallback(() => {
     setLoading(true);
     if (isMockEnabled) {
-      setBenchmarks(mockBenchmarks().map((b) => ({ ...b, config: b.config ? { ...b.config } : undefined })));
+      setBenchmarks(
+        mockBenchmarks().map((b) => ({ ...b, config: b.config ? { ...b.config } : undefined }))
+      );
       setError(null);
       setLoading(false);
       return () => {};
     }
     const controller = new AbortController();
     authFetch(`${API}/benchmark/list`, { signal: controller.signal })
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(data => { setBenchmarks(data); setError(null); })
-      .catch(err => {
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((data) => {
+        setBenchmarks(data);
+        setError(null);
+      })
+      .catch((err) => {
         if (err instanceof Error && err.name === 'AbortError') return;
         console.error('Failed to fetch benchmarks:', err);
         setError(`Failed to fetch benchmarks: ${(err as Error).message}`);
@@ -61,47 +72,55 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
     return () => controller.abort();
   }, [isMockEnabled]);
 
-  useEffect(() => { if (isActive) { const cleanup = fetchBenchmarks(); return cleanup; } }, [isActive, fetchBenchmarks]);
+  useEffect(() => {
+    if (isActive) {
+      const cleanup = fetchBenchmarks();
+      return cleanup;
+    }
+  }, [isActive, fetchBenchmarks]);
   const toggleSelect = (id: string | number, e: React.MouseEvent) => {
     e.stopPropagation();
-    setSelected(selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id]);
+    setSelected(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
   };
   const toggleExpand = (id: string | number) =>
-    setExpanded(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
+    setExpanded((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
 
-  const deleteBenchmark = useCallback(async (b: BenchmarkItem) => {
-    if (isMockEnabled) {
-      setBenchmarks(prev => prev.filter(x => x.id !== b.id));
-      setSelected(prev => prev.filter(x => x !== b.id));
-      setExpanded(prev => prev.filter(x => x !== b.id));
-      return;
-    }
-    try {
-      const res = await authFetch(`${API}/benchmark/${b.id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setSelected(prev => prev.filter(x => x !== b.id));
-      fetchBenchmarks();
-    } catch (err) {
-      console.error('Failed to delete benchmark:', err);
-      setError(`Delete failed: ${(err as Error).message}`);
-    }
-  }, [fetchBenchmarks, isMockEnabled, setSelected]);
+  const deleteBenchmark = useCallback(
+    async (b: BenchmarkItem) => {
+      if (isMockEnabled) {
+        setBenchmarks((prev) => prev.filter((x) => x.id !== b.id));
+        setSelected((prev) => prev.filter((x) => x !== b.id));
+        setExpanded((prev) => prev.filter((x) => x !== b.id));
+        return;
+      }
+      try {
+        const res = await authFetch(`${API}/benchmark/${b.id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        setSelected((prev) => prev.filter((x) => x !== b.id));
+        fetchBenchmarks();
+      } catch (err) {
+        console.error('Failed to delete benchmark:', err);
+        setError(`Delete failed: ${(err as Error).message}`);
+      }
+    },
+    [fetchBenchmarks, isMockEnabled, setSelected]
+  );
 
   const handleDelete = async (b: BenchmarkItem, e: React.MouseEvent) => {
     e.stopPropagation();
     setConfirmState({
       open: true,
-      title: "Delete Benchmark",
+      title: 'Delete Benchmark',
       message: `Delete benchmark '${b.name}'?`,
       onConfirm: () => {
-        void deleteBenchmark(b).catch((e) => console.error("Failed to delete benchmark:", e));
+        void deleteBenchmark(b).catch((e) => console.error('Failed to delete benchmark:', e));
       },
     });
   };
 
   const handleSaveMetadata = async (benchmarkId: string | number, metadata: BenchmarkMetadata) => {
     if (isMockEnabled) {
-      setBenchmarks(prev => prev.map(b => b.id === benchmarkId ? { ...b, metadata } : b));
+      setBenchmarks((prev) => prev.map((b) => (b.id === benchmarkId ? { ...b, metadata } : b)));
       setEditing(null);
       return;
     }
@@ -113,7 +132,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const updated: BenchmarkItem = await res.json();
-      setBenchmarks(prev => prev.map(b => b.id === benchmarkId ? updated : b));
+      setBenchmarks((prev) => prev.map((b) => (b.id === benchmarkId ? updated : b)));
       setEditing(null);
     } catch (err) {
       console.error('Failed to save benchmark metadata:', err);
@@ -121,78 +140,97 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
     }
   };
 
-  const bulkDeleteBenchmarks = useCallback(async (ids: (string | number)[]) => {
-    if (ids.length === 0) return;
-    if (isMockEnabled) {
-      setBenchmarks(prev => prev.filter(b => !ids.includes(b.id)));
-      setSelected([]);
-      return;
-    }
-    try {
-      for (const id of ids) {
-        const res = await authFetch(`${API}/benchmark/${id}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error(`HTTP ${res.status} for benchmark ID ${id}`);
+  const bulkDeleteBenchmarks = useCallback(
+    async (ids: (string | number)[]) => {
+      if (ids.length === 0) return;
+      if (isMockEnabled) {
+        setBenchmarks((prev) => prev.filter((b) => !ids.includes(b.id)));
+        setSelected([]);
+        return;
       }
-      setSelected([]);
-      fetchBenchmarks();
-    } catch (err) {
-      console.error('Failed to bulk delete benchmarks:', err);
-      setError(`Bulk delete failed: ${(err as Error).message}`);
-    }
-  }, [fetchBenchmarks, isMockEnabled, setSelected]);
+      try {
+        for (const id of ids) {
+          const res = await authFetch(`${API}/benchmark/${id}`, { method: 'DELETE' });
+          if (!res.ok) throw new Error(`HTTP ${res.status} for benchmark ID ${id}`);
+        }
+        setSelected([]);
+        fetchBenchmarks();
+      } catch (err) {
+        console.error('Failed to bulk delete benchmarks:', err);
+        setError(`Bulk delete failed: ${(err as Error).message}`);
+      }
+    },
+    [fetchBenchmarks, isMockEnabled, setSelected]
+  );
 
   const handleBulkDelete = async () => {
     if (selected.length === 0) return;
     const idsToDelete = [...selected];
     setConfirmState({
       open: true,
-      title: "Delete Benchmarks",
+      title: 'Delete Benchmarks',
       message: `Delete ${idsToDelete.length} benchmark(s)?`,
       onConfirm: () => {
-        void bulkDeleteBenchmarks(idsToDelete).catch((e) => console.error("Failed to bulk delete benchmarks:", e));
+        void bulkDeleteBenchmarks(idsToDelete).catch((e) =>
+          console.error('Failed to bulk delete benchmarks:', e)
+        );
       },
     });
   };
 
   const handleExportJSON = () => {
-    const data = selected.length > 0 ? benchmarks.filter(b => selected.includes(b.id)) : benchmarks;
+    const data =
+      selected.length > 0 ? benchmarks.filter((b) => selected.includes(b.id)) : benchmarks;
     downloadJSON(data, `benchmarks-${new Date().getTime()}.json`);
   };
   const handleExportCSV = () => {
-    const data = selected.length > 0 ? benchmarks.filter(b => selected.includes(b.id)) : benchmarks;
+    const data =
+      selected.length > 0 ? benchmarks.filter((b) => selected.includes(b.id)) : benchmarks;
     const { headers, rows } = benchmarksToCSV(data);
     downloadCSV(headers, rows, `benchmarks-${new Date().getTime()}.csv`);
   };
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setImporting(true); setError(null);
+    setImporting(true);
+    setError(null);
     try {
       const formData = new FormData();
-      formData.append("file", file);
-      const resp = await authFetch(`${API}/benchmark/import`, { method: "POST", body: formData });
+      formData.append('file', file);
+      const resp = await authFetch(`${API}/benchmark/import`, { method: 'POST', body: formData });
       if (!resp.ok) {
-        const err = await resp.json().catch(() => ({ detail: "Unknown error" }));
+        const err = await resp.json().catch(() => ({ detail: 'Unknown error' }));
         throw new Error(err.detail || `HTTP ${resp.status}`);
       }
       await resp.json();
-      setError(null); fetchBenchmarks();
+      setError(null);
+      fetchBenchmarks();
     } catch (err: unknown) {
       console.error('Failed to import benchmarks:', err);
-      setError(err instanceof Error ? err.message : "Import failed");
+      setError(err instanceof Error ? err.message : 'Import failed');
     } finally {
       setImporting(false);
-      if (importInputRef.current) importInputRef.current.value = "";
+      if (importInputRef.current) importInputRef.current.value = '';
     }
   };
-  const compareData = useMemo(() => benchmarks.filter(b => selected.includes(b.id)).map(b => {
-    const gpuEff = calcGpuEfficiency(b.result);
-    return {
-      name: b.name, tps: b.result?.tps?.mean || 0, ttft: (b.result?.ttft?.mean || 0) * 1000,
-      p99: (b.result?.latency?.p99 || 0) * 1000, rps: b.result?.rps_actual || 0,
-      gpuEff: gpuEff.value || 0, metricsTargetMatched: !gpuEff.mismatch,
-    };
-  }), [benchmarks, selected]);
+  const compareData = useMemo(
+    () =>
+      benchmarks
+        .filter((b) => selected.includes(b.id))
+        .map((b) => {
+          const gpuEff = calcGpuEfficiency(b.result);
+          return {
+            name: b.name,
+            tps: b.result?.tps?.mean || 0,
+            ttft: (b.result?.ttft?.mean || 0) * 1000,
+            p99: (b.result?.latency?.p99 || 0) * 1000,
+            rps: b.result?.rps_actual || 0,
+            gpuEff: gpuEff.value || 0,
+            metricsTargetMatched: !gpuEff.mismatch,
+          };
+        }),
+    [benchmarks, selected]
+  );
 
   return (
     <div className="flex-col-16">
@@ -202,14 +240,28 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
       ) : (
         <>
           <BenchmarkTable
-            benchmarks={benchmarks} selected={selected} expanded={expanded} loading={loading}
-            importing={importing} importInputRef={importInputRef} onToggleSelect={toggleSelect}
-            onToggleExpand={toggleExpand} onDelete={handleDelete} onEdit={setEditing}
-            onExportJSON={handleExportJSON} onExportCSV={handleExportCSV}
-            onImport={handleImport} onBulkDelete={handleBulkDelete} onRerun={onRerun}
+            benchmarks={benchmarks}
+            selected={selected}
+            expanded={expanded}
+            loading={loading}
+            importing={importing}
+            importInputRef={importInputRef}
+            onToggleSelect={toggleSelect}
+            onToggleExpand={toggleExpand}
+            onDelete={handleDelete}
+            onEdit={setEditing}
+            onExportJSON={handleExportJSON}
+            onExportCSV={handleExportCSV}
+            onImport={handleImport}
+            onBulkDelete={handleBulkDelete}
+            onRerun={onRerun}
           />
           {editing && (
-            <BenchmarkMetadataModal editing={editing} onClose={() => setEditing(null)} onSave={handleSaveMetadata} />
+            <BenchmarkMetadataModal
+              editing={editing}
+              onClose={() => setEditing(null)}
+              onSave={handleSaveMetadata}
+            />
           )}
           {compareData.length >= 2 && (
             <Suspense fallback={<div style={{ height: 200 }} />}>
@@ -222,10 +274,10 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
         open={confirmState.open}
         title={confirmState.title}
         message={confirmState.message}
-        onCancel={() => setConfirmState(prev => ({ ...prev, open: false }))}
+        onCancel={() => setConfirmState((prev) => ({ ...prev, open: false }))}
         onConfirm={() => {
           const callback = confirmState.onConfirm;
-          setConfirmState(prev => ({ ...prev, open: false }));
+          setConfirmState((prev) => ({ ...prev, open: false }));
           callback();
         }}
       />

@@ -1,6 +1,6 @@
-import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
-import { useLoadTestSSE } from "./useLoadTestSSE";
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { renderHook, act } from '@testing-library/react';
+import { useLoadTestSSE } from './useLoadTestSSE';
 
 class MockEventSource {
   static instances: MockEventSource[] = [];
@@ -27,7 +27,7 @@ class MockEventSource {
 
 beforeEach(() => {
   MockEventSource.instances = [];
-  vi.stubGlobal("EventSource", MockEventSource);
+  vi.stubGlobal('EventSource', MockEventSource);
   vi.useFakeTimers();
 });
 
@@ -37,11 +37,11 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("useLoadTestSSE", () => {
-  it("has correct initial state", () => {
+describe('useLoadTestSSE', () => {
+  it('has correct initial state', () => {
     const { result } = renderHook(() => useLoadTestSSE());
 
-    expect(result.current.status).toBe("idle");
+    expect(result.current.status).toBe('idle');
     expect(result.current.progress).toBe(0);
     expect(result.current.error).toBeNull();
     expect(result.current.result).toBeNull();
@@ -50,7 +50,7 @@ describe("useLoadTestSSE", () => {
     expect(result.current.retryCount).toBe(0);
   });
 
-  it("connect() creates an EventSource connection", () => {
+  it('connect() creates an EventSource connection', () => {
     const { result } = renderHook(() => useLoadTestSSE());
 
     act(() => {
@@ -60,7 +60,7 @@ describe("useLoadTestSSE", () => {
     expect(MockEventSource.instances).toHaveLength(1);
   });
 
-  it("progress message updates progress and latencyData", () => {
+  it('progress message updates progress and latencyData', () => {
     const { result } = renderHook(() => useLoadTestSSE());
 
     act(() => {
@@ -69,7 +69,7 @@ describe("useLoadTestSSE", () => {
 
     act(() => {
       MockEventSource.instances[0].simulateMessage({
-        type: "progress",
+        type: 'progress',
         data: { total: 50, latency: { mean: 0.1 }, tps: { mean: 10 } },
       });
     });
@@ -80,7 +80,7 @@ describe("useLoadTestSSE", () => {
     expect(result.current.latencyData[0].tps).toBe(10);
   });
 
-  it("completed message sets status=completed and progress=100", () => {
+  it('completed message sets status=completed and progress=100', () => {
     const { result } = renderHook(() => useLoadTestSSE());
 
     act(() => {
@@ -89,17 +89,17 @@ describe("useLoadTestSSE", () => {
 
     act(() => {
       MockEventSource.instances[0].simulateMessage({
-        type: "completed",
-        data: { summary: "done" },
+        type: 'completed',
+        data: { summary: 'done' },
       });
     });
 
-    expect(result.current.status).toBe("completed");
+    expect(result.current.status).toBe('completed');
     expect(result.current.progress).toBe(100);
-    expect(result.current.result).toEqual({ summary: "done" });
+    expect(result.current.result).toEqual({ summary: 'done' });
   });
 
-  it("error message sets status=error and stores error string", () => {
+  it('error message sets status=error and stores error string', () => {
     const { result } = renderHook(() => useLoadTestSSE());
 
     act(() => {
@@ -108,16 +108,16 @@ describe("useLoadTestSSE", () => {
 
     act(() => {
       MockEventSource.instances[0].simulateMessage({
-        type: "error",
-        data: { error: "Load test failed" },
+        type: 'error',
+        data: { error: 'Load test failed' },
       });
     });
 
-    expect(result.current.status).toBe("error");
-    expect(result.current.error).toBe("Load test failed");
+    expect(result.current.status).toBe('error');
+    expect(result.current.error).toBe('Load test failed');
   });
 
-  it("disconnect() closes the EventSource", () => {
+  it('disconnect() closes the EventSource', () => {
     const { result } = renderHook(() => useLoadTestSSE());
 
     act(() => {

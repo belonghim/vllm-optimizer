@@ -105,7 +105,7 @@ export interface ClusterTarget {
   namespace: string;
   inferenceService: string;
   crType: string;
-  source?: "configmap" | "manual";
+  source?: 'configmap' | 'manual';
   modelName?: string;
 }
 
@@ -170,7 +170,10 @@ export interface BenchmarkMetadata {
   source?: string | null;
 }
 
-export interface BenchmarkRunConfig { model?: string; [key: string]: unknown; }
+export interface BenchmarkRunConfig {
+  model?: string;
+  [key: string]: unknown;
+}
 
 export interface BenchmarkResultData {
   tps?: { mean?: number } | null;
@@ -216,7 +219,7 @@ export interface BenchmarkItem {
 
 export interface TunerConfig {
   objective: string;
-  evaluation_mode: "single" | "sweep";
+  evaluation_mode: 'single' | 'sweep';
   n_trials: number;
   vllm_endpoint: string;
   max_num_seqs_min: number;

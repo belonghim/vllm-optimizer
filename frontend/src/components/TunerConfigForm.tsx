@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
-import TunerProgressBar from "./TunerProgressBar";
-import TunerParamInputs from "./TunerParamInputs";
-import TunerResourceInputs from "./TunerResourceInputs";
+import { useState, useEffect } from 'react';
+import TunerProgressBar from './TunerProgressBar';
+import TunerParamInputs from './TunerParamInputs';
+import TunerResourceInputs from './TunerResourceInputs';
 
 interface TunerPhase {
   trial_id: number;
@@ -10,7 +10,7 @@ interface TunerPhase {
 
 export interface TunerConfig {
   objective: string;
-  evaluation_mode: "single" | "sweep";
+  evaluation_mode: 'single' | 'sweep';
   n_trials: number;
   vllm_endpoint: string;
   max_num_seqs_min: number;
@@ -51,11 +51,11 @@ interface TunerConfigFormProps {
 }
 
 const PHASE_LABELS: Record<string, string> = {
-  applying_config: "Updating config...",
-  restarting: "Restarting InferenceService...",
-  waiting_ready: "Waiting for Pod Ready...",
-  warmup: "Sending warmup requests...",
-  evaluating: "Evaluating performance...",
+  applying_config: 'Updating config...',
+  restarting: 'Restarting InferenceService...',
+  waiting_ready: 'Waiting for Pod Ready...',
+  warmup: 'Sending warmup requests...',
+  evaluating: 'Evaluating performance...',
 };
 
 function isValidCpu(v: string): boolean {
@@ -90,12 +90,12 @@ export default function TunerConfigForm({
   currentResources,
   extraArgs,
 }: TunerConfigFormProps) {
-  const [localStorageUri, setLocalStorageUri] = useState(storageUri ?? "");
+  const [localStorageUri, setLocalStorageUri] = useState(storageUri ?? '');
   const [editedValues, setEditedValues] = useState<Record<string, unknown>>({});
   const [resourceErrors, setResourceErrors] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    setLocalStorageUri(storageUri ?? "");
+    setLocalStorageUri(storageUri ?? '');
   }, [storageUri]);
 
   useEffect(() => {
@@ -103,26 +103,29 @@ export default function TunerConfigForm({
   }, []);
 
   const handleCurrentValChange = (key: string, value: unknown) => {
-    setEditedValues(prev => ({ ...prev, [key]: value }));
+    setEditedValues((prev) => ({ ...prev, [key]: value }));
   };
 
   const getResourceValue = (tier: string, key: string): string => {
-    return currentResources?.[tier]?.[key] ?? "";
+    return currentResources?.[tier]?.[key] ?? '';
   };
 
   const handleResourceChange = (resourceKey: string, value: string) => {
-    setEditedValues(prev => ({ ...prev, [resourceKey]: value }));
+    setEditedValues((prev) => ({ ...prev, [resourceKey]: value }));
 
     let isValid = true;
-    if (resourceKey === "resources.requests.cpu" || resourceKey === "resources.limits.cpu") {
+    if (resourceKey === 'resources.requests.cpu' || resourceKey === 'resources.limits.cpu') {
       isValid = isValidCpu(value);
-    } else if (resourceKey === "resources.requests.memory" || resourceKey === "resources.limits.memory") {
+    } else if (
+      resourceKey === 'resources.requests.memory' ||
+      resourceKey === 'resources.limits.memory'
+    ) {
       isValid = isValidMemory(value);
-    } else if (resourceKey === "resources.limits.nvidia.com/gpu") {
+    } else if (resourceKey === 'resources.limits.nvidia.com/gpu') {
       isValid = isValidGpu(value);
     }
 
-    setResourceErrors(prev => ({ ...prev, [resourceKey]: !isValid }));
+    setResourceErrors((prev) => ({ ...prev, [resourceKey]: !isValid }));
   };
 
   return (
@@ -131,9 +134,15 @@ export default function TunerConfigForm({
 
       <div className="grid-form grid-form-compact" style={{ marginBottom: '20px' }}>
         <div>
-          <label className="label" htmlFor="tuner-objective">Optimization Objective</label>
-          <select id="tuner-objective" className="input" value={config.objective}
-            onChange={e => onChange("objective", e.target.value)}>
+          <label className="label" htmlFor="tuner-objective">
+            Optimization Objective
+          </label>
+          <select
+            id="tuner-objective"
+            className="input"
+            value={config.objective}
+            onChange={(e) => onChange('objective', e.target.value)}
+          >
             <option value="tps">Max Throughput (TPS)</option>
             <option value="latency">Min Latency</option>
             <option value="balanced">Balanced (TPS / Latency)</option>
@@ -141,14 +150,29 @@ export default function TunerConfigForm({
           </select>
         </div>
         <div>
-          <label className="label" htmlFor="tuner-trials">Trial Count</label>
-          <input id="tuner-trials" className="input" type="number" min={1} max={100} value={config.n_trials}
-            onChange={e => onChange("n_trials", +e.target.value)} />
+          <label className="label" htmlFor="tuner-trials">
+            Trial Count
+          </label>
+          <input
+            id="tuner-trials"
+            className="input"
+            type="number"
+            min={1}
+            max={100}
+            value={config.n_trials}
+            onChange={(e) => onChange('n_trials', +e.target.value)}
+          />
         </div>
         <div>
-          <label className="label" htmlFor="tuner-eval-mode">Eval Mode</label>
-          <select id="tuner-eval-mode" className="input" value={config.evaluation_mode}
-            onChange={e => onChange("evaluation_mode", e.target.value as "single" | "sweep")}>
+          <label className="label" htmlFor="tuner-eval-mode">
+            Eval Mode
+          </label>
+          <select
+            id="tuner-eval-mode"
+            className="input"
+            value={config.evaluation_mode}
+            onChange={(e) => onChange('evaluation_mode', e.target.value as 'single' | 'sweep')}
+          >
             <option value="single">Single (basic load test)</option>
             <option value="sweep">Sweep (optimal RPS based)</option>
           </select>
@@ -194,15 +218,24 @@ export default function TunerConfigForm({
               <td title="Model storage URI">storageUri</td>
               <td colSpan={2}>
                 <div className="flex-row-8">
-                  <input className="input" type="text" value={localStorageUri}
-                    onChange={e => setLocalStorageUri(e.target.value)}
-                    disabled={isRunning} placeholder="oci://registry/model" aria-label="storageUri" />
-                   <button type="button" className="btn btn-primary btn-small"
-                     onClick={() => onSaveStorageUri(localStorageUri)}
-                     disabled={isRunning || localStorageUri === storageUri}
-                     style={{ whiteSpace: 'nowrap' }}>
-                     Save
-                   </button>
+                  <input
+                    className="input"
+                    type="text"
+                    value={localStorageUri}
+                    onChange={(e) => setLocalStorageUri(e.target.value)}
+                    disabled={isRunning}
+                    placeholder="oci://registry/model"
+                    aria-label="storageUri"
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-small"
+                    onClick={() => onSaveStorageUri(localStorageUri)}
+                    disabled={isRunning || localStorageUri === storageUri}
+                    style={{ whiteSpace: 'nowrap' }}
+                  >
+                    Save
+                  </button>
                 </div>
               </td>
               <td className="td-desc">Model storage URI</td>
@@ -214,26 +247,65 @@ export default function TunerConfigForm({
       <div className="section-title">Evaluation Settings</div>
       <div className="grid-form grid-form-compact" style={{ marginBottom: '12px' }}>
         <div>
-          <label className="label" htmlFor="tuner-eval-requests">Eval Request Count</label>
-          <input id="tuner-eval-requests" className="input" type="number" min={10} max={10000} step={10}
-            value={config.eval_requests} onChange={e => onChange("eval_requests", +e.target.value)} />
+          <label className="label" htmlFor="tuner-eval-requests">
+            Eval Request Count
+          </label>
+          <input
+            id="tuner-eval-requests"
+            className="input"
+            type="number"
+            min={10}
+            max={10000}
+            step={10}
+            value={config.eval_requests}
+            onChange={(e) => onChange('eval_requests', +e.target.value)}
+          />
         </div>
         <div>
-          <label className="label" htmlFor="tuner-eval-concurrency">Eval Concurrency</label>
-          <input id="tuner-eval-concurrency" className="input" type="number" min={1} max={256}
-            value={config.eval_concurrency} onChange={e => onChange("eval_concurrency", +e.target.value)} />
+          <label className="label" htmlFor="tuner-eval-concurrency">
+            Eval Concurrency
+          </label>
+          <input
+            id="tuner-eval-concurrency"
+            className="input"
+            type="number"
+            min={1}
+            max={256}
+            value={config.eval_concurrency}
+            onChange={(e) => onChange('eval_concurrency', +e.target.value)}
+          />
         </div>
         <div>
-          <label className="label" htmlFor="tuner-eval-rps">Eval RPS</label>
-          <input id="tuner-eval-rps" className="input" type="number" min={1} max={1000}
-            value={config.eval_rps} onChange={e => onChange("eval_rps", +e.target.value)} />
+          <label className="label" htmlFor="tuner-eval-rps">
+            Eval RPS
+          </label>
+          <input
+            id="tuner-eval-rps"
+            className="input"
+            type="number"
+            min={1}
+            max={1000}
+            value={config.eval_rps}
+            onChange={(e) => onChange('eval_rps', +e.target.value)}
+          />
         </div>
         <div>
-          <label className="label" htmlFor="tuner-p99-sla">P99 Latency SLA (ms)</label>
-          <input id="tuner-p99-sla" className="input" type="number" min={0} max={60000} step={100}
+          <label className="label" htmlFor="tuner-p99-sla">
+            P99 Latency SLA (ms)
+          </label>
+          <input
+            id="tuner-p99-sla"
+            className="input"
+            type="number"
+            min={0}
+            max={60000}
+            step={100}
             placeholder="Disabled"
-            value={config.p99_latency_sla_ms ?? ""}
-            onChange={e => onChange("p99_latency_sla_ms", e.target.value === "" ? 0 : +e.target.value)} />
+            value={config.p99_latency_sla_ms ?? ''}
+            onChange={(e) =>
+              onChange('p99_latency_sla_ms', e.target.value === '' ? 0 : +e.target.value)
+            }
+          />
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '20px' }}>
@@ -241,10 +313,14 @@ export default function TunerConfigForm({
           id="tuner-llm-assistant"
           type="checkbox"
           checked={config.enable_llm_assistant ?? true}
-          onChange={e => onChange("enable_llm_assistant", e.target.checked)}
+          onChange={(e) => onChange('enable_llm_assistant', e.target.checked)}
           disabled={isRunning}
         />
-        <label className="label" htmlFor="tuner-llm-assistant" style={{ margin: 0, cursor: isRunning ? 'default' : 'pointer' }}>
+        <label
+          className="label"
+          htmlFor="tuner-llm-assistant"
+          style={{ margin: 0, cursor: isRunning ? 'default' : 'pointer' }}
+        >
           Enable LLM Tuning Assistant (warm-start suggestions, failure analysis, final report)
         </label>
       </div>
@@ -262,14 +338,19 @@ export default function TunerConfigForm({
           </button>
         )}
         {onApplyCurrentValues && currentConfig && (
-          <button type="button" className="btn btn-secondary"
+          <button
+            type="button"
+            className="btn btn-secondary"
             onClick={() => onApplyCurrentValues(editedValues)}
-            disabled={Object.keys(editedValues).length === 0 || Object.values(resourceErrors).some(e => e)}>
+            disabled={
+              Object.keys(editedValues).length === 0 || Object.values(resourceErrors).some((e) => e)
+            }
+          >
             Apply Current Values
           </button>
         )}
-        <span className={`tag tag-${isRunning ? "running" : "idle"}`}>
-          {isRunning ? "TUNING..." : "IDLE"}
+        <span className={`tag tag-${isRunning ? 'running' : 'idle'}`}>
+          {isRunning ? 'TUNING...' : 'IDLE'}
         </span>
         <span className="tuner-trials-count">
           {trialsCompleted} / {config.n_trials} trials
@@ -287,7 +368,8 @@ export default function TunerConfigForm({
 
       {isRunning && currentPhase && (
         <div className="tuner-phase-indicator" aria-live="polite" aria-atomic="true">
-          Trial {(currentPhase.trial_id ?? 0) + 1}: {PHASE_LABELS[currentPhase.phase] || currentPhase.phase}
+          Trial {(currentPhase.trial_id ?? 0) + 1}:{' '}
+          {PHASE_LABELS[currentPhase.phase] || currentPhase.phase}
         </div>
       )}
     </div>

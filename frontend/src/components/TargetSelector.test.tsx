@@ -1,169 +1,169 @@
-import { render, screen, fireEvent } from "@testing-library/react";
-import { vi, describe, it, expect, beforeEach } from "vitest";
-import TargetSelector from "./TargetSelector";
-import { useClusterConfig, ClusterConfigContextValue } from "../contexts/ClusterConfigContext";
+import { render, screen, fireEvent } from '@testing-library/react';
+import { vi, describe, it, expect, beforeEach } from 'vitest';
+import TargetSelector from './TargetSelector';
+import { useClusterConfig, ClusterConfigContextValue } from '../contexts/ClusterConfigContext';
 
-vi.mock("../contexts/ClusterConfigContext", () => ({
+vi.mock('../contexts/ClusterConfigContext', () => ({
   useClusterConfig: vi.fn(),
 }));
 
-describe("TargetSelector", () => {
+describe('TargetSelector', () => {
   const mockTargets = [
-    { namespace: "vllm-lab-dev", inferenceService: "llm-ov", crType: "inferenceservice" },
-    { namespace: "llm-d-demo", inferenceService: "small-llm-d", crType: "llminferenceservice" },
+    { namespace: 'vllm-lab-dev', inferenceService: 'llm-ov', crType: 'inferenceservice' },
+    { namespace: 'llm-d-demo', inferenceService: 'small-llm-d', crType: 'llminferenceservice' },
   ];
 
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("renders empty state when no targets", () => {
+  it('renders empty state when no targets', () => {
     vi.mocked(useClusterConfig).mockReturnValue({
       targets: [],
     } as unknown as ClusterConfigContextValue);
     render(<TargetSelector />);
-    expect(screen.getByText("No targets available")).toBeInTheDocument();
+    expect(screen.getByText('No targets available')).toBeInTheDocument();
   });
 
-  it("renders trigger button with selected value", () => {
+  it('renders trigger button with selected value', () => {
     vi.mocked(useClusterConfig).mockReturnValue({
       targets: mockTargets,
     } as unknown as ClusterConfigContextValue);
     render(<TargetSelector value={mockTargets[0]} />);
-    expect(screen.getByText("llm-ov")).toBeInTheDocument();
-    expect(screen.getByText("(vllm-lab-dev)")).toBeInTheDocument();
+    expect(screen.getByText('llm-ov')).toBeInTheDocument();
+    expect(screen.getByText('(vllm-lab-dev)')).toBeInTheDocument();
   });
 
-  it("shows placeholder when no value selected", () => {
+  it('shows placeholder when no value selected', () => {
     vi.mocked(useClusterConfig).mockReturnValue({
       targets: mockTargets,
     } as unknown as ClusterConfigContextValue);
     render(<TargetSelector />);
-    expect(screen.getByText("Select a target")).toBeInTheDocument();
+    expect(screen.getByText('Select a target')).toBeInTheDocument();
   });
 
-  it("opens dropdown when trigger is clicked", () => {
+  it('opens dropdown when trigger is clicked', () => {
     vi.mocked(useClusterConfig).mockReturnValue({
       targets: mockTargets,
     } as unknown as ClusterConfigContextValue);
     render(<TargetSelector />);
-    fireEvent.click(screen.getByRole("button"));
-    expect(screen.getByTestId("target-selector-dropdown")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button'));
+    expect(screen.getByTestId('target-selector-dropdown')).toBeInTheDocument();
   });
 
-  it("shows targets grouped by CR type", () => {
+  it('shows targets grouped by CR type', () => {
     vi.mocked(useClusterConfig).mockReturnValue({
       targets: mockTargets,
     } as unknown as ClusterConfigContextValue);
     render(<TargetSelector />);
-    fireEvent.click(screen.getByRole("button"));
-    expect(screen.getByText("KServe (isvc)")).toBeInTheDocument();
-    expect(screen.getByText("LLMIS (llmisvc)")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button'));
+    expect(screen.getByText('KServe (isvc)')).toBeInTheDocument();
+    expect(screen.getByText('LLMIS (llmisvc)')).toBeInTheDocument();
   });
 
-  it("displays star for default target", () => {
+  it('displays star for default target', () => {
     vi.mocked(useClusterConfig).mockReturnValue({
       targets: mockTargets,
     } as unknown as ClusterConfigContextValue);
     render(<TargetSelector />);
-    fireEvent.click(screen.getByRole("button"));
-    const starElement = screen.getByText("★");
+    fireEvent.click(screen.getByRole('button'));
+    const starElement = screen.getByText('★');
     expect(starElement).toBeInTheDocument();
-    expect(screen.getByText("llm-ov")).toBeInTheDocument();
+    expect(screen.getByText('llm-ov')).toBeInTheDocument();
   });
 
-  it("calls onChange with target when option is clicked", () => {
+  it('calls onChange with target when option is clicked', () => {
     const onChange = vi.fn();
     vi.mocked(useClusterConfig).mockReturnValue({
       targets: mockTargets,
     } as unknown as ClusterConfigContextValue);
     render(<TargetSelector onChange={onChange} />);
-    fireEvent.click(screen.getByRole("button"));
-    fireEvent.click(screen.getByText("small-llm-d"));
+    fireEvent.click(screen.getByRole('button'));
+    fireEvent.click(screen.getByText('small-llm-d'));
     expect(onChange).toHaveBeenCalledWith({
-      namespace: "llm-d-demo",
-      inferenceService: "small-llm-d",
-      crType: "llminferenceservice",
+      namespace: 'llm-d-demo',
+      inferenceService: 'small-llm-d',
+      crType: 'llminferenceservice',
     });
   });
 
-  it("closes dropdown after selection", () => {
+  it('closes dropdown after selection', () => {
     vi.mocked(useClusterConfig).mockReturnValue({
       targets: mockTargets,
     } as unknown as ClusterConfigContextValue);
     render(<TargetSelector onChange={() => {}} />);
-    fireEvent.click(screen.getByRole("button"));
-    expect(screen.getByTestId("target-selector-dropdown")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("small-llm-d"));
-    expect(screen.queryByTestId("target-selector-dropdown")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button'));
+    expect(screen.getByTestId('target-selector-dropdown')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('small-llm-d'));
+    expect(screen.queryByTestId('target-selector-dropdown')).not.toBeInTheDocument();
   });
 
-  it("supports keyboard navigation to open dropdown", () => {
+  it('supports keyboard navigation to open dropdown', () => {
     vi.mocked(useClusterConfig).mockReturnValue({
       targets: mockTargets,
     } as unknown as ClusterConfigContextValue);
     render(<TargetSelector />);
-    const trigger = screen.getByRole("button");
-    fireEvent.keyDown(trigger, { key: "ArrowDown" });
-    expect(screen.getByTestId("target-selector-dropdown")).toBeInTheDocument();
+    const trigger = screen.getByRole('button');
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' });
+    expect(screen.getByTestId('target-selector-dropdown')).toBeInTheDocument();
   });
 
-  it("closes dropdown on Escape", () => {
+  it('closes dropdown on Escape', () => {
     vi.mocked(useClusterConfig).mockReturnValue({
       targets: mockTargets,
     } as unknown as ClusterConfigContextValue);
     render(<TargetSelector />);
-    const trigger = screen.getByRole("button");
-    fireEvent.keyDown(trigger, { key: "ArrowDown" });
-    expect(screen.getByTestId("target-selector-dropdown")).toBeInTheDocument();
-    fireEvent.keyDown(trigger, { key: "Escape" });
-    expect(screen.queryByTestId("target-selector-dropdown")).not.toBeInTheDocument();
+    const trigger = screen.getByRole('button');
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' });
+    expect(screen.getByTestId('target-selector-dropdown')).toBeInTheDocument();
+    fireEvent.keyDown(trigger, { key: 'Escape' });
+    expect(screen.queryByTestId('target-selector-dropdown')).not.toBeInTheDocument();
   });
 
-  it("renders with data-testid", () => {
+  it('renders with data-testid', () => {
     vi.mocked(useClusterConfig).mockReturnValue({
       targets: mockTargets,
     } as unknown as ClusterConfigContextValue);
     render(<TargetSelector data-testid="my-selector" />);
-    expect(screen.getByTestId("my-selector")).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("my-selector-trigger"));
-    expect(screen.getByTestId("my-selector-dropdown")).toBeInTheDocument();
+    expect(screen.getByTestId('my-selector')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('my-selector-trigger'));
+    expect(screen.getByTestId('my-selector-dropdown')).toBeInTheDocument();
   });
 
-  it("closes dropdown when clicked outside", () => {
+  it('closes dropdown when clicked outside', () => {
     vi.mocked(useClusterConfig).mockReturnValue({
       targets: mockTargets,
     } as unknown as ClusterConfigContextValue);
     render(<TargetSelector />);
-    fireEvent.click(screen.getByRole("button"));
-    expect(screen.getByTestId("target-selector-dropdown")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button'));
+    expect(screen.getByTestId('target-selector-dropdown')).toBeInTheDocument();
     fireEvent.mouseDown(document.body);
-    expect(screen.queryByTestId("target-selector-dropdown")).not.toBeInTheDocument();
+    expect(screen.queryByTestId('target-selector-dropdown')).not.toBeInTheDocument();
   });
 
-  it("opens dropdown with Enter key", () => {
+  it('opens dropdown with Enter key', () => {
     vi.mocked(useClusterConfig).mockReturnValue({
       targets: mockTargets,
     } as unknown as ClusterConfigContextValue);
     render(<TargetSelector />);
-    fireEvent.keyDown(screen.getByRole("button"), { key: "Enter" });
-    expect(screen.getByTestId("target-selector-dropdown")).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole('button'), { key: 'Enter' });
+    expect(screen.getByTestId('target-selector-dropdown')).toBeInTheDocument();
   });
 
-  it("shows down arrow when closed", () => {
+  it('shows down arrow when closed', () => {
     vi.mocked(useClusterConfig).mockReturnValue({
       targets: mockTargets,
     } as unknown as ClusterConfigContextValue);
     render(<TargetSelector />);
-    expect(screen.getByText("▼")).toBeInTheDocument();
+    expect(screen.getByText('▼')).toBeInTheDocument();
   });
 
-  it("shows up arrow when open", () => {
+  it('shows up arrow when open', () => {
     vi.mocked(useClusterConfig).mockReturnValue({
       targets: mockTargets,
     } as unknown as ClusterConfigContextValue);
     render(<TargetSelector />);
-    fireEvent.click(screen.getByRole("button"));
-    expect(screen.getByText("▲")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button'));
+    expect(screen.getByText('▲')).toBeInTheDocument();
   });
 });

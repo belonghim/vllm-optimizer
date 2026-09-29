@@ -1,14 +1,14 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { authFetch } from '../utils/authFetch';
-import { API, SWEEP_PRESETS, CHART_LABELS } from "../constants";
-import { useThemeColors } from "../contexts/ThemeContext";
-import { fmt } from "../utils/format";
-import MetricCard from "./MetricCard";
-import ErrorAlert from "./ErrorAlert";
-import { useSSE } from "../hooks/useSSE";
+import { API, SWEEP_PRESETS, CHART_LABELS } from '../constants';
+import { useThemeColors } from '../contexts/ThemeContext';
+import { fmt } from '../utils/format';
+import MetricCard from './MetricCard';
+import ErrorAlert from './ErrorAlert';
+import { useSSE } from '../hooks/useSSE';
 
 // Lazy: keeps recharts out of the Load Test page chunk until a sweep completes
-const SweepChart = lazy(() => import("./SweepChart"));
+const SweepChart = lazy(() => import('./SweepChart'));
 
 export interface SweepStepResult {
   step: number;
@@ -57,11 +57,21 @@ interface LoadTestSweepModeProps {
 function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadTestSweepModeProps) {
   const { COLORS } = useThemeColors();
   const [sweepConfig, setSweepConfig] = useState<SweepConfigState>({
-    rps_start: 1, rps_end: 20, rps_step: 5, requests_per_step: 10,
-    concurrency: 5, max_tokens: 128, prompt: "Explain quantum computing in simple terms",
-    saturation_error_rate: 0.1, saturation_latency_factor: 3.0, min_stable_steps: 1, stream: true,
+    rps_start: 1,
+    rps_end: 20,
+    rps_step: 5,
+    requests_per_step: 10,
+    concurrency: 5,
+    max_tokens: 128,
+    prompt: 'Explain quantum computing in simple terms',
+    saturation_error_rate: 0.1,
+    saturation_latency_factor: 3.0,
+    min_stable_steps: 1,
+    stream: true,
   });
-  const [sweepStatus, setSweepStatus] = useState<'idle' | 'running' | 'completed' | 'stopped' | 'error'>('idle');
+  const [sweepStatus, setSweepStatus] = useState<
+    'idle' | 'running' | 'completed' | 'stopped' | 'error'
+  >('idle');
   const [sweepSteps, setSweepSteps] = useState<SweepStepResult[]>([]);
   const [sweepResult, setSweepResult] = useState<SweepResult | null>(null);
   const [sweepError, setSweepError] = useState<string | null>(null);
@@ -74,36 +84,47 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
   const [localEndpoint, setLocalEndpoint] = useState(endpoint);
   const [localModel, setLocalModel] = useState(model);
 
-  useEffect(() => { setLocalEndpoint(endpoint); }, [endpoint]);
-  useEffect(() => { setLocalModel(model); }, [model]);
+  useEffect(() => {
+    setLocalEndpoint(endpoint);
+  }, [endpoint]);
+  useEffect(() => {
+    setLocalModel(model);
+  }, [model]);
 
   useEffect(() => {
     onRunningChange?.(sweepStatus === 'running');
   }, [sweepStatus, onRunningChange]);
 
-  useSSE(sweepSSEUrl, {
-    sweep_step: (data) => setSweepSteps(prev => [...prev, data as SweepStepResult]),
-    sweep_completed: (data) => {
-      setSweepResult(data as SweepResult);
-      setSweepStatus('completed');
-      setSweepSSEUrl(null);
+  useSSE(
+    sweepSSEUrl,
+    {
+      sweep_step: (data) => setSweepSteps((prev) => [...prev, data as SweepStepResult]),
+      sweep_completed: (data) => {
+        setSweepResult(data as SweepResult);
+        setSweepStatus('completed');
+        setSweepSSEUrl(null);
+      },
+      stopped: () => {
+        setSweepStatus('stopped');
+        setSweepSSEUrl(null);
+      },
+      error: (data) => {
+        setSweepError(
+          (data as { error?: string } | null)?.error ||
+            'An unknown error occurred during the sweep test.'
+        );
+        setSweepStatus('error');
+        setSweepSSEUrl(null);
+      },
     },
-    stopped: () => {
-      setSweepStatus('stopped');
-      setSweepSSEUrl(null);
-    },
-    error: (data) => {
-      setSweepError((data as { error?: string } | null)?.error || "An unknown error occurred during the sweep test.");
-      setSweepStatus('error');
-      setSweepSSEUrl(null);
-    },
-  }, {
-    onError: () => {
-      setSweepError("SSE connection failed.");
-      setSweepStatus('error');
-      setSweepSSEUrl(null);
-    },
-  });
+    {
+      onError: () => {
+        setSweepError('SSE connection failed.');
+        setSweepStatus('error');
+        setSweepSSEUrl(null);
+      },
+    }
+  );
 
   const fetchSweepHistory = useCallback(async () => {
     setSweepHistoryLoading(true);
@@ -123,10 +144,13 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
     if (isActive) fetchSweepHistory();
   }, [isActive, fetchSweepHistory]);
 
-  const handleSweepConfigChange = useCallback((key: string, value: string | number | boolean) => { setSweepConfig(c => ({ ...c, [key]: value })); setActivePreset(null); }, []);
+  const handleSweepConfigChange = useCallback((key: string, value: string | number | boolean) => {
+    setSweepConfig((c) => ({ ...c, [key]: value }));
+    setActivePreset(null);
+  }, []);
 
-  const applySweepPreset = useCallback((preset: typeof SWEEP_PRESETS[number]) => {
-    setSweepConfig(c => ({
+  const applySweepPreset = useCallback((preset: (typeof SWEEP_PRESETS)[number]) => {
+    setSweepConfig((c) => ({
       ...c,
       rps_start: preset.rps_start,
       rps_end: preset.rps_end,
@@ -164,51 +188,63 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
   const stop = async () => {
     try {
       setSweepSSEUrl(null);
-      await authFetch(`${API}/load_test/stop`, { method: "POST" });
-      setSweepStatus("stopped");
+      await authFetch(`${API}/load_test/stop`, { method: 'POST' });
+      setSweepStatus('stopped');
     } catch (err) {
       console.error('Failed to stop load test:', err);
       setSweepError(`Failed to stop load test: ${(err as Error).message}`);
     }
   };
 
-   const saveSweepAsBenchmark = async (sweep: SweepResult) => {
-     if (isSaving || !sweep) return;
-     setIsSaving(true); setSaveStatus(null);
-     try {
-       const resp = await authFetch(`${API}/load_test/sweep/save`, {
-         method: "POST", headers: { "Content-Type": "application/json" },
-         body: JSON.stringify(sweep),
-       });
-       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-       setSaveStatus("ok");
-       await fetchSweepHistory();
-     } catch (e) {
-       console.error('Failed to save sweep test result as benchmark', e);
-       setSaveStatus("error");
-     } finally {
-       setIsSaving(false);
-     }
-   };
+  const saveSweepAsBenchmark = async (sweep: SweepResult) => {
+    if (isSaving || !sweep) return;
+    setIsSaving(true);
+    setSaveStatus(null);
+    try {
+      const resp = await authFetch(`${API}/load_test/sweep/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sweep),
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      setSaveStatus('ok');
+      await fetchSweepHistory();
+    } catch (e) {
+      console.error('Failed to save sweep test result as benchmark', e);
+      setSaveStatus('error');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
-   const deleteSweepResult = async (sweepId: string) => {
-     try {
-       const resp = await authFetch(`${API}/load_test/sweep/history/${sweepId}`, { method: "DELETE" });
-       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-       await fetchSweepHistory();
-      } catch (e) {
-        console.error('Failed to delete sweep result', e);
-        setSweepError(`Failed to delete sweep result: ${(e as Error).message}`);
-      }
-   };
+  const deleteSweepResult = async (sweepId: string) => {
+    try {
+      const resp = await authFetch(`${API}/load_test/sweep/history/${sweepId}`, {
+        method: 'DELETE',
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      await fetchSweepHistory();
+    } catch (e) {
+      console.error('Failed to delete sweep result', e);
+      setSweepError(`Failed to delete sweep result: ${(e as Error).message}`);
+    }
+  };
 
   return (
     <>
       <div className="panel" style={{ padding: '8px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <span className="label label-no-mb" style={{ marginRight: '4px' }}>SWEEP PRESETS:</span>
-          {SWEEP_PRESETS.map(preset => (
-            <button type="button" key={preset.name} className={activePreset === preset.name ? "btn btn-primary" : "btn btn-outline"} title={preset.description} onClick={() => applySweepPreset(preset)}>
+          <span className="label label-no-mb" style={{ marginRight: '4px' }}>
+            SWEEP PRESETS:
+          </span>
+          {SWEEP_PRESETS.map((preset) => (
+            <button
+              type="button"
+              key={preset.name}
+              className={activePreset === preset.name ? 'btn btn-primary' : 'btn btn-outline'}
+              title={preset.description}
+              onClick={() => applySweepPreset(preset)}
+            >
               {preset.name}
             </button>
           ))}
@@ -219,48 +255,82 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
         <div className="section-title">Sweep Test Settings</div>
         <div className="grid-form grid-form-compact" style={{ marginBottom: '12px' }}>
           <div>
-            <label htmlFor="sweep-endpoint" className="label">Endpoint</label>
+            <label htmlFor="sweep-endpoint" className="label">
+              Endpoint
+            </label>
             <input
               id="sweep-endpoint"
-              className="input" type="text" aria-label="Endpoint"
+              className="input"
+              type="text"
+              aria-label="Endpoint"
               value={localEndpoint}
-              onChange={e => setLocalEndpoint(e.target.value)}
+              onChange={(e) => setLocalEndpoint(e.target.value)}
               disabled={sweepStatus === 'running'}
             />
           </div>
           <div>
-            <label htmlFor="sweep-model" className="label">Model</label>
+            <label htmlFor="sweep-model" className="label">
+              Model
+            </label>
             <input
               id="sweep-model"
-              className="input" type="text" aria-label="Model"
+              className="input"
+              type="text"
+              aria-label="Model"
               value={localModel}
-              onChange={e => setLocalModel(e.target.value)}
+              onChange={(e) => setLocalModel(e.target.value)}
               disabled={sweepStatus === 'running'}
             />
           </div>
         </div>
         <div className="grid-form grid-form-compact">
-          {([
-            ["RPS Start", "rps_start", "number"], ["RPS End", "rps_end", "number"], ["RPS Step", "rps_step", "number"],
-            ["Requests/Step", "requests_per_step", "number"], ["Concurrency", "concurrency", "number"], ["Max Tokens", "max_tokens", "number"],
-            ["Saturation Error Rate", "saturation_error_rate", "number"],
-            ["Min Stable Steps", "min_stable_steps", "number"],
-          ] as const).map(([label, key, type]) => (
+          {(
+            [
+              ['RPS Start', 'rps_start', 'number'],
+              ['RPS End', 'rps_end', 'number'],
+              ['RPS Step', 'rps_step', 'number'],
+              ['Requests/Step', 'requests_per_step', 'number'],
+              ['Concurrency', 'concurrency', 'number'],
+              ['Max Tokens', 'max_tokens', 'number'],
+              ['Saturation Error Rate', 'saturation_error_rate', 'number'],
+              ['Min Stable Steps', 'min_stable_steps', 'number'],
+            ] as const
+          ).map(([label, key, type]) => (
             <div key={key}>
-              <label htmlFor={`sweep-${key}`} className="label">{label}</label>
+              <label htmlFor={`sweep-${key}`} className="label">
+                {label}
+              </label>
               <input
                 id={`sweep-${key}`}
-                className="input" type={type} aria-label={label}
+                className="input"
+                type={type}
+                aria-label={label}
                 value={sweepConfig[key as keyof SweepConfigState] as string | number}
-                onChange={e => handleSweepConfigChange(key, type === "number" ? +e.target.value : e.target.value)}
+                onChange={(e) =>
+                  handleSweepConfigChange(key, type === 'number' ? +e.target.value : e.target.value)
+                }
                 disabled={sweepStatus === 'running'}
               />
             </div>
           ))}
         </div>
         <div className="loadtest-config-actions">
-          <button type="button" className="btn btn-primary" onClick={startSweep} disabled={sweepStatus === 'running'}>▶ Start Sweep</button>
-          <button type="button" className="btn btn-danger" onClick={stop} disabled={sweepStatus !== 'running'}>■ Stop</button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={startSweep}
+            disabled={sweepStatus === 'running'}
+          >
+            ▶ Start Sweep
+          </button>
+          <button
+            type="button"
+            className="btn btn-danger"
+            onClick={stop}
+            disabled={sweepStatus !== 'running'}
+          >
+            ■ Stop
+          </button>
           <span className={`tag tag-${sweepStatus}`}>{sweepStatus.toUpperCase()}</span>
         </div>
       </div>
@@ -284,17 +354,42 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
           <div className="section-title">Sweep Results</div>
           <table className="table" aria-label="Sweep Step Results">
             <thead>
-              <tr><th>Step</th><th>RPS</th><th>{CHART_LABELS.e2eLatency.p99}</th><th>TPS</th><th>Success %</th><th>Status</th></tr>
+              <tr>
+                <th>Step</th>
+                <th>RPS</th>
+                <th>{CHART_LABELS.e2eLatency.p99}</th>
+                <th>TPS</th>
+                <th>Success %</th>
+                <th>Status</th>
+              </tr>
             </thead>
             <tbody>
               {sweepSteps.map((step) => (
-                <tr key={step.step} data-testid="sweep-step-row" style={step.saturated ? { backgroundColor: 'var(--sweep-step-bg)' } : {}}>
+                <tr
+                  key={step.step}
+                  data-testid="sweep-step-row"
+                  style={step.saturated ? { backgroundColor: 'var(--sweep-step-bg)' } : {}}
+                >
                   <td>{step.step}</td>
                   <td>{fmt(step.rps, 1)}</td>
                   <td>{fmt(step.stats.latency.p99 * 1000, 0)} ms</td>
                   <td>{fmt(step.stats.tps.mean, 1)}</td>
-                  <td>{fmt(step.stats.total > 0 ? (step.stats.success / step.stats.total) * 100 : 0, 1)}%</td>
-                  <td>{step.saturated ? <span style={{color: COLORS.red}} title={step.saturation_reason ?? ''}>Saturated</span> : 'OK'}</td>
+                  <td>
+                    {fmt(
+                      step.stats.total > 0 ? (step.stats.success / step.stats.total) * 100 : 0,
+                      1
+                    )}
+                    %
+                  </td>
+                  <td>
+                    {step.saturated ? (
+                      <span style={{ color: COLORS.red }} title={step.saturation_reason ?? ''}>
+                        Saturated
+                      </span>
+                    ) : (
+                      'OK'
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -305,10 +400,25 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
       {sweepResult && (
         <div className="flex-col-16">
           <div className="grid-5 gap-1">
-            <MetricCard label="Optimal RPS" value={sweepResult.optimal_rps ?? 'N/A'} unit="" color="green" />
-            <MetricCard label="Saturation RPS" value={sweepResult.saturation_point ?? 'None'} unit="" color="red" />
+            <MetricCard
+              label="Optimal RPS"
+              value={sweepResult.optimal_rps ?? 'N/A'}
+              unit=""
+              color="green"
+            />
+            <MetricCard
+              label="Saturation RPS"
+              value={sweepResult.saturation_point ?? 'None'}
+              unit=""
+              color="red"
+            />
             <MetricCard label="Total Steps" value={sweepResult.steps.length} unit="" color="cyan" />
-            <MetricCard label="Duration" value={`${fmt(sweepResult.total_duration, 1)}s`} unit="" color="amber" />
+            <MetricCard
+              label="Duration"
+              value={`${fmt(sweepResult.total_duration, 1)}s`}
+              unit=""
+              color="amber"
+            />
           </div>
           {sweepResult.steps && sweepResult.steps.length > 0 && (
             <Suspense fallback={<div style={{ height: '30vh', minHeight: '220px' }} />}>
@@ -317,7 +427,12 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
           )}
           {sweepStatus === 'completed' && (
             <div className="loadtest-save-row">
-              <button type="button" className="btn btn-primary" onClick={() => saveSweepAsBenchmark(sweepResult)} disabled={isSaving || saveStatus === 'ok'}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => saveSweepAsBenchmark(sweepResult)}
+                disabled={isSaving || saveStatus === 'ok'}
+              >
                 {saveStatus === 'ok' ? '✓ Saved' : isSaving ? 'Saving...' : '⬆ Save to Benchmark'}
               </button>
             </div>
@@ -331,7 +446,12 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
           {sweepHistoryLoading && <div className="label">Loading...</div>}
           <table className="table" aria-label="Saved Sweep Results List">
             <thead>
-              <tr><th>Optimal RPS</th><th>Steps</th><th>Duration</th><th>Actions</th></tr>
+              <tr>
+                <th>Optimal RPS</th>
+                <th>Steps</th>
+                <th>Duration</th>
+                <th>Actions</th>
+              </tr>
             </thead>
             <tbody>
               {sweepHistory.map((h, idx) => {
@@ -344,7 +464,12 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
                     <td>{fmt(h.total_duration, 1)}s</td>
                     <td>
                       {sweepId && (
-                        <button type="button" className="btn btn-danger" style={{ padding: '2px 8px', fontSize: '12px' }} onClick={() => deleteSweepResult(sweepId)}>
+                        <button
+                          type="button"
+                          className="btn btn-danger"
+                          style={{ padding: '2px 8px', fontSize: '12px' }}
+                          onClick={() => deleteSweepResult(sweepId)}
+                        >
                           Delete
                         </button>
                       )}

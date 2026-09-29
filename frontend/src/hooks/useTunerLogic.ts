@@ -1,27 +1,43 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import toast from "react-hot-toast";
-import { useSSE } from "./useSSE";
+import { useState, useEffect, useCallback, useRef } from 'react';
+import toast from 'react-hot-toast';
+import { useSSE } from './useSSE';
 import { authFetch } from '../utils/authFetch';
-import { API } from "../constants";
-import { ERROR_MESSAGES } from "../constants/errorMessages";
-import { useMockData } from "../contexts/MockDataContext";
-import { useClusterConfig } from "../contexts/ClusterConfigContext";
-import { mockTrials } from "../mockData";
-import { buildDefaultEndpoint } from "../utils/endpointUtils";
-import type { SSEErrorPayload, SSEWarningPayload, TunerPhase, TunerStatus, TunerTrial, TunerConfig, ClusterTarget, TuningWarmupSuggestionsPayload, TuningFailureExplanationPayload, TuningReportPayload } from "../types";
+import { API } from '../constants';
+import { ERROR_MESSAGES } from '../constants/errorMessages';
+import { useMockData } from '../contexts/MockDataContext';
+import { useClusterConfig } from '../contexts/ClusterConfigContext';
+import { mockTrials } from '../mockData';
+import { buildDefaultEndpoint } from '../utils/endpointUtils';
+import type {
+  SSEErrorPayload,
+  SSEWarningPayload,
+  TunerPhase,
+  TunerStatus,
+  TunerTrial,
+  TunerConfig,
+  ClusterTarget,
+  TuningWarmupSuggestionsPayload,
+  TuningFailureExplanationPayload,
+  TuningReportPayload,
+} from '../types';
 
 const DEFAULT_CONFIG: TunerConfig = {
-  objective: "balanced",
-  evaluation_mode: "single",
+  objective: 'balanced',
+  evaluation_mode: 'single',
   n_trials: 10,
-  vllm_endpoint: "",
-  max_num_seqs_min: 64, max_num_seqs_max: 512,
-  gpu_memory_min: 0.80, gpu_memory_max: 0.95,
-  max_model_len_min: 2048, max_model_len_max: 8192,
-  max_num_batched_tokens_min: 256, max_num_batched_tokens_max: 2048,
+  vllm_endpoint: '',
+  max_num_seqs_min: 64,
+  max_num_seqs_max: 512,
+  gpu_memory_min: 0.8,
+  gpu_memory_max: 0.95,
+  max_model_len_min: 2048,
+  max_model_len_max: 8192,
+  max_num_batched_tokens_min: 256,
+  max_num_batched_tokens_max: 2048,
   block_size_options: [8, 16, 32],
   include_swap_space: false,
-  swap_space_min: 1.0, swap_space_max: 8.0,
+  swap_space_min: 1.0,
+  swap_space_max: 8.0,
   eval_concurrency: 16,
   eval_rps: 20,
   eval_requests: 100,
@@ -29,26 +45,26 @@ const DEFAULT_CONFIG: TunerConfig = {
 };
 
 function asNumber(value: unknown, fallback: number): number {
-  return typeof value === "number" && !Number.isNaN(value) ? value : fallback;
+  return typeof value === 'number' && !Number.isNaN(value) ? value : fallback;
 }
 
 function asString(value: unknown, fallback: string): string {
-  return typeof value === "string" ? value : fallback;
+  return typeof value === 'string' ? value : fallback;
 }
 
 function asBoolean(value: unknown, fallback: boolean): boolean {
-  return typeof value === "boolean" ? value : fallback;
+  return typeof value === 'boolean' ? value : fallback;
 }
 
 function asNumberArray(value: unknown, fallback: number[]): number[] {
-  return Array.isArray(value) && value.every((item) => typeof item === "number") ? value : fallback;
+  return Array.isArray(value) && value.every((item) => typeof item === 'number') ? value : fallback;
 }
 
 function toTunerConfig(draft: Record<string, unknown>, prev: TunerConfig): TunerConfig {
   return {
     objective: asString(draft.objective, prev.objective),
     evaluation_mode:
-      draft.evaluation_mode === "single" || draft.evaluation_mode === "sweep"
+      draft.evaluation_mode === 'single' || draft.evaluation_mode === 'sweep'
         ? draft.evaluation_mode
         : prev.evaluation_mode,
     n_trials: asNumber(draft.n_trials, prev.n_trials),
@@ -59,8 +75,14 @@ function toTunerConfig(draft: Record<string, unknown>, prev: TunerConfig): Tuner
     gpu_memory_max: asNumber(draft.gpu_memory_max, prev.gpu_memory_max),
     max_model_len_min: asNumber(draft.max_model_len_min, prev.max_model_len_min),
     max_model_len_max: asNumber(draft.max_model_len_max, prev.max_model_len_max),
-    max_num_batched_tokens_min: asNumber(draft.max_num_batched_tokens_min, prev.max_num_batched_tokens_min),
-    max_num_batched_tokens_max: asNumber(draft.max_num_batched_tokens_max, prev.max_num_batched_tokens_max),
+    max_num_batched_tokens_min: asNumber(
+      draft.max_num_batched_tokens_min,
+      prev.max_num_batched_tokens_min
+    ),
+    max_num_batched_tokens_max: asNumber(
+      draft.max_num_batched_tokens_max,
+      prev.max_num_batched_tokens_max
+    ),
     block_size_options: asNumberArray(draft.block_size_options, prev.block_size_options),
     include_swap_space: asBoolean(draft.include_swap_space, prev.include_swap_space),
     swap_space_min: asNumber(draft.swap_space_min, prev.swap_space_min),
@@ -69,15 +91,25 @@ function toTunerConfig(draft: Record<string, unknown>, prev: TunerConfig): Tuner
     eval_rps: asNumber(draft.eval_rps, prev.eval_rps),
     eval_requests: asNumber(draft.eval_requests, prev.eval_requests),
     enable_llm_assistant:
-      typeof draft.enable_llm_assistant === "boolean" ? draft.enable_llm_assistant : prev.enable_llm_assistant,
+      typeof draft.enable_llm_assistant === 'boolean'
+        ? draft.enable_llm_assistant
+        : prev.enable_llm_assistant,
     p99_latency_sla_ms:
-      draft.p99_latency_sla_ms === null || typeof draft.p99_latency_sla_ms === "number"
+      draft.p99_latency_sla_ms === null || typeof draft.p99_latency_sla_ms === 'number'
         ? draft.p99_latency_sla_ms
         : prev.p99_latency_sla_ms,
   };
 }
 
-export function useTunerLogic({ isActive, onRunningChange, targetOverride }: { isActive: boolean; onRunningChange?: (running: boolean) => void; targetOverride?: ClusterTarget | null }) {
+export function useTunerLogic({
+  isActive,
+  onRunningChange,
+  targetOverride,
+}: {
+  isActive: boolean;
+  onRunningChange?: (running: boolean) => void;
+  targetOverride?: ClusterTarget | null;
+}) {
   const { isMockEnabled } = useMockData();
   const { endpoint, namespace, inferenceservice, crType } = useClusterConfig();
   const [error, setError] = useState<string | null>(null);
@@ -92,51 +124,56 @@ export function useTunerLogic({ isActive, onRunningChange, targetOverride }: { i
   const [benchmarkSaved, setBenchmarkSaved] = useState(false);
   const [benchmarkSavedId, setBenchmarkSavedId] = useState<number | null>(null);
   const [initialized, setInitialized] = useState(false);
-  const [warmupSuggestions, setWarmupSuggestions] = useState<TuningWarmupSuggestionsPayload | null>(null);
+  const [warmupSuggestions, setWarmupSuggestions] = useState<TuningWarmupSuggestionsPayload | null>(
+    null
+  );
   const [tuningReport, setTuningReport] = useState<TuningReportPayload | null>(null);
   const userEditedRef = useRef<Record<string, boolean>>({});
   const [config, setConfig] = useState<TunerConfig>(DEFAULT_CONFIG);
 
-  const fetchStatus = useCallback(async (signal?: AbortSignal) => {
-    if (isMockEnabled) {
-      setTrials(mockTrials().map((trial) => ({ ...trial, params: { ...trial.params } })));
-      setError(null);
-      return;
-    }
-    const safeFetch = async (url: string) => {
-      try {
-        const response = await authFetch(url, { signal });
-        if (!response.ok) return null;
-        return await response.json();
-      } catch (e) {
-        console.error(`Failed to fetch tuner data from ${url}`, e);
-        return null;
+  const fetchStatus = useCallback(
+    async (signal?: AbortSignal) => {
+      if (isMockEnabled) {
+        setTrials(mockTrials().map((trial) => ({ ...trial, params: { ...trial.params } })));
+        setError(null);
+        return;
       }
-    };
-    const results = await Promise.allSettled([
-      safeFetch(`${API}/tuner/status`),
-      safeFetch(`${API}/tuner/trials`),
-      safeFetch(`${API}/tuner/importance`),
-    ]);
-    if (signal?.aborted) return;
-    const s = results[0].status === "fulfilled" ? results[0].value : null;
-    const t = results[1].status === "fulfilled" ? results[1].value : null;
-    const imp = results[2].status === "fulfilled" ? results[2].value : null;
-    if (s) setStatus(s);
-    if (t) setTrials(t);
-    if (imp) setImportance(imp);
-    if (!s && !t && !imp) {
-      setError(ERROR_MESSAGES.TUNER.ALL_API_FAILED);
-    } else if (!s || !t || !imp) {
-      const failed: string[] = [];
-      if (!s) failed.push("status");
-      if (!t) failed.push("trials");
-      if (!imp) failed.push("importance");
-      setError(`${ERROR_MESSAGES.TUNER.PARTIAL_API_FAILED_PREFIX}${failed.join(", ")})`);
-    } else {
-      setError(null);
-    }
-  }, [isMockEnabled]);
+      const safeFetch = async (url: string) => {
+        try {
+          const response = await authFetch(url, { signal });
+          if (!response.ok) return null;
+          return await response.json();
+        } catch (e) {
+          console.error(`Failed to fetch tuner data from ${url}`, e);
+          return null;
+        }
+      };
+      const results = await Promise.allSettled([
+        safeFetch(`${API}/tuner/status`),
+        safeFetch(`${API}/tuner/trials`),
+        safeFetch(`${API}/tuner/importance`),
+      ]);
+      if (signal?.aborted) return;
+      const s = results[0].status === 'fulfilled' ? results[0].value : null;
+      const t = results[1].status === 'fulfilled' ? results[1].value : null;
+      const imp = results[2].status === 'fulfilled' ? results[2].value : null;
+      if (s) setStatus(s);
+      if (t) setTrials(t);
+      if (imp) setImportance(imp);
+      if (!s && !t && !imp) {
+        setError(ERROR_MESSAGES.TUNER.ALL_API_FAILED);
+      } else if (!s || !t || !imp) {
+        const failed: string[] = [];
+        if (!s) failed.push('status');
+        if (!t) failed.push('trials');
+        if (!imp) failed.push('importance');
+        setError(`${ERROR_MESSAGES.TUNER.PARTIAL_API_FAILED_PREFIX}${failed.join(', ')})`);
+      } else {
+        setError(null);
+      }
+    },
+    [isMockEnabled]
+  );
 
   useEffect(() => {
     if (!isActive) return;
@@ -146,66 +183,87 @@ export function useTunerLogic({ isActive, onRunningChange, targetOverride }: { i
       if (!controller.signal.aborted) setInitialized(true);
     })();
     const id = setInterval(() => fetchStatus(controller.signal), 3000);
-    return () => { controller.abort(); clearInterval(id); };
+    return () => {
+      controller.abort();
+      clearInterval(id);
+    };
   }, [isActive, fetchStatus]);
 
-  const tunerSSEUrl = isActive && status.running && !isMockEnabled && !error
-    ? `${API}/tuner/stream`
-    : null;
+  const tunerSSEUrl =
+    isActive && status.running && !isMockEnabled && !error ? `${API}/tuner/stream` : null;
 
-  useSSE(tunerSSEUrl, {
-    phase: (data) => setCurrentPhase(data as TunerPhase | null),
-    tuning_error: (data) => {
-      const payload = data as SSEErrorPayload | undefined;
-      setError(payload?.error ?? ERROR_MESSAGES.TUNER.ERROR_DEFAULT);
+  useSSE(
+    tunerSSEUrl,
+    {
+      phase: (data) => setCurrentPhase(data as TunerPhase | null),
+      tuning_error: (data) => {
+        const payload = data as SSEErrorPayload | undefined;
+        setError(payload?.error ?? ERROR_MESSAGES.TUNER.ERROR_DEFAULT);
+      },
+      tuning_warning: (data) => {
+        const payload = data as SSEWarningPayload | undefined;
+        setWarning(payload?.message ?? ERROR_MESSAGES.TUNER.WARNING_DEFAULT);
+      },
+      benchmark_saved: (data) => {
+        const d = data as { benchmark_id?: unknown } | null;
+        setBenchmarkSaved(true);
+        setBenchmarkSavedId(typeof d?.benchmark_id === 'number' ? d.benchmark_id : null);
+      },
+      trial_complete: () => {
+        setCurrentPhase(null);
+        fetchStatus();
+      },
+      tuning_complete: () => {
+        setCurrentPhase(null);
+        fetchStatus();
+      },
+      tuning_warmup_suggestions: (data) => {
+        setWarmupSuggestions(data as TuningWarmupSuggestionsPayload | null);
+      },
+      tuning_failure_explanation: (data) => {
+        const payload = data as TuningFailureExplanationPayload | undefined;
+        if (!payload) return;
+        toast.error(`Trial ${payload.trial_id} [${payload.reason}]: ${payload.explanation}`, {
+          duration: 10000,
+          style: { maxWidth: '480px', fontSize: '12px' },
+        });
+      },
+      tuning_report: (data) => {
+        setTuningReport(data as TuningReportPayload | null);
+      },
     },
-    tuning_warning: (data) => {
-      const payload = data as SSEWarningPayload | undefined;
-      setWarning(payload?.message ?? ERROR_MESSAGES.TUNER.WARNING_DEFAULT);
-    },
-    benchmark_saved: (data) => {
-      const d = data as { benchmark_id?: unknown } | null;
-      setBenchmarkSaved(true);
-      setBenchmarkSavedId(typeof d?.benchmark_id === "number" ? d.benchmark_id : null);
-    },
-    trial_complete: () => { setCurrentPhase(null); fetchStatus(); },
-    tuning_complete: () => { setCurrentPhase(null); fetchStatus(); },
-    tuning_warmup_suggestions: (data) => {
-      setWarmupSuggestions(data as TuningWarmupSuggestionsPayload | null);
-    },
-    tuning_failure_explanation: (data) => {
-      const payload = data as TuningFailureExplanationPayload | undefined;
-      if (!payload) return;
-      toast.error(`Trial ${payload.trial_id} [${payload.reason}]: ${payload.explanation}`, {
-        duration: 10000,
-        style: { maxWidth: '480px', fontSize: '12px' },
-      });
-    },
-    tuning_report: (data) => {
-      setTuningReport(data as TuningReportPayload | null);
-    },
-  }, { reconnect: true, onError: () => setError(ERROR_MESSAGES.TUNER.SSE_MAX_RETRIES_EXCEEDED) });
+    { reconnect: true, onError: () => setError(ERROR_MESSAGES.TUNER.SSE_MAX_RETRIES_EXCEEDED) }
+  );
 
   useEffect(() => {
     if (!isActive || isMockEnabled) return;
     const controller = new AbortController();
     authFetch(`${API}/status/interrupted`, { signal: controller.signal })
-      .then(r => r.json())
-      .then(data => {
-        if (data.interrupted_runs && data.interrupted_runs.some((r: { task_type: string }) => r.task_type === "tuner")) {
+      .then((r) => r.json())
+      .then((data) => {
+        if (
+          data.interrupted_runs &&
+          data.interrupted_runs.some((r: { task_type: string }) => r.task_type === 'tuner')
+        ) {
           setInterruptedWarning(ERROR_MESSAGES.TUNER.INTERRUPTED_WARNING);
         }
       })
-      .catch((error) => { console.warn('Failed to check interrupted status:', error); });
+      .catch((error) => {
+        console.warn('Failed to check interrupted status:', error);
+      });
     return () => controller.abort();
   }, [isActive, isMockEnabled]);
 
   useEffect(() => {
     userEditedRef.current = {};
     const newEndpoint = targetOverride
-      ? buildDefaultEndpoint(targetOverride.crType, targetOverride.namespace, targetOverride.inferenceService)
+      ? buildDefaultEndpoint(
+          targetOverride.crType,
+          targetOverride.namespace,
+          targetOverride.inferenceService
+        )
       : endpoint;
-    setConfig({ ...DEFAULT_CONFIG, vllm_endpoint: newEndpoint || "" });
+    setConfig({ ...DEFAULT_CONFIG, vllm_endpoint: newEndpoint || '' });
   }, [targetOverride, endpoint]);
 
   useEffect(() => {
@@ -213,10 +271,13 @@ export function useTunerLogic({ isActive, onRunningChange, targetOverride }: { i
     const controller = new AbortController();
     const query = targetOverride
       ? `?namespace=${encodeURIComponent(targetOverride.namespace)}&is_name=${encodeURIComponent(targetOverride.inferenceService)}&cr_type=${encodeURIComponent(targetOverride.crType)}`
-      : "";
+      : '';
     authFetch(`${API}/vllm-config${query}`, { signal: controller.signal })
       .then((r) => {
-        if (!r.ok) return r.json().then((errData) => { throw new Error(errData.detail || `HTTP ${r.status}`); });
+        if (!r.ok)
+          return r.json().then((errData) => {
+            throw new Error(errData.detail || `HTTP ${r.status}`);
+          });
         return r.json();
       })
       .then((data) => {
@@ -234,39 +295,50 @@ export function useTunerLogic({ isActive, onRunningChange, targetOverride }: { i
             const numVal = typeof value === 'string' ? parseFloat(value) : value;
             if (typeof numVal !== 'number' || isNaN(numVal)) return;
 
-            if (key === "max_num_seqs") {
+            if (key === 'max_num_seqs') {
               if (!userEditedRef.current.max_num_seqs_min) next.max_num_seqs_min = numVal;
               if (!userEditedRef.current.max_num_seqs_max) next.max_num_seqs_max = numVal;
-            } else if (key === "gpu_memory_utilization") {
+            } else if (key === 'gpu_memory_utilization') {
               if (!userEditedRef.current.gpu_memory_min) next.gpu_memory_min = numVal;
               if (!userEditedRef.current.gpu_memory_max) next.gpu_memory_max = numVal;
-            } else if (key === "max_model_len") {
+            } else if (key === 'max_model_len') {
               if (!userEditedRef.current.max_model_len_min) next.max_model_len_min = numVal;
               if (!userEditedRef.current.max_model_len_max) next.max_model_len_max = numVal;
-            } else if (key === "max_num_batched_tokens") {
-              if (!userEditedRef.current.max_num_batched_tokens_min) next.max_num_batched_tokens_min = numVal;
-              if (!userEditedRef.current.max_num_batched_tokens_max) next.max_num_batched_tokens_max = numVal;
-            } else if (key === "block_size") {
+            } else if (key === 'max_num_batched_tokens') {
+              if (!userEditedRef.current.max_num_batched_tokens_min)
+                next.max_num_batched_tokens_min = numVal;
+              if (!userEditedRef.current.max_num_batched_tokens_max)
+                next.max_num_batched_tokens_max = numVal;
+            } else if (key === 'block_size') {
               if (!userEditedRef.current.block_size_options) next.block_size_options = [numVal];
-            } else if (key === "swap_space") {
+            } else if (key === 'swap_space') {
               if (!userEditedRef.current.swap_space_min) next.swap_space_min = numVal;
               if (!userEditedRef.current.swap_space_max) next.swap_space_max = numVal;
-              if (!userEditedRef.current.include_swap_space && numVal > 0) next.include_swap_space = true;
+              if (!userEditedRef.current.include_swap_space && numVal > 0)
+                next.include_swap_space = true;
             }
           });
           return toTunerConfig(next, prev);
         });
       })
-      .catch((err: Error) => { if (err.name === "AbortError") return; console.error("Failed to fetch vLLM config:", err); });
+      .catch((err: Error) => {
+        if (err.name === 'AbortError') return;
+        console.error('Failed to fetch vLLM config:', err);
+      });
     return () => controller.abort();
   }, [isActive, isMockEnabled, targetOverride]);
 
-  useEffect(() => { onRunningChange?.(status.running); }, [status.running, onRunningChange]);
+  useEffect(() => {
+    onRunningChange?.(status.running);
+  }, [status.running, onRunningChange]);
 
-  const handleConfigChange = useCallback((field: string, value: string | number | boolean | number[]) => {
-    setConfig(c => ({ ...c, [field]: value }));
-    userEditedRef.current[field] = true;
-  }, []);
+  const handleConfigChange = useCallback(
+    (field: string, value: string | number | boolean | number[]) => {
+      setConfig((c) => ({ ...c, [field]: value }));
+      userEditedRef.current[field] = true;
+    },
+    []
+  );
 
   const handleApplySuccess = useCallback(() => {
     setApplyStatus(ERROR_MESSAGES.TUNER.APPLY_CURRENT_SUCCESS);
@@ -274,15 +346,19 @@ export function useTunerLogic({ isActive, onRunningChange, targetOverride }: { i
   }, []);
 
   const start = async () => {
-    setError(null); setWarning(null); setBenchmarkSaved(false); setBenchmarkSavedId(null);
-    setWarmupSuggestions(null); setTuningReport(null);
+    setError(null);
+    setWarning(null);
+    setBenchmarkSaved(false);
+    setBenchmarkSavedId(null);
+    setWarmupSuggestions(null);
+    setTuningReport(null);
     try {
       const targetNs = targetOverride?.namespace || namespace;
       const targetIsName = targetOverride?.inferenceService || inferenceservice;
       const targetCrType = targetOverride?.crType || crType;
       const resolvedEndpoint = targetOverride
         ? buildDefaultEndpoint(targetCrType, targetNs, targetIsName)
-        : (endpoint || config.vllm_endpoint);
+        : endpoint || config.vllm_endpoint;
       const payload: Record<string, unknown> = {
         ...config,
         auto_benchmark: autoBenchmark,
@@ -292,15 +368,30 @@ export function useTunerLogic({ isActive, onRunningChange, targetOverride }: { i
         vllm_cr_type: targetCrType,
         p99_latency_sla_ms: config.p99_latency_sla_ms || null,
       };
-      if (config.evaluation_mode === "sweep") {
+      if (config.evaluation_mode === 'sweep') {
         const baseRps = Math.max(1, config.eval_rps);
         const sweepStep = Math.max(1, Math.floor(baseRps / 2));
-        payload.sweep_config = { endpoint: resolvedEndpoint, model: "auto", rps_start: Math.max(1, baseRps - sweepStep), rps_end: baseRps + sweepStep, rps_step: sweepStep, requests_per_step: Math.max(1, config.eval_requests), concurrency: Math.max(1, config.eval_concurrency) };
+        payload.sweep_config = {
+          endpoint: resolvedEndpoint,
+          model: 'auto',
+          rps_start: Math.max(1, baseRps - sweepStep),
+          rps_end: baseRps + sweepStep,
+          rps_step: sweepStep,
+          requests_per_step: Math.max(1, config.eval_requests),
+          concurrency: Math.max(1, config.eval_concurrency),
+        };
       }
-      const res = await authFetch(`${API}/tuner/start`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const res = await authFetch(`${API}/tuner/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      if (!data.success) { setError(data.message || ERROR_MESSAGES.TUNER.START_FAILED); return; }
+      if (!data.success) {
+        setError(data.message || ERROR_MESSAGES.TUNER.START_FAILED);
+        return;
+      }
       fetchStatus();
     } catch (err) {
       console.error('Failed to start tuner:', err);
@@ -309,8 +400,12 @@ export function useTunerLogic({ isActive, onRunningChange, targetOverride }: { i
   };
 
   const stop = async () => {
-    try { await authFetch(`${API}/tuner/stop`, { method: "POST" }); }
-    catch (err) { console.error('Failed to stop tuner:', err); setError(`${ERROR_MESSAGES.TUNER.STOP_FAILED_PREFIX}${(err as Error).message}`); }
+    try {
+      await authFetch(`${API}/tuner/stop`, { method: 'POST' });
+    } catch (err) {
+      console.error('Failed to stop tuner:', err);
+      setError(`${ERROR_MESSAGES.TUNER.STOP_FAILED_PREFIX}${(err as Error).message}`);
+    }
     setCurrentPhase(null);
     fetchStatus();
   };
@@ -318,10 +413,15 @@ export function useTunerLogic({ isActive, onRunningChange, targetOverride }: { i
   const applyBest = async () => {
     setApplyStatus(null);
     try {
-      const res = await authFetch(`${API}/tuner/apply-best`, { method: "POST" });
+      const res = await authFetch(`${API}/tuner/apply-best`, { method: 'POST' });
       const data = await res.json();
-      if (data?.success) { setApplyStatus("success"); setTimeout(() => setApplyStatus(null), 3000); }
-      else setError(`${ERROR_MESSAGES.TUNER.APPLY_BEST_FAILED_PREFIX}${data?.message || "Unknown error"}`);
+      if (data?.success) {
+        setApplyStatus('success');
+        setTimeout(() => setApplyStatus(null), 3000);
+      } else
+        setError(
+          `${ERROR_MESSAGES.TUNER.APPLY_BEST_FAILED_PREFIX}${data?.message || 'Unknown error'}`
+        );
     } catch (err) {
       console.error('Failed to apply best parameters:', err);
       setError(`${ERROR_MESSAGES.TUNER.APPLY_BEST_FAILED_PREFIX}${(err as Error).message}`);
@@ -329,10 +429,28 @@ export function useTunerLogic({ isActive, onRunningChange, targetOverride }: { i
   };
 
   return {
-    error, warning, status, trials, importance, currentPhase, applyStatus,
-    interruptedWarning, autoBenchmark, benchmarkSaved, benchmarkSavedId,
-    initialized, config, setError, setInterruptedWarning, setAutoBenchmark,
-    handleConfigChange, handleApplySuccess, start, stop, applyBest,
-    warmupSuggestions, tuningReport,
+    error,
+    warning,
+    status,
+    trials,
+    importance,
+    currentPhase,
+    applyStatus,
+    interruptedWarning,
+    autoBenchmark,
+    benchmarkSaved,
+    benchmarkSavedId,
+    initialized,
+    config,
+    setError,
+    setInterruptedWarning,
+    setAutoBenchmark,
+    handleConfigChange,
+    handleApplySuccess,
+    start,
+    stop,
+    applyBest,
+    warmupSuggestions,
+    tuningReport,
   };
 }

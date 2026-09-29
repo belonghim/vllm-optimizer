@@ -1,9 +1,9 @@
-import { lazy, Suspense } from "react";
-import { TARGET_COLORS, COLORS as DARK_COLORS, CHART_LABELS } from "../constants";
-import type { ClusterTarget } from "../types";
+import { lazy, Suspense } from 'react';
+import { TARGET_COLORS, COLORS as DARK_COLORS, CHART_LABELS } from '../constants';
+import type { ClusterTarget } from '../types';
 
 // recharts is heavy (~370 kB); load it lazily so it stays out of the initial bundle
-const Chart = lazy(() => import("./Chart"));
+const Chart = lazy(() => import('./Chart'));
 
 export interface ChartLine {
   key: string;
@@ -20,21 +20,21 @@ export interface ChartDefinition {
 }
 
 export const CHART_DEFINITIONS: ChartDefinition[] = [
-  { id: 'tps',      title: 'Throughput (TPS)' },
-  { id: 'e2e_latency',  title: CHART_LABELS.e2eLatency.chartTitle },
-  { id: 'ttft',     title: 'TTFT (ms)' },
-  { id: 'kv',       title: 'KV Cache Usage (%)' },
-  { id: 'kv_hit',   title: 'KV Cache Hit Rate (%)' },
-  { id: 'queue',    title: 'Request Queue' },
-  { id: 'rps',      title: 'RPS (Requests/sec)' },
+  { id: 'tps', title: 'Throughput (TPS)' },
+  { id: 'e2e_latency', title: CHART_LABELS.e2eLatency.chartTitle },
+  { id: 'ttft', title: 'TTFT (ms)' },
+  { id: 'kv', title: 'KV Cache Usage (%)' },
+  { id: 'kv_hit', title: 'KV Cache Hit Rate (%)' },
+  { id: 'queue', title: 'Request Queue' },
+  { id: 'rps', title: 'RPS (Requests/sec)' },
   { id: 'gpu_util', title: 'GPU Utilization (%)' },
-  { id: 'gpu_mem',  title: 'GPU Memory (GB)' },
-  { id: 'tpot',       title: 'TPOT (ms)' },
+  { id: 'gpu_mem', title: 'GPU Memory (GB)' },
+  { id: 'tpot', title: 'TPOT (ms)' },
   { id: 'queue_time', title: 'Queue Time (ms) (vLLM v0.6+)' },
 ];
 
 const LS_KEY = 'vllm-optimizer-chart-config';
-export const DEFAULT_ORDER = CHART_DEFINITIONS.map(c => c.id);
+export const DEFAULT_ORDER = CHART_DEFINITIONS.map((c) => c.id);
 
 export interface ChartConfig {
   order: string[];
@@ -47,13 +47,13 @@ export function loadChartConfig(): ChartConfig {
     if (!raw) return { order: DEFAULT_ORDER, hidden: [] };
     const parsed = JSON.parse(raw);
     const validIds = new Set(DEFAULT_ORDER);
-    
+
     // Migration: rename 'latency' to 'e2e_latency' for localStorage config
-    const migrateOrder = (order: string[]): string[] => 
-      order.map((id: string) => id === 'latency' ? 'e2e_latency' : id);
+    const migrateOrder = (order: string[]): string[] =>
+      order.map((id: string) => (id === 'latency' ? 'e2e_latency' : id));
     const migrateHidden = (hidden: string[]): string[] =>
-      hidden.map((id: string) => id === 'latency' ? 'e2e_latency' : id);
-    
+      hidden.map((id: string) => (id === 'latency' ? 'e2e_latency' : id));
+
     const order = Array.isArray(parsed.order)
       ? migrateOrder(parsed.order.filter((id: string) => validIds.has(id)))
       : DEFAULT_ORDER;
@@ -61,7 +61,9 @@ export function loadChartConfig(): ChartConfig {
       ? migrateHidden(parsed.hidden.filter((id: string) => validIds.has(id)))
       : [];
     const inOrder = new Set(order);
-    DEFAULT_ORDER.forEach(id => { if (!inOrder.has(id)) order.push(id); });
+    DEFAULT_ORDER.forEach((id) => {
+      if (!inOrder.has(id)) order.push(id);
+    });
     return { order, hidden };
   } catch (e) {
     console.error('Failed to load chart configuration from localStorage', e);
@@ -80,7 +82,7 @@ export function saveChartConfig(order: string[], hidden: string[]) {
 export function buildChartLinesMap(
   targets: ClusterTarget[],
   defaultKey: string | null,
-  COLORS: typeof DARK_COLORS = DARK_COLORS,
+  COLORS: typeof DARK_COLORS = DARK_COLORS
 ): ChartLinesMap {
   const makeMultiLines = (metricKey: string) =>
     targets.map((t, i) => ({
@@ -91,48 +93,59 @@ export function buildChartLinesMap(
 
   if (targets.length === 1 && defaultKey) {
     return {
-      tps:      [{ key: `${defaultKey}_tps`, color: COLORS.accent, label: "TPS" }],
-      e2e_latency:  [
-        { key: `${defaultKey}_lat_p99_fill`, color: COLORS.red, label: CHART_LABELS.e2eLatency.p99Idle, dash: true },
+      tps: [{ key: `${defaultKey}_tps`, color: COLORS.accent, label: 'TPS' }],
+      e2e_latency: [
+        {
+          key: `${defaultKey}_lat_p99_fill`,
+          color: COLORS.red,
+          label: CHART_LABELS.e2eLatency.p99Idle,
+          dash: true,
+        },
         { key: `${defaultKey}_lat_p99`, color: COLORS.red, label: CHART_LABELS.e2eLatency.p99 },
-        { key: `${defaultKey}_lat_mean`, color: COLORS.accent, label: CHART_LABELS.e2eLatency.mean },
+        {
+          key: `${defaultKey}_lat_mean`,
+          color: COLORS.accent,
+          label: CHART_LABELS.e2eLatency.mean,
+        },
       ],
-      ttft:     [
-        { key: `${defaultKey}_ttft_fill`, color: COLORS.cyan, label: "TTFT (idle)", dash: true },
-        { key: `${defaultKey}_ttft`, color: COLORS.cyan, label: "TTFT mean" },
-        { key: `${defaultKey}_ttft_p99`, color: COLORS.accent, label: "TTFT p99" },
+      ttft: [
+        { key: `${defaultKey}_ttft_fill`, color: COLORS.cyan, label: 'TTFT (idle)', dash: true },
+        { key: `${defaultKey}_ttft`, color: COLORS.cyan, label: 'TTFT mean' },
+        { key: `${defaultKey}_ttft_p99`, color: COLORS.accent, label: 'TTFT p99' },
       ],
-      kv:       [{ key: `${defaultKey}_kv`, color: COLORS.purple, label: "KV Cache %" }],
-      kv_hit:   [{ key: `${defaultKey}_kv_hit`, color: COLORS.cyan, label: "KV Hit Rate %" }],
-      queue:    [
-        { key: `${defaultKey}_running`, color: COLORS.green, label: "Running" },
-        { key: `${defaultKey}_waiting`, color: COLORS.red, label: "Waiting" },
+      kv: [{ key: `${defaultKey}_kv`, color: COLORS.purple, label: 'KV Cache %' }],
+      kv_hit: [{ key: `${defaultKey}_kv_hit`, color: COLORS.cyan, label: 'KV Hit Rate %' }],
+      queue: [
+        { key: `${defaultKey}_running`, color: COLORS.green, label: 'Running' },
+        { key: `${defaultKey}_waiting`, color: COLORS.red, label: 'Waiting' },
       ],
       tpot: [
-        { key: `${defaultKey}_tpot_mean`, color: COLORS.cyan, label: "TPOT mean" },
-        { key: `${defaultKey}_tpot_p99`, color: COLORS.accent, label: "TPOT p99" },
+        { key: `${defaultKey}_tpot_mean`, color: COLORS.cyan, label: 'TPOT mean' },
+        { key: `${defaultKey}_tpot_p99`, color: COLORS.accent, label: 'TPOT p99' },
       ],
       queue_time: [
-        { key: `${defaultKey}_queue_time_mean`, color: COLORS.green, label: "Queue mean" },
-        { key: `${defaultKey}_queue_time_p99`, color: COLORS.accent, label: "Queue p99" },
+        { key: `${defaultKey}_queue_time_mean`, color: COLORS.green, label: 'Queue mean' },
+        { key: `${defaultKey}_queue_time_p99`, color: COLORS.accent, label: 'Queue p99' },
       ],
-      rps:      [{ key: `${defaultKey}_rps`, color: COLORS.green, label: "RPS" }],
-      gpu_util: [{ key: `${defaultKey}_gpu_util`, color: COLORS.red, label: "GPU Util %" }],
-      gpu_mem:  [{ key: `${defaultKey}_gpu_mem_used`, color: COLORS.purple, label: "GPU Mem Used (GB)" }],
+      rps: [{ key: `${defaultKey}_rps`, color: COLORS.green, label: 'RPS' }],
+      gpu_util: [{ key: `${defaultKey}_gpu_util`, color: COLORS.red, label: 'GPU Util %' }],
+      gpu_mem: [
+        { key: `${defaultKey}_gpu_mem_used`, color: COLORS.purple, label: 'GPU Mem Used (GB)' },
+      ],
     };
   }
 
   return {
-    tps:      makeMultiLines('tps'),
-    e2e_latency:  makeMultiLines('lat_p99'),
-    ttft:     makeMultiLines('ttft'),
-    kv:       makeMultiLines('kv'),
-    kv_hit:   makeMultiLines('kv_hit'),
-    queue:    makeMultiLines('running'),
-    rps:      makeMultiLines('rps'),
+    tps: makeMultiLines('tps'),
+    e2e_latency: makeMultiLines('lat_p99'),
+    ttft: makeMultiLines('ttft'),
+    kv: makeMultiLines('kv'),
+    kv_hit: makeMultiLines('kv_hit'),
+    queue: makeMultiLines('running'),
+    rps: makeMultiLines('rps'),
     gpu_util: makeMultiLines('gpu_util'),
-    gpu_mem:  makeMultiLines('gpu_mem_used'),
-    tpot:       makeMultiLines('tpot_mean'),
+    gpu_mem: makeMultiLines('gpu_mem_used'),
+    tpot: makeMultiLines('tpot_mean'),
     queue_time: makeMultiLines('queue_time_mean'),
   };
 }
@@ -161,8 +174,8 @@ function MonitorChartGrid({
   return (
     <>
       <div className="grid-2 gap-1">
-        {visibleCharts.map(id => {
-          const def = CHART_DEFINITIONS.find(c => c.id === id);
+        {visibleCharts.map((id) => {
+          const def = CHART_DEFINITIONS.find((c) => c.id === id);
           if (!def) return null;
           return (
             <section key={id} aria-label={def.title}>
@@ -183,8 +196,8 @@ function MonitorChartGrid({
       {hiddenCharts.length > 0 && (
         <div className="hidden-charts-bar">
           <span className="hidden-charts-bar-label">Hidden charts:</span>
-          {hiddenCharts.map(id => {
-            const def = CHART_DEFINITIONS.find(c => c.id === id);
+          {hiddenCharts.map((id) => {
+            const def = CHART_DEFINITIONS.find((c) => c.id === id);
             if (!def) return null;
             return (
               <button

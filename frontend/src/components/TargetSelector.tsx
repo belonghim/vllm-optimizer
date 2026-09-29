@@ -1,11 +1,11 @@
-import { useState, useRef, useEffect } from "react";
-import { useClusterConfig } from "../contexts/ClusterConfigContext";
-import type { ClusterTarget } from "../types";
+import { useState, useRef, useEffect } from 'react';
+import { useClusterConfig } from '../contexts/ClusterConfigContext';
+import type { ClusterTarget } from '../types';
 
 interface TargetSelectorProps {
   value?: ClusterTarget | null;
   onChange?: (target: ClusterTarget) => void;
-  "data-testid"?: string;
+  'data-testid'?: string;
 }
 
 interface TargetOption {
@@ -18,7 +18,7 @@ interface TargetOption {
 export default function TargetSelector({
   value,
   onChange,
-  "data-testid": testId,
+  'data-testid': testId,
 }: TargetSelectorProps): React.JSX.Element {
   const { targets } = useClusterConfig();
   const [isOpen, setIsOpen] = useState(false);
@@ -26,7 +26,7 @@ export default function TargetSelector({
   const containerRef = useRef<HTMLDivElement>(null);
 
   const groupedTargets = targets.reduce<Record<string, TargetOption[]>>((acc, target, index) => {
-    const crType = target.crType || "inferenceservice";
+    const crType = target.crType || 'inferenceservice';
     const isFirstTarget = index === 0;
     const label = isFirstTarget ? `★ ${target.inferenceService}` : target.inferenceService;
     const option: TargetOption = {
@@ -44,7 +44,7 @@ export default function TargetSelector({
 
   // Track group order based on first appearance in targets array
   const groupOrder = targets.reduce<string[]>((order, target) => {
-    const crType = target.crType || "inferenceservice";
+    const crType = target.crType || 'inferenceservice';
     if (!order.includes(crType)) {
       order.push(crType);
     }
@@ -53,8 +53,8 @@ export default function TargetSelector({
 
   const allOptions = groupOrder.flatMap((crType) => groupedTargets[crType]);
   const selectedValue = value
-    ? `${value.namespace}/${value.inferenceService}/${value.crType || "inferenceservice"}`
-    : "";
+    ? `${value.namespace}/${value.inferenceService}/${value.crType || 'inferenceservice'}`
+    : '';
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -62,8 +62,8 @@ export default function TargetSelector({
         setIsOpen(false);
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const handleSelect = (option: TargetOption) => {
@@ -74,7 +74,7 @@ export default function TargetSelector({
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (!isOpen) {
-      if (event.key === "Enter" || event.key === " " || event.key === "ArrowDown") {
+      if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') {
         setIsOpen(true);
         event.preventDefault();
       }
@@ -82,21 +82,21 @@ export default function TargetSelector({
     }
 
     switch (event.key) {
-      case "ArrowDown":
+      case 'ArrowDown':
         event.preventDefault();
         setHighlightedIndex((prev) => (prev < allOptions.length - 1 ? prev + 1 : prev));
         break;
-      case "ArrowUp":
+      case 'ArrowUp':
         event.preventDefault();
         setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : prev));
         break;
-      case "Enter":
+      case 'Enter':
         event.preventDefault();
         if (highlightedIndex >= 0 && highlightedIndex < allOptions.length) {
           handleSelect(allOptions[highlightedIndex]);
         }
         break;
-      case "Escape":
+      case 'Escape':
         setIsOpen(false);
         setHighlightedIndex(-1);
         break;
@@ -114,11 +114,7 @@ export default function TargetSelector({
   }
 
   return (
-    <div
-      className="target-selector"
-      ref={containerRef}
-      data-testid={testId}
-    >
+    <div className="target-selector" ref={containerRef} data-testid={testId}>
       <button
         type="button"
         className="target-selector-trigger"
@@ -126,7 +122,7 @@ export default function TargetSelector({
         onKeyDown={handleKeyDown}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
-        data-testid={testId ? `${testId}-trigger` : "target-selector-trigger"}
+        data-testid={testId ? `${testId}-trigger` : 'target-selector-trigger'}
       >
         <span className="target-selector-value">
           {selectedOption ? (
@@ -138,16 +134,20 @@ export default function TargetSelector({
             <span className="target-selector-placeholder">Select a target</span>
           )}
         </span>
-        <span className="target-selector-arrow">{isOpen ? "▲" : "▼"}</span>
+        <span className="target-selector-arrow">{isOpen ? '▲' : '▼'}</span>
       </button>
 
       {isOpen && (
-        <div className="target-selector-dropdown" role="listbox" data-testid={`${testId || "target-selector"}-dropdown`}>
+        <div
+          className="target-selector-dropdown"
+          role="listbox"
+          data-testid={`${testId || 'target-selector'}-dropdown`}
+        >
           {groupOrder.map((crType, groupIndex) => (
             <div key={crType} className="target-selector-group">
               {groupIndex > 0 && <div className="target-selector-divider" />}
               <div className="target-selector-group-header">
-                {crType === "inferenceservice" ? "KServe (isvc)" : "LLMIS (llmisvc)"}
+                {crType === 'inferenceservice' ? 'KServe (isvc)' : 'LLMIS (llmisvc)'}
               </div>
               {groupedTargets[crType].map((option, optionIndex) => {
                 const globalIndex = allOptions.findIndex((o) => o.value === option.value);
@@ -156,11 +156,11 @@ export default function TargetSelector({
                 return (
                   <div
                     key={option.value}
-                    className={`target-selector-option ${isHighlighted ? "highlighted" : ""} ${isSelected ? "selected" : ""}`}
+                    className={`target-selector-option ${isHighlighted ? 'highlighted' : ''} ${isSelected ? 'selected' : ''}`}
                     onClick={() => handleSelect(option)}
                     onMouseEnter={() => setHighlightedIndex(globalIndex)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
+                      if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
                         handleSelect(option);
                       }
@@ -168,10 +168,18 @@ export default function TargetSelector({
                     role="option"
                     aria-selected={isSelected}
                     tabIndex={0}
-                    data-testid={testId ? `${testId}-option-${optionIndex}` : `target-selector-option-${optionIndex}`}
+                    data-testid={
+                      testId
+                        ? `${testId}-option-${optionIndex}`
+                        : `target-selector-option-${optionIndex}`
+                    }
                   >
-                    <span className="target-selector-option-star">{option.isFirstTarget ? "★" : ""}</span>
-                    <span className="target-selector-option-name">{option.target.inferenceService}</span>
+                    <span className="target-selector-option-star">
+                      {option.isFirstTarget ? '★' : ''}
+                    </span>
+                    <span className="target-selector-option-name">
+                      {option.target.inferenceService}
+                    </span>
                     <span className="target-selector-option-ns"> ({option.target.namespace})</span>
                   </div>
                 );

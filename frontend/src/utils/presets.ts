@@ -10,7 +10,7 @@ interface LoadTestPresetData {
 const STORAGE_KEY = 'vllm-loadtest-presets';
 
 export const BUILTIN_PRESETS: Record<string, LoadTestPresetData> = {
-  'Lightweight': {
+  Lightweight: {
     total_requests: 50,
     concurrency: 5,
     rps: 5,
@@ -18,7 +18,7 @@ export const BUILTIN_PRESETS: Record<string, LoadTestPresetData> = {
     temperature: 0.7,
     stream: true,
   },
-  'Standard': {
+  Standard: {
     total_requests: 200,
     concurrency: 20,
     rps: 10,
@@ -26,7 +26,7 @@ export const BUILTIN_PRESETS: Record<string, LoadTestPresetData> = {
     temperature: 0.7,
     stream: true,
   },
-  'Stress': {
+  Stress: {
     total_requests: 1000,
     concurrency: 100,
     rps: 50,
@@ -66,14 +66,14 @@ export function deletePreset(name: string): void {
 }
 
 function getUserPresets(): Record<string, LoadTestPresetData> {
-   try {
-     const stored = localStorage.getItem(STORAGE_KEY);
-     return stored ? JSON.parse(stored) : {};
-   } catch (e) {
-     console.error('Failed to parse preset from localStorage', e);
-     return {};
-   }
- }
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored) : {};
+  } catch (e) {
+    console.error('Failed to parse preset from localStorage', e);
+    return {};
+  }
+}
 
 export function isBuiltinPreset(name: string): boolean {
   return name in BUILTIN_PRESETS;

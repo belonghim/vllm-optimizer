@@ -1,16 +1,16 @@
-import { useState, useCallback, lazy, Suspense } from "react";
-import type { RerunConfig } from "./components/LoadTestConfig";
+import { useState, useCallback, lazy, Suspense } from 'react';
+import type { RerunConfig } from './components/LoadTestConfig';
 import { useSessionKeepAlive } from './hooks/useSessionKeepAlive';
-import { Toaster } from "./components/Toast";
-const MonitorPage = lazy(() => import("./pages/MonitorPage"));
-const LoadTestPage = lazy(() => import("./pages/LoadTestPage"));
-const BenchmarkPage = lazy(() => import("./pages/BenchmarkPage"));
-const TunerPage = lazy(() => import("./pages/TunerPage"));
-const SlaPage = lazy(() => import("./pages/SlaPage"));
-import MockDataSwitch from "./components/MockDataSwitch";
-import ThemeToggle from "./components/ThemeToggle";
-import ErrorBoundary from "./components/ErrorBoundary";
-import { BenchmarkSelectionProvider } from "./contexts/BenchmarkSelectionContext";
+import { Toaster } from './components/Toast';
+const MonitorPage = lazy(() => import('./pages/MonitorPage'));
+const LoadTestPage = lazy(() => import('./pages/LoadTestPage'));
+const BenchmarkPage = lazy(() => import('./pages/BenchmarkPage'));
+const TunerPage = lazy(() => import('./pages/TunerPage'));
+const SlaPage = lazy(() => import('./pages/SlaPage'));
+import MockDataSwitch from './components/MockDataSwitch';
+import ThemeToggle from './components/ThemeToggle';
+import ErrorBoundary from './components/ErrorBoundary';
+import { BenchmarkSelectionProvider } from './contexts/BenchmarkSelectionContext';
 
 interface PageDef {
   id: string;
@@ -18,15 +18,15 @@ interface PageDef {
 }
 
 const PAGES: PageDef[] = [
-  { id: "monitor", label: "Monitoring" },
-  { id: "tuner", label: "Auto Tuner" },
-  { id: "loadtest", label: "Load Test" },
-  { id: "benchmark", label: "Benchmark" },
-  { id: "sla", label: "SLA" },
+  { id: 'monitor', label: 'Monitoring' },
+  { id: 'tuner', label: 'Auto Tuner' },
+  { id: 'loadtest', label: 'Load Test' },
+  { id: 'benchmark', label: 'Benchmark' },
+  { id: 'sla', label: 'SLA' },
 ];
 
 export default function App() {
-  const [page, setPage] = useState("monitor");
+  const [page, setPage] = useState('monitor');
   const [isLoadTestRunning, setIsLoadTestRunning] = useState(false);
   const [isTunerRunning, setIsTunerRunning] = useState(false);
   const [pendingLoadTestConfig, setPendingLoadTestConfig] = useState<RerunConfig | null>(null);
@@ -41,17 +41,21 @@ export default function App() {
     requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
   }, []);
 
-  const handleRerun = useCallback((config: { [key: string]: unknown }) => {
-    setPendingLoadTestConfig({
-      total_requests: typeof config.total_requests === 'number' ? config.total_requests : undefined,
-      concurrency: typeof config.concurrency === 'number' ? config.concurrency : undefined,
-      rps: typeof config.rps === 'number' ? config.rps : undefined,
-      max_tokens: typeof config.max_tokens === 'number' ? config.max_tokens : undefined,
-      temperature: typeof config.temperature === 'number' ? config.temperature : undefined,
-      stream: typeof config.stream === 'boolean' ? config.stream : undefined,
-    });
-    handleSetPage("loadtest");
-  }, [handleSetPage]);
+  const handleRerun = useCallback(
+    (config: { [key: string]: unknown }) => {
+      setPendingLoadTestConfig({
+        total_requests:
+          typeof config.total_requests === 'number' ? config.total_requests : undefined,
+        concurrency: typeof config.concurrency === 'number' ? config.concurrency : undefined,
+        rps: typeof config.rps === 'number' ? config.rps : undefined,
+        max_tokens: typeof config.max_tokens === 'number' ? config.max_tokens : undefined,
+        temperature: typeof config.temperature === 'number' ? config.temperature : undefined,
+        stream: typeof config.stream === 'boolean' ? config.stream : undefined,
+      });
+      handleSetPage('loadtest');
+    },
+    [handleSetPage]
+  );
 
   const handleConfigConsumed = useCallback(() => setPendingLoadTestConfig(null), []);
 
@@ -65,9 +69,7 @@ export default function App() {
           <div className="app-header-title">
             vLLM<span className="app-header-title-sub">·OPT</span>
           </div>
-          <div className="app-header-subtitle">
-            Kubernetes Performance Suite
-          </div>
+          <div className="app-header-subtitle">Kubernetes Performance Suite</div>
         </div>
 
         <nav className="app-header-nav" aria-label="Page Navigation">
@@ -78,14 +80,19 @@ export default function App() {
                 ...(isTunerRunning ? ['tuner'] : []),
               ]);
 
-              return PAGES.map(p => (
-                <button type="button" key={p.id}
-                  className={`nav-btn ${page === p.id ? "active" : ""} ${runningPages.has(p.id) ? "nav-btn--running" : ""}`}
+              return PAGES.map((p) => (
+                <button
+                  type="button"
+                  key={p.id}
+                  className={`nav-btn ${page === p.id ? 'active' : ''} ${runningPages.has(p.id) ? 'nav-btn--running' : ''}`}
                   role="tab"
                   aria-selected={page === p.id}
-                  onClick={() => handleSetPage(p.id)}>
+                  onClick={() => handleSetPage(p.id)}
+                >
                   {p.label}
-                  {runningPages.has(p.id) && <span role="img" className="nav-btn-dot" aria-label="Running" />}
+                  {runningPages.has(p.id) && (
+                    <span role="img" className="nav-btn-dot" aria-label="Running" />
+                  )}
                 </button>
               ));
             })()}
@@ -98,13 +105,27 @@ export default function App() {
           <MockDataSwitch />
           <div className="app-header-divider" />
           <div className="app-header-status-dot" />
-          <span className="app-header-status-text" aria-live="assertive" aria-atomic="true">CONNECTED</span>
+          <span className="app-header-status-text" aria-live="assertive" aria-atomic="true">
+            CONNECTED
+          </span>
         </div>
       </header>
 
-
       <main className="app-main">
-        <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>Loading...</div>}>
+        <Suspense
+          fallback={
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                height: '100%',
+              }}
+            >
+              Loading...
+            </div>
+          }
+        >
           {page === 'monitor' && (
             <ErrorBoundary>
               <MonitorPage isActive={page === 'monitor'} />
@@ -113,14 +134,23 @@ export default function App() {
           {tunerMounted && (
             <div style={page !== 'tuner' ? { display: 'none' } : undefined}>
               <ErrorBoundary>
-                <TunerPage isActive={page === 'tuner'} onTabChange={handleSetPage} onRunningChange={setIsTunerRunning} />
+                <TunerPage
+                  isActive={page === 'tuner'}
+                  onTabChange={handleSetPage}
+                  onRunningChange={setIsTunerRunning}
+                />
               </ErrorBoundary>
             </div>
           )}
           {loadTestMounted && (
             <div style={page !== 'loadtest' ? { display: 'none' } : undefined}>
               <ErrorBoundary>
-                <LoadTestPage isActive={page === 'loadtest'} pendingConfig={pendingLoadTestConfig} onConfigConsumed={handleConfigConsumed} onRunningChange={setIsLoadTestRunning} />
+                <LoadTestPage
+                  isActive={page === 'loadtest'}
+                  pendingConfig={pendingLoadTestConfig}
+                  onConfigConsumed={handleConfigConsumed}
+                  onRunningChange={setIsLoadTestRunning}
+                />
               </ErrorBoundary>
             </div>
           )}

@@ -1,5 +1,5 @@
-import { FormEvent } from "react";
-import { ERROR_MESSAGES } from "../constants/errorMessages";
+import { FormEvent } from 'react';
+import { ERROR_MESSAGES } from '../constants/errorMessages';
 
 export interface SlaFormState {
   name: string;
@@ -23,59 +23,186 @@ interface SlaProfileFormProps {
   editingId: number | null;
 }
 
-export default function SlaProfileForm({ formState, onChange, onSubmit, onCancel, editingId }: SlaProfileFormProps) {
-  const { name, availMin, p95Ms, errRate, meanTtftMs, p95TtftMs, meanE2eLatencyMs, meanTpotMs, p95TpotMs, meanQueueTimeMs, p95QueueTimeMs } = formState;
+export default function SlaProfileForm({
+  formState,
+  onChange,
+  onSubmit,
+  onCancel,
+  editingId,
+}: SlaProfileFormProps) {
+  const {
+    name,
+    availMin,
+    p95Ms,
+    errRate,
+    meanTtftMs,
+    p95TtftMs,
+    meanE2eLatencyMs,
+    meanTpotMs,
+    p95TpotMs,
+    meanQueueTimeMs,
+    p95QueueTimeMs,
+  } = formState;
   return (
     <div className="panel">
-      <div className="section-title">{editingId ? ERROR_MESSAGES.SLA.EDIT_TITLE : ERROR_MESSAGES.SLA.CREATE_TITLE}</div>
-      <form onSubmit={onSubmit} className="form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+      <div className="section-title">
+        {editingId ? ERROR_MESSAGES.SLA.EDIT_TITLE : ERROR_MESSAGES.SLA.CREATE_TITLE}
+      </div>
+      <form
+        onSubmit={onSubmit}
+        className="form-grid"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '16px',
+          marginBottom: '24px',
+        }}
+      >
         <div className="form-group">
           <label htmlFor="sla-profile-name">Profile Name *</label>
-          <input id="sla-profile-name" type="text" value={name} onChange={e => onChange('name', e.target.value)} required placeholder="e.g. Llama3 Production SLA" />
+          <input
+            id="sla-profile-name"
+            type="text"
+            value={name}
+            onChange={(e) => onChange('name', e.target.value)}
+            required
+            placeholder="e.g. Llama3 Production SLA"
+          />
         </div>
         <div className="form-group">
           <label htmlFor="sla-avail-min">Min Availability (%)</label>
-          <input id="sla-avail-min" type="number" min="0" max="100" step="0.1" value={availMin} onChange={e => onChange('availMin', e.target.value)} placeholder="99.9" />
+          <input
+            id="sla-avail-min"
+            type="number"
+            min="0"
+            max="100"
+            step="0.1"
+            value={availMin}
+            onChange={(e) => onChange('availMin', e.target.value)}
+            placeholder="99.9"
+          />
         </div>
         <div className="form-group">
           <label htmlFor="sla-error-rate">Error Rate Max (%)</label>
-          <input id="sla-error-rate" type="number" min="0" max="100" step="0.1" value={errRate} onChange={e => onChange('errRate', e.target.value)} placeholder="1.0" />
+          <input
+            id="sla-error-rate"
+            type="number"
+            min="0"
+            max="100"
+            step="0.1"
+            value={errRate}
+            onChange={(e) => onChange('errRate', e.target.value)}
+            placeholder="1.0"
+          />
         </div>
         <div className="form-group">
           <label htmlFor="sla-e2e-latency">E2E Latency Mean (ms)</label>
-          <input id="sla-e2e-latency" type="number" min="0" step="1" value={meanE2eLatencyMs} onChange={e => onChange('meanE2eLatencyMs', e.target.value)} placeholder="2000" />
+          <input
+            id="sla-e2e-latency"
+            type="number"
+            min="0"
+            step="1"
+            value={meanE2eLatencyMs}
+            onChange={(e) => onChange('meanE2eLatencyMs', e.target.value)}
+            placeholder="2000"
+          />
         </div>
         <div className="form-group">
           <label htmlFor="sla-p95-latency">E2E Latency P95 (ms)</label>
-          <input id="sla-p95-latency" type="number" min="0" step="1" value={p95Ms} onChange={e => onChange('p95Ms', e.target.value)} placeholder="3000" />
+          <input
+            id="sla-p95-latency"
+            type="number"
+            min="0"
+            step="1"
+            value={p95Ms}
+            onChange={(e) => onChange('p95Ms', e.target.value)}
+            placeholder="3000"
+          />
         </div>
         <div className="form-group">
           <label htmlFor="sla-ttft-mean">TTFT Mean (ms)</label>
-          <input id="sla-ttft-mean" type="number" min="0" step="1" value={meanTtftMs} onChange={e => onChange('meanTtftMs', e.target.value)} placeholder="1500" />
+          <input
+            id="sla-ttft-mean"
+            type="number"
+            min="0"
+            step="1"
+            value={meanTtftMs}
+            onChange={(e) => onChange('meanTtftMs', e.target.value)}
+            placeholder="1500"
+          />
         </div>
         <div className="form-group">
           <label htmlFor="sla-ttft-p95">TTFT P95 (ms)</label>
-          <input id="sla-ttft-p95" type="number" min="0" step="1" value={p95TtftMs} onChange={e => onChange('p95TtftMs', e.target.value)} placeholder="3000" />
+          <input
+            id="sla-ttft-p95"
+            type="number"
+            min="0"
+            step="1"
+            value={p95TtftMs}
+            onChange={(e) => onChange('p95TtftMs', e.target.value)}
+            placeholder="3000"
+          />
         </div>
         <div className="form-group">
           <label htmlFor="sla-tpot-mean">TPOT Mean (ms)</label>
-          <input id="sla-tpot-mean" type="number" min="0" step="0.1" value={meanTpotMs} onChange={e => onChange('meanTpotMs', e.target.value)} placeholder="50" />
+          <input
+            id="sla-tpot-mean"
+            type="number"
+            min="0"
+            step="0.1"
+            value={meanTpotMs}
+            onChange={(e) => onChange('meanTpotMs', e.target.value)}
+            placeholder="50"
+          />
         </div>
         <div className="form-group">
           <label htmlFor="sla-tpot-p95">TPOT P95 (ms)</label>
-          <input id="sla-tpot-p95" type="number" min="0" step="0.1" value={p95TpotMs} onChange={e => onChange('p95TpotMs', e.target.value)} placeholder="100" />
+          <input
+            id="sla-tpot-p95"
+            type="number"
+            min="0"
+            step="0.1"
+            value={p95TpotMs}
+            onChange={(e) => onChange('p95TpotMs', e.target.value)}
+            placeholder="100"
+          />
         </div>
         <div className="form-group">
           <label htmlFor="sla-queue-mean">Queue Time Mean (ms)</label>
-          <input id="sla-queue-mean" type="number" min="0" step="1" value={meanQueueTimeMs} onChange={e => onChange('meanQueueTimeMs', e.target.value)} placeholder="300" />
+          <input
+            id="sla-queue-mean"
+            type="number"
+            min="0"
+            step="1"
+            value={meanQueueTimeMs}
+            onChange={(e) => onChange('meanQueueTimeMs', e.target.value)}
+            placeholder="300"
+          />
         </div>
         <div className="form-group">
           <label htmlFor="sla-queue-p95">Queue Time P95 (ms)</label>
-          <input id="sla-queue-p95" type="number" min="0" step="1" value={p95QueueTimeMs} onChange={e => onChange('p95QueueTimeMs', e.target.value)} placeholder="800" />
+          <input
+            id="sla-queue-p95"
+            type="number"
+            min="0"
+            step="1"
+            value={p95QueueTimeMs}
+            onChange={(e) => onChange('p95QueueTimeMs', e.target.value)}
+            placeholder="800"
+          />
         </div>
-        <div className="form-actions" style={{ gridColumn: '1 / -1', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-          {editingId && <button type="button" className="btn-secondary" onClick={onCancel}>Cancel</button>}
-          <button type="submit" className="btn-primary">{editingId ? 'Save' : 'Create Profile'}</button>
+        <div
+          className="form-actions"
+          style={{ gridColumn: '1 / -1', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}
+        >
+          {editingId && (
+            <button type="button" className="btn-secondary" onClick={onCancel}>
+              Cancel
+            </button>
+          )}
+          <button type="submit" className="btn-primary">
+            {editingId ? 'Save' : 'Create Profile'}
+          </button>
         </div>
       </form>
     </div>

@@ -1,7 +1,7 @@
-import { COLORS } from "../constants";
-import { ERROR_MESSAGES } from "../constants/errorMessages";
-import type { SlaProfile, SlaThresholds } from "../types";
-import LoadingSpinner from "./LoadingSpinner";
+import { COLORS } from '../constants';
+import { ERROR_MESSAGES } from '../constants/errorMessages';
+import type { SlaProfile, SlaThresholds } from '../types';
+import LoadingSpinner from './LoadingSpinner';
 
 interface SlaProfileListProps {
   profiles: SlaProfile[];
@@ -19,7 +19,8 @@ function renderThresholds(t: SlaThresholds): string {
   if (t.error_rate_max_pct != null) parts.push(`Error Rate Max≤${t.error_rate_max_pct}%`);
   if (t.mean_ttft_max_ms != null) parts.push(`TTFT Mean≤${t.mean_ttft_max_ms}ms`);
   if (t.p95_ttft_max_ms != null) parts.push(`TTFT P95≤${t.p95_ttft_max_ms}ms`);
-  if (t.mean_e2e_latency_max_ms != null) parts.push(`E2E Latency Mean≤${t.mean_e2e_latency_max_ms}ms`);
+  if (t.mean_e2e_latency_max_ms != null)
+    parts.push(`E2E Latency Mean≤${t.mean_e2e_latency_max_ms}ms`);
   if (t.mean_tpot_max_ms != null) parts.push(`TPOT Mean≤${t.mean_tpot_max_ms}ms`);
   if (t.p95_tpot_max_ms != null) parts.push(`TPOT P95≤${t.p95_tpot_max_ms}ms`);
   if (t.mean_queue_time_max_ms != null) parts.push(`Queue Time Mean≤${t.mean_queue_time_max_ms}ms`);
@@ -27,7 +28,14 @@ function renderThresholds(t: SlaThresholds): string {
   return parts.join(' · ') || ERROR_MESSAGES.SLA.NO_THRESHOLDS_SET;
 }
 
-export default function SlaProfileList({ profiles, onEdit, onDelete, selectedProfileId, onSelect, loading }: SlaProfileListProps) {
+export default function SlaProfileList({
+  profiles,
+  onEdit,
+  onDelete,
+  selectedProfileId,
+  onSelect,
+  loading,
+}: SlaProfileListProps) {
   return (
     <div className="panel">
       <div className="section-title">SLA Profile List</div>
@@ -44,7 +52,7 @@ export default function SlaProfileList({ profiles, onEdit, onDelete, selectedPro
             </tr>
           </thead>
           <tbody>
-            {profiles.map(p => (
+            {profiles.map((p) => (
               <tr key={p.id}>
                 <td>
                   <input
@@ -56,15 +64,37 @@ export default function SlaProfileList({ profiles, onEdit, onDelete, selectedPro
                   />
                 </td>
                 <td className="td-text">{p.name}</td>
-                <td className="td-muted" style={{ fontSize: '0.85rem' }}>{renderThresholds(p.thresholds)}</td>
+                <td className="td-muted" style={{ fontSize: '0.85rem' }}>
+                  {renderThresholds(p.thresholds)}
+                </td>
                 <td style={{ textAlign: 'right' }}>
-                  <button className="btn-small" onClick={() => onEdit(p)} style={{ marginRight: '8px' }}>Edit</button>
-                  <button className="btn-outline-small" onClick={() => onDelete(p.id)} style={{ color: COLORS.red, borderColor: COLORS.red }}>Delete</button>
+                  <button
+                    className="btn-small"
+                    onClick={() => onEdit(p)}
+                    style={{ marginRight: '8px' }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="btn-outline-small"
+                    onClick={() => onDelete(p.id)}
+                    style={{ color: COLORS.red, borderColor: COLORS.red }}
+                  >
+                    Delete
+                  </button>
                 </td>
               </tr>
             ))}
             {profiles.length === 0 && (
-              <tr><td colSpan={4} className="td-muted" style={{ textAlign: 'center', padding: '20px' }}>{ERROR_MESSAGES.SLA.NO_PROFILES}</td></tr>
+              <tr>
+                <td
+                  colSpan={4}
+                  className="td-muted"
+                  style={{ textAlign: 'center', padding: '20px' }}
+                >
+                  {ERROR_MESSAGES.SLA.NO_PROFILES}
+                </td>
+              </tr>
             )}
           </tbody>
         </table>

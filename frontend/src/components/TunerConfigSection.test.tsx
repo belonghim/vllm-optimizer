@@ -1,9 +1,9 @@
-import { render, screen } from "@testing-library/react";
-import { vi, describe, it, expect } from "vitest";
-import TunerConfigSection from "./TunerConfigSection";
-import type { TunerStatus, TunerConfig, TunerPhase } from "../types";
+import { render, screen } from '@testing-library/react';
+import { vi, describe, it, expect } from 'vitest';
+import TunerConfigSection from './TunerConfigSection';
+import type { TunerStatus, TunerConfig, TunerPhase } from '../types';
 
-vi.mock("./TunerStatusPanel", () => ({
+vi.mock('./TunerStatusPanel', () => ({
   default: (props: Record<string, unknown>) => (
     <div data-testid="tuner-status-panel">
       <span data-testid="status-error">{String(props.error)}</span>
@@ -16,7 +16,7 @@ vi.mock("./TunerStatusPanel", () => ({
   ),
 }));
 
-vi.mock("./TunerCurrentConfig", () => ({
+vi.mock('./TunerCurrentConfig', () => ({
   default: (props: Record<string, unknown>) => (
     <div data-testid="tuner-current-config">
       <span data-testid="config-is-active">{String(props.isActive)}</span>
@@ -33,10 +33,10 @@ const defaultStatus: TunerStatus = {
 };
 
 const defaultConfig: TunerConfig = {
-  objective: "throughput",
-  evaluation_mode: "single",
+  objective: 'throughput',
+  evaluation_mode: 'single',
   n_trials: 10,
-  vllm_endpoint: "http://localhost:8000",
+  vllm_endpoint: 'http://localhost:8000',
   max_num_seqs_min: 16,
   max_num_seqs_max: 256,
   gpu_memory_min: 0.7,
@@ -77,80 +77,82 @@ const defaultProps = {
   onApplySuccess: vi.fn(),
 };
 
-describe("TunerConfigSection", () => {
-  it("renders TunerStatusPanel and TunerCurrentConfig", () => {
+describe('TunerConfigSection', () => {
+  it('renders TunerStatusPanel and TunerCurrentConfig', () => {
     render(<TunerConfigSection {...defaultProps} />);
-    expect(screen.getByTestId("tuner-status-panel")).toBeInTheDocument();
-    expect(screen.getByTestId("tuner-current-config")).toBeInTheDocument();
+    expect(screen.getByTestId('tuner-status-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('tuner-current-config')).toBeInTheDocument();
   });
 
-  it("passes error to TunerStatusPanel", () => {
+  it('passes error to TunerStatusPanel', () => {
     render(<TunerConfigSection {...defaultProps} error="Connection failed" />);
-    expect(screen.getByTestId("status-error")).toHaveTextContent("Connection failed");
+    expect(screen.getByTestId('status-error')).toHaveTextContent('Connection failed');
   });
 
-  it("passes null error to TunerStatusPanel", () => {
+  it('passes null error to TunerStatusPanel', () => {
     render(<TunerConfigSection {...defaultProps} error={null} />);
-    expect(screen.getByTestId("status-error")).toHaveTextContent("null");
+    expect(screen.getByTestId('status-error')).toHaveTextContent('null');
   });
 
-  it("passes warning to TunerStatusPanel", () => {
+  it('passes warning to TunerStatusPanel', () => {
     render(<TunerConfigSection {...defaultProps} warning="Low memory" />);
-    expect(screen.getByTestId("status-warning")).toHaveTextContent("Low memory");
+    expect(screen.getByTestId('status-warning')).toHaveTextContent('Low memory');
   });
 
-  it("passes interruptedWarning to TunerStatusPanel", () => {
+  it('passes interruptedWarning to TunerStatusPanel', () => {
     render(<TunerConfigSection {...defaultProps} interruptedWarning="Previous run interrupted" />);
-    expect(screen.getByTestId("status-interrupted")).toHaveTextContent("Previous run interrupted");
+    expect(screen.getByTestId('status-interrupted')).toHaveTextContent('Previous run interrupted');
   });
 
-  it("passes applyStatus to TunerStatusPanel", () => {
+  it('passes applyStatus to TunerStatusPanel', () => {
     render(<TunerConfigSection {...defaultProps} applyStatus="success" />);
-    expect(screen.getByTestId("status-apply")).toHaveTextContent("success");
+    expect(screen.getByTestId('status-apply')).toHaveTextContent('success');
   });
 
-  it("passes autoBenchmark to TunerStatusPanel", () => {
+  it('passes autoBenchmark to TunerStatusPanel', () => {
     render(<TunerConfigSection {...defaultProps} autoBenchmark={true} />);
-    expect(screen.getByTestId("status-auto-benchmark")).toHaveTextContent("true");
+    expect(screen.getByTestId('status-auto-benchmark')).toHaveTextContent('true');
   });
 
-  it("passes benchmarkSaved to TunerStatusPanel", () => {
+  it('passes benchmarkSaved to TunerStatusPanel', () => {
     render(<TunerConfigSection {...defaultProps} benchmarkSaved={true} benchmarkSavedId={42} />);
-    expect(screen.getByTestId("status-benchmark-saved")).toHaveTextContent("true");
+    expect(screen.getByTestId('status-benchmark-saved')).toHaveTextContent('true');
   });
 
-  it("passes isActive to TunerCurrentConfig", () => {
+  it('passes isActive to TunerCurrentConfig', () => {
     render(<TunerConfigSection {...defaultProps} isActive={false} />);
-    expect(screen.getByTestId("config-is-active")).toHaveTextContent("false");
+    expect(screen.getByTestId('config-is-active')).toHaveTextContent('false');
   });
 
-  it("passes running status to TunerCurrentConfig", () => {
+  it('passes running status to TunerCurrentConfig', () => {
     render(<TunerConfigSection {...defaultProps} status={{ ...defaultStatus, running: true }} />);
-    expect(screen.getByTestId("config-is-running")).toHaveTextContent("true");
+    expect(screen.getByTestId('config-is-running')).toHaveTextContent('true');
   });
 
-  it("passes hasBest=false when status has no best", () => {
+  it('passes hasBest=false when status has no best', () => {
     render(<TunerConfigSection {...defaultProps} />);
-    expect(screen.getByTestId("config-has-best")).toHaveTextContent("false");
+    expect(screen.getByTestId('config-has-best')).toHaveTextContent('false');
   });
 
-  it("passes hasBest=true when status has best", () => {
+  it('passes hasBest=true when status has best', () => {
     const statusWithBest: TunerStatus = {
       ...defaultStatus,
       best: { tps: 100, p99_latency: 50 },
     };
     render(<TunerConfigSection {...defaultProps} status={statusWithBest} />);
-    expect(screen.getByTestId("config-has-best")).toHaveTextContent("true");
+    expect(screen.getByTestId('config-has-best')).toHaveTextContent('true');
   });
 
-  it("passes trialsCompleted to TunerCurrentConfig", () => {
-    render(<TunerConfigSection {...defaultProps} status={{ ...defaultStatus, trials_completed: 5 }} />);
-    expect(screen.getByTestId("config-trials")).toHaveTextContent("5");
+  it('passes trialsCompleted to TunerCurrentConfig', () => {
+    render(
+      <TunerConfigSection {...defaultProps} status={{ ...defaultStatus, trials_completed: 5 }} />
+    );
+    expect(screen.getByTestId('config-trials')).toHaveTextContent('5');
   });
 
-  it("passes currentPhase to TunerCurrentConfig", () => {
-    const phase: TunerPhase = { trial_id: 3, phase: "evaluation" };
+  it('passes currentPhase to TunerCurrentConfig', () => {
+    const phase: TunerPhase = { trial_id: 3, phase: 'evaluation' };
     render(<TunerConfigSection {...defaultProps} currentPhase={phase} />);
-    expect(screen.getByTestId("tuner-current-config")).toBeInTheDocument();
+    expect(screen.getByTestId('tuner-current-config')).toBeInTheDocument();
   });
 });

@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-09-30] - 메타데이터 정합화 + Prettier 강제
+
+**Status**: Completed
+
+AGENTS.md·설정·문서 메타데이터를 실제 코드 기준으로 정합화하고, 선언만 되어 있던 Prettier를 실제로 강제.
+
+### Changed
+- **`AGENTS.md`**: Quick Commands/Key Files 추가, env 테이블을 실제 `os.getenv` 기준으로 정정(canonical: `backend/.env.example`, `openshift/base/02-config.yaml`), singleton 이름 `multi_target_collector`로 수정, Dual CR 표를 `CRAdapter` 구현 기준으로 정정(API 버전·pod label selector·LLMIS https 엔드포인트·args 위치), `git push` 규칙을 Behavioral Rules로 이동.
+- **`backend/.env.example`**: 실제 사용 변수 기준으로 재작성(미사용 `K8S_NAMESPACE`/`APP_*`/stale Prometheus 기본값 제거).
+- **`pyproject.toml`**: `testpaths` 추가로 저장소 루트에서 bare `pytest` 동작, ruff per-file-ignores를 `backend/tests/**`로 확장.
+- **`.gitignore`**: 중복 섹션 정리, `.env.example` 추적 유지(`.env.*` + negation), `.codegraph`/`.ruff_cache` 추가, blanket `*.png` 제거.
+- **`frontend/package.json`**: `private`, `engines`, `format:check` 추가. `@types/react(-dom)`을 React 18 런타임에 정렬(React 19 타입과 불일치 해소; `BenchmarkTable` ref 타입을 cross-version `MutableRefObject`로 수정).
+- **`docs/`**: 제거된 `METRICS_SOURCE` env → per-target `metrics_source`로 정정, `MetricsCollector`/pod label/`K8S_DEPLOYMENT_NAME` 설명 최신화, runbook 예시를 현재 기본값으로 갱신, frontmatter 정리.
+- **Prettier**: `prettier --write src/` 1회 정규화(124 files) 후 `scripts/check.sh`에 `format:check` 단계 추가.
+
+### Verification
+- `./scripts/check.sh` → **ALL CHECKS PASSED** (backend 545 passed / ruff clean; frontend 435 passed / tsc / eslint / prettier / build).
+
+---
+
 ## [2026-09-30] - 최소 검증 게이트 + 핵심 기능 smoke tier
 
 **Status**: Completed

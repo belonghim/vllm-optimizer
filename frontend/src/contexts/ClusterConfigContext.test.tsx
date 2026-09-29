@@ -1,19 +1,19 @@
-import React from "react";
-import { renderHook, act, waitFor } from "@testing-library/react";
-import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
-import { ClusterConfigProvider, useClusterConfig } from "./ClusterConfigContext";
+import React from 'react';
+import { renderHook, act, waitFor } from '@testing-library/react';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { ClusterConfigProvider, useClusterConfig } from './ClusterConfigContext';
 
 beforeEach(() => {
-  vi.spyOn(Storage.prototype, "getItem").mockReturnValue(null);
-  vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {});
-  vi.spyOn(global, "fetch").mockResolvedValue({
+  vi.spyOn(Storage.prototype, 'getItem').mockReturnValue(null);
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {});
+  vi.spyOn(global, 'fetch').mockResolvedValue({
     ok: true,
     json: () =>
       Promise.resolve({
-        vllm_endpoint: "",
-        vllm_namespace: "vllm-lab-dev",
-        vllm_is_name: "llm-ov",
-        cr_type: "inferenceservice",
+        vllm_endpoint: '',
+        vllm_namespace: 'vllm-lab-dev',
+        vllm_is_name: 'llm-ov',
+        cr_type: 'inferenceservice',
       }),
   } as unknown as Response);
 });
@@ -22,19 +22,19 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("ClusterConfigContext", () => {
+describe('ClusterConfigContext', () => {
   const defaultTarget = {
-    namespace: "vllm-lab-dev",
-    inferenceService: "llm-ov",
-    crType: "inferenceservice",
-    source: "manual",
+    namespace: 'vllm-lab-dev',
+    inferenceService: 'llm-ov',
+    crType: 'inferenceservice',
+    source: 'manual',
   };
 
   const wrapper = ({ children }: { children: React.ReactNode }) => (
     <ClusterConfigProvider>{children}</ClusterConfigProvider>
   );
 
-  it("has initial state with default target and isLoading false after effect", async () => {
+  it('has initial state with default target and isLoading false after effect', async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
     expect(result.current.isLoading).toBe(true);
@@ -45,7 +45,7 @@ describe("ClusterConfigContext", () => {
     });
   });
 
-  it("addTarget appends target when initial target exists", async () => {
+  it('addTarget appends target when initial target exists', async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
     await waitFor(() => {
@@ -53,19 +53,19 @@ describe("ClusterConfigContext", () => {
     });
 
     act(() => {
-      result.current.addTarget("ns1", "svc1");
+      result.current.addTarget('ns1', 'svc1');
     });
 
     expect(result.current.targets.length).toBe(2);
     expect(result.current.targets[1]).toEqual({
-      namespace: "ns1",
-      inferenceService: "svc1",
-      crType: "inferenceservice",
-      source: "manual",
+      namespace: 'ns1',
+      inferenceService: 'svc1',
+      crType: 'inferenceservice',
+      source: 'manual',
     });
   });
 
-  it("removeTarget removes non-first target by (namespace, inferenceService) key", async () => {
+  it('removeTarget removes non-first target by (namespace, inferenceService) key', async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
     await waitFor(() => {
@@ -73,51 +73,55 @@ describe("ClusterConfigContext", () => {
     });
 
     act(() => {
-      result.current.addTarget("ns1", "svc1");
-      result.current.addTarget("ns2", "svc2");
+      result.current.addTarget('ns1', 'svc1');
+      result.current.addTarget('ns2', 'svc2');
     });
 
     expect(result.current.targets.length).toBe(3);
     expect(result.current.targets[0]).toEqual(defaultTarget);
-    expect(result.current.targets[2]).toMatchObject({ namespace: "ns2", inferenceService: "svc2", crType: "inferenceservice" });
+    expect(result.current.targets[2]).toMatchObject({
+      namespace: 'ns2',
+      inferenceService: 'svc2',
+      crType: 'inferenceservice',
+    });
 
     act(() => {
-      result.current.removeTarget("ns2", "svc2", "inferenceservice");
+      result.current.removeTarget('ns2', 'svc2', 'inferenceservice');
     });
 
     expect(result.current.targets.length).toBe(2);
-    expect(result.current.targets[1].namespace).toBe("ns1");
+    expect(result.current.targets[1].namespace).toBe('ns1');
   });
 
-  it("removeTarget CAN remove first target when multiple targets exist", async () => {
+  it('removeTarget CAN remove first target when multiple targets exist', async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
     await waitFor(() => expect(result.current.targets).toEqual([defaultTarget]));
 
     act(() => {
-      result.current.addTarget("ns1", "svc1");
+      result.current.addTarget('ns1', 'svc1');
     });
     expect(result.current.targets.length).toBe(2);
 
     act(() => {
-      result.current.removeTarget("vllm-lab-dev", "llm-ov", "inferenceservice");
+      result.current.removeTarget('vllm-lab-dev', 'llm-ov', 'inferenceservice');
     });
 
     expect(result.current.targets.length).toBe(1);
-    expect(result.current.targets[0]).toMatchObject({ namespace: "ns1", inferenceService: "svc1" });
+    expect(result.current.targets[0]).toMatchObject({ namespace: 'ns1', inferenceService: 'svc1' });
   });
 
-  it("removeTarget removes last target if called directly (UI prevents it via disabled button)", async () => {
+  it('removeTarget removes last target if called directly (UI prevents it via disabled button)', async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
     await waitFor(() => expect(result.current.targets).toEqual([defaultTarget]));
 
     act(() => {
-      result.current.removeTarget("vllm-lab-dev", "llm-ov", "inferenceservice");
+      result.current.removeTarget('vllm-lab-dev', 'llm-ov', 'inferenceservice');
     });
 
     expect(result.current.targets.length).toBe(0);
   });
 
-  it("removeTarget with crType removes only the matching target, not same-name different-crType target", async () => {
+  it('removeTarget with crType removes only the matching target, not same-name different-crType target', async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
     await waitFor(() => {
@@ -125,22 +129,26 @@ describe("ClusterConfigContext", () => {
     });
 
     act(() => {
-      result.current.addTarget("llm-d-demo", "my-model", "inferenceservice");
-      result.current.addTarget("llm-d-demo", "my-model", "llminferenceservice");
+      result.current.addTarget('llm-d-demo', 'my-model', 'inferenceservice');
+      result.current.addTarget('llm-d-demo', 'my-model', 'llminferenceservice');
     });
 
     expect(result.current.targets.length).toBe(3);
 
     act(() => {
-      result.current.removeTarget("llm-d-demo", "my-model", "llminferenceservice");
+      result.current.removeTarget('llm-d-demo', 'my-model', 'llminferenceservice');
     });
 
     expect(result.current.targets.length).toBe(2);
-    expect(result.current.targets.some(t => t.crType === "inferenceservice" && t.inferenceService === "my-model")).toBe(true);
-    expect(result.current.targets.some(t => t.crType === "llminferenceservice")).toBe(false);
+    expect(
+      result.current.targets.some(
+        (t) => t.crType === 'inferenceservice' && t.inferenceService === 'my-model'
+      )
+    ).toBe(true);
+    expect(result.current.targets.some((t) => t.crType === 'llminferenceservice')).toBe(false);
   });
 
-  it("setDefaultTarget changes default to specified target", async () => {
+  it('setDefaultTarget changes default to specified target', async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
     await waitFor(() => {
@@ -148,22 +156,34 @@ describe("ClusterConfigContext", () => {
     });
 
     act(() => {
-      result.current.addTarget("ns1", "svc1");
-      result.current.addTarget("ns2", "svc2");
+      result.current.addTarget('ns1', 'svc1');
+      result.current.addTarget('ns2', 'svc2');
     });
 
     expect(result.current.targets[0]).toEqual(defaultTarget);
-    expect(result.current.targets[2]).toMatchObject({ namespace: "ns2", inferenceService: "svc2", crType: "inferenceservice" });
-
-    act(() => {
-      result.current.setDefaultTarget("ns2", "svc2", "inferenceservice");
+    expect(result.current.targets[2]).toMatchObject({
+      namespace: 'ns2',
+      inferenceService: 'svc2',
+      crType: 'inferenceservice',
     });
 
-    expect(result.current.targets[0]).toMatchObject({ namespace: "ns2", inferenceService: "svc2", crType: "inferenceservice" });
-    expect(result.current.targets[1]).toMatchObject({ namespace: "vllm-lab-dev", inferenceService: "llm-ov", crType: "inferenceservice" });
+    act(() => {
+      result.current.setDefaultTarget('ns2', 'svc2', 'inferenceservice');
+    });
+
+    expect(result.current.targets[0]).toMatchObject({
+      namespace: 'ns2',
+      inferenceService: 'svc2',
+      crType: 'inferenceservice',
+    });
+    expect(result.current.targets[1]).toMatchObject({
+      namespace: 'vllm-lab-dev',
+      inferenceService: 'llm-ov',
+      crType: 'inferenceservice',
+    });
   });
 
-  it("setDefaultTarget with crType only promotes the matching target, not same-name different-crType target", async () => {
+  it('setDefaultTarget with crType only promotes the matching target, not same-name different-crType target', async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
     await waitFor(() => {
@@ -171,29 +191,33 @@ describe("ClusterConfigContext", () => {
     });
 
     act(() => {
-      result.current.addTarget("llm-d-demo", "my-model", "inferenceservice");
-      result.current.addTarget("llm-d-demo", "my-model", "llminferenceservice");
+      result.current.addTarget('llm-d-demo', 'my-model', 'inferenceservice');
+      result.current.addTarget('llm-d-demo', 'my-model', 'llminferenceservice');
     });
 
     expect(result.current.targets.length).toBe(3);
 
     act(() => {
-      result.current.setDefaultTarget("llm-d-demo", "my-model", "llminferenceservice");
+      result.current.setDefaultTarget('llm-d-demo', 'my-model', 'llminferenceservice');
     });
 
     // LLMIS target should be first (default)
     expect(result.current.targets[0]).toMatchObject({
-      namespace: "llm-d-demo",
-      inferenceService: "my-model",
-      crType: "llminferenceservice",
+      namespace: 'llm-d-demo',
+      inferenceService: 'my-model',
+      crType: 'llminferenceservice',
     });
     // ISVC target with same name should still exist separately
-    expect(result.current.targets.some(t => t.inferenceService === "my-model" && t.crType === "inferenceservice")).toBe(true);
+    expect(
+      result.current.targets.some(
+        (t) => t.inferenceService === 'my-model' && t.crType === 'inferenceservice'
+      )
+    ).toBe(true);
     // Total count unchanged
     expect(result.current.targets.length).toBe(3);
   });
 
-  it("setDefaultTarget rolls back targets on PATCH failure", async () => {
+  it('setDefaultTarget rolls back targets on PATCH failure', async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
     await waitFor(() => {
@@ -201,14 +225,17 @@ describe("ClusterConfigContext", () => {
     });
 
     act(() => {
-      result.current.addTarget("ns1", "svc1");
-      result.current.addTarget("ns2", "svc2");
+      result.current.addTarget('ns1', 'svc1');
+      result.current.addTarget('ns2', 'svc2');
     });
 
     const originalTargets = [...result.current.targets];
 
-    vi.spyOn(global, "fetch").mockImplementation(((_input: RequestInfo | URL, init?: RequestInit) => {
-      if (init?.method === "PATCH") {
+    vi.spyOn(global, 'fetch').mockImplementation(((
+      _input: RequestInfo | URL,
+      init?: RequestInit
+    ) => {
+      if (init?.method === 'PATCH') {
         return Promise.resolve({
           ok: false,
           status: 500,
@@ -217,59 +244,66 @@ describe("ClusterConfigContext", () => {
       }
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ vllm_endpoint: "", vllm_namespace: "vllm-lab-dev", vllm_is_name: "llm-ov", cr_type: "inferenceservice" }),
+        json: () =>
+          Promise.resolve({
+            vllm_endpoint: '',
+            vllm_namespace: 'vllm-lab-dev',
+            vllm_is_name: 'llm-ov',
+            cr_type: 'inferenceservice',
+          }),
       } as unknown as Response);
     }) as typeof fetch);
 
     await act(async () => {
       await expect(
-        result.current.setDefaultTarget("ns2", "svc2", "inferenceservice")
+        result.current.setDefaultTarget('ns2', 'svc2', 'inferenceservice')
       ).rejects.toThrow();
     });
 
     expect(result.current.targets).toEqual(originalTargets);
   });
 
-  it("migrates versionless config and preserves fields", async () => {
+  it('migrates versionless config and preserves fields', async () => {
     const legacy = JSON.stringify({
-      endpoint: "http://x",
-      targets: [{ namespace: "ns", inferenceService: "is", crType: "inferenceservice" }],
+      endpoint: 'http://x',
+      targets: [{ namespace: 'ns', inferenceService: 'is', crType: 'inferenceservice' }],
     });
     vi.mocked(Storage.prototype.getItem).mockReturnValue(legacy);
 
-    vi.spyOn(global, "fetch").mockResolvedValue({
-      json: () => Promise.resolve({
-        vllm_endpoint: "",
-        vllm_namespace: "ns",
-        vllm_is_name: "is",
-      }),
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      json: () =>
+        Promise.resolve({
+          vllm_endpoint: '',
+          vllm_namespace: 'ns',
+          vllm_is_name: 'is',
+        }),
     } as unknown as Response);
 
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
     await waitFor(() => {
-      expect(result.current.endpoint).toBe("http://is-predictor.ns.svc.cluster.local:8080");
+      expect(result.current.endpoint).toBe('http://is-predictor.ns.svc.cluster.local:8080');
     });
-    expect(result.current.targets[0].namespace).toBe("ns");
-    expect(result.current.targets[0].inferenceService).toBe("is");
+    expect(result.current.targets[0].namespace).toBe('ns');
+    expect(result.current.targets[0].inferenceService).toBe('is');
   });
 
-  it("writes version field to localStorage", async () => {
+  it('writes version field to localStorage', async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    const calls = vi.mocked(Storage.prototype.setItem).mock.calls.filter(
-      ([key]) => key === "vllm-opt-cluster-config"
-    );
+    const calls = vi
+      .mocked(Storage.prototype.setItem)
+      .mock.calls.filter(([key]) => key === 'vllm-opt-cluster-config');
     expect(calls.length).toBeGreaterThan(0);
     const lastStored = JSON.parse(calls[calls.length - 1][1]);
     expect(lastStored.version).toBe(3);
   });
 
-  it("updateConfig removes duplicate target when modified default matches existing non-default", async () => {
+  it('updateConfig removes duplicate target when modified default matches existing non-default', async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
     await waitFor(() => {
@@ -277,39 +311,39 @@ describe("ClusterConfigContext", () => {
     });
 
     act(() => {
-      result.current.addTarget("ns1", "svc1");
-      result.current.addTarget("ns2", "svc2");
+      result.current.addTarget('ns1', 'svc1');
+      result.current.addTarget('ns2', 'svc2');
     });
 
     expect(result.current.targets.length).toBe(3);
     expect(result.current.targets[1]).toEqual({
-      namespace: "ns1",
-      inferenceService: "svc1",
-      crType: "inferenceservice",
-      source: "manual",
+      namespace: 'ns1',
+      inferenceService: 'svc1',
+      crType: 'inferenceservice',
+      source: 'manual',
     });
     expect(result.current.targets[2]).toEqual({
-      namespace: "ns2",
-      inferenceService: "svc2",
-      crType: "inferenceservice",
-      source: "manual",
+      namespace: 'ns2',
+      inferenceService: 'svc2',
+      crType: 'inferenceservice',
+      source: 'manual',
     });
 
     act(() => {
-      result.current.updateConfig("namespace", "ns2");
-      result.current.updateConfig("inferenceservice", "svc2");
+      result.current.updateConfig('namespace', 'ns2');
+      result.current.updateConfig('inferenceservice', 'svc2');
     });
 
     expect(result.current.targets.length).toBe(2);
     expect(result.current.targets[0]).toEqual({
-      namespace: "ns2",
-      inferenceService: "svc2",
-      crType: "inferenceservice",
-      source: "manual",
+      namespace: 'ns2',
+      inferenceService: 'svc2',
+      crType: 'inferenceservice',
+      source: 'manual',
     });
   });
 
-  it("updateConfig preserves both targets when modified default does not match any non-default", async () => {
+  it('updateConfig preserves both targets when modified default does not match any non-default', async () => {
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
     await waitFor(() => {
@@ -317,56 +351,61 @@ describe("ClusterConfigContext", () => {
     });
 
     act(() => {
-      result.current.addTarget("ns1", "svc1");
-      result.current.addTarget("ns2", "svc2");
+      result.current.addTarget('ns1', 'svc1');
+      result.current.addTarget('ns2', 'svc2');
     });
 
     expect(result.current.targets.length).toBe(3);
 
     act(() => {
-      result.current.updateConfig("namespace", "ns3");
+      result.current.updateConfig('namespace', 'ns3');
     });
 
     expect(result.current.targets.length).toBe(3);
     expect(result.current.targets[0]).toEqual({
-      namespace: "ns3",
-      inferenceService: "llm-ov",
-      crType: "inferenceservice",
-      source: "manual",
+      namespace: 'ns3',
+      inferenceService: 'llm-ov',
+      crType: 'inferenceservice',
+      source: 'manual',
     });
     expect(result.current.targets[1]).toEqual({
-      namespace: "ns1",
-      inferenceService: "svc1",
-      crType: "inferenceservice",
-      source: "manual",
+      namespace: 'ns1',
+      inferenceService: 'svc1',
+      crType: 'inferenceservice',
+      source: 'manual',
     });
     expect(result.current.targets[2]).toEqual({
-      namespace: "ns2",
-      inferenceService: "svc2",
-      crType: "inferenceservice",
-      source: "manual",
+      namespace: 'ns2',
+      inferenceService: 'svc2',
+      crType: 'inferenceservice',
+      source: 'manual',
     });
   });
 
-  it("aborts previous resolvedModelName re-fetch when deps change", async () => {
-    vi.mocked(Storage.prototype.getItem).mockReturnValue(JSON.stringify({
-      endpoint: "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080",
-      targets: [{ namespace: "vllm-lab-dev", inferenceService: "llm-ov", crType: "inferenceservice" }],
-      maxTargets: 5,
-      version: 2,
-    }));
+  it('aborts previous resolvedModelName re-fetch when deps change', async () => {
+    vi.mocked(Storage.prototype.getItem).mockReturnValue(
+      JSON.stringify({
+        endpoint: 'http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080',
+        targets: [
+          { namespace: 'vllm-lab-dev', inferenceService: 'llm-ov', crType: 'inferenceservice' },
+        ],
+        maxTargets: 5,
+        version: 2,
+      })
+    );
 
     const signals: (AbortSignal | null)[] = [];
     const fetchMock = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
       const urlStr = url.toString();
-      if (urlStr.includes("/api/config") && !urlStr.includes("default-targets")) {
+      if (urlStr.includes('/api/config') && !urlStr.includes('default-targets')) {
         signals.push((init?.signal as AbortSignal | null) ?? null);
       }
       return Promise.resolve({
-        json: () => Promise.resolve({ resolved_model_name: "OpenVINO/Phi-4-mini-instruct-int4-ov" }),
+        json: () =>
+          Promise.resolve({ resolved_model_name: 'OpenVINO/Phi-4-mini-instruct-int4-ov' }),
       } as unknown as Response);
     });
-    vi.spyOn(global, "fetch").mockImplementation(fetchMock);
+    vi.spyOn(global, 'fetch').mockImplementation(fetchMock);
 
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
@@ -374,12 +413,12 @@ describe("ClusterConfigContext", () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    const resolvedModelSignals = signals.filter(s => s !== null);
+    const resolvedModelSignals = signals.filter((s) => s !== null);
     const callCountBeforeUpdate = fetchMock.mock.calls.length;
     const previousRefetchSignal = resolvedModelSignals[resolvedModelSignals.length - 1];
 
     act(() => {
-      result.current.updateConfig("namespace", "ns-abort");
+      result.current.updateConfig('namespace', 'ns-abort');
     });
 
     await waitFor(() => {
@@ -389,60 +428,68 @@ describe("ClusterConfigContext", () => {
     expect(previousRefetchSignal?.aborted).toBe(true);
   });
 
-  it("keeps previous resolvedModelName when re-fetch fails", async () => {
-    vi.mocked(Storage.prototype.getItem).mockReturnValue(JSON.stringify({
-      endpoint: "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080",
-      targets: [{ namespace: "vllm-lab-dev", inferenceService: "llm-ov", crType: "inferenceservice" }],
-      maxTargets: 5,
-      version: 2,
-    }));
+  it('keeps previous resolvedModelName when re-fetch fails', async () => {
+    vi.mocked(Storage.prototype.getItem).mockReturnValue(
+      JSON.stringify({
+        endpoint: 'http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080',
+        targets: [
+          { namespace: 'vllm-lab-dev', inferenceService: 'llm-ov', crType: 'inferenceservice' },
+        ],
+        maxTargets: 5,
+        version: 2,
+      })
+    );
 
     const fetchMock = vi.fn().mockResolvedValue({
-      json: () => Promise.resolve({ resolved_model_name: "model-initial" }),
+      json: () => Promise.resolve({ resolved_model_name: 'model-initial' }),
     } as unknown as Response);
-    vi.spyOn(global, "fetch").mockImplementation(fetchMock);
-    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(global, 'fetch').mockImplementation(fetchMock);
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
     await waitFor(() => {
-      expect(result.current.resolvedModelName).toBe("model-initial");
+      expect(result.current.resolvedModelName).toBe('model-initial');
     });
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
     });
 
     const callCountAfterMount = fetchMock.mock.calls.length;
-    fetchMock.mockRejectedValueOnce(new Error("network failure"));
+    fetchMock.mockRejectedValueOnce(new Error('network failure'));
 
     act(() => {
-      result.current.updateConfig("namespace", "ns-error");
+      result.current.updateConfig('namespace', 'ns-error');
     });
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(callCountAfterMount + 1);
     });
 
-    expect(result.current.resolvedModelName).toBe("model-initial");
+    expect(result.current.resolvedModelName).toBe('model-initial');
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "Failed to re-fetch resolved model name",
-      expect.any(Error),
+      'Failed to re-fetch resolved model name',
+      expect.any(Error)
     );
   });
 
-  describe("ConfigMap sync", () => {
-    it("fetches default targets from /api/config/default-targets on mount after isLoading becomes false", async () => {
+  describe('ConfigMap sync', () => {
+    it('fetches default targets from /api/config/default-targets on mount after isLoading becomes false', async () => {
       const fetchMock = vi.fn((url: string | URL) => {
-        if (url.toString().includes("/config/default-targets")) {
+        if (url.toString().includes('/config/default-targets')) {
           return Promise.resolve({
-            json: () => Promise.resolve({ isvc: { name: "cm-isvc", namespace: "cm-ns" }, llmisvc: { name: "", namespace: "" } }),
+            json: () =>
+              Promise.resolve({
+                isvc: { name: 'cm-isvc', namespace: 'cm-ns' },
+                llmisvc: { name: '', namespace: '' },
+              }),
           });
         }
         return Promise.resolve({
-          json: () => Promise.resolve({ vllm_endpoint: "", vllm_namespace: "", vllm_is_name: "" }),
+          json: () => Promise.resolve({ vllm_endpoint: '', vllm_namespace: '', vllm_is_name: '' }),
         });
       }) as unknown as typeof fetch;
-      vi.spyOn(global, "fetch").mockImplementation(fetchMock);
+      vi.spyOn(global, 'fetch').mockImplementation(fetchMock);
 
       const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
@@ -452,32 +499,40 @@ describe("ClusterConfigContext", () => {
 
       // Wait for the ConfigMap fetch to complete
       await waitFor(() => {
-        const isvcTarget = result.current.targets.find(t => t.crType === "inferenceservice");
+        const isvcTarget = result.current.targets.find((t) => t.crType === 'inferenceservice');
         expect(isvcTarget).toBeDefined();
-        expect(isvcTarget?.namespace).toBe("cm-ns");
-        expect(isvcTarget?.inferenceService).toBe("cm-isvc");
+        expect(isvcTarget?.namespace).toBe('cm-ns');
+        expect(isvcTarget?.inferenceService).toBe('cm-isvc');
       });
     });
 
-    it("ConfigMap values override localStorage default target", async () => {
-      vi.mocked(Storage.prototype.getItem).mockReturnValue(JSON.stringify({
-        endpoint: "http://local-predictor.local-ns.svc.cluster.local:8080",
-        targets: [{ namespace: "local-ns", inferenceService: "local-is", crType: "inferenceservice" }],
-        maxTargets: 5,
-        version: 2,
-      }));
+    it('ConfigMap values override localStorage default target', async () => {
+      vi.mocked(Storage.prototype.getItem).mockReturnValue(
+        JSON.stringify({
+          endpoint: 'http://local-predictor.local-ns.svc.cluster.local:8080',
+          targets: [
+            { namespace: 'local-ns', inferenceService: 'local-is', crType: 'inferenceservice' },
+          ],
+          maxTargets: 5,
+          version: 2,
+        })
+      );
 
       const fetchMock = vi.fn((url: string | URL) => {
-        if (url.toString().includes("/config/default-targets")) {
+        if (url.toString().includes('/config/default-targets')) {
           return Promise.resolve({
-            json: () => Promise.resolve({ isvc: { name: "cm-isvc", namespace: "cm-ns" }, llmisvc: { name: "", namespace: "" } }),
+            json: () =>
+              Promise.resolve({
+                isvc: { name: 'cm-isvc', namespace: 'cm-ns' },
+                llmisvc: { name: '', namespace: '' },
+              }),
           });
         }
         return Promise.resolve({
-          json: () => Promise.resolve({ vllm_endpoint: "", vllm_namespace: "", vllm_is_name: "" }),
+          json: () => Promise.resolve({ vllm_endpoint: '', vllm_namespace: '', vllm_is_name: '' }),
         });
       }) as unknown as typeof fetch;
-      vi.spyOn(global, "fetch").mockImplementation(fetchMock);
+      vi.spyOn(global, 'fetch').mockImplementation(fetchMock);
 
       const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
@@ -486,24 +541,34 @@ describe("ClusterConfigContext", () => {
       });
 
       await waitFor(() => {
-        const isvcTarget = result.current.targets.find(t => t.crType === "inferenceservice");
-        expect(isvcTarget?.namespace).toBe("cm-ns");
-        expect(isvcTarget?.inferenceService).toBe("cm-isvc");
+        const isvcTarget = result.current.targets.find((t) => t.crType === 'inferenceservice');
+        expect(isvcTarget?.namespace).toBe('cm-ns');
+        expect(isvcTarget?.inferenceService).toBe('cm-isvc');
       });
     });
 
-    it("does not update targets when ConfigMap returns empty isvc and llmisvc", async () => {
+    it('does not update targets when ConfigMap returns empty isvc and llmisvc', async () => {
       const fetchMock = vi.fn((url: string | URL) => {
-        if (url.toString().includes("/config/default-targets")) {
+        if (url.toString().includes('/config/default-targets')) {
           return Promise.resolve({
-            json: () => Promise.resolve({ isvc: { name: "", namespace: "" }, llmisvc: { name: "", namespace: "" } }),
+            json: () =>
+              Promise.resolve({
+                isvc: { name: '', namespace: '' },
+                llmisvc: { name: '', namespace: '' },
+              }),
           });
         }
         return Promise.resolve({
-          json: () => Promise.resolve({ vllm_endpoint: "", vllm_namespace: "vllm-lab-dev", vllm_is_name: "llm-ov", cr_type: "inferenceservice" }),
+          json: () =>
+            Promise.resolve({
+              vllm_endpoint: '',
+              vllm_namespace: 'vllm-lab-dev',
+              vllm_is_name: 'llm-ov',
+              cr_type: 'inferenceservice',
+            }),
         });
       }) as unknown as typeof fetch;
-      vi.spyOn(global, "fetch").mockImplementation(fetchMock);
+      vi.spyOn(global, 'fetch').mockImplementation(fetchMock);
 
       const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
@@ -512,21 +577,27 @@ describe("ClusterConfigContext", () => {
       });
 
       const defaultTarget = result.current.targets[0];
-      expect(defaultTarget?.namespace).toBe("vllm-lab-dev");
-      expect(defaultTarget?.inferenceService).toBe("llm-ov");
+      expect(defaultTarget?.namespace).toBe('vllm-lab-dev');
+      expect(defaultTarget?.inferenceService).toBe('llm-ov');
     });
 
-    it("handles ConfigMap fetch error gracefully", async () => {
-      const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    it('handles ConfigMap fetch error gracefully', async () => {
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       const fetchMock = vi.fn((url: string | URL) => {
-        if (url.toString().includes("/config/default-targets")) {
-          return Promise.reject(new Error("ConfigMap fetch failed"));
+        if (url.toString().includes('/config/default-targets')) {
+          return Promise.reject(new Error('ConfigMap fetch failed'));
         }
         return Promise.resolve({
-          json: () => Promise.resolve({ vllm_endpoint: "", vllm_namespace: "vllm-lab-dev", vllm_is_name: "llm-ov", cr_type: "inferenceservice" }),
+          json: () =>
+            Promise.resolve({
+              vllm_endpoint: '',
+              vllm_namespace: 'vllm-lab-dev',
+              vllm_is_name: 'llm-ov',
+              cr_type: 'inferenceservice',
+            }),
         });
       }) as unknown as typeof fetch;
-      vi.spyOn(global, "fetch").mockImplementation(fetchMock);
+      vi.spyOn(global, 'fetch').mockImplementation(fetchMock);
 
       const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
@@ -535,29 +606,33 @@ describe("ClusterConfigContext", () => {
       });
 
       expect(consoleWarnSpy).toHaveBeenCalledWith(
-        "Failed to fetch ConfigMap default targets:",
-        expect.any(Error),
+        'Failed to fetch ConfigMap default targets:',
+        expect.any(Error)
       );
 
       // Should still have default target from initial config
       const defaultTarget = result.current.targets[0];
-      expect(defaultTarget?.namespace).toBe("vllm-lab-dev");
-      expect(defaultTarget?.inferenceService).toBe("llm-ov");
+      expect(defaultTarget?.namespace).toBe('vllm-lab-dev');
+      expect(defaultTarget?.inferenceService).toBe('llm-ov');
     });
 
-    it("cleans up polling interval on unmount", async () => {
-      const clearIntervalSpy = vi.spyOn(global, "clearInterval");
+    it('cleans up polling interval on unmount', async () => {
+      const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
       const fetchMock = vi.fn((url: string | URL) => {
-        if (url.toString().includes("/config/default-targets")) {
+        if (url.toString().includes('/config/default-targets')) {
           return Promise.resolve({
-            json: () => Promise.resolve({ isvc: { name: "", namespace: "" }, llmisvc: { name: "", namespace: "" } }),
+            json: () =>
+              Promise.resolve({
+                isvc: { name: '', namespace: '' },
+                llmisvc: { name: '', namespace: '' },
+              }),
           });
         }
         return Promise.resolve({
-          json: () => Promise.resolve({ vllm_endpoint: "", vllm_namespace: "", vllm_is_name: "" }),
+          json: () => Promise.resolve({ vllm_endpoint: '', vllm_namespace: '', vllm_is_name: '' }),
         });
       }) as unknown as typeof fetch;
-      vi.spyOn(global, "fetch").mockImplementation(fetchMock);
+      vi.spyOn(global, 'fetch').mockImplementation(fetchMock);
 
       const { unmount } = renderHook(() => useClusterConfig(), { wrapper });
 
@@ -570,21 +645,22 @@ describe("ClusterConfigContext", () => {
       expect(clearIntervalSpy).toHaveBeenCalled();
     });
 
-    it("adds both isvc and llmisvc targets when both are present in ConfigMap", async () => {
+    it('adds both isvc and llmisvc targets when both are present in ConfigMap', async () => {
       const fetchMock = vi.fn((url: string | URL) => {
-        if (url.toString().includes("/config/default-targets")) {
+        if (url.toString().includes('/config/default-targets')) {
           return Promise.resolve({
-            json: () => Promise.resolve({
-              isvc: { name: "kserve-isvc", namespace: "kserve-ns" },
-              llmisvc: { name: "llmis-isvc", namespace: "llmis-ns" },
-            }),
+            json: () =>
+              Promise.resolve({
+                isvc: { name: 'kserve-isvc', namespace: 'kserve-ns' },
+                llmisvc: { name: 'llmis-isvc', namespace: 'llmis-ns' },
+              }),
           });
         }
         return Promise.resolve({
-          json: () => Promise.resolve({ vllm_endpoint: "", vllm_namespace: "", vllm_is_name: "" }),
+          json: () => Promise.resolve({ vllm_endpoint: '', vllm_namespace: '', vllm_is_name: '' }),
         });
       }) as unknown as typeof fetch;
-      vi.spyOn(global, "fetch").mockImplementation(fetchMock);
+      vi.spyOn(global, 'fetch').mockImplementation(fetchMock);
 
       const { result } = renderHook(() => useClusterConfig(), { wrapper });
 
@@ -593,34 +669,38 @@ describe("ClusterConfigContext", () => {
       });
 
       await waitFor(() => {
-        const isvcTarget = result.current.targets.find(t => t.crType === "inferenceservice");
-        const llmisvcTarget = result.current.targets.find(t => t.crType === "llminferenceservice");
+        const isvcTarget = result.current.targets.find((t) => t.crType === 'inferenceservice');
+        const llmisvcTarget = result.current.targets.find(
+          (t) => t.crType === 'llminferenceservice'
+        );
         expect(isvcTarget).toBeDefined();
-        expect(isvcTarget?.namespace).toBe("kserve-ns");
-        expect(isvcTarget?.inferenceService).toBe("kserve-isvc");
+        expect(isvcTarget?.namespace).toBe('kserve-ns');
+        expect(isvcTarget?.inferenceService).toBe('kserve-isvc');
         expect(llmisvcTarget).toBeDefined();
-        expect(llmisvcTarget?.namespace).toBe("llmis-ns");
-        expect(llmisvcTarget?.inferenceService).toBe("llmis-isvc");
+        expect(llmisvcTarget?.namespace).toBe('llmis-ns');
+        expect(llmisvcTarget?.inferenceService).toBe('llmis-isvc');
       });
     });
   });
 
-  describe("isvcTargets and llmisvcTargets filtering", () => {
-    it("isvcTargets includes targets with crType=inferenceservice", async () => {
-      vi.mocked(Storage.prototype.getItem).mockReturnValue(JSON.stringify({
-        endpoint: "http://x",
-        targets: [
-          { namespace: "ns1", inferenceService: "isvc1", crType: "inferenceservice" },
-          { namespace: "ns2", inferenceService: "isvc2", crType: "inferenceservice" },
-          { namespace: "ns3", inferenceService: "llmisvc1", crType: "llminferenceservice" },
-        ],
-        maxTargets: 5,
-        version: 2,
-      }));
+  describe('isvcTargets and llmisvcTargets filtering', () => {
+    it('isvcTargets includes targets with crType=inferenceservice', async () => {
+      vi.mocked(Storage.prototype.getItem).mockReturnValue(
+        JSON.stringify({
+          endpoint: 'http://x',
+          targets: [
+            { namespace: 'ns1', inferenceService: 'isvc1', crType: 'inferenceservice' },
+            { namespace: 'ns2', inferenceService: 'isvc2', crType: 'inferenceservice' },
+            { namespace: 'ns3', inferenceService: 'llmisvc1', crType: 'llminferenceservice' },
+          ],
+          maxTargets: 5,
+          version: 2,
+        })
+      );
 
-      vi.spyOn(global, "fetch").mockResolvedValue({
+      vi.spyOn(global, 'fetch').mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({ vllm_endpoint: "", vllm_namespace: "", vllm_is_name: "" }),
+        json: () => Promise.resolve({ vllm_endpoint: '', vllm_namespace: '', vllm_is_name: '' }),
       } as unknown as Response);
 
       const { result } = renderHook(() => useClusterConfig(), { wrapper });
@@ -630,25 +710,27 @@ describe("ClusterConfigContext", () => {
       });
 
       expect(result.current.isvcTargets.length).toBe(2);
-      expect(result.current.isvcTargets.map(t => t.inferenceService)).toContain("isvc1");
-      expect(result.current.isvcTargets.map(t => t.inferenceService)).toContain("isvc2");
+      expect(result.current.isvcTargets.map((t) => t.inferenceService)).toContain('isvc1');
+      expect(result.current.isvcTargets.map((t) => t.inferenceService)).toContain('isvc2');
     });
 
-    it("llmisvcTargets includes only targets with crType=llminferenceservice", async () => {
-      vi.mocked(Storage.prototype.getItem).mockReturnValue(JSON.stringify({
-        endpoint: "http://x",
-        targets: [
-          { namespace: "ns1", inferenceService: "isvc1", crType: "inferenceservice" },
-          { namespace: "ns2", inferenceService: "isvc2", crType: "inferenceservice" },
-          { namespace: "ns3", inferenceService: "llmisvc1", crType: "llminferenceservice" },
-        ],
-        maxTargets: 5,
-        version: 2,
-      }));
+    it('llmisvcTargets includes only targets with crType=llminferenceservice', async () => {
+      vi.mocked(Storage.prototype.getItem).mockReturnValue(
+        JSON.stringify({
+          endpoint: 'http://x',
+          targets: [
+            { namespace: 'ns1', inferenceService: 'isvc1', crType: 'inferenceservice' },
+            { namespace: 'ns2', inferenceService: 'isvc2', crType: 'inferenceservice' },
+            { namespace: 'ns3', inferenceService: 'llmisvc1', crType: 'llminferenceservice' },
+          ],
+          maxTargets: 5,
+          version: 2,
+        })
+      );
 
-      vi.spyOn(global, "fetch").mockResolvedValue({
+      vi.spyOn(global, 'fetch').mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({ vllm_endpoint: "", vllm_namespace: "", vllm_is_name: "" }),
+        json: () => Promise.resolve({ vllm_endpoint: '', vllm_namespace: '', vllm_is_name: '' }),
       } as unknown as Response);
 
       const { result } = renderHook(() => useClusterConfig(), { wrapper });
@@ -658,7 +740,7 @@ describe("ClusterConfigContext", () => {
       });
 
       expect(result.current.llmisvcTargets.length).toBe(1);
-      expect(result.current.llmisvcTargets[0].inferenceService).toBe("llmisvc1");
+      expect(result.current.llmisvcTargets[0].inferenceService).toBe('llmisvc1');
     });
   });
 });

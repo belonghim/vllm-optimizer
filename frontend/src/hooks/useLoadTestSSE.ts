@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { API } from '../constants';
-import { openReconnectingEventSource, type ReconnectingEventSource } from '../utils/reconnectingEventSource';
+import {
+  openReconnectingEventSource,
+  type ReconnectingEventSource,
+} from '../utils/reconnectingEventSource';
 import type { SSEState, SSEErrorPayload, LoadTestResult } from '../types';
 
 interface LatencyPoint {
@@ -36,9 +39,12 @@ export function useLoadTestSSE(): UseLoadTestSSEReturn {
   const [progress, setProgress] = useState<number>(0);
   const [latencyData, setLatencyData] = useState<LatencyPoint[]>([]);
 
-  useEffect(() => () => {
-    handleRef.current?.dispose();
-  }, []);
+  useEffect(
+    () => () => {
+      handleRef.current?.dispose();
+    },
+    []
+  );
 
   const connect = (totalRequests: number): void => {
     setRetryCount(0);
@@ -52,7 +58,9 @@ export function useLoadTestSSE(): UseLoadTestSSEReturn {
       },
       onMessage: (data) => {
         if (data.type === 'error') {
-          setError((data.data as SSEErrorPayload | undefined)?.error ?? "Load test error occurred.");
+          setError(
+            (data.data as SSEErrorPayload | undefined)?.error ?? 'Load test error occurred.'
+          );
           setStatus('error');
           handle.closeSocket();
           return;
@@ -62,11 +70,14 @@ export function useLoadTestSSE(): UseLoadTestSSEReturn {
           if (d.total != null) {
             setProgress(Math.round((d.total / totalRequests) * 100));
           }
-          setLatencyData(prev => [...prev.slice(-60), {
-            t: prev.length,
-            lat: (d.latency?.mean ?? 0) * 1000 | 0,
-            tps: d.tps?.mean ?? 0 | 0,
-          }]);
+          setLatencyData((prev) => [
+            ...prev.slice(-60),
+            {
+              t: prev.length,
+              lat: ((d.latency?.mean ?? 0) * 1000) | 0,
+              tps: d.tps?.mean ?? 0 | 0,
+            },
+          ]);
           setResult(d);
         }
         if (data.type === 'completed') {
@@ -86,7 +97,9 @@ export function useLoadTestSSE(): UseLoadTestSSEReturn {
       },
       onError: () => {
         setIsReconnecting(false);
-        setError('SSE connection failed: cannot connect to load test stream. (max retries exceeded)');
+        setError(
+          'SSE connection failed: cannot connect to load test stream. (max retries exceeded)'
+        );
         setStatus('error');
       },
     });
@@ -99,12 +112,19 @@ export function useLoadTestSSE(): UseLoadTestSSEReturn {
   };
 
   return {
-    status, setStatus,
-    isReconnecting, retryCount,
-    error, setError,
-    result, setResult,
-    progress, setProgress,
-    latencyData, setLatencyData,
-    connect, disconnect,
+    status,
+    setStatus,
+    isReconnecting,
+    retryCount,
+    error,
+    setError,
+    result,
+    setResult,
+    progress,
+    setProgress,
+    latencyData,
+    setLatencyData,
+    connect,
+    disconnect,
   };
 }

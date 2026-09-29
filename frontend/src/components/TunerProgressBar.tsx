@@ -11,28 +11,28 @@ interface TunerProgressBarProps {
 }
 
 const PHASE_LABELS: Record<string, string> = {
-  applying_config: "Updating config...",
-  restarting: "Restarting InferenceService...",
-  waiting_ready: "Waiting for Pod Ready...",
-  warmup: "Sending warmup requests...",
-  evaluating: "Evaluating performance...",
+  applying_config: 'Updating config...',
+  restarting: 'Restarting InferenceService...',
+  waiting_ready: 'Waiting for Pod Ready...',
+  warmup: 'Sending warmup requests...',
+  evaluating: 'Evaluating performance...',
 };
 
 export default function TunerProgressBar({
   isRunning,
   trialsCompleted,
   totalTrials,
-  currentPhase
+  currentPhase,
 }: TunerProgressBarProps) {
-  const percentage = totalTrials > 0
-    ? Math.min(100, Math.round((trialsCompleted / totalTrials) * 100))
-    : 0;
+  const percentage =
+    totalTrials > 0 ? Math.min(100, Math.round((trialsCompleted / totalTrials) * 100)) : 0;
 
-  const phaseLabel = currentPhase && PHASE_LABELS[currentPhase.phase]
-    ? `Trial ${currentPhase.trial_id + 1}: ${PHASE_LABELS[currentPhase.phase]}`
-    : currentPhase
-      ? `Trial ${currentPhase.trial_id + 1}: ${currentPhase.phase}`
-      : null;
+  const phaseLabel =
+    currentPhase && PHASE_LABELS[currentPhase.phase]
+      ? `Trial ${currentPhase.trial_id + 1}: ${PHASE_LABELS[currentPhase.phase]}`
+      : currentPhase
+        ? `Trial ${currentPhase.trial_id + 1}: ${currentPhase.phase}`
+        : null;
 
   const showProgressBar = isRunning || trialsCompleted > 0;
 

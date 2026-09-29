@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect } from 'react';
 import { authFetch } from '../utils/authFetch';
-import { API } from "../constants";
-import { fmt } from "../utils/format";
-import MetricCard from "./MetricCard";
-import ConfirmDialog from "./ConfirmDialog";
+import { API } from '../constants';
+import { fmt } from '../utils/format';
+import MetricCard from './MetricCard';
+import ConfirmDialog from './ConfirmDialog';
 
 interface TuningSessionSummary {
   id: number;
@@ -39,7 +39,7 @@ export default function TunerHistoryPanel() {
   }>({
     open: false,
     title: undefined,
-    message: "",
+    message: '',
     onConfirm: () => {},
   });
 
@@ -61,8 +61,8 @@ export default function TunerHistoryPanel() {
   }, []);
 
   const toggleSelect = (id: number) => {
-    setSelectedIds(prev => {
-      if (prev.includes(id)) return prev.filter(x => x !== id);
+    setSelectedIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
       if (prev.length >= 2) return prev;
       return [...prev, id];
     });
@@ -72,9 +72,9 @@ export default function TunerHistoryPanel() {
     try {
       const res = await authFetch(`${API}/tuner/sessions/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setSessions(prev => prev.filter(s => s.id !== id));
-      setSelectedIds(prev => prev.filter(x => x !== id));
-      setCompareData(prev => prev.filter(d => d.id !== id));
+      setSessions((prev) => prev.filter((s) => s.id !== id));
+      setSelectedIds((prev) => prev.filter((x) => x !== id));
+      setCompareData((prev) => prev.filter((d) => d.id !== id));
     } catch (err) {
       setError(`Delete failed: ${(err as Error).message}`);
     }
@@ -84,8 +84,8 @@ export default function TunerHistoryPanel() {
     e.stopPropagation();
     setConfirmState({
       open: true,
-      title: "Delete Tuning Session",
-      message: "Delete this tuning session?",
+      title: 'Delete Tuning Session',
+      message: 'Delete this tuning session?',
       onConfirm: () => {
         void deleteSession(id);
       },
@@ -112,53 +112,69 @@ export default function TunerHistoryPanel() {
     }
   };
 
-  const allParamKeys = Array.from(new Set(
-    compareData.flatMap(d => d.best_params ? Object.keys(d.best_params) : [])
-  )).sort();
+  const allParamKeys = Array.from(
+    new Set(compareData.flatMap((d) => (d.best_params ? Object.keys(d.best_params) : [])))
+  ).sort();
 
   return (
     <div className="flex-col-16">
       <div className="panel">
         <div className="section-title">Tuning History</div>
-        {error && <div className="error-msg" style={{marginBottom: '12px'}}>{error}</div>}
-        
-        <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {error && (
+          <div className="error-msg" style={{ marginBottom: '12px' }}>
+            {error}
+          </div>
+        )}
+
+        <div
+          style={{
+            marginBottom: '12px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
           <span className="td-muted">{selectedIds.length} / 2 selected</span>
-          <button 
-            className="btn-primary" 
+          <button
+            className="btn-primary"
             disabled={selectedIds.length !== 2 || isLoading}
             onClick={handleCompare}
           >
-            {isLoading ? "Loading..." : "Compare Selected"}
+            {isLoading ? 'Loading...' : 'Compare Selected'}
           </button>
         </div>
 
         <table className="table">
           <thead>
             <tr>
-              <th style={{width: '40px'}}></th>
+              <th style={{ width: '40px' }}></th>
               <th>Date</th>
               <th>Objective</th>
               <th>Trials</th>
               <th>Best TPS</th>
               <th>Best P99</th>
-              <th style={{width: '60px'}}>Delete</th>
+              <th style={{ width: '60px' }}>Delete</th>
             </tr>
           </thead>
           <tbody>
-            {sessions.map(s => (
-              <tr 
-                key={s.id} 
+            {sessions.map((s) => (
+              <tr
+                key={s.id}
                 onClick={() => toggleSelect(s.id)}
-                onKeyDown={(e) => (e.key === " " || e.key === "Enter") && toggleSelect(s.id)}
+                onKeyDown={(e) => (e.key === ' ' || e.key === 'Enter') && toggleSelect(s.id)}
                 tabIndex={0}
-                style={{ cursor: 'pointer', backgroundColor: selectedIds.includes(s.id) ? 'var(--bg-highlight)' : 'transparent' }}
+                style={{
+                  cursor: 'pointer',
+                  backgroundColor: selectedIds.includes(s.id)
+                    ? 'var(--bg-highlight)'
+                    : 'transparent',
+                }}
               >
                 <td>
-                  <input 
-                    type="checkbox" 
-                    checked={selectedIds.includes(s.id)} 
-                    onChange={() => {}} 
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(s.id)}
+                    onChange={() => {}}
                     disabled={!selectedIds.includes(s.id) && selectedIds.length >= 2}
                   />
                 </td>
@@ -168,12 +184,26 @@ export default function TunerHistoryPanel() {
                 <td className="td-accent">{fmt(s.best_tps, 1)}</td>
                 <td className="td-red">{fmt(s.best_p99, 0)}</td>
                 <td>
-                  <button className="btn-icon" aria-label={`Delete tuning session ${s.id}`} onClick={(e) => handleDelete(s.id, e)}>✕</button>
+                  <button
+                    className="btn-icon"
+                    aria-label={`Delete tuning session ${s.id}`}
+                    onClick={(e) => handleDelete(s.id, e)}
+                  >
+                    ✕
+                  </button>
                 </td>
               </tr>
             ))}
             {sessions.length === 0 && (
-              <tr><td colSpan={7} className="td-muted" style={{textAlign: 'center', padding: '24px'}}>No saved history.</td></tr>
+              <tr>
+                <td
+                  colSpan={7}
+                  className="td-muted"
+                  style={{ textAlign: 'center', padding: '24px' }}
+                >
+                  No saved history.
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
@@ -182,16 +212,30 @@ export default function TunerHistoryPanel() {
       {compareData.length === 2 && (
         <div className="panel tuner-compare-panel">
           <div className="section-title">Session Comparison</div>
-          
+
           <div className="grid-2" style={{ gap: '24px', marginBottom: '24px' }}>
             {compareData.map((d) => (
               <div key={d.id} className="compare-column">
                 <div className="td-muted" style={{ marginBottom: '8px', fontSize: '12px' }}>
-                  Session #{d.id} ({new Date((sessions.find(s => s.id === d.id)?.timestamp || 0) * 1000).toLocaleString()})
+                  Session #{d.id} (
+                  {new Date(
+                    (sessions.find((s) => s.id === d.id)?.timestamp || 0) * 1000
+                  ).toLocaleString()}
+                  )
                 </div>
                 <div className="grid-2" style={{ gap: '8px' }}>
-                  <MetricCard label="Best TPS" value={fmt(d.best_tps, 1)} unit="tok/s" color="amber" />
-                  <MetricCard label="P99 Latency" value={fmt(d.best_p99, 0)} unit="ms" color="cyan" />
+                  <MetricCard
+                    label="Best TPS"
+                    value={fmt(d.best_tps, 1)}
+                    unit="tok/s"
+                    color="amber"
+                  />
+                  <MetricCard
+                    label="P99 Latency"
+                    value={fmt(d.best_p99, 0)}
+                    unit="ms"
+                    color="cyan"
+                  />
                 </div>
               </div>
             ))}
@@ -206,16 +250,20 @@ export default function TunerHistoryPanel() {
               </tr>
             </thead>
             <tbody>
-              {allParamKeys.map(key => {
+              {allParamKeys.map((key) => {
                 const val0 = compareData[0].best_params?.[key];
                 const val1 = compareData[1].best_params?.[key];
                 const isDifferent = String(val0) !== String(val1);
-                
+
                 return (
                   <tr key={key}>
                     <td className="td-muted">{key}</td>
-                    <td className={isDifferent ? "td-green" : ""}>{val0 !== undefined ? String(val0) : "—"}</td>
-                    <td className={isDifferent ? "td-green" : ""}>{val1 !== undefined ? String(val1) : "—"}</td>
+                    <td className={isDifferent ? 'td-green' : ''}>
+                      {val0 !== undefined ? String(val0) : '—'}
+                    </td>
+                    <td className={isDifferent ? 'td-green' : ''}>
+                      {val1 !== undefined ? String(val1) : '—'}
+                    </td>
                   </tr>
                 );
               })}
@@ -227,10 +275,10 @@ export default function TunerHistoryPanel() {
         open={confirmState.open}
         title={confirmState.title}
         message={confirmState.message}
-        onCancel={() => setConfirmState(prev => ({ ...prev, open: false }))}
+        onCancel={() => setConfirmState((prev) => ({ ...prev, open: false }))}
         onConfirm={() => {
           const callback = confirmState.onConfirm;
-          setConfirmState(prev => ({ ...prev, open: false }));
+          setConfirmState((prev) => ({ ...prev, open: false }));
           callback();
         }}
       />

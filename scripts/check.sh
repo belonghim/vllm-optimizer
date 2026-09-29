@@ -73,6 +73,9 @@ step "frontend types"
 step "frontend lint"
 (cd frontend && npm run lint) || fail "eslint"
 
+step "frontend format"
+(cd frontend && npm run format:check) || fail "prettier"
+
 step "frontend build"
 (cd frontend && npm run build) || fail "frontend build"
 

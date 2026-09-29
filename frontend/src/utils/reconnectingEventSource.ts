@@ -69,7 +69,10 @@ export function openReconnectingEventSource<T = unknown>(
         retryCount = count;
         if (count <= SSE_MAX_RETRIES) {
           options.onRetry?.(count);
-          const delay = Math.min(RETRY_BASE_DELAY_MS * Math.pow(2, count - 1), SSE_MAX_RETRY_DELAY_MS);
+          const delay = Math.min(
+            RETRY_BASE_DELAY_MS * Math.pow(2, count - 1),
+            SSE_MAX_RETRY_DELAY_MS
+          );
           retryTimer = setTimeout(openConnection, delay);
         } else {
           options.onError?.();

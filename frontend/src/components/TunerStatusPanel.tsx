@@ -1,5 +1,5 @@
-import ErrorAlert from "./ErrorAlert";
-import { ERROR_MESSAGES } from "../constants/errorMessages";
+import ErrorAlert from './ErrorAlert';
+import { ERROR_MESSAGES } from '../constants/errorMessages';
 
 interface TunerStatusPanelProps {
   error: string | null;
@@ -30,17 +30,30 @@ export default function TunerStatusPanel({
     <>
       {interruptedWarning && (
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-          <ErrorAlert message={interruptedWarning} severity="warning" className="error-alert--mb16" />
+          <ErrorAlert
+            message={interruptedWarning}
+            severity="warning"
+            className="error-alert--mb16"
+          />
           <button
             onClick={onDismissInterrupted}
             aria-label="Dismiss tuner interruption warning"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--muted-color)', fontSize: '18px' }}
-          >×</button>
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '4px',
+              color: 'var(--muted-color)',
+              fontSize: '18px',
+            }}
+          >
+            ×
+          </button>
         </div>
       )}
       <ErrorAlert message={error} className="error-alert--mb16" />
       <ErrorAlert message={warning} severity="warning" className="error-alert--mb16" />
-      {applyStatus === "success" && (
+      {applyStatus === 'success' && (
         <div className="success-msg" role="status">
           {ERROR_MESSAGES.TUNER.APPLY_BEST_SUCCESS}
         </div>
@@ -50,7 +63,10 @@ export default function TunerStatusPanel({
           {ERROR_MESSAGES.TUNER.APPLY_CURRENT_VALUES_SUCCESS}
         </div>
       )}
-      <label htmlFor="auto-benchmark" style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+      <label
+        htmlFor="auto-benchmark"
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 8 }}
+      >
         <input
           id="auto-benchmark"
           type="checkbox"
@@ -61,11 +77,12 @@ export default function TunerStatusPanel({
       </label>
       {benchmarkSaved && (
         <div className="success-msg" role="status" style={{ marginBottom: 8 }}>
-          {ERROR_MESSAGES.TUNER.BENCHMARK_SAVED}{benchmarkSavedId !== null ? ` (ID: ${benchmarkSavedId})` : ""}
+          {ERROR_MESSAGES.TUNER.BENCHMARK_SAVED}
+          {benchmarkSavedId !== null ? ` (ID: ${benchmarkSavedId})` : ''}
         </div>
       )}
       {benchmarkSaved && onTabChange && (
-        <button type="button" onClick={() => onTabChange("benchmark")} style={{ marginBottom: 12 }}>
+        <button type="button" onClick={() => onTabChange('benchmark')} style={{ marginBottom: 12 }}>
           {ERROR_MESSAGES.TUNER.GOTO_BENCHMARK_BUTTON}
         </button>
       )}

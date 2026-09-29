@@ -1,51 +1,83 @@
-import { useState, useEffect, useCallback, lazy, Suspense, FormEvent } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense, FormEvent } from 'react';
 import { authFetch } from '../utils/authFetch';
-import { API, COLORS, TOOLTIP_STYLE, TARGET_COLORS } from "../constants";
-import { ERROR_MESSAGES } from "../constants/errorMessages";
-import ErrorAlert from "../components/ErrorAlert";
-import LoadingSpinner from "../components/LoadingSpinner";
+import { API, COLORS, TOOLTIP_STYLE, TARGET_COLORS } from '../constants';
+import { ERROR_MESSAGES } from '../constants/errorMessages';
+import ErrorAlert from '../components/ErrorAlert';
+import LoadingSpinner from '../components/LoadingSpinner';
 import { useBenchmarkSelection } from '../contexts/BenchmarkSelectionContext';
-import SlaProfileForm, { SlaFormState } from "../components/SlaProfileForm";
-import SlaProfileList from "../components/SlaProfileList";
-import ConfirmDialog from "../components/ConfirmDialog";
+import SlaProfileForm, { SlaFormState } from '../components/SlaProfileForm';
+import SlaProfileList from '../components/SlaProfileList';
+import ConfirmDialog from '../components/ConfirmDialog';
 
-import type { SlaThresholds, SlaProfile } from "../types";
+import type { SlaThresholds, SlaProfile } from '../types';
 export type { SlaThresholds, SlaProfile };
 
 interface SlaMetricsChartProps {
   chartData: { name: string; value: number | null; threshold: number | null }[];
   chartMetric: string;
-  legendPayload: { value: string; type: "circle"; id: string; color: string }[];
+  legendPayload: { value: string; type: 'circle'; id: string; color: string }[];
   slaThreshold: number | null | undefined;
 }
 
 // Lazy: keeps recharts out of the SLA page chunk until a profile is evaluated
 const SlaMetricsChart = lazy(() =>
-  import("recharts").then(({
-    BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer, Legend,
-  }) => ({
-    default: function SlaMetricsChart({ chartData, chartMetric, legendPayload, slaThreshold }: SlaMetricsChartProps) {
-      return (
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
-            <XAxis dataKey="name" tick={{ fontSize: 11, fill: COLORS.muted }} interval={0} />
-            <YAxis tick={{ fontSize: 11, fill: COLORS.muted }} />
-            <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={{ fontSize: '12px' }} labelStyle={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }} formatter={(value: number | string) => [value, chartMetric]} />
-            <Legend payload={legendPayload} />
-            <Bar dataKey="value" isAnimationActive={false}>
-              {chartData.map((item, index) => (<Cell key={item.name} fill={TARGET_COLORS[index % TARGET_COLORS.length]} />))}
-            </Bar>
-            {slaThreshold != null && (
-              <ReferenceLine y={slaThreshold} stroke={COLORS.red} strokeWidth={2.5}
-                label={{ position: 'insideTopRight', value: `SLA: ${chartMetric === 'p95_latency' || chartMetric === 'ttft_mean' || chartMetric === 'ttft_p95' || chartMetric === 'e2e_latency_mean' || chartMetric === 'tpot_mean' || chartMetric === 'tpot_p95' || chartMetric === 'queue_time_mean' || chartMetric === 'queue_time_p95' ? `${slaThreshold}ms` : `${slaThreshold}%`}`, fill: COLORS.red, fontSize: 11, fontWeight: 'bold' }}
+  import('recharts').then(
+    ({
+      BarChart,
+      Bar,
+      Cell,
+      XAxis,
+      YAxis,
+      CartesianGrid,
+      Tooltip,
+      ReferenceLine,
+      ResponsiveContainer,
+      Legend,
+    }) => ({
+      default: function SlaMetricsChart({
+        chartData,
+        chartMetric,
+        legendPayload,
+        slaThreshold,
+      }: SlaMetricsChartProps) {
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
+              <XAxis dataKey="name" tick={{ fontSize: 11, fill: COLORS.muted }} interval={0} />
+              <YAxis tick={{ fontSize: 11, fill: COLORS.muted }} />
+              <Tooltip
+                contentStyle={TOOLTIP_STYLE}
+                itemStyle={{ fontSize: '12px' }}
+                labelStyle={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}
+                formatter={(value: number | string) => [value, chartMetric]}
               />
-            )}
-          </BarChart>
-        </ResponsiveContainer>
-      );
-    },
-  }))
+              <Legend payload={legendPayload} />
+              <Bar dataKey="value" isAnimationActive={false}>
+                {chartData.map((item, index) => (
+                  <Cell key={item.name} fill={TARGET_COLORS[index % TARGET_COLORS.length]} />
+                ))}
+              </Bar>
+              {slaThreshold != null && (
+                <ReferenceLine
+                  y={slaThreshold}
+                  stroke={COLORS.red}
+                  strokeWidth={2.5}
+                  label={{
+                    position: 'insideTopRight',
+                    value: `SLA: ${chartMetric === 'p95_latency' || chartMetric === 'ttft_mean' || chartMetric === 'ttft_p95' || chartMetric === 'e2e_latency_mean' || chartMetric === 'tpot_mean' || chartMetric === 'tpot_p95' || chartMetric === 'queue_time_mean' || chartMetric === 'queue_time_p95' ? `${slaThreshold}ms` : `${slaThreshold}%`}`,
+                    fill: COLORS.red,
+                    fontSize: 11,
+                    fontWeight: 'bold',
+                  }}
+                />
+              )}
+            </BarChart>
+          </ResponsiveContainer>
+        );
+      },
+    })
+  )
 );
 
 interface SlaVerdict {
@@ -70,7 +102,19 @@ interface SlaEvaluateResponse {
   warnings?: string[];
 }
 
-const EMPTY_FORM: SlaFormState = { name: '', availMin: '', p95Ms: '', errRate: '', meanTtftMs: '', p95TtftMs: '', meanE2eLatencyMs: '', meanTpotMs: '', p95TpotMs: '', meanQueueTimeMs: '', p95QueueTimeMs: '' };
+const EMPTY_FORM: SlaFormState = {
+  name: '',
+  availMin: '',
+  p95Ms: '',
+  errRate: '',
+  meanTtftMs: '',
+  p95TtftMs: '',
+  meanE2eLatencyMs: '',
+  meanTpotMs: '',
+  p95TpotMs: '',
+  meanQueueTimeMs: '',
+  p95QueueTimeMs: '',
+};
 
 export default function SlaPage({ isActive }: { isActive: boolean }) {
   const { selectedIds } = useBenchmarkSelection();
@@ -81,7 +125,18 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
   const [loading, setLoading] = useState(false);
   const [formState, setFormState] = useState<SlaFormState>(EMPTY_FORM);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [chartMetric, setChartMetric] = useState<'p95_latency' | 'availability' | 'error_rate' | 'ttft_mean' | 'ttft_p95' | 'e2e_latency_mean' | 'tpot_mean' | 'tpot_p95' | 'queue_time_mean' | 'queue_time_p95'>('p95_latency');
+  const [chartMetric, setChartMetric] = useState<
+    | 'p95_latency'
+    | 'availability'
+    | 'error_rate'
+    | 'ttft_mean'
+    | 'ttft_p95'
+    | 'e2e_latency_mean'
+    | 'tpot_mean'
+    | 'tpot_p95'
+    | 'queue_time_mean'
+    | 'queue_time_p95'
+  >('p95_latency');
   const [confirmState, setConfirmState] = useState<{
     open: boolean;
     title?: string;
@@ -90,19 +145,19 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
   }>({
     open: false,
     title: undefined,
-    message: "",
+    message: '',
     onConfirm: () => {},
   });
 
   const handleFormChange = (field: keyof SlaFormState, value: string) =>
-    setFormState(prev => ({ ...prev, [field]: value }));
+    setFormState((prev) => ({ ...prev, [field]: value }));
 
   const loadProfiles = useCallback(async () => {
     setLoading(true);
     try {
       const res = await authFetch(`${API}/sla/profiles`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setProfiles(await res.json() as SlaProfile[]);
+      setProfiles((await res.json()) as SlaProfile[]);
       setError(null);
     } catch (err) {
       setError(`${ERROR_MESSAGES.SLA.PROFILE_LOAD_FAILED}: ${(err as Error).message}`);
@@ -111,37 +166,78 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
     }
   }, []);
 
-  const handleProfileSelect = useCallback(async (profileId: number) => {
-    setSelectedProfileId(profileId);
-    if (selectedIds.length === 0) { setCurrentEval(null); return; }
-    try {
-      const res = await authFetch(`${API}/sla/evaluate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profile_id: profileId, benchmark_ids: selectedIds.map(Number) }),
-      });
-      if (!res.ok) { setError(`Failed to evaluate SLA profile: HTTP ${res.status}`); setCurrentEval(null); return; }
-      setCurrentEval(await res.json() as SlaEvaluateResponse);
-    } catch (err) {
-      console.error('Failed to evaluate SLA profile:', err);
-      setError(`Failed to evaluate SLA profile: ${(err as Error).message}`);
-      setCurrentEval(null);
-    }
-  }, [selectedIds]);
+  const handleProfileSelect = useCallback(
+    async (profileId: number) => {
+      setSelectedProfileId(profileId);
+      if (selectedIds.length === 0) {
+        setCurrentEval(null);
+        return;
+      }
+      try {
+        const res = await authFetch(`${API}/sla/evaluate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ profile_id: profileId, benchmark_ids: selectedIds.map(Number) }),
+        });
+        if (!res.ok) {
+          setError(`Failed to evaluate SLA profile: HTTP ${res.status}`);
+          setCurrentEval(null);
+          return;
+        }
+        setCurrentEval((await res.json()) as SlaEvaluateResponse);
+      } catch (err) {
+        console.error('Failed to evaluate SLA profile:', err);
+        setError(`Failed to evaluate SLA profile: ${(err as Error).message}`);
+        setCurrentEval(null);
+      }
+    },
+    [selectedIds]
+  );
 
-  useEffect(() => { if (isActive) loadProfiles(); }, [isActive, loadProfiles]);
-   useEffect(() => {
-     if (!isActive || !selectedProfileId) return;
-     handleProfileSelect(selectedProfileId);
-   }, [isActive, selectedProfileId, handleProfileSelect]);
+  useEffect(() => {
+    if (isActive) loadProfiles();
+  }, [isActive, loadProfiles]);
+  useEffect(() => {
+    if (!isActive || !selectedProfileId) return;
+    handleProfileSelect(selectedProfileId);
+  }, [isActive, selectedProfileId, handleProfileSelect]);
 
-  const resetForm = () => { setEditingId(null); setFormState(EMPTY_FORM); };
+  const resetForm = () => {
+    setEditingId(null);
+    setFormState(EMPTY_FORM);
+  };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
-    const { name, availMin, p95Ms, errRate, meanTtftMs, p95TtftMs, meanE2eLatencyMs, meanTpotMs, p95TpotMs, meanQueueTimeMs, p95QueueTimeMs } = formState;
-    if (!availMin && !p95Ms && !errRate && !meanTtftMs && !p95TtftMs && !meanE2eLatencyMs && !meanTpotMs && !p95TpotMs && !meanQueueTimeMs && !p95QueueTimeMs) { setError(ERROR_MESSAGES.SLA.NO_THRESHOLD_ERROR); return; }
+    const {
+      name,
+      availMin,
+      p95Ms,
+      errRate,
+      meanTtftMs,
+      p95TtftMs,
+      meanE2eLatencyMs,
+      meanTpotMs,
+      p95TpotMs,
+      meanQueueTimeMs,
+      p95QueueTimeMs,
+    } = formState;
+    if (
+      !availMin &&
+      !p95Ms &&
+      !errRate &&
+      !meanTtftMs &&
+      !p95TtftMs &&
+      !meanE2eLatencyMs &&
+      !meanTpotMs &&
+      !p95TpotMs &&
+      !meanQueueTimeMs &&
+      !p95QueueTimeMs
+    ) {
+      setError(ERROR_MESSAGES.SLA.NO_THRESHOLD_ERROR);
+      return;
+    }
     const body = {
       name,
       thresholds: {
@@ -155,17 +251,27 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
         p95_tpot_max_ms: p95TpotMs ? parseFloat(p95TpotMs) : null,
         mean_queue_time_max_ms: meanQueueTimeMs ? parseFloat(meanQueueTimeMs) : null,
         p95_queue_time_max_ms: p95QueueTimeMs ? parseFloat(p95QueueTimeMs) : null,
-      }
+      },
     };
     try {
       const url = editingId ? `${API}/sla/profiles/${editingId}` : `${API}/sla/profiles`;
-      const res = await authFetch(url, { method: editingId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const res = await authFetch(url, {
+        method: editingId ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
       if (!res.ok) {
         let detail = `HTTP ${res.status}`;
         try {
           const errBody = await res.json();
-          if (errBody.detail) detail = typeof errBody.detail === 'string' ? errBody.detail : errBody.detail.map((d: { msg: string }) => d.msg).join(', ');
-        } catch (e) { console.error('Failed to parse SLA API error response', e); }
+          if (errBody.detail)
+            detail =
+              typeof errBody.detail === 'string'
+                ? errBody.detail
+                : errBody.detail.map((d: { msg: string }) => d.msg).join(', ');
+        } catch (e) {
+          console.error('Failed to parse SLA API error response', e);
+        }
         throw new Error(detail);
       }
       resetForm();
@@ -193,21 +299,27 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const deleteProfile = useCallback(async (id: number) => {
-    try {
-      const res = await authFetch(`${API}/sla/profiles/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      await loadProfiles();
-      if (selectedProfileId === id) { setSelectedProfileId(null); setCurrentEval(null); }
-    } catch (err) {
-      setError(`${ERROR_MESSAGES.SLA.PROFILE_DELETE_FAILED}: ${(err as Error).message}`);
-    }
-  }, [loadProfiles, selectedProfileId]);
+  const deleteProfile = useCallback(
+    async (id: number) => {
+      try {
+        const res = await authFetch(`${API}/sla/profiles/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        await loadProfiles();
+        if (selectedProfileId === id) {
+          setSelectedProfileId(null);
+          setCurrentEval(null);
+        }
+      } catch (err) {
+        setError(`${ERROR_MESSAGES.SLA.PROFILE_DELETE_FAILED}: ${(err as Error).message}`);
+      }
+    },
+    [loadProfiles, selectedProfileId]
+  );
 
   const handleDelete = async (id: number) => {
     setConfirmState({
       open: true,
-      title: "Delete SLA Profile",
+      title: 'Delete SLA Profile',
       message: ERROR_MESSAGES.SLA.PROFILE_DELETE_CONFIRM,
       onConfirm: () => {
         void deleteProfile(id);
@@ -215,31 +327,58 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
     });
   };
 
-  const chartData = (currentEval?.results ?? []).map(r => {
-    const verdict = r.verdicts.find(v => v.metric === chartMetric);
+  const chartData = (currentEval?.results ?? []).map((r) => {
+    const verdict = r.verdicts.find((v) => v.metric === chartMetric);
     const value = verdict?.status === 'skipped' ? null : (verdict?.value ?? null);
     return { name: r.benchmark_name, value, threshold: verdict?.threshold ?? null };
   });
   const legendPayload = (currentEval?.results ?? []).map((result, index) => ({
-    value: result.benchmark_name, type: 'circle' as const, id: String(result.benchmark_id), color: TARGET_COLORS[index % TARGET_COLORS.length],
+    value: result.benchmark_name,
+    type: 'circle' as const,
+    id: String(result.benchmark_id),
+    color: TARGET_COLORS[index % TARGET_COLORS.length],
   }));
-  const slaThreshold = chartData.find(d => d.threshold != null)?.threshold;
+  const slaThreshold = chartData.find((d) => d.threshold != null)?.threshold;
 
   return (
     <div className="flex-col-16">
       <ErrorAlert message={error} className="error-alert--mb8" />
-      <SlaProfileForm formState={formState} onChange={handleFormChange} onSubmit={handleSubmit} onCancel={resetForm} editingId={editingId} />
+      <SlaProfileForm
+        formState={formState}
+        onChange={handleFormChange}
+        onSubmit={handleSubmit}
+        onCancel={resetForm}
+        editingId={editingId}
+      />
       {loading && profiles.length === 0 ? (
         <LoadingSpinner />
       ) : (
-        <SlaProfileList profiles={profiles} onEdit={handleEdit} onDelete={handleDelete} selectedProfileId={selectedProfileId} onSelect={handleProfileSelect} loading={loading} />
+        <SlaProfileList
+          profiles={profiles}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          selectedProfileId={selectedProfileId}
+          onSelect={handleProfileSelect}
+          loading={loading}
+        />
       )}
       {selectedProfileId && (
         <div className="panel" aria-live="polite">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <div className="section-title" style={{ margin: 0 }}>{currentEval?.profile.name ?? profiles.find(p => p.id === selectedProfileId)?.name} - Metrics Trend</div>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '16px',
+            }}
+          >
+            <div className="section-title" style={{ margin: 0 }}>
+              {currentEval?.profile.name ?? profiles.find((p) => p.id === selectedProfileId)?.name}{' '}
+              - Metrics Trend
+            </div>
             <div className="tab-group" style={{ display: 'flex', gap: '4px' }}>
-{([
+              {(
+                [
                   { id: 'p95_latency' as const, label: 'E2E Latency P95' },
                   { id: 'availability' as const, label: 'Availability' },
                   { id: 'error_rate' as const, label: 'Error Rate' },
@@ -248,17 +387,29 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
                   { id: 'tpot_mean' as const, label: 'TPOT Mean' },
                   { id: 'tpot_p95' as const, label: 'TPOT P95' },
                   { id: 'queue_time_mean' as const, label: 'Queue Time Mean' },
-                  { id: 'queue_time_p95' as const, label: 'Queue Time P95' }
-                ] as const).map(m => (
-                 <button key={m.id} type="button" className={`btn-small ${chartMetric === m.id ? 'active' : ''}`} onClick={() => setChartMetric(m.id)}
-                   style={{ backgroundColor: chartMetric === m.id ? COLORS.cyan : 'transparent', color: chartMetric === m.id ? COLORS.bg : COLORS.text, border: `1px solid ${chartMetric === m.id ? COLORS.cyan : COLORS.border}` }}>
-                   {m.label}
-                 </button>
-               ))}
+                  { id: 'queue_time_p95' as const, label: 'Queue Time P95' },
+                ] as const
+              ).map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  className={`btn-small ${chartMetric === m.id ? 'active' : ''}`}
+                  onClick={() => setChartMetric(m.id)}
+                  style={{
+                    backgroundColor: chartMetric === m.id ? COLORS.cyan : 'transparent',
+                    color: chartMetric === m.id ? COLORS.bg : COLORS.text,
+                    border: `1px solid ${chartMetric === m.id ? COLORS.cyan : COLORS.border}`,
+                  }}
+                >
+                  {m.label}
+                </button>
+              ))}
             </div>
           </div>
           {selectedIds.length === 0 ? (
-            <div className="td-muted" style={{ textAlign: 'center', padding: '60px' }}>{ERROR_MESSAGES.SLA.SELECT_BENCHMARK}</div>
+            <div className="td-muted" style={{ textAlign: 'center', padding: '60px' }}>
+              {ERROR_MESSAGES.SLA.SELECT_BENCHMARK}
+            </div>
           ) : (currentEval?.results ?? []).length > 0 ? (
             <div
               style={{
@@ -269,11 +420,18 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
               }}
             >
               <Suspense fallback={<div style={{ width: '100%', height: '100%' }} />}>
-                <SlaMetricsChart chartData={chartData} chartMetric={chartMetric} legendPayload={legendPayload} slaThreshold={slaThreshold} />
+                <SlaMetricsChart
+                  chartData={chartData}
+                  chartMetric={chartMetric}
+                  legendPayload={legendPayload}
+                  slaThreshold={slaThreshold}
+                />
               </Suspense>
             </div>
           ) : (
-            <div className="td-muted" style={{ textAlign: 'center', padding: '60px' }}>{ERROR_MESSAGES.SLA.NO_EVALUATION_RESULTS}</div>
+            <div className="td-muted" style={{ textAlign: 'center', padding: '60px' }}>
+              {ERROR_MESSAGES.SLA.NO_EVALUATION_RESULTS}
+            </div>
           )}
         </div>
       )}
@@ -281,10 +439,10 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
         open={confirmState.open}
         title={confirmState.title}
         message={confirmState.message}
-        onCancel={() => setConfirmState(prev => ({ ...prev, open: false }))}
+        onCancel={() => setConfirmState((prev) => ({ ...prev, open: false }))}
         onConfirm={() => {
           const callback = confirmState.onConfirm;
-          setConfirmState(prev => ({ ...prev, open: false }));
+          setConfirmState((prev) => ({ ...prev, open: false }));
           callback();
         }}
       />

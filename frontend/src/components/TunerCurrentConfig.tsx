@@ -1,12 +1,12 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from 'react';
 import { authFetch } from '../utils/authFetch';
-import { API } from "../constants";
-import { ERROR_MESSAGES } from "../constants/errorMessages";
-import { useMockData } from "../contexts/MockDataContext";
-import { useClusterConfig } from "../contexts/ClusterConfigContext";
-import TunerConfigForm from "./TunerConfigForm";
-import ConfirmDialog from "./ConfirmDialog";
-import type { TunerPhase, TunerConfig, ClusterTarget } from "../types";
+import { API } from '../constants';
+import { ERROR_MESSAGES } from '../constants/errorMessages';
+import { useMockData } from '../contexts/MockDataContext';
+import { useClusterConfig } from '../contexts/ClusterConfigContext';
+import TunerConfigForm from './TunerConfigForm';
+import ConfirmDialog from './ConfirmDialog';
+import type { TunerPhase, TunerConfig, ClusterTarget } from '../types';
 
 interface TunerCurrentConfigProps {
   isActive: boolean;
@@ -42,7 +42,10 @@ export default function TunerCurrentConfig({
   const { isMockEnabled } = useMockData();
   const { namespace, inferenceservice } = useClusterConfig();
   const [currentConfig, setCurrentConfig] = useState<Record<string, unknown> | null>(null);
-  const [currentResources, setCurrentResources] = useState<Record<string, Record<string, string>> | null>(null);
+  const [currentResources, setCurrentResources] = useState<Record<
+    string,
+    Record<string, string>
+  > | null>(null);
   const [storageUri, setStorageUri] = useState<string | null>(null);
   const [extraArgs, setExtraArgs] = useState<string[]>([]);
   const [confirmState, setConfirmState] = useState<{
@@ -53,7 +56,7 @@ export default function TunerCurrentConfig({
   }>({
     open: false,
     title: undefined,
-    message: "",
+    message: '',
     onConfirm: () => {},
   });
 
@@ -64,18 +67,18 @@ export default function TunerCurrentConfig({
     const controller = new AbortController();
     const query = targetOverride
       ? `?namespace=${encodeURIComponent(targetOverride.namespace)}&is_name=${encodeURIComponent(targetOverride.inferenceService)}&cr_type=${encodeURIComponent(targetOverride.crType)}`
-      : "";
+      : '';
 
     authFetch(`${API}/vllm-config${query}`, { signal: controller.signal })
-      .then(r => {
+      .then((r) => {
         if (!r.ok) {
-          return r.json().then(errData => {
+          return r.json().then((errData) => {
             throw new Error(errData.detail || `HTTP ${r.status}`);
           });
         }
         return r.json();
       })
-      .then(data => {
+      .then((data) => {
         if (data.success) {
           setCurrentConfig(data.data);
           setStorageUri(data.storageUri ?? null);
@@ -93,81 +96,98 @@ export default function TunerCurrentConfig({
     return () => controller.abort();
   }, [isActive, isMockEnabled, namespace, inferenceservice, targetOverride, onError]);
 
-  const applyCurrentValues = useCallback(async (values: Record<string, unknown>) => {
-    try {
-      const dataPayload: Record<string, string> = {};
-      const resourcesPayload: Record<string, Record<string, string>> = {};
+  const applyCurrentValues = useCallback(
+    async (values: Record<string, unknown>) => {
+      try {
+        const dataPayload: Record<string, string> = {};
+        const resourcesPayload: Record<string, Record<string, string>> = {};
 
-      for (const [key, val] of Object.entries(values)) {
-        if (key.startsWith("resources.")) {
-          const parts = key.split(".");
-          const tier = parts[1];
-          const resKey = parts.slice(2).join(".");
-          if (!resourcesPayload[tier]) resourcesPayload[tier] = {};
-          resourcesPayload[tier][resKey] = String(val);
-        } else {
-          dataPayload[key] = String(val);
+        for (const [key, val] of Object.entries(values)) {
+          if (key.startsWith('resources.')) {
+            const parts = key.split('.');
+            const tier = parts[1];
+            const resKey = parts.slice(2).join('.');
+            if (!resourcesPayload[tier]) resourcesPayload[tier] = {};
+            resourcesPayload[tier][resKey] = String(val);
+          } else {
+            dataPayload[key] = String(val);
+          }
         }
+
+        const patchBody: Record<string, unknown> = {};
+        if (Object.keys(dataPayload).length > 0) patchBody.data = dataPayload;
+        if (Object.keys(resourcesPayload).length > 0) patchBody.resources = resourcesPayload;
+
+        const query = targetOverride
+          ? `?namespace=${encodeURIComponent(targetOverride.namespace)}&is_name=${encodeURIComponent(targetOverride.inferenceService)}&cr_type=${encodeURIComponent(targetOverride.crType)}`
+          : '';
+
+        const res = await authFetch(`${API}/vllm-config${query}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(patchBody),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          onError(
+            `${ERROR_MESSAGES.TUNER.APPLY_CURRENT_FAILED_PREFIX}${data.detail || res.status}`
+          );
+          return;
+        }
+        setCurrentConfig((prev) => (prev ? { ...prev, ...values } : null));
+        onApplySuccess();
+      } catch (err) {
+        console.error('Failed to apply current values:', err);
+        onError(`${ERROR_MESSAGES.TUNER.APPLY_CURRENT_FAILED_PREFIX}${(err as Error).message}`);
       }
+    },
+    [onError, onApplySuccess, targetOverride]
+  );
 
-      const patchBody: Record<string, unknown> = {};
-      if (Object.keys(dataPayload).length > 0) patchBody.data = dataPayload;
-      if (Object.keys(resourcesPayload).length > 0) patchBody.resources = resourcesPayload;
-
-      const query = targetOverride
-        ? `?namespace=${encodeURIComponent(targetOverride.namespace)}&is_name=${encodeURIComponent(targetOverride.inferenceService)}&cr_type=${encodeURIComponent(targetOverride.crType)}`
-        : "";
-
-      const res = await authFetch(`${API}/vllm-config${query}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patchBody),
+  const handleApplyCurrentValues = useCallback(
+    (values: Record<string, unknown>) => {
+      setConfirmState({
+        open: true,
+        title: 'Apply Configuration',
+        message: ERROR_MESSAGES.TUNER.RESTART_CONFIRM,
+        onConfirm: () => {
+          void applyCurrentValues(values).catch((e) =>
+            console.error('Failed to apply current values:', e)
+          );
+        },
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        onError(`${ERROR_MESSAGES.TUNER.APPLY_CURRENT_FAILED_PREFIX}${data.detail || res.status}`);
-        return;
-      }
-      setCurrentConfig(prev => (prev ? { ...prev, ...values } : null));
-      onApplySuccess();
-    } catch (err) {
-      console.error('Failed to apply current values:', err);
-      onError(`${ERROR_MESSAGES.TUNER.APPLY_CURRENT_FAILED_PREFIX}${(err as Error).message}`);
-    }
-  }, [onError, onApplySuccess, targetOverride]);
+    },
+    [applyCurrentValues]
+  );
 
-  const handleApplyCurrentValues = useCallback((values: Record<string, unknown>) => {
-    setConfirmState({
-      open: true,
-      title: "Apply Configuration",
-      message: ERROR_MESSAGES.TUNER.RESTART_CONFIRM,
-      onConfirm: () => {
-        void applyCurrentValues(values).catch((e) => console.error("Failed to apply current values:", e));
-      },
-    });
-  }, [applyCurrentValues]);
-
-  const handleSaveStorageUri = useCallback(async (newUri: string) => {
-    try {
-      const query = targetOverride
-        ? `?namespace=${encodeURIComponent(targetOverride.namespace)}&is_name=${encodeURIComponent(targetOverride.inferenceService)}&cr_type=${encodeURIComponent(targetOverride.crType)}`
-        : "";
-      const res = await authFetch(`${API}/vllm-config${query}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ storageUri: newUri }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        onError(`${ERROR_MESSAGES.TUNER.STORAGE_URI_UPDATE_FAILED_PREFIX}${data.detail || res.status}`);
-        return;
+  const handleSaveStorageUri = useCallback(
+    async (newUri: string) => {
+      try {
+        const query = targetOverride
+          ? `?namespace=${encodeURIComponent(targetOverride.namespace)}&is_name=${encodeURIComponent(targetOverride.inferenceService)}&cr_type=${encodeURIComponent(targetOverride.crType)}`
+          : '';
+        const res = await authFetch(`${API}/vllm-config${query}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ storageUri: newUri }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          onError(
+            `${ERROR_MESSAGES.TUNER.STORAGE_URI_UPDATE_FAILED_PREFIX}${data.detail || res.status}`
+          );
+          return;
+        }
+        setStorageUri(newUri);
+      } catch (err) {
+        console.error('Failed to save storage URI:', err);
+        onError(
+          `${ERROR_MESSAGES.TUNER.STORAGE_URI_UPDATE_FAILED_PREFIX}${(err as Error).message}`
+        );
       }
-      setStorageUri(newUri);
-    } catch (err) {
-      console.error('Failed to save storage URI:', err);
-      onError(`${ERROR_MESSAGES.TUNER.STORAGE_URI_UPDATE_FAILED_PREFIX}${(err as Error).message}`);
-    }
-  }, [onError, targetOverride]);
+    },
+    [onError, targetOverride]
+  );
 
   return (
     <>
@@ -192,10 +212,10 @@ export default function TunerCurrentConfig({
         open={confirmState.open}
         title={confirmState.title}
         message={confirmState.message}
-        onCancel={() => setConfirmState(prev => ({ ...prev, open: false }))}
+        onCancel={() => setConfirmState((prev) => ({ ...prev, open: false }))}
         onConfirm={() => {
           const callback = confirmState.onConfirm;
-          setConfirmState(prev => ({ ...prev, open: false }));
+          setConfirmState((prev) => ({ ...prev, open: false }));
           callback();
         }}
       />

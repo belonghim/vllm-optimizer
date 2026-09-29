@@ -1,13 +1,13 @@
-import { useState, useEffect, useRef, Fragment } from "react";
-import { getTargetKey, parseTargetKey } from "../utils/targetKey";
-import { useClusterConfig } from "../contexts/ClusterConfigContext";
-import { API, TARGET_COLORS, CHART_LABELS } from "../constants";
-import { fmt } from "../utils/format";
-import { authFetch } from "../utils/authFetch";
-import type { ClusterTarget, PerPodMetricSnapshot, PerPodMetricsDict } from "../types";
-import ExpandablePodRow from "./ExpandablePodRow";
-import TargetAddForm from "./TargetAddForm";
-import "./MultiTargetSelector.css";
+import { useState, useEffect, useRef, Fragment } from 'react';
+import { getTargetKey, parseTargetKey } from '../utils/targetKey';
+import { useClusterConfig } from '../contexts/ClusterConfigContext';
+import { API, TARGET_COLORS, CHART_LABELS } from '../constants';
+import { fmt } from '../utils/format';
+import { authFetch } from '../utils/authFetch';
+import type { ClusterTarget, PerPodMetricSnapshot, PerPodMetricsDict } from '../types';
+import ExpandablePodRow from './ExpandablePodRow';
+import TargetAddForm from './TargetAddForm';
+import './MultiTargetSelector.css';
 
 const POD_CACHE_TTL_MS = 10_000;
 
@@ -56,11 +56,22 @@ interface MultiTargetSelectorProps {
 
 export default function MultiTargetSelector({
   targetStatuses = {},
-  targetStates = {}
+  targetStates = {},
 }: MultiTargetSelectorProps) {
-  const { targets, maxTargets, addTarget, removeTarget, setDefaultTarget, crType: contextCrType } = useClusterConfig();
+  const {
+    targets,
+    maxTargets,
+    addTarget,
+    removeTarget,
+    setDefaultTarget,
+    crType: contextCrType,
+  } = useClusterConfig();
   const [isAdding, setIsAdding] = useState(false);
-  const [newTarget, setNewTarget] = useState({ namespace: "", inferenceService: "", crType: contextCrType || "inferenceservice" });
+  const [newTarget, setNewTarget] = useState({
+    namespace: '',
+    inferenceService: '',
+    crType: contextCrType || 'inferenceservice',
+  });
   const [isValidating, setIsValidating] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [applyError, setApplyError] = useState<string | null>(null);
@@ -74,7 +85,7 @@ export default function MultiTargetSelector({
   const pendingDefaultKey = userSelectedKey ?? (targets.length > 0 ? getTargetKey(targets[0]) : '');
 
   useEffect(() => {
-    if (userSelectedKey && !targets.some(t => getTargetKey(t) === userSelectedKey)) {
+    if (userSelectedKey && !targets.some((t) => getTargetKey(t) === userSelectedKey)) {
       setUserSelectedKey(null);
     }
   }, [targets, userSelectedKey]);
@@ -84,16 +95,22 @@ export default function MultiTargetSelector({
       setIsValidating(true);
       setAddError(null);
       try {
-        const response = await authFetch(`${API}/metrics/latest?namespace=${newTarget.namespace}&is_name=${newTarget.inferenceService}&cr_type=${newTarget.crType}`);
+        const response = await authFetch(
+          `${API}/metrics/latest?namespace=${newTarget.namespace}&is_name=${newTarget.inferenceService}&cr_type=${newTarget.crType}`
+        );
         if (!response.ok) {
-          setAddError("Target not found");
+          setAddError('Target not found');
           return;
         }
         addTarget(newTarget.namespace, newTarget.inferenceService, newTarget.crType);
-        setNewTarget({ namespace: "", inferenceService: "", crType: contextCrType || "inferenceservice" });
+        setNewTarget({
+          namespace: '',
+          inferenceService: '',
+          crType: contextCrType || 'inferenceservice',
+        });
         setIsAdding(false);
       } catch {
-        setAddError("Validation error occurred");
+        setAddError('Validation error occurred');
       } finally {
         setIsValidating(false);
       }
@@ -102,52 +119,55 @@ export default function MultiTargetSelector({
 
   const handleSaveTargets = async () => {
     try {
-      setSaveStatus("Saving...");
+      setSaveStatus('Saving...');
       const response = await authFetch(`${API}/targets/save`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targets })
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targets }),
       });
       if (response.ok) {
-        setSaveStatus("Saved!");
+        setSaveStatus('Saved!');
         setTimeout(() => setSaveStatus(null), 3000);
       } else {
-        setSaveStatus("Save failed");
+        setSaveStatus('Save failed');
       }
     } catch (err) {
-      console.error("Save error:", err);
-      setSaveStatus("Save error");
+      console.error('Save error:', err);
+      setSaveStatus('Save error');
     }
   };
 
   const handleLoadTargets = async () => {
     try {
-      setLoadStatus("Loading...");
+      setLoadStatus('Loading...');
       const response = await authFetch(`${API}/targets/load`);
       if (response.ok) {
         const data = await response.json();
         const loadedTargets: ClusterTarget[] = data.targets || [];
         if (loadedTargets.length > 0) {
           for (const target of loadedTargets) {
-            if (!targets.some(t => 
-              t.namespace === target.namespace && 
-              t.inferenceService === target.inferenceService && 
-              t.crType === target.crType
-            )) {
+            if (
+              !targets.some(
+                (t) =>
+                  t.namespace === target.namespace &&
+                  t.inferenceService === target.inferenceService &&
+                  t.crType === target.crType
+              )
+            ) {
               addTarget(target.namespace, target.inferenceService, target.crType);
             }
           }
-          setLoadStatus("Loaded!");
+          setLoadStatus('Loaded!');
           setTimeout(() => setLoadStatus(null), 3000);
         } else {
-          setLoadStatus("No targets");
+          setLoadStatus('No targets');
         }
       } else {
-        setLoadStatus("Load failed");
+        setLoadStatus('Load failed');
       }
     } catch (err) {
-      console.error("Load error:", err);
-      setLoadStatus("Load error");
+      console.error('Load error:', err);
+      setLoadStatus('Load error');
     }
   };
 
@@ -156,7 +176,7 @@ export default function MultiTargetSelector({
     const isExpanded = expandedRows.has(key);
 
     if (isExpanded) {
-      setExpandedRows(prev => {
+      setExpandedRows((prev) => {
         const next = new Set(prev);
         next.delete(key);
         return next;
@@ -164,7 +184,7 @@ export default function MultiTargetSelector({
       return;
     }
 
-    setExpandedRows(prev => new Set(prev).add(key));
+    setExpandedRows((prev) => new Set(prev).add(key));
 
     const cached = podData[key];
     if (cached && Date.now() - cached.timestamp < POD_CACHE_TTL_MS) {
@@ -178,24 +198,26 @@ export default function MultiTargetSelector({
     const fetchPromise = (async () => {
       try {
         const response = await authFetch(`${API}/metrics/pods`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            targets: [{
-              namespace: target.namespace,
-              inferenceService: target.inferenceService,
-              cr_type: target.crType
-            }]
-          })
+            targets: [
+              {
+                namespace: target.namespace,
+                inferenceService: target.inferenceService,
+                cr_type: target.crType,
+              },
+            ],
+          }),
         });
 
         if (response.ok) {
           const data: PerPodMetricsDict = await response.json();
           const pods: PerPodMetricSnapshot[] = data[key]?.per_pod ?? [];
-          setPodData(prev => ({ ...prev, [key]: { data: pods, timestamp: Date.now() } }));
+          setPodData((prev) => ({ ...prev, [key]: { data: pods, timestamp: Date.now() } }));
         }
       } catch (err) {
-        console.error("Failed to fetch pod data:", err);
+        console.error('Failed to fetch pod data:', err);
       } finally {
         pendingFetches.current.delete(key);
       }
@@ -209,7 +231,8 @@ export default function MultiTargetSelector({
     const state = targetStates[key];
     const status = state?.status || targetStatuses[key]?.status || 'collecting';
     const data = state?.data || state?.metrics;
-    const hasMonitoringLabel = state?.hasMonitoringLabel !== false && targetStatuses[key]?.hasMonitoringLabel !== false;
+    const hasMonitoringLabel =
+      state?.hasMonitoringLabel !== false && targetStatuses[key]?.hasMonitoringLabel !== false;
     const crExists = state?.crExists;
     const targetColor = TARGET_COLORS[index % TARGET_COLORS.length];
     const isExpanded = expandedRows.has(key);
@@ -219,8 +242,14 @@ export default function MultiTargetSelector({
 
     return (
       <Fragment key={key}>
-        <tr data-testid={`target-row-${index}`} className={isFirstTarget ? "multi-target-row-default" : ""}>
-          <td className="target-name multi-target-color-cell" style={{ borderLeftColor: targetColor }}>
+        <tr
+          data-testid={`target-row-${index}`}
+          className={isFirstTarget ? 'multi-target-row-default' : ''}
+        >
+          <td
+            className="target-name multi-target-color-cell"
+            style={{ borderLeftColor: targetColor }}
+          >
             <div style={{ color: targetColor }}>
               {target.inferenceService}
               {!hasMonitoringLabel && (
@@ -245,32 +274,60 @@ export default function MultiTargetSelector({
             <div className="target-ns">{target.namespace}</div>
           </td>
           <td>
-            {target.crType === "llminferenceservice" ? (
-              <span className="tag tag-info" title="LLMInferenceService" data-testid="llmis-badge">LLMIS</span>
+            {target.crType === 'llminferenceservice' ? (
+              <span className="tag tag-info" title="LLMInferenceService" data-testid="llmis-badge">
+                LLMIS
+              </span>
             ) : (
-              <span className="tag tag-idle" title="InferenceService" data-testid="isvc-badge">ISVC</span>
+              <span className="tag tag-idle" title="InferenceService" data-testid="isvc-badge">
+                ISVC
+              </span>
             )}
           </td>
           {status === 'collecting' ? (
             <>
-              <td>...</td><td>...</td><td>...</td><td>...</td><td>...</td>
-              <td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td>
+              <td>...</td>
+              <td>...</td>
+              <td>...</td>
+              <td>...</td>
+              <td>...</td>
+              <td>...</td>
+              <td>...</td>
+              <td>...</td>
+              <td>...</td>
+              <td>...</td>
+              <td>...</td>
             </>
           ) : !data ? (
             <>
-              <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>
-              <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>
+              <td>—</td>
+              <td>—</td>
+              <td>—</td>
+              <td>—</td>
+              <td>—</td>
+              <td>—</td>
+              <td>—</td>
+              <td>—</td>
+              <td>—</td>
+              <td>—</td>
+              <td>—</td>
             </>
           ) : (
             <>
               <td>{fmt(data.tps, 0)}</td>
               <td>{fmt(data.rps, 1)}</td>
-              <td>{fmt(data.ttft_mean, 0)} / {fmt(data.ttft_p99, 0)}</td>
-              <td>{fmt(data.latency_mean, 0)} / {fmt(data.latency_p99, 0)}</td>
+              <td>
+                {fmt(data.ttft_mean, 0)} / {fmt(data.ttft_p99, 0)}
+              </td>
+              <td>
+                {fmt(data.latency_mean, 0)} / {fmt(data.latency_p99, 0)}
+              </td>
               <td>{fmt(data.kv_cache, 1)}</td>
               <td>{fmt(data.kv_hit_rate, 1)}</td>
               <td>{fmt(data.gpu_util, 1)}</td>
-              <td>{fmt(data.gpu_mem_used, 1)} / {fmt(data.gpu_mem_total, 0)}</td>
+              <td>
+                {fmt(data.gpu_mem_used, 1)} / {fmt(data.gpu_mem_total, 0)}
+              </td>
               <td>{data.running ?? '—'}</td>
               <td>{data.waiting ?? '—'}</td>
               <td>
@@ -282,12 +339,18 @@ export default function MultiTargetSelector({
                       onClick={() => toggleRowExpand(target)}
                       style={{ padding: '2px 6px', fontSize: '12px' }}
                       data-testid={`expand-btn-${index}`}
-                      aria-label={isExpanded ? `Collapse ${target.inferenceService}` : `Expand ${target.inferenceService}`}
+                      aria-label={
+                        isExpanded
+                          ? `Collapse ${target.inferenceService}`
+                          : `Expand ${target.inferenceService}`
+                      }
                     >
                       {isExpanded ? '▼' : '▶'}
                     </button>
                   )}
-                  <span>{data.pods_ready} / {data.pods}</span>
+                  <span>
+                    {data.pods_ready} / {data.pods}
+                  </span>
                 </div>
               </td>
             </>
@@ -310,7 +373,13 @@ export default function MultiTargetSelector({
               <button
                 type="button"
                 className="btn btn-danger multi-target-delete-btn"
-                onClick={() => removeTarget(target.namespace, target.inferenceService, target.crType || "inferenceservice")}
+                onClick={() =>
+                  removeTarget(
+                    target.namespace,
+                    target.inferenceService,
+                    target.crType || 'inferenceservice'
+                  )
+                }
                 disabled={targets.length === 1}
                 data-testid="delete-btn"
                 aria-label={`Remove monitoring target ${target.namespace}/${target.inferenceService}`}
@@ -330,7 +399,9 @@ export default function MultiTargetSelector({
   return (
     <div className="multi-target-selector panel multi-target-no-border">
       <div className="section-title multi-target-header">
-        <span>Monitoring Targets ({targets.length}/{maxTargets})</span>
+        <span>
+          Monitoring Targets ({targets.length}/{maxTargets})
+        </span>
         <div className="multi-target-header-actions">
           <button
             type="button"
@@ -338,7 +409,7 @@ export default function MultiTargetSelector({
             onClick={handleSaveTargets}
             title="Save current targets"
           >
-            {saveStatus || "Save Targets"}
+            {saveStatus || 'Save Targets'}
           </button>
           <button
             type="button"
@@ -346,31 +417,39 @@ export default function MultiTargetSelector({
             onClick={handleLoadTargets}
             title="Load saved targets"
           >
-            {loadStatus || "Load Targets"}
+            {loadStatus || 'Load Targets'}
           </button>
-          {targets.length > 1 && userSelectedKey !== null && userSelectedKey !== getTargetKey(targets[0]) && (
-            <button
-              type="button"
-              className="btn btn-primary multi-target-apply-btn"
-              data-testid="apply-default-btn"
-              onClick={async () => {
-                const parsed = parseTargetKey(pendingDefaultKey);
-                if (parsed) {
-                  try {
-                    setApplyError(null);
-                    await setDefaultTarget(parsed.namespace, parsed.inferenceService, parsed.crType);
-                    setUserSelectedKey(null);
-                  } catch {
-                    setApplyError("Failed to update default target");
+          {targets.length > 1 &&
+            userSelectedKey !== null &&
+            userSelectedKey !== getTargetKey(targets[0]) && (
+              <button
+                type="button"
+                className="btn btn-primary multi-target-apply-btn"
+                data-testid="apply-default-btn"
+                onClick={async () => {
+                  const parsed = parseTargetKey(pendingDefaultKey);
+                  if (parsed) {
+                    try {
+                      setApplyError(null);
+                      await setDefaultTarget(
+                        parsed.namespace,
+                        parsed.inferenceService,
+                        parsed.crType
+                      );
+                      setUserSelectedKey(null);
+                    } catch {
+                      setApplyError('Failed to update default target');
+                    }
                   }
-                }
-              }}
-            >
-              Change default
-            </button>
-          )}
+                }}
+              >
+                Change default
+              </button>
+            )}
           {applyError && (
-            <span className="multi-target-error-msg" style={{ fontSize: '12px' }}>{applyError}</span>
+            <span className="multi-target-error-msg" style={{ fontSize: '12px' }}>
+              {applyError}
+            </span>
           )}
           {!isAdding && (
             <button
@@ -408,9 +487,7 @@ export default function MultiTargetSelector({
               <th></th>
             </tr>
           </thead>
-          <tbody>
-            {targets.map((target, i) => renderTargetItem(target, i))}
-          </tbody>
+          <tbody>{targets.map((target, i) => renderTargetItem(target, i))}</tbody>
         </table>
       )}
 
@@ -422,25 +499,31 @@ export default function MultiTargetSelector({
               placeholder="Namespace"
               data-testid="namespace-input"
               value={newTarget.namespace}
-              onChange={(e) => setNewTarget(prev => ({ ...prev, namespace: e.target.value }))}
+              onChange={(e) => setNewTarget((prev) => ({ ...prev, namespace: e.target.value }))}
             />
             <input
               className="input multi-target-input"
               placeholder="InferenceService"
               data-testid="is-input"
               value={newTarget.inferenceService}
-              onChange={(e) => setNewTarget(prev => ({ ...prev, inferenceService: e.target.value }))}
+              onChange={(e) =>
+                setNewTarget((prev) => ({ ...prev, inferenceService: e.target.value }))
+              }
             />
             <select
               className="input multi-target-input"
               data-testid="cr-type-select"
               value={newTarget.crType}
-              onChange={(e) => setNewTarget(prev => ({ ...prev, crType: e.target.value }))}
+              onChange={(e) => setNewTarget((prev) => ({ ...prev, crType: e.target.value }))}
             >
               <option value="inferenceservice">isvc (KServe)</option>
               <option value="llminferenceservice">LLMIS (llmisvc)</option>
             </select>
-            {addError && <div className="multi-target-error-msg" data-testid="add-target-error">{addError}</div>}
+            {addError && (
+              <div className="multi-target-error-msg" data-testid="add-target-error">
+                {addError}
+              </div>
+            )}
           </div>
           <div className="multi-target-btn-row">
             <button
@@ -450,9 +533,16 @@ export default function MultiTargetSelector({
               data-testid="confirm-add-btn"
               disabled={isValidating}
             >
-              {isValidating ? "Validating..." : "Confirm"}
+              {isValidating ? 'Validating...' : 'Confirm'}
             </button>
-            <button type="button" className="btn btn-danger multi-target-action-btn" onClick={() => setIsAdding(false)} disabled={isValidating}>Cancel</button>
+            <button
+              type="button"
+              className="btn btn-danger multi-target-action-btn"
+              onClick={() => setIsAdding(false)}
+              disabled={isValidating}
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}

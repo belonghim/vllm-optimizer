@@ -1,13 +1,13 @@
-import { useState, useEffect, useMemo } from "react";
-import { useClusterConfig } from "../contexts/ClusterConfigContext";
-import type { RerunConfig } from "../components/LoadTestConfig";
-import LoadTestNormalMode from "../components/LoadTestNormalMode";
-import LoadTestSweepMode from "../components/LoadTestSweepMode";
-import TargetSelector from "../components/TargetSelector";
-import type { ClusterTarget } from "../types";
-import { buildDefaultEndpoint } from "../utils/endpointUtils";
+import { useState, useEffect, useMemo } from 'react';
+import { useClusterConfig } from '../contexts/ClusterConfigContext';
+import type { RerunConfig } from '../components/LoadTestConfig';
+import LoadTestNormalMode from '../components/LoadTestNormalMode';
+import LoadTestSweepMode from '../components/LoadTestSweepMode';
+import TargetSelector from '../components/TargetSelector';
+import type { ClusterTarget } from '../types';
+import { buildDefaultEndpoint } from '../utils/endpointUtils';
 import { authFetch } from '../utils/authFetch';
-import { API } from "../constants";
+import { API } from '../constants';
 
 interface LoadTestPageProps {
   isActive: boolean;
@@ -16,17 +16,27 @@ interface LoadTestPageProps {
   onRunningChange?: (running: boolean) => void;
 }
 
-function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChange }: LoadTestPageProps) {
-  const { endpoint: globalEndpoint, isLoading: globalIsLoading, resolvedModelName, crType } = useClusterConfig();
+function LoadTestPage({
+  isActive,
+  pendingConfig,
+  onConfigConsumed,
+  onRunningChange,
+}: LoadTestPageProps) {
+  const {
+    endpoint: globalEndpoint,
+    isLoading: globalIsLoading,
+    resolvedModelName,
+    crType,
+  } = useClusterConfig();
   const [mode, setMode] = useState<'normal' | 'sweep'>('normal');
-  const [sharedEndpoint, setSharedEndpoint] = useState("");
-  const [sweepModel, setSweepModel] = useState(resolvedModelName || "auto");
+  const [sharedEndpoint, setSharedEndpoint] = useState('');
+  const [sweepModel, setSweepModel] = useState(resolvedModelName || 'auto');
   const [targetModel, setTargetModel] = useState<string | undefined>(undefined);
   const [selectedTarget, setSelectedTarget] = useState<ClusterTarget | null>(null);
 
   // Build target-based endpoint when target changes
   const targetEndpoint = useMemo(() => {
-    if (!selectedTarget) return "";
+    if (!selectedTarget) return '';
     return buildDefaultEndpoint(
       selectedTarget.crType || crType,
       selectedTarget.namespace,
@@ -36,13 +46,15 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
 
   useEffect(() => {
     if (!globalIsLoading && globalEndpoint) {
-      setSharedEndpoint(prev => (prev === "" || prev === globalEndpoint) ? globalEndpoint : prev);
+      setSharedEndpoint((prev) => (prev === '' || prev === globalEndpoint ? globalEndpoint : prev));
     }
   }, [globalIsLoading, globalEndpoint]);
 
   useEffect(() => {
     if (!globalIsLoading && resolvedModelName) {
-      setSweepModel(prev => (prev === "" || prev === "auto" || prev === resolvedModelName) ? resolvedModelName : prev);
+      setSweepModel((prev) =>
+        prev === '' || prev === 'auto' || prev === resolvedModelName ? resolvedModelName : prev
+      );
     }
   }, [globalIsLoading, resolvedModelName]);
 
@@ -83,45 +95,58 @@ function LoadTestPage({ isActive, pendingConfig, onConfigConsumed, onRunningChan
   useEffect(() => {
     if (!targetEndpoint) {
       setTargetModel(undefined);
-      setSweepModel(resolvedModelName || "auto");
+      setSweepModel(resolvedModelName || 'auto');
     }
   }, [targetEndpoint, resolvedModelName]);
 
   return (
     <div className="flex-col-16">
       <div className="tabs">
-        <button type="button" className={`tab ${mode === 'normal' ? 'active' : ''}`} onClick={() => setMode('normal')}>Normal Test</button>
-        <button type="button" className={`tab ${mode === 'sweep' ? 'active' : ''}`} onClick={() => setMode('sweep')}>Sweep Test</button>
+        <button
+          type="button"
+          className={`tab ${mode === 'normal' ? 'active' : ''}`}
+          onClick={() => setMode('normal')}
+        >
+          Normal Test
+        </button>
+        <button
+          type="button"
+          className={`tab ${mode === 'sweep' ? 'active' : ''}`}
+          onClick={() => setMode('sweep')}
+        >
+          Sweep Test
+        </button>
       </div>
-      {mode === 'normal'
-        ? <>
-            <div className="panel" style={{ padding: '8px 16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span className="label label-no-mb">TARGET:</span>
-                <TargetSelector
-                  value={selectedTarget}
-                  onChange={setSelectedTarget}
-                  data-testid="loadtest-target-selector"
-                />
-              </div>
+      {mode === 'normal' ? (
+        <>
+          <div className="panel" style={{ padding: '8px 16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="label label-no-mb">TARGET:</span>
+              <TargetSelector
+                value={selectedTarget}
+                onChange={setSelectedTarget}
+                data-testid="loadtest-target-selector"
+              />
             </div>
-            <LoadTestNormalMode
-              isActive={isActive}
-              pendingConfig={pendingConfig}
-              onConfigConsumed={onConfigConsumed}
-              onRunningChange={onRunningChange}
-              onEndpointChange={setSharedEndpoint}
-              targetEndpoint={targetEndpoint}
-              targetModel={targetModel}
-            />
-          </>
-        : <LoadTestSweepMode
+          </div>
+          <LoadTestNormalMode
             isActive={isActive}
+            pendingConfig={pendingConfig}
+            onConfigConsumed={onConfigConsumed}
             onRunningChange={onRunningChange}
-            endpoint={targetEndpoint || sharedEndpoint}
-            model={sweepModel}
+            onEndpointChange={setSharedEndpoint}
+            targetEndpoint={targetEndpoint}
+            targetModel={targetModel}
           />
-      }
+        </>
+      ) : (
+        <LoadTestSweepMode
+          isActive={isActive}
+          onRunningChange={onRunningChange}
+          endpoint={targetEndpoint || sharedEndpoint}
+          model={sweepModel}
+        />
+      )}
     </div>
   );
 }

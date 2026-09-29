@@ -8,16 +8,16 @@ export function useSessionKeepAlive() {
   const timerRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
-   const ping = async () => {
-        try {
-          const res = await authFetch(`${API}/metrics/latest`);
-          if (res.status === 403) {
-            window.location.href = '/oauth/sign_out';
-          }
-        } catch (e) {
-          console.error('Session heartbeat failed', e);
+    const ping = async () => {
+      try {
+        const res = await authFetch(`${API}/metrics/latest`);
+        if (res.status === 403) {
+          window.location.href = '/oauth/sign_out';
         }
-      };
+      } catch (e) {
+        console.error('Session heartbeat failed', e);
+      }
+    };
 
     ping();
     timerRef.current = window.setInterval(ping, HEARTBEAT_INTERVAL);

@@ -1,15 +1,15 @@
-import { useState, lazy, Suspense } from "react";
-import { useTunerLogic } from "../hooks/useTunerLogic";
-import TunerConfigSection from "../components/TunerConfigSection";
-import TunerHistoryPanel from "../components/TunerHistoryPanel";
-import TunerWarmupSuggestions from "../components/TunerWarmupSuggestions";
-import TunerReport from "../components/TunerReport";
-import LoadingSpinner from "../components/LoadingSpinner";
-import TargetSelector from "../components/TargetSelector";
-import type { ClusterTarget } from "../types";
+import { useState, lazy, Suspense } from 'react';
+import { useTunerLogic } from '../hooks/useTunerLogic';
+import TunerConfigSection from '../components/TunerConfigSection';
+import TunerHistoryPanel from '../components/TunerHistoryPanel';
+import TunerWarmupSuggestions from '../components/TunerWarmupSuggestions';
+import TunerReport from '../components/TunerReport';
+import LoadingSpinner from '../components/LoadingSpinner';
+import TargetSelector from '../components/TargetSelector';
+import type { ClusterTarget } from '../types';
 
 // Lazy: keeps recharts out of the Tuner page chunk until tuning results exist
-const TunerResults = lazy(() => import("../components/TunerResults"));
+const TunerResults = lazy(() => import('../components/TunerResults'));
 
 interface TunerPageProps {
   isActive: boolean;
@@ -20,11 +20,29 @@ interface TunerPageProps {
 function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
   const [selectedTarget, setSelectedTarget] = useState<ClusterTarget | null>(null);
   const {
-    error, warning, status, trials, importance, currentPhase, applyStatus,
-    interruptedWarning, autoBenchmark, benchmarkSaved, benchmarkSavedId,
-    initialized, config, setError, setInterruptedWarning, setAutoBenchmark,
-    handleConfigChange, handleApplySuccess, start, stop, applyBest,
-    warmupSuggestions, tuningReport,
+    error,
+    warning,
+    status,
+    trials,
+    importance,
+    currentPhase,
+    applyStatus,
+    interruptedWarning,
+    autoBenchmark,
+    benchmarkSaved,
+    benchmarkSavedId,
+    initialized,
+    config,
+    setError,
+    setInterruptedWarning,
+    setAutoBenchmark,
+    handleConfigChange,
+    handleApplySuccess,
+    start,
+    stop,
+    applyBest,
+    warmupSuggestions,
+    tuningReport,
   } = useTunerLogic({ isActive, onRunningChange, targetOverride: selectedTarget });
 
   return (
@@ -38,7 +56,11 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
         />
       </div>
       <TunerConfigSection
-        key={selectedTarget ? `${selectedTarget.namespace}/${selectedTarget.inferenceService}` : 'default'}
+        key={
+          selectedTarget
+            ? `${selectedTarget.namespace}/${selectedTarget.inferenceService}`
+            : 'default'
+        }
         isActive={isActive}
         status={status}
         config={config}

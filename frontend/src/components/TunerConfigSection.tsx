@@ -1,6 +1,6 @@
-import TunerStatusPanel from "./TunerStatusPanel";
-import TunerCurrentConfig from "./TunerCurrentConfig";
-import type { TunerStatus, TunerConfig, TunerPhase, ClusterTarget } from "../types";
+import TunerStatusPanel from './TunerStatusPanel';
+import TunerCurrentConfig from './TunerCurrentConfig';
+import type { TunerStatus, TunerConfig, TunerPhase, ClusterTarget } from '../types';
 
 interface TunerConfigSectionProps {
   isActive: boolean;
@@ -27,10 +27,27 @@ interface TunerConfigSectionProps {
 }
 
 export default function TunerConfigSection({
-  isActive, status, config, error, warning, applyStatus, interruptedWarning,
-  autoBenchmark, benchmarkSaved, benchmarkSavedId, currentPhase, targetOverride,
-  onDismissInterrupted, onAutoBenchmarkChange, onTabChange,
-  onConfigChange, onStart, onStop, onApplyBest, onError, onApplySuccess,
+  isActive,
+  status,
+  config,
+  error,
+  warning,
+  applyStatus,
+  interruptedWarning,
+  autoBenchmark,
+  benchmarkSaved,
+  benchmarkSavedId,
+  currentPhase,
+  targetOverride,
+  onDismissInterrupted,
+  onAutoBenchmarkChange,
+  onTabChange,
+  onConfigChange,
+  onStart,
+  onStop,
+  onApplyBest,
+  onError,
+  onApplySuccess,
 }: TunerConfigSectionProps) {
   return (
     <>

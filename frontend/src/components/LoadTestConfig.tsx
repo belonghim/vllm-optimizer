@@ -1,8 +1,8 @@
-import { useState, useMemo, useEffect } from "react";
-import type { SSEState } from "../types";
-import { loadPresets, savePreset, deletePreset, isBuiltinPreset } from "../utils/presets";
-import LoadTestPresetSelector from "./LoadTestPresetSelector";
-import LoadTestParamForm from "./LoadTestParamForm";
+import { useState, useMemo, useEffect } from 'react';
+import type { SSEState } from '../types';
+import { loadPresets, savePreset, deletePreset, isBuiltinPreset } from '../utils/presets';
+import LoadTestPresetSelector from './LoadTestPresetSelector';
+import LoadTestParamForm from './LoadTestParamForm';
 
 interface SyntheticConfig {
   distribution: 'uniform' | 'normal';
@@ -49,12 +49,32 @@ interface LoadTestConfigProps {
   onSyntheticConfigChange?: (key: string, value: string | number) => void;
 }
 
-function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status, initialConfig, onInitialConfigApplied, promptMode, onPromptModeChange, syntheticConfig, onSyntheticConfigChange }: LoadTestConfigProps) {
-  const [selectedPreset, setSelectedPreset] = useState<string>("");
+function LoadTestConfig({
+  config,
+  onChange,
+  onSubmit,
+  onStop,
+  isRunning,
+  status,
+  initialConfig,
+  onInitialConfigApplied,
+  promptMode,
+  onPromptModeChange,
+  syntheticConfig,
+  onSyntheticConfigChange,
+}: LoadTestConfigProps) {
+  const [selectedPreset, setSelectedPreset] = useState<string>('');
 
   useEffect(() => {
     if (!initialConfig) return;
-    const fields = ['total_requests', 'concurrency', 'rps', 'max_tokens', 'temperature', 'stream'] as const;
+    const fields = [
+      'total_requests',
+      'concurrency',
+      'rps',
+      'max_tokens',
+      'temperature',
+      'stream',
+    ] as const;
     for (const key of fields) {
       const val = initialConfig[key];
       if (val !== undefined) onChange(key, val);
@@ -69,18 +89,18 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status,
     if (!presetName) return;
     const preset = presets[presetName];
     if (preset) {
-      onChange("total_requests", preset.total_requests);
-      onChange("concurrency", preset.concurrency);
-      onChange("rps", preset.rps);
-      onChange("max_tokens", preset.max_tokens);
-      onChange("temperature", preset.temperature);
-      onChange("stream", preset.stream);
+      onChange('total_requests', preset.total_requests);
+      onChange('concurrency', preset.concurrency);
+      onChange('rps', preset.rps);
+      onChange('max_tokens', preset.max_tokens);
+      onChange('temperature', preset.temperature);
+      onChange('stream', preset.stream);
       setSelectedPreset(presetName);
     }
   };
 
   const handleSavePreset = () => {
-    const name = prompt("Enter preset name:");
+    const name = prompt('Enter preset name:');
     if (name?.trim()) {
       try {
         savePreset(name, {
@@ -105,7 +125,7 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status,
       try {
         deletePreset(selectedPreset);
         setPresets(loadPresets());
-        setSelectedPreset("");
+        setSelectedPreset('');
       } catch (e) {
         console.error('Failed to delete preset:', e);
       }
@@ -132,8 +152,12 @@ function LoadTestConfig({ config, onChange, onSubmit, onStop, isRunning, status,
         onSyntheticConfigChange={onSyntheticConfigChange}
       />
       <div className="loadtest-stream-toggle">
-        <input type="checkbox" id="stream" checked={config.stream}
-          onChange={e => onChange("stream", e.target.checked)} />
+        <input
+          type="checkbox"
+          id="stream"
+          checked={config.stream}
+          onChange={(e) => onChange('stream', e.target.checked)}
+        />
         <label htmlFor="stream" className="label label-no-mb">
           Streaming Mode (enable TTFT measurement)
         </label>
