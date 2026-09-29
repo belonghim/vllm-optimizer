@@ -81,6 +81,7 @@ Upon completion, proceed to git push.
 ## Agent Behavioral Rules
 
 - **Tests**: Single-run mode only (e.g. `vitest run`). No parallel test processes.
+- **Verification gate**: `./scripts/check.sh` (full: tests + lint + type + build) or `./scripts/check.sh --smoke` (fast core-feature contracts, ~4s). Run before finishing any change.
 - **Processes**: Kill all started processes before finishing. Track PID. Non-interactive only.
 - **E2E** (auto_tuner / load tests / RBAC / ConfigMap changes): Deploy with `./deploy.sh dev`, verify with `oc` commands, verify Pod replacement. Agent verifies directly — never ask user.
 - **Dual CR validation**: Test both `VLLM_CR_TYPE=inferenceservice` and `VLLM_CR_TYPE=llminferenceservice` for CR-specific changes.

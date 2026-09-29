@@ -40,6 +40,13 @@ npm run lint         # ESLint
 npm run type-check   # TypeScript type checking
 ```
 
+### Verification (minimal gate)
+```bash
+./scripts/check.sh            # full gate: smoke + backend pytest/ruff + frontend vitest/tsc/eslint/build
+./scripts/check.sh --smoke    # fast core-feature contracts only (~4s)
+```
+`--smoke` runs `backend/tests/test_smoke.py` (health, config, metrics, load test, benchmark, SLA, tuner, targets, dual-CR adapter contracts) plus the core frontend page tests. Use it for quick "did I break a core feature" feedback; the full gate is the pre-finish check.
+
 ### Deployment
 ```bash
 ./deploy.sh dev              # Build + deploy to vllm-optimizer-dev

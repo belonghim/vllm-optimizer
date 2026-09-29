@@ -50,6 +50,12 @@ _MODULES_TO_CLEAR = [
     "backend.routers.config",
     "routers.status",
     "backend.routers.status",
+    "routers.sla",
+    "backend.routers.sla",
+    "routers.targets",
+    "backend.routers.targets",
+    "routers.alerts",
+    "backend.routers.alerts",
     "routers",
     "backend.routers",
     "startup_metrics_shim",
@@ -153,11 +159,15 @@ class _StubMultiTargetMetricsCollector:
     def stop(self):
         self.stop_called = True
 
-    async def register_target(self, namespace: str, is_name: str, cr_type: str | None = None) -> bool:
+    async def register_target(
+        self, namespace: str, is_name: str, cr_type: str | None = None, metrics_source: str | None = None
+    ) -> bool:
         self.registered.append((namespace, is_name))
         return True
 
-    async def get_metrics(self, namespace: str, is_name: str, cr_type: str | None = None) -> None:
+    async def get_metrics(
+        self, namespace: str, is_name: str, cr_type: str | None = None, metrics_source: str | None = None
+    ) -> None:
         return None
 
     def get_target(self, namespace: str, is_name: str, cr_type: str | None = None):

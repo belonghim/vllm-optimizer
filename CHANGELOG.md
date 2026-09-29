@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-09-30] - 최소 검증 게이트 + 핵심 기능 smoke tier
+
+**Status**: Completed
+
+"최소 사이즈로 기능을 검증"하기 위한 단일 명령 게이트와 빠른 smoke tier를 추가.
+
+### Added
+- **`scripts/check.sh`**: 단일 명령 검증 게이트. 기본은 full(smoke + backend pytest/ruff + frontend vitest/tsc/eslint/build), `--smoke`는 핵심 계약만 빠르게 검증(새 도구/CI 의존 없음).
+- **`backend/tests/test_smoke.py`**: 핵심 기능 HTTP 계약 9개 — health, config, metrics(latest/batch), load test status, benchmark 저장/목록/삭제, SLA 프로필 라이프사이클, tuner status, targets 저장/로드 + **dual-CR adapter 계약**(KServe `spec.predictor.model.args` vs LLMIS `spec.template...VLLM_ADDITIONAL_ARGS`, 메트릭 prefix/잡 분리). 약 0.9초.
+- **`frontend` `npm run test:smoke`**: 핵심 페이지 6개(App/LoadTest/Monitor/Tuner/SLA/Benchmark) 54 테스트, 약 2초.
+
+### Fixed
+- **`backend/tests/conftest.py`**: `routers.sla`/`routers.targets`/`routers.alerts`가 `_MODULES_TO_CLEAR`에서 누락되어 스테일 `storage` 바인딩을 유지하던 격리 버그 수정. 스텁 `register_target`/`get_metrics`에 `metrics_source` 파라미터 반영.
+
+### Docs
+- `AGENTS.md` 검증 게이트 규칙 추가, `docs/architecture.md` Quick Start에 게이트 사용법 추가.
+
+### Verification
+- `./scripts/check.sh --smoke` → **4.3s** (backend smoke 9 passed + frontend smoke 54 passed).
+- `./scripts/check.sh` → **ALL CHECKS PASSED** (backend 545 passed / ruff clean; frontend 435 passed / tsc 0 / eslint 0 / build 성공).
+
+---
+
 ## [2026-09-29] - 코드베이스 재정비: 테스트 그린 복구 + 최적화
 
 **Status**: Completed

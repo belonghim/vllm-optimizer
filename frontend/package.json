@@ -7,6 +7,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:smoke": "vitest run src/App.test.tsx src/pages/LoadTestPage.test.tsx src/pages/MonitorPage.test.tsx src/pages/TunerPage.test.tsx src/pages/SlaPage.test.tsx src/pages/BenchmarkPage.test.tsx",
     "test:watch": "vitest",
     "type-check": "tsc --noEmit",
     "test:e2e": "playwright test",
