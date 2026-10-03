@@ -1,11 +1,11 @@
-import inspect
-from typing import cast
+import copy
 from unittest.mock import MagicMock, patch
 
 import pytest
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from services.cr_adapter import LLMInferenceServiceAdapter
+
+from .conftest import get_route_handler_globals
 
 _MOCK_LLMIS = {
     "spec": {
@@ -34,15 +34,7 @@ _MOCK_LLMIS = {
 
 
 def _get_vllm_config_globals(client: TestClient, method: str | None = None):
-    for route in cast(FastAPI, client.app).routes:
-        if getattr(route, "path", None) != "/api/vllm-config":
-            continue
-        if method and method not in getattr(route, "methods", set()):
-            continue
-        endpoint = getattr(route, "endpoint", None)
-        if endpoint is not None:
-            return inspect.unwrap(endpoint).__globals__
-    return None
+    return get_route_handler_globals(client.app, "/api/vllm-config", method)
 
 
 def test_get_vllm_config_llmis(isolated_client: TestClient, monkeypatch):
@@ -87,6 +79,34 @@ def test_patch_vllm_config_llmis_args(isolated_client: TestClient, monkeypatch):
         main = next(c for c in containers if c["name"] == "main")
         env_entry = next(e for e in main["env"] if e["name"] == "VLLM_ADDITIONAL_ARGS")
         assert "--max-num-seqs=256" in env_entry["value"]
+
+
+def test_patch_vllm_config_llmis_args_preserves_sibling_env_and_resources(isolated_client: TestClient, monkeypatch):
+    """A merge patch replaces arrays wholesale, so the containers/env arrays must be
+    expanded from the live CR or patching args would drop HF_HOME and resources."""
+    monkeypatch.setenv("VLLM_CR_TYPE", "llminferenceservice")
+
+    current = copy.deepcopy(_MOCK_LLMIS)
+    current["spec"]["template"]["containers"][0]["env"].append({"name": "HF_HOME", "value": "/tmp/hf"})
+
+    mock_custom = MagicMock()
+    mock_custom.get_namespaced_custom_object.return_value = current
+    mock_custom.patch_namespaced_custom_object.return_value = {}
+
+    handler_globals = _get_vllm_config_globals(isolated_client, method="PATCH")
+    if handler_globals is None:
+        pytest.skip("PATCH /api/vllm-config route not found")
+
+    with patch.dict(handler_globals, {"_get_k8s_custom": lambda: mock_custom}):
+        resp = isolated_client.patch("/api/vllm-config", json={"data": {"max_num_seqs": "256"}})
+        assert resp.status_code == 200
+
+        body = mock_custom.patch_namespaced_custom_object.call_args.kwargs["body"]
+        main = next(c for c in body["spec"]["template"]["containers"] if c["name"] == "main")
+        env = {e["name"]: e["value"] for e in main["env"]}
+        assert env["HF_HOME"] == "/tmp/hf"
+        assert "--max-num-seqs=256" in env["VLLM_ADDITIONAL_ARGS"]
+        assert main["resources"]["limits"]["cpu"] == "8"
 
 
 def test_patch_vllm_config_llmis_resources(isolated_client: TestClient, monkeypatch):

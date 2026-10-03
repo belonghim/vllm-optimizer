@@ -1,15 +1,13 @@
-import inspect
-from typing import cast
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 pytest.importorskip("optuna")
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from services.cr_adapter import InferenceServiceAdapter
 
 from ..main import app
+from .conftest import get_route_handler_globals
 
 
 @pytest.fixture
@@ -23,15 +21,7 @@ def client_with_vllm_config(client):
 
 
 def _get_vllm_config_globals(client: TestClient, method: str | None = None):
-    for route in cast(FastAPI, client.app).routes:
-        if getattr(route, "path", None) != "/api/vllm-config":
-            continue
-        if method and method not in getattr(route, "methods", set()):
-            continue
-        endpoint = getattr(route, "endpoint", None)
-        if endpoint is not None:
-            return inspect.unwrap(endpoint).__globals__
-    return None
+    return get_route_handler_globals(client.app, "/api/vllm-config", method)
 
 
 def _isvc_handler_patches(mock_custom: MagicMock, **overrides):
@@ -392,6 +382,54 @@ def test_patch_combined_data_and_resources(client):
         assert model["resources"]["limits"]["memory"] == "16Gi"
 
 
+def test_patch_uses_query_target_overrides(client):
+    mock_custom = MagicMock()
+    mock_custom.get_namespaced_custom_object.return_value = _MOCK_IS
+    mock_custom.patch_namespaced_custom_object.return_value = MagicMock()
+
+    handler_globals = _get_vllm_config_globals(client, method="PATCH")
+    if handler_globals is None:
+        pytest.skip("PATCH /api/vllm-config route not found")
+
+    with patch.dict(handler_globals, _isvc_handler_patches(mock_custom)):
+        resp = client.patch(
+            "/api/vllm-config?namespace=other-ns&is_name=other-isvc&cr_type=inferenceservice",
+            json={"data": {"max_num_seqs": "512"}},
+        )
+        assert resp.status_code == 200
+
+        kwargs = mock_custom.patch_namespaced_custom_object.call_args.kwargs
+        assert kwargs["namespace"] == "other-ns"
+        assert kwargs["name"] == "other-isvc"
+
+
+def test_patch_empty_resource_value_removes_key(client):
+    mock_custom = MagicMock()
+    mock_custom.get_namespaced_custom_object.return_value = _MOCK_IS
+    mock_custom.patch_namespaced_custom_object.return_value = MagicMock()
+
+    handler_globals = _get_vllm_config_globals(client, method="PATCH")
+    if handler_globals is None:
+        pytest.skip("PATCH /api/vllm-config route not found")
+
+    with patch.dict(handler_globals, _isvc_handler_patches(mock_custom)):
+        resp = client.patch("/api/vllm-config", json={"resources": {"limits": {"nvidia.com/gpu": ""}}})
+        assert resp.status_code == 200
+
+        body = mock_custom.patch_namespaced_custom_object.call_args.kwargs["body"]
+        limits = body["spec"]["predictor"]["model"]["resources"]["limits"]
+        assert limits["nvidia.com/gpu"] is None
+
+
+def test_patch_rejects_gpu_in_requests(client):
+    handler_globals = _get_vllm_config_globals(client, method="PATCH")
+    if handler_globals is None:
+        pytest.skip("PATCH /api/vllm-config route not found")
+
+    resp = client.patch("/api/vllm-config", json={"resources": {"requests": {"nvidia.com/gpu": "1"}}})
+    assert resp.status_code == 422
+
+
 def test_get_vllm_config_resolves_model_name_for_isvc(client_with_vllm_config):
     mock_custom = MagicMock()
     mock_custom.get_namespaced_custom_object.return_value = {
@@ -411,7 +449,7 @@ def test_get_vllm_config_resolves_model_name_for_isvc(client_with_vllm_config):
     if handler_globals is None:
         pytest.skip("Route /api/vllm-config not found")
 
-    with patch.dict(handler_globals, _isvc_handler_patches(mock_custom, _get_vllm_is_name=lambda: "llm-ov")):
+    with patch.dict(handler_globals, _isvc_handler_patches(mock_custom, get_vllm_is_name=lambda: "llm-ov")):
         resp = client_with_vllm_config.get("/api/vllm-config")
         assert resp.status_code == 200
         body = resp.json()
@@ -437,7 +475,7 @@ def test_get_vllm_config_model_name_fallback_for_isvc(client_with_vllm_config):
     if handler_globals is None:
         pytest.skip("Route /api/vllm-config not found")
 
-    with patch.dict(handler_globals, _isvc_handler_patches(mock_custom, _get_vllm_is_name=lambda: "llm-ov")):
+    with patch.dict(handler_globals, _isvc_handler_patches(mock_custom, get_vllm_is_name=lambda: "llm-ov")):
         resp = client_with_vllm_config.get("/api/vllm-config")
         assert resp.status_code == 200
         body = resp.json()

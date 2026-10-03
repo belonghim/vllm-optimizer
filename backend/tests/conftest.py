@@ -11,6 +11,7 @@ import inspect
 import os
 import sys
 import types
+from collections.abc import Iterator
 from contextlib import suppress
 from typing import Any, cast
 
@@ -68,6 +69,39 @@ _MODULES_TO_CLEAR = [
 
 
 def _noop(*args: Any, **kwargs: Any) -> None:
+    return None
+
+
+def iter_api_routes(app: Any) -> Iterator[tuple[str, Any]]:
+    """Yield (full_path, route) pairs, descending into include_router wrappers.
+
+    Newer FastAPI keeps included routers as wrapper objects in app.routes instead
+    of flattening their child routes, so walking app.routes directly misses
+    every router mounted via include_router.
+    """
+
+    def _walk(routes: Any, prefix: str) -> Iterator[tuple[str, Any]]:
+        for route in routes:
+            context = getattr(route, "include_context", None)
+            inner = getattr(route, "original_router", None)
+            if context is not None and inner is not None:
+                yield from _walk(inner.routes, prefix + (getattr(context, "prefix", "") or ""))
+            else:
+                yield prefix + (getattr(route, "path", "") or ""), route
+
+    return _walk(app.routes, "")
+
+
+def get_route_handler_globals(app: Any, path: str, method: str | None = None) -> dict[str, Any] | None:
+    """Return the module globals of the handler registered for path/method."""
+    for route_path, route in iter_api_routes(app):
+        if route_path != path:
+            continue
+        if method and method not in getattr(route, "methods", set()):
+            continue
+        endpoint = getattr(route, "endpoint", None)
+        if endpoint is not None:
+            return inspect.unwrap(endpoint).__globals__
     return None
 
 
@@ -474,10 +508,10 @@ def _mock_auto_tuner_preflight() -> Any:
             _patch_instance(mod.auto_tuner)
 
     def _scan_app_routes(app: Any) -> None:
-        for route in getattr(app, "routes", []):
+        for _path, route in iter_api_routes(app):
             ep = getattr(route, "endpoint", None)
             if ep and hasattr(ep, "__globals__"):
-                at = ep.__globals__.get("auto_tuner")
+                at = inspect.unwrap(ep).__globals__.get("auto_tuner")
                 if at is not None:
                     _patch_instance(at)
 
