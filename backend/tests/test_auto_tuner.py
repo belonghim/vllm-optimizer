@@ -122,6 +122,48 @@ async def test_start_happy_path_two_trials_returns_best_result(auto_tuner_instan
 
 
 @pytest.mark.asyncio
+async def test_start_broadcasts_report_before_tuning_complete(auto_tuner_instance):
+    tuner = auto_tuner_instance
+    mock_study = _DummyStudy(n_trials=1)
+    params = {
+        "max_num_seqs": 64,
+        "gpu_memory_utilization": 0.8,
+        "max_model_len": 2048,
+        "max_num_batched_tokens": 256,
+        "enable_chunked_prefill": False,
+        "enable_enforce_eager": False,
+    }
+    assistant = MagicMock()
+    assistant.suggest_warmup_params = AsyncMock(return_value=None)
+    assistant.generate_tuning_report = AsyncMock(return_value="# report")
+
+    tuner._preflight_check = AsyncMock(return_value={"success": True})
+    tuner._wait_for_ready = AsyncMock(return_value=True)
+    tuner._apply_params = AsyncMock(return_value={"success": True})
+    tuner._suggest_params = MagicMock(return_value=params)
+    tuner._run_trial_evaluation = AsyncMock(return_value=(10.0, 50.0, 0.5))
+    tuner._broadcast = AsyncMock()
+
+    with (
+        patch.object(auto_tuner_module.optuna, "create_study", return_value=mock_study),
+        patch.object(auto_tuner_module, "get_llm_assistant", return_value=assistant),
+        patch.object(auto_tuner_module.storage, "set_running", new=AsyncMock(return_value=101)),
+        patch.object(auto_tuner_module.storage, "clear_running", new=AsyncMock()),
+        patch.object(auto_tuner_module.storage, "save_trial", new=AsyncMock()),
+    ):
+        result = await tuner.start(
+            TuningConfig(n_trials=1, eval_requests=5, warmup_requests=0, objective="tps"),
+            "http://mock-vllm:8080",
+        )
+
+    assert result["completed"] is True
+    event_types = [call.args[0]["type"] for call in tuner._broadcast.call_args_list]
+    assert "tuning_report" in event_types
+    assert event_types.index("tuning_report") < event_types.index("tuning_complete")
+    assert event_types[-1] == "tuning_complete"
+
+
+@pytest.mark.asyncio
 async def test_apply_params_handles_k8s_api_exception_during_patch(auto_tuner_instance, mock_k8s_clients):
     tuner = auto_tuner_instance
     mock_custom_api = mock_k8s_clients["custom"]

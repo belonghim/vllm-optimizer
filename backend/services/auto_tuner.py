@@ -513,8 +513,8 @@ class AutoTuner:
                     "best_score": self._best_trial.score if self._best_trial else 0,
                     "trials": len(self._trials),
                 }
-            benchmark_id = await self._finalize_tuning(auto_benchmark=auto_benchmark)
             await self._generate_report()
+            benchmark_id = await self._finalize_tuning(auto_benchmark=auto_benchmark)
             result: dict[str, Any] = {
                 "completed": True,
                 "best_params": self._best_trial.params if self._best_trial else {},
