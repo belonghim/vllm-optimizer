@@ -8,7 +8,7 @@ def test_load_empty(isolated_client) -> None:
 
 def test_save_and_load_roundtrip(isolated_client) -> None:
     payload = {
-        "targets": [{"namespace": "ns1", "name": "svc1", "cr_type": "inferenceservice", "metrics_source": "prometheus"}]
+        "targets": [{"namespace": "ns1", "name": "svc1", "cr_type": "inferenceservice", "metrics_source": "direct"}]
     }
     save_resp = isolated_client.post("/api/targets/save", json=payload)
     assert save_resp.status_code == 200
@@ -26,11 +26,9 @@ def test_save_and_load_roundtrip(isolated_client) -> None:
 
 
 def test_save_overwrites_previous(isolated_client) -> None:
-    first = {
-        "targets": [{"namespace": "ns1", "name": "a", "cr_type": "inferenceservice", "metrics_source": "prometheus"}]
-    }
+    first = {"targets": [{"namespace": "ns1", "name": "a", "cr_type": "inferenceservice", "metrics_source": "direct"}]}
     second = {
-        "targets": [{"namespace": "ns2", "name": "b", "cr_type": "llminferenceservice", "metrics_source": "prometheus"}]
+        "targets": [{"namespace": "ns2", "name": "b", "cr_type": "llminferenceservice", "metrics_source": "direct"}]
     }
 
     isolated_client.post("/api/targets/save", json=first)
@@ -57,8 +55,8 @@ def test_save_empty_list(isolated_client) -> None:
 def test_save_multiple_targets(isolated_client) -> None:
     payload = {
         "targets": [
-            {"namespace": "ns1", "name": "svc1", "cr_type": "inferenceservice", "metrics_source": "prometheus"},
-            {"namespace": "ns2", "name": "svc2", "cr_type": "llminferenceservice", "metrics_source": "prometheus"},
+            {"namespace": "ns1", "name": "svc1", "cr_type": "inferenceservice", "metrics_source": "direct"},
+            {"namespace": "ns2", "name": "svc2", "cr_type": "llminferenceservice", "metrics_source": "direct"},
         ]
     }
     save_resp = isolated_client.post("/api/targets/save", json=payload)
@@ -76,7 +74,7 @@ def test_default_cr_type_and_metrics_source(isolated_client) -> None:
     resp = isolated_client.get("/api/targets/load")
     target = resp.json()["targets"][0]
     assert target["cr_type"] == "inferenceservice"
-    assert target["metrics_source"] == "prometheus"
+    assert target["metrics_source"] == "direct"
 
 
 def test_save_invalid_payload_returns_422(isolated_client) -> None:
@@ -91,7 +89,7 @@ def test_llminferenceservice_cr_type_preserved(isolated_client) -> None:
                 "namespace": "llm-d-demo",
                 "name": "small-llm-d",
                 "cr_type": "llminferenceservice",
-                "metrics_source": "prometheus",
+                "metrics_source": "direct",
             }
         ]
     }
@@ -100,3 +98,15 @@ def test_llminferenceservice_cr_type_preserved(isolated_client) -> None:
     target = resp.json()["targets"][0]
     assert target["cr_type"] == "llminferenceservice"
     assert target["namespace"] == "llm-d-demo"
+
+
+def test_save_rejects_invalid_metrics_source(isolated_client) -> None:
+    payload = {"targets": [{"namespace": "ns", "name": "svc", "metrics_source": "prometheus"}]}
+    resp = isolated_client.post("/api/targets/save", json=payload)
+    assert resp.status_code == 422
+
+
+def test_save_rejects_invalid_cr_type(isolated_client) -> None:
+    payload = {"targets": [{"namespace": "ns", "name": "svc", "cr_type": "deployment"}]}
+    resp = isolated_client.post("/api/targets/save", json=payload)
+    assert resp.status_code == 422

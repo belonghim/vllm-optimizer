@@ -793,7 +793,7 @@ class LoadTestEngine:
             "total_requested": self._state.total_requests,
             "success": len(successful),
             "failed": self._state.failed_requests,
-            "rps_actual": round(len(results) / elapsed, 2) if elapsed > 0 else 0,
+            "rps_actual": round(len(successful) / elapsed, 2) if elapsed > 0 else 0,
             "latency": {
                 "mean": round(statistics.mean(latencies), 3) if latencies else 0,
                 "p50": round(statistics.median(latencies), 3) if latencies else 0,

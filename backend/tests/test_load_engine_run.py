@@ -14,7 +14,7 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
-from models.load_test import LoadTestConfig
+from models.load_test import LoadTestConfig, RequestResult
 from services.load_engine import LoadTestEngine
 
 
@@ -220,3 +220,27 @@ async def test_run_no_duplicate_results():
     assert len(req_ids) == len(set(req_ids)), (
         f"Duplicate req_ids found: {len(req_ids)} total vs {len(set(req_ids))} unique"
     )
+
+
+async def test_compute_stats_rps_actual_counts_only_successful_requests():
+    """rps_actual must reflect achieved goodput, not requests that errored out.
+
+    Counting failures would report high throughput for a server that rejects
+    every request, and would disagree with the guidellm parser path
+    (guidellm_parser.py computes successful/elapsed).
+    """
+    engine = LoadTestEngine()
+    engine._state.start_time = 998.0
+    engine._state.results = [
+        RequestResult(req_id=1, success=True, latency=0.1),
+        RequestResult(req_id=2, success=True, latency=0.1),
+        RequestResult(req_id=3, success=False, latency=0.05, error="HTTP 500"),
+        RequestResult(req_id=4, success=False, latency=0.05, error="HTTP 500"),
+    ]
+
+    with patch("services.load_engine.time.time", return_value=1000.0):
+        stats = engine._compute_stats()
+
+    assert stats["total"] == 4
+    assert stats["success"] == 2
+    assert stats["rps_actual"] == 1.0

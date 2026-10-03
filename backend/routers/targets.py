@@ -6,6 +6,7 @@ Provides endpoints for saving and loading target configurations to SQLite.
 import json
 import logging
 from datetime import datetime
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from models.load_test import ErrorResponse
@@ -27,8 +28,8 @@ def get_storage() -> Storage:
 class TargetItem(BaseModel):
     namespace: str
     name: str
-    cr_type: str = "inferenceservice"
-    metrics_source: str = "prometheus"
+    cr_type: Literal["inferenceservice", "llminferenceservice"] = "inferenceservice"
+    metrics_source: Literal["direct", "thanos"] = "direct"
 
 
 class SaveTargetsRequest(BaseModel):
