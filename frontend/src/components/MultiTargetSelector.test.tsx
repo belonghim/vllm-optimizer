@@ -3,6 +3,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import MultiTargetSelector from './MultiTargetSelector';
+import { API } from '../constants';
 import { useClusterConfig, ClusterConfigContextValue } from '../contexts/ClusterConfigContext';
 
 vi.mock('../contexts/ClusterConfigContext', () => ({
@@ -363,5 +364,41 @@ describe('MultiTargetSelector', () => {
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
     expect(screen.getByTestId('llmis-badge')).toBeInTheDocument();
     expect(screen.getByTestId('llmis-badge')).toHaveTextContent('LLMIS');
+  });
+
+  it('saves targets using backend field names', async () => {
+    render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
+    fireEvent.click(screen.getByText('Save Targets'));
+    await waitFor(() => expect(screen.getByText('Saved!')).toBeInTheDocument());
+
+    const [url, init] = vi.mocked(authFetch).mock.calls[0];
+    expect(url).toBe(`${API}/targets/save`);
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body.targets).toEqual([
+      { namespace: 'llm-d-demo', name: 'small-llm-d', cr_type: 'inferenceservice' },
+    ]);
+  });
+
+  it('loads saved targets mapping backend fields to ClusterTarget', async () => {
+    vi.mocked(authFetch).mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          targets: [
+            { namespace: 'llm-d-prod', name: 'large-llm-d', cr_type: 'llminferenceservice' },
+          ],
+          loaded: true,
+        }),
+    } as unknown as Response);
+
+    render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
+    fireEvent.click(screen.getByText('Load Targets'));
+    await waitFor(() =>
+      expect(mockContext.addTarget).toHaveBeenCalledWith(
+        'llm-d-prod',
+        'large-llm-d',
+        'llminferenceservice'
+      )
+    );
   });
 });

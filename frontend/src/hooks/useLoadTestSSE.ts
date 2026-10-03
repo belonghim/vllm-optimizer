@@ -47,6 +47,8 @@ export function useLoadTestSSE(): UseLoadTestSSEReturn {
   );
 
   const connect = (totalRequests: number): void => {
+    handleRef.current?.dispose();
+    handleRef.current = null;
     setRetryCount(0);
     setIsReconnecting(false);
 
@@ -62,7 +64,7 @@ export function useLoadTestSSE(): UseLoadTestSSEReturn {
             (data.data as SSEErrorPayload | undefined)?.error ?? 'Load test error occurred.'
           );
           setStatus('error');
-          handle.closeSocket();
+          handle.dispose();
           return;
         }
         if (data.type === 'progress' && data.data) {
@@ -75,7 +77,7 @@ export function useLoadTestSSE(): UseLoadTestSSEReturn {
             {
               t: prev.length,
               lat: ((d.latency?.mean ?? 0) * 1000) | 0,
-              tps: d.tps?.mean ?? 0 | 0,
+              tps: (d.tps?.mean ?? 0) | 0,
             },
           ]);
           setResult(d);
@@ -83,7 +85,7 @@ export function useLoadTestSSE(): UseLoadTestSSEReturn {
         if (data.type === 'completed') {
           setStatus('completed');
           setProgress(100);
-          handle.closeSocket();
+          handle.dispose();
           setResult(data.data ?? null);
         }
       },
@@ -108,7 +110,8 @@ export function useLoadTestSSE(): UseLoadTestSSEReturn {
   };
 
   const disconnect = (): void => {
-    handleRef.current?.closeSocket();
+    handleRef.current?.dispose();
+    handleRef.current = null;
   };
 
   return {

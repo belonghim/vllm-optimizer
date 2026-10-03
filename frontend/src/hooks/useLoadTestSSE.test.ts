@@ -132,4 +132,58 @@ describe('useLoadTestSSE', () => {
 
     expect(es.readyState).toBe(2);
   });
+
+  it('connect() disposes the previous connection before opening a new one', () => {
+    const { result } = renderHook(() => useLoadTestSSE());
+
+    act(() => {
+      result.current.connect(10);
+    });
+    const first = MockEventSource.instances[0];
+
+    act(() => {
+      result.current.connect(10);
+    });
+
+    expect(first.readyState).toBe(2);
+    expect(MockEventSource.instances).toHaveLength(2);
+  });
+
+  it('completed message prevents reconnect attempts', () => {
+    const { result } = renderHook(() => useLoadTestSSE());
+
+    act(() => {
+      result.current.connect(10);
+    });
+    const es = MockEventSource.instances[0];
+
+    act(() => {
+      es.simulateMessage({ type: 'completed', data: {} });
+      es.simulateError();
+      vi.advanceTimersByTime(10_000);
+    });
+
+    expect(MockEventSource.instances).toHaveLength(1);
+    expect(result.current.isReconnecting).toBe(false);
+  });
+
+  it('disconnect() cancels pending reconnect attempts', () => {
+    const { result } = renderHook(() => useLoadTestSSE());
+
+    act(() => {
+      result.current.connect(10);
+    });
+
+    act(() => {
+      MockEventSource.instances[0].simulateError();
+    });
+    expect(result.current.isReconnecting).toBe(true);
+
+    act(() => {
+      result.current.disconnect();
+      vi.advanceTimersByTime(10_000);
+    });
+
+    expect(MockEventSource.instances).toHaveLength(1);
+  });
 });

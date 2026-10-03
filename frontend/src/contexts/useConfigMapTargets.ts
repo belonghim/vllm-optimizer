@@ -7,6 +7,39 @@ import { CONFIGMAP_TIMEOUT_MS, createConfigMapTarget, isRecord } from './cluster
 
 const POLLING_INTERVAL_MS = 300000; // 5 minutes
 
+function syncConfigMapTarget(
+  targets: ClusterTarget[],
+  cmTarget: ClusterTarget
+): { targets: ClusterTarget[]; updated: boolean } {
+  const cmIdx = targets.findIndex((t) => t.source === 'configmap' && t.crType === cmTarget.crType);
+  if (cmIdx >= 0) {
+    const existing = targets[cmIdx];
+    if (
+      existing.namespace === cmTarget.namespace &&
+      existing.inferenceService === cmTarget.inferenceService
+    ) {
+      return { targets, updated: false };
+    }
+    const next = [...targets];
+    next[cmIdx] = cmTarget;
+    return { targets: next, updated: true };
+  }
+
+  const sameIdx = targets.findIndex(
+    (t) =>
+      t.namespace === cmTarget.namespace &&
+      t.inferenceService === cmTarget.inferenceService &&
+      t.crType === cmTarget.crType
+  );
+  if (sameIdx >= 0) {
+    const next = [...targets];
+    next[sameIdx] = cmTarget;
+    return { targets: next, updated: true };
+  }
+
+  return { targets: [cmTarget, ...targets], updated: true };
+}
+
 export interface UseConfigMapTargetsParams {
   isLoading: boolean;
   crType: string;
@@ -48,16 +81,16 @@ export function useConfigMapTargets({
         if (!isvcHasValue && !llmisvcHasValue) return;
 
         setConfig((prev) => {
-          let targets = [...prev.targets];
+          let targets = prev.targets;
+          let updated = false;
 
           if (isvcHasValue && typeof isvc.name === 'string' && typeof isvc.namespace === 'string') {
-            const newIsvcTarget = createConfigMapTarget(
-              isvc.namespace,
-              isvc.name,
-              'inferenceservice'
+            const result = syncConfigMapTarget(
+              targets,
+              createConfigMapTarget(isvc.namespace, isvc.name, 'inferenceservice')
             );
-            targets = targets.filter((t) => t.crType !== 'inferenceservice');
-            targets.unshift(newIsvcTarget);
+            targets = result.targets;
+            updated = updated || result.updated;
           }
 
           if (
@@ -65,16 +98,15 @@ export function useConfigMapTargets({
             typeof llmisvc.name === 'string' &&
             typeof llmisvc.namespace === 'string'
           ) {
-            const newLlmisvcTarget = createConfigMapTarget(
-              llmisvc.namespace,
-              llmisvc.name,
-              'llminferenceservice'
+            const result = syncConfigMapTarget(
+              targets,
+              createConfigMapTarget(llmisvc.namespace, llmisvc.name, 'llminferenceservice')
             );
-            targets = targets.filter((t) => t.crType !== 'llminferenceservice');
-            targets.unshift(newLlmisvcTarget);
+            targets = result.targets;
+            updated = updated || result.updated;
           }
 
-          return { ...prev, targets };
+          return updated ? { ...prev, targets } : prev;
         });
 
         const resolveTargetModels = async (targets: ClusterTarget[], signal: AbortSignal) => {
@@ -165,35 +197,20 @@ export function useConfigMapTargets({
 
           setConfig((prev) => {
             const current = configRef.current;
+            let targets = current.targets;
             let updated = false;
-            const newTargets = [...current.targets];
 
             if (
               isvcHasValue &&
               typeof isvc.name === 'string' &&
               typeof isvc.namespace === 'string'
             ) {
-              const newIsvcTarget = createConfigMapTarget(
-                isvc.namespace,
-                isvc.name,
-                'inferenceservice'
+              const result = syncConfigMapTarget(
+                targets,
+                createConfigMapTarget(isvc.namespace, isvc.name, 'inferenceservice')
               );
-
-              const cmIdx = newTargets.findIndex(
-                (t) => t.source === 'configmap' && t.crType === 'inferenceservice'
-              );
-              if (cmIdx >= 0) {
-                if (
-                  newTargets[cmIdx].namespace !== isvc.namespace ||
-                  newTargets[cmIdx].inferenceService !== isvc.name
-                ) {
-                  newTargets[cmIdx] = newIsvcTarget;
-                  updated = true;
-                }
-              } else {
-                newTargets.unshift(newIsvcTarget);
-                updated = true;
-              }
+              targets = result.targets;
+              updated = updated || result.updated;
             }
 
             if (
@@ -201,30 +218,15 @@ export function useConfigMapTargets({
               typeof llmisvc.name === 'string' &&
               typeof llmisvc.namespace === 'string'
             ) {
-              const newLlmisvcTarget = createConfigMapTarget(
-                llmisvc.namespace,
-                llmisvc.name,
-                'llminferenceservice'
+              const result = syncConfigMapTarget(
+                targets,
+                createConfigMapTarget(llmisvc.namespace, llmisvc.name, 'llminferenceservice')
               );
-
-              const cmIdx = newTargets.findIndex(
-                (t) => t.source === 'configmap' && t.crType === 'llminferenceservice'
-              );
-              if (cmIdx >= 0) {
-                if (
-                  newTargets[cmIdx].namespace !== llmisvc.namespace ||
-                  newTargets[cmIdx].inferenceService !== llmisvc.name
-                ) {
-                  newTargets[cmIdx] = newLlmisvcTarget;
-                  updated = true;
-                }
-              } else {
-                newTargets.unshift(newLlmisvcTarget);
-                updated = true;
-              }
+              targets = result.targets;
+              updated = updated || result.updated;
             }
 
-            return updated ? { ...prev, targets: newTargets } : prev;
+            return updated ? { ...prev, targets } : prev;
           });
         })
         .catch((err: Error) => {

@@ -7,13 +7,15 @@ vi.mock('../contexts/MockDataContext', () => ({
   useMockData: () => ({ isMockEnabled: false }),
 }));
 
-const MOCK_TARGETS = vi.hoisted(() => [
-  { namespace: 'test-ns', inferenceService: 'test-is', crType: 'inferenceservice' },
-]);
+const mockState = vi.hoisted(() => ({
+  targets: [
+    { namespace: 'test-ns', inferenceService: 'test-is', crType: 'inferenceservice' },
+  ] as Array<{ namespace: string; inferenceService: string; crType: string }>,
+}));
 
 vi.mock('../contexts/ClusterConfigContext', () => ({
   useClusterConfig: () => ({
-    targets: MOCK_TARGETS,
+    targets: mockState.targets,
     crType: 'inferenceservice',
   }),
 }));
@@ -50,7 +52,7 @@ function makeSuccessResponse() {
     ok: true,
     json: async () => ({
       results: {
-        'test-ns/test-is': {
+        'test-ns/test-is/inferenceservice': {
           status: 'ready',
           data: { tps: 10, latency_p99: 100 },
           history: [],
@@ -80,6 +82,9 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.clearAllMocks();
+  mockState.targets = [
+    { namespace: 'test-ns', inferenceService: 'test-is', crType: 'inferenceservice' },
+  ];
 });
 
 describe('useMonitorLogic', () => {
@@ -180,5 +185,50 @@ describe('useMonitorLogic', () => {
     });
     const keys1 = Object.keys(result1.current.targetStates || {});
     expect(keys1).toContain('test-ns/test-is/inferenceservice');
+  });
+
+  it('prunes targetStates when the last target is removed', async () => {
+    const { result, rerender } = renderHook(() => useMonitorLogic(true));
+
+    await waitFor(() => {
+      expect(result.current.initialized).toBe(true);
+    });
+    expect(Object.keys(result.current.targetStates)).toContain('test-ns/test-is/inferenceservice');
+
+    act(() => {
+      mockState.targets = [];
+    });
+    rerender();
+
+    await waitFor(() => {
+      expect(Object.keys(result.current.targetStates)).toHaveLength(0);
+    });
+  });
+
+  it('keeps only the remaining targets when one target is removed', async () => {
+    mockState.targets = [
+      { namespace: 'test-ns', inferenceService: 'test-is', crType: 'inferenceservice' },
+      { namespace: 'ns2', inferenceService: 'svc2', crType: 'inferenceservice' },
+    ];
+
+    const { result, rerender } = renderHook(() => useMonitorLogic(true));
+
+    await waitFor(() => {
+      expect(result.current.initialized).toBe(true);
+    });
+    expect(Object.keys(result.current.targetStates)).toHaveLength(2);
+
+    act(() => {
+      mockState.targets = [
+        { namespace: 'test-ns', inferenceService: 'test-is', crType: 'inferenceservice' },
+      ];
+    });
+    rerender();
+
+    await waitFor(() => {
+      expect(Object.keys(result.current.targetStates)).toEqual([
+        'test-ns/test-is/inferenceservice',
+      ]);
+    });
   });
 });

@@ -45,4 +45,21 @@ describe('MockDataContext', () => {
     });
     expect(setItemSpy).toHaveBeenCalledWith('vllm-opt-mock-enabled', 'true');
   });
+
+  it('does not restore or persist mock mode in production', () => {
+    vi.stubEnv('PROD', true);
+    vi.spyOn(Storage.prototype, 'getItem').mockReturnValue('true');
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
+
+    const { result } = renderHook(() => useMockData(), { wrapper });
+    expect(result.current.isMockEnabled).toBe(false);
+
+    act(() => {
+      result.current.toggleMockEnabled();
+    });
+    expect(result.current.isMockEnabled).toBe(true);
+    expect(setItemSpy).not.toHaveBeenCalled();
+
+    vi.unstubAllEnvs();
+  });
 });

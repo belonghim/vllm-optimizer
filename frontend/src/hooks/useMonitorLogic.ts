@@ -236,12 +236,12 @@ export function useMonitorLogic(isActive: boolean) {
       return;
     }
     setTargetStates((prev) => {
-      const initialStates: Record<string, TargetState> = {};
+      const nextStates: Record<string, TargetState> = {};
       targets.forEach((t) => {
         const key = getTargetKey(t);
-        initialStates[key] = prev[key] || { status: 'collecting' };
+        nextStates[key] = prev[key] || { status: 'collecting' };
       });
-      return { ...prev, ...initialStates };
+      return nextStates;
     });
     const controller = new AbortController();
     (async () => {

@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { parseNumberInput } from '../utils/numberInput';
 
 interface SyntheticConfig {
   distribution: 'uniform' | 'normal';
@@ -47,7 +48,17 @@ const LoadTestParamForm = memo(function LoadTestParamForm({
             type={type}
             value={config[key] as string | number}
             placeholder={key === 'model' ? 'auto (auto-detect)' : undefined}
-            onChange={(e) => onChange(key, type === 'number' ? +e.target.value : e.target.value)}
+            onChange={(e) =>
+              onChange(
+                key,
+                type === 'number'
+                  ? parseNumberInput(
+                      e.target.value,
+                      typeof config[key] === 'number' ? config[key] : 0
+                    )
+                  : e.target.value
+              )
+            }
           />
         </div>
       ))}
@@ -98,7 +109,12 @@ const LoadTestParamForm = memo(function LoadTestParamForm({
                   type="number"
                   min={1}
                   value={syntheticConfig?.min_tokens ?? 50}
-                  onChange={(e) => onSyntheticConfigChange?.('min_tokens', +e.target.value)}
+                  onChange={(e) =>
+                    onSyntheticConfigChange?.(
+                      'min_tokens',
+                      parseNumberInput(e.target.value, syntheticConfig?.min_tokens ?? 50)
+                    )
+                  }
                 />
               </div>
               <div>
@@ -111,7 +127,12 @@ const LoadTestParamForm = memo(function LoadTestParamForm({
                   type="number"
                   min={1}
                   value={syntheticConfig?.max_tokens ?? 500}
-                  onChange={(e) => onSyntheticConfigChange?.('max_tokens', +e.target.value)}
+                  onChange={(e) =>
+                    onSyntheticConfigChange?.(
+                      'max_tokens',
+                      parseNumberInput(e.target.value, syntheticConfig?.max_tokens ?? 500)
+                    )
+                  }
                 />
               </div>
               {syntheticConfig?.distribution === 'normal' && (
@@ -126,7 +147,12 @@ const LoadTestParamForm = memo(function LoadTestParamForm({
                       type="number"
                       min={1}
                       value={syntheticConfig?.mean_tokens ?? 200}
-                      onChange={(e) => onSyntheticConfigChange?.('mean_tokens', +e.target.value)}
+                      onChange={(e) =>
+                        onSyntheticConfigChange?.(
+                          'mean_tokens',
+                          parseNumberInput(e.target.value, syntheticConfig?.mean_tokens ?? 200)
+                        )
+                      }
                     />
                   </div>
                   <div>
@@ -139,7 +165,12 @@ const LoadTestParamForm = memo(function LoadTestParamForm({
                       type="number"
                       min={1}
                       value={syntheticConfig?.stddev_tokens ?? 50}
-                      onChange={(e) => onSyntheticConfigChange?.('stddev_tokens', +e.target.value)}
+                      onChange={(e) =>
+                        onSyntheticConfigChange?.(
+                          'stddev_tokens',
+                          parseNumberInput(e.target.value, syntheticConfig?.stddev_tokens ?? 50)
+                        )
+                      }
                     />
                   </div>
                 </>
@@ -168,7 +199,9 @@ const LoadTestParamForm = memo(function LoadTestParamForm({
           min="0"
           max="2"
           value={config.temperature as number}
-          onChange={(e) => onChange('temperature', +e.target.value)}
+          onChange={(e) =>
+            onChange('temperature', parseNumberInput(e.target.value, config.temperature as number))
+          }
         />
       </div>
     </div>

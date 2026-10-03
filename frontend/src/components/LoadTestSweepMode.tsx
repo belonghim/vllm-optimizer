@@ -6,6 +6,7 @@ import { fmt } from '../utils/format';
 import MetricCard from './MetricCard';
 import ErrorAlert from './ErrorAlert';
 import { useSSE } from '../hooks/useSSE';
+import { parseNumberInput } from '../utils/numberInput';
 
 // Lazy: keeps recharts out of the Load Test page chunk until a sweep completes
 const SweepChart = lazy(() => import('./SweepChart'));
@@ -307,7 +308,17 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
                 aria-label={label}
                 value={sweepConfig[key as keyof SweepConfigState] as string | number}
                 onChange={(e) =>
-                  handleSweepConfigChange(key, type === 'number' ? +e.target.value : e.target.value)
+                  handleSweepConfigChange(
+                    key,
+                    type === 'number'
+                      ? parseNumberInput(
+                          e.target.value,
+                          typeof sweepConfig[key as keyof SweepConfigState] === 'number'
+                            ? (sweepConfig[key as keyof SweepConfigState] as number)
+                            : 0
+                        )
+                      : e.target.value
+                  )
                 }
                 disabled={sweepStatus === 'running'}
               />

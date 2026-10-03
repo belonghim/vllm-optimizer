@@ -120,10 +120,15 @@ export default function MultiTargetSelector({
   const handleSaveTargets = async () => {
     try {
       setSaveStatus('Saving...');
+      const payload = targets.map((t) => ({
+        namespace: t.namespace,
+        name: t.inferenceService,
+        cr_type: t.crType,
+      }));
       const response = await authFetch(`${API}/targets/save`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targets }),
+        body: JSON.stringify({ targets: payload }),
       });
       if (response.ok) {
         setSaveStatus('Saved!');
@@ -143,18 +148,20 @@ export default function MultiTargetSelector({
       const response = await authFetch(`${API}/targets/load`);
       if (response.ok) {
         const data = await response.json();
-        const loadedTargets: ClusterTarget[] = data.targets || [];
+        const loadedTargets: Array<{ namespace: string; name: string; cr_type?: string }> =
+          data.targets || [];
         if (loadedTargets.length > 0) {
           for (const target of loadedTargets) {
+            const crType = target.cr_type || 'inferenceservice';
             if (
               !targets.some(
                 (t) =>
                   t.namespace === target.namespace &&
-                  t.inferenceService === target.inferenceService &&
-                  t.crType === target.crType
+                  t.inferenceService === target.name &&
+                  t.crType === crType
               )
             ) {
-              addTarget(target.namespace, target.inferenceService, target.crType);
+              addTarget(target.namespace, target.name, crType);
             }
           }
           setLoadStatus('Loaded!');

@@ -6,9 +6,11 @@ vi.mock('../contexts/MockDataContext', () => ({
   useMockData: () => ({ isMockEnabled: false }),
 }));
 
+const mockConfig = vi.hoisted(() => ({ endpoint: 'http://test-endpoint:8080' }));
+
 vi.mock('../contexts/ClusterConfigContext', () => ({
   useClusterConfig: () => ({
-    endpoint: 'http://test-endpoint:8080',
+    endpoint: mockConfig.endpoint,
     namespace: 'test-ns',
     inferenceservice: 'test-is',
   }),
@@ -51,6 +53,7 @@ function makeDefaultFetch() {
 
 beforeEach(() => {
   vi.stubGlobal('fetch', makeDefaultFetch());
+  mockConfig.endpoint = 'http://test-endpoint:8080';
 });
 
 afterEach(() => {
@@ -65,6 +68,26 @@ describe('useTunerLogic', () => {
     await waitFor(() => {
       expect(result.current.config.vllm_endpoint).toBe('http://test-endpoint:8080');
     });
+  });
+
+  it('preserves user edits when the endpoint changes', async () => {
+    const { result, rerender } = renderHook(() => useTunerLogic({ isActive: true }));
+
+    await waitFor(() => {
+      expect(result.current.config.vllm_endpoint).toBe('http://test-endpoint:8080');
+    });
+
+    act(() => {
+      result.current.handleConfigChange('n_trials', 42);
+    });
+    expect(result.current.config.n_trials).toBe(42);
+
+    act(() => {
+      mockConfig.endpoint = 'http://new-endpoint:8080';
+    });
+    rerender();
+
+    expect(result.current.config.n_trials).toBe(42);
   });
 
   it('start() sends POST to /tuner/start with correct payload fields', async () => {

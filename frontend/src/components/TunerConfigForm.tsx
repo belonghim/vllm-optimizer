@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import TunerProgressBar from './TunerProgressBar';
 import TunerParamInputs from './TunerParamInputs';
 import TunerResourceInputs from './TunerResourceInputs';
+import { parseNumberInput } from '../utils/numberInput';
 
 interface TunerPhase {
   trial_id: number;
@@ -160,7 +161,9 @@ export default function TunerConfigForm({
             min={1}
             max={100}
             value={config.n_trials}
-            onChange={(e) => onChange('n_trials', +e.target.value)}
+            onChange={(e) =>
+              onChange('n_trials', parseNumberInput(e.target.value, config.n_trials))
+            }
           />
         </div>
         <div>
@@ -258,7 +261,9 @@ export default function TunerConfigForm({
             max={10000}
             step={10}
             value={config.eval_requests}
-            onChange={(e) => onChange('eval_requests', +e.target.value)}
+            onChange={(e) =>
+              onChange('eval_requests', parseNumberInput(e.target.value, config.eval_requests))
+            }
           />
         </div>
         <div>
@@ -272,7 +277,12 @@ export default function TunerConfigForm({
             min={1}
             max={256}
             value={config.eval_concurrency}
-            onChange={(e) => onChange('eval_concurrency', +e.target.value)}
+            onChange={(e) =>
+              onChange(
+                'eval_concurrency',
+                parseNumberInput(e.target.value, config.eval_concurrency)
+              )
+            }
           />
         </div>
         <div>
@@ -286,7 +296,9 @@ export default function TunerConfigForm({
             min={1}
             max={1000}
             value={config.eval_rps}
-            onChange={(e) => onChange('eval_rps', +e.target.value)}
+            onChange={(e) =>
+              onChange('eval_rps', parseNumberInput(e.target.value, config.eval_rps))
+            }
           />
         </div>
         <div>

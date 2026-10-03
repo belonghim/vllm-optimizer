@@ -53,6 +53,13 @@ describe('LoadTestParamForm', () => {
     expect(onChange).toHaveBeenCalledWith('total_requests', 200);
   });
 
+  it('keeps the previous number when the input is cleared', () => {
+    render(<LoadTestParamForm config={baseConfig} onChange={onChange} />);
+    const totalRequestsInput = screen.getByLabelText('Total Requests');
+    fireEvent.change(totalRequestsInput, { target: { value: '' } });
+    expect(onChange).toHaveBeenCalledWith('total_requests', baseConfig.total_requests);
+  });
+
   it('renders Direct Input and Synthetic prompt mode buttons', () => {
     render(
       <LoadTestParamForm

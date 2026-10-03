@@ -1,4 +1,5 @@
 import type { TunerConfig } from './TunerConfigForm';
+import { parseNumberInput } from '../utils/numberInput';
 
 interface TunerParamInputsProps {
   config: TunerConfig;
@@ -57,7 +58,14 @@ export default function TunerParamInputs({
           min={extras?.min}
           max={extras?.max}
           value={getInputValue(key)}
-          onChange={(e) => handleChange(key, type === 'number' ? +e.target.value : e.target.value)}
+          onChange={(e) =>
+            handleChange(
+              key,
+              type === 'number'
+                ? parseNumberInput(e.target.value, Number(getInputValue(key)) || 0)
+                : e.target.value
+            )
+          }
           style={{ width: '100%' }}
           aria-label={`Current ${key}`}
         />
@@ -80,7 +88,12 @@ export default function TunerParamInputs({
               min={1}
               max={2048}
               value={config.max_num_seqs_min}
-              onChange={(e) => onChange('max_num_seqs_min', +e.target.value)}
+              onChange={(e) =>
+                onChange(
+                  'max_num_seqs_min',
+                  parseNumberInput(e.target.value, config.max_num_seqs_min)
+                )
+              }
               aria-label="max_num_seqs min"
             />
             <input
@@ -91,7 +104,12 @@ export default function TunerParamInputs({
               min={1}
               max={2048}
               value={config.max_num_seqs_max}
-              onChange={(e) => onChange('max_num_seqs_max', +e.target.value)}
+              onChange={(e) =>
+                onChange(
+                  'max_num_seqs_max',
+                  parseNumberInput(e.target.value, config.max_num_seqs_max)
+                )
+              }
               aria-label="max_num_seqs max"
             />
           </div>
@@ -114,7 +132,9 @@ export default function TunerParamInputs({
               min={0.5}
               max={0.99}
               value={config.gpu_memory_min}
-              onChange={(e) => onChange('gpu_memory_min', +e.target.value)}
+              onChange={(e) =>
+                onChange('gpu_memory_min', parseNumberInput(e.target.value, config.gpu_memory_min))
+              }
               aria-label="gpu_memory_utilization min"
             />
             <input
@@ -126,7 +146,9 @@ export default function TunerParamInputs({
               min={0.5}
               max={0.99}
               value={config.gpu_memory_max}
-              onChange={(e) => onChange('gpu_memory_max', +e.target.value)}
+              onChange={(e) =>
+                onChange('gpu_memory_max', parseNumberInput(e.target.value, config.gpu_memory_max))
+              }
               aria-label="gpu_memory_utilization max"
             />
           </div>
@@ -147,7 +169,12 @@ export default function TunerParamInputs({
               max={32768}
               step={256}
               value={config.max_model_len_min}
-              onChange={(e) => onChange('max_model_len_min', +e.target.value)}
+              onChange={(e) =>
+                onChange(
+                  'max_model_len_min',
+                  parseNumberInput(e.target.value, config.max_model_len_min)
+                )
+              }
               aria-label="max_model_len min"
             />
             <input
@@ -159,7 +186,12 @@ export default function TunerParamInputs({
               max={32768}
               step={256}
               value={config.max_model_len_max}
-              onChange={(e) => onChange('max_model_len_max', +e.target.value)}
+              onChange={(e) =>
+                onChange(
+                  'max_model_len_max',
+                  parseNumberInput(e.target.value, config.max_model_len_max)
+                )
+              }
               aria-label="max_model_len max"
             />
           </div>
@@ -180,7 +212,12 @@ export default function TunerParamInputs({
               max={8192}
               step={256}
               value={config.max_num_batched_tokens_min}
-              onChange={(e) => onChange('max_num_batched_tokens_min', +e.target.value)}
+              onChange={(e) =>
+                onChange(
+                  'max_num_batched_tokens_min',
+                  parseNumberInput(e.target.value, config.max_num_batched_tokens_min)
+                )
+              }
               aria-label="max_num_batched_tokens min"
             />
             <input
@@ -192,7 +229,12 @@ export default function TunerParamInputs({
               max={8192}
               step={256}
               value={config.max_num_batched_tokens_max}
-              onChange={(e) => onChange('max_num_batched_tokens_max', +e.target.value)}
+              onChange={(e) =>
+                onChange(
+                  'max_num_batched_tokens_max',
+                  parseNumberInput(e.target.value, config.max_num_batched_tokens_max)
+                )
+              }
               aria-label="max_num_batched_tokens max"
             />
           </div>
@@ -259,7 +301,12 @@ export default function TunerParamInputs({
                   min={0}
                   max={64}
                   value={config.swap_space_min}
-                  onChange={(e) => onChange('swap_space_min', +e.target.value)}
+                  onChange={(e) =>
+                    onChange(
+                      'swap_space_min',
+                      parseNumberInput(e.target.value, config.swap_space_min)
+                    )
+                  }
                   aria-label="swap_space min"
                 />
                 <input
@@ -271,7 +318,12 @@ export default function TunerParamInputs({
                   min={0}
                   max={64}
                   value={config.swap_space_max}
-                  onChange={(e) => onChange('swap_space_max', +e.target.value)}
+                  onChange={(e) =>
+                    onChange(
+                      'swap_space_max',
+                      parseNumberInput(e.target.value, config.swap_space_max)
+                    )
+                  }
                   aria-label="swap_space max"
                 />
               </div>

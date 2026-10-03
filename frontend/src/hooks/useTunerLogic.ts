@@ -129,6 +129,7 @@ export function useTunerLogic({
   );
   const [tuningReport, setTuningReport] = useState<TuningReportPayload | null>(null);
   const userEditedRef = useRef<Record<string, boolean>>({});
+  const lastTargetOverrideRef = useRef<ClusterTarget | null | undefined>(undefined);
   const [config, setConfig] = useState<TunerConfig>(DEFAULT_CONFIG);
 
   const fetchStatus = useCallback(
@@ -255,6 +256,9 @@ export function useTunerLogic({
   }, [isActive, isMockEnabled]);
 
   useEffect(() => {
+    const targetChanged = lastTargetOverrideRef.current !== targetOverride;
+    if (!targetChanged && Object.keys(userEditedRef.current).length > 0) return;
+    lastTargetOverrideRef.current = targetOverride;
     userEditedRef.current = {};
     const newEndpoint = targetOverride
       ? buildDefaultEndpoint(

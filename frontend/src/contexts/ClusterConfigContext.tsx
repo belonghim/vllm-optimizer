@@ -145,6 +145,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
   const stableTargetsRef = useRef<ClusterTarget[]>(config.targets);
   const prevTargetsJsonRef = useRef(JSON.stringify(config.targets));
   const configRef = useRef(config);
+  const backendEndpointRef = useRef('');
   const currentTargetsJson = JSON.stringify(config.targets);
   if (currentTargetsJson !== prevTargetsJsonRef.current) {
     prevTargetsJsonRef.current = currentTargetsJson;
@@ -188,6 +189,8 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
 
         if (!hasValidNamespace && !hasValidIsName) return;
 
+        backendEndpointRef.current = vllmEndpoint;
+
         setConfig((prev) => {
           return {
             ...prev,
@@ -230,6 +233,7 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
   }, [config]);
 
   useEffect(() => {
+    if (backendEndpointRef.current) return;
     const defaultTarget = stableTargets[0];
     if (!defaultTarget) return;
 
@@ -239,7 +243,9 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
       defaultTarget.inferenceService
     );
 
-    setConfig((prev) => ({ ...prev, endpoint: newEndpoint }));
+    setConfig((prev) =>
+      prev.endpoint === newEndpoint ? prev : { ...prev, endpoint: newEndpoint }
+    );
   }, [crType, stableTargets]);
 
   useResolvedModelName(crType, stableTargets, setResolvedModelName);

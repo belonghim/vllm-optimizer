@@ -1,9 +1,19 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import SlaPage from './SlaPage';
 
+const selectionState = vi.hoisted(() => ({ selectedIds: [] as number[] }));
+
+vi.mock('../contexts/BenchmarkSelectionContext', () => ({
+  useBenchmarkSelection: () => ({
+    selectedIds: selectionState.selectedIds,
+    setSelectedIds: vi.fn(),
+  }),
+}));
+
 beforeEach(() => {
+  selectionState.selectedIds = [];
   vi.stubGlobal(
     'ResizeObserver',
     class ResizeObserver {
@@ -301,6 +311,71 @@ describe('SlaPage', () => {
         );
         expect(deleteCall).toBeDefined();
       });
+    });
+  });
+
+  describe('TC2: profile evaluation race', () => {
+    it('ignores a stale evaluation response that resolves after a newer one', async () => {
+      selectionState.selectedIds = [1, 2];
+      const user = userEvent.setup();
+
+      const profileA = {
+        id: 1,
+        name: 'Profile A',
+        thresholds: {
+          availability_min: null,
+          p95_latency_max_ms: null,
+          error_rate_max_pct: null,
+          min_tps: null,
+        },
+        created_at: 0,
+      };
+      const profileB = { ...profileA, id: 2, name: 'Profile B' };
+
+      const evalResolvers: Array<(value: Response) => void> = [];
+      const fetchMock = vi.fn((url: string) => {
+        if (url.includes('/sla/profiles')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => [profileA, profileB],
+          });
+        }
+        if (url.includes('/sla/evaluate')) {
+          return new Promise<Response>((resolve) => {
+            evalResolvers.push(resolve);
+          });
+        }
+        return Promise.resolve({ ok: true, status: 200, json: async () => [] });
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      render(<SlaPage isActive={true} />);
+
+      const radios = await screen.findAllByRole('radio');
+      await user.click(radios[0]);
+      await user.click(radios[1]);
+      expect(evalResolvers).toHaveLength(2);
+
+      await act(async () => {
+        evalResolvers[1]({
+          ok: true,
+          status: 200,
+          json: async () => ({ profile: profileB, results: [], warnings: [] }),
+        } as unknown as Response);
+      });
+      await screen.findByText('Profile B - Metrics Trend');
+
+      await act(async () => {
+        evalResolvers[0]({
+          ok: true,
+          status: 200,
+          json: async () => ({ profile: profileA, results: [], warnings: [] }),
+        } as unknown as Response);
+      });
+
+      expect(screen.queryByText('Profile A - Metrics Trend')).not.toBeInTheDocument();
+      expect(screen.getByText('Profile B - Metrics Trend')).toBeInTheDocument();
     });
   });
 });

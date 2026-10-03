@@ -6,7 +6,7 @@ import { authFetch } from '../utils/authFetch';
 import { isRecord } from './clusterConfigShared';
 
 /**
- * Re-fetches the resolved model name from /api/config whenever the default
+ * Re-fetches the resolved model name for the default target whenever the
  * target or CR type changes, aborting the previous request.
  */
 export function useResolvedModelName(
@@ -22,14 +22,24 @@ export function useResolvedModelName(
     const inferenceService = defaultTarget.inferenceService;
     if (!namespace || !inferenceService) return;
 
+    const params = new URLSearchParams({
+      namespace,
+      is_name: inferenceService,
+      cr_type: defaultTarget.crType || crType,
+    });
+
     const controller = new AbortController();
-    // No auth required — /config endpoint reads env variables with no auth middleware
-    authFetch(`${API}/config`, { signal: controller.signal })
+    authFetch(`${API}/vllm-config?${params}`, { signal: controller.signal })
       .then((r) => r.json())
       .then((data: unknown) => {
-        if (isRecord(data) && typeof data.resolved_model_name === 'string') {
-          setResolvedModelName(data.resolved_model_name);
-        }
+        if (!isRecord(data)) return;
+        const resolved =
+          typeof data.resolvedModelName === 'string'
+            ? data.resolvedModelName
+            : typeof data.modelName === 'string'
+              ? data.modelName
+              : '';
+        if (resolved) setResolvedModelName(resolved);
       })
       .catch((err: Error) => {
         if (err.name !== 'AbortError') {

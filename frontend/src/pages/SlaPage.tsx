@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, lazy, Suspense, FormEvent } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense, FormEvent } from 'react';
 import { authFetch } from '../utils/authFetch';
 import { API, COLORS, TOOLTIP_STYLE, TARGET_COLORS } from '../constants';
 import { ERROR_MESSAGES } from '../constants/errorMessages';
@@ -166,19 +166,26 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
     }
   }, []);
 
+  const evalAbortRef = useRef<AbortController | null>(null);
+
   const handleProfileSelect = useCallback(
     async (profileId: number) => {
       setSelectedProfileId(profileId);
+      evalAbortRef.current?.abort();
       if (selectedIds.length === 0) {
         setCurrentEval(null);
         return;
       }
+      const controller = new AbortController();
+      evalAbortRef.current = controller;
       try {
         const res = await authFetch(`${API}/sla/evaluate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ profile_id: profileId, benchmark_ids: selectedIds.map(Number) }),
+          signal: controller.signal,
         });
+        if (controller.signal.aborted) return;
         if (!res.ok) {
           setError(`Failed to evaluate SLA profile: HTTP ${res.status}`);
           setCurrentEval(null);
@@ -186,6 +193,7 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
         }
         setCurrentEval((await res.json()) as SlaEvaluateResponse);
       } catch (err) {
+        if ((err as Error).name === 'AbortError') return;
         console.error('Failed to evaluate SLA profile:', err);
         setError(`Failed to evaluate SLA profile: ${(err as Error).message}`);
         setCurrentEval(null);
@@ -193,6 +201,10 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
     },
     [selectedIds]
   );
+
+  useEffect(() => {
+    return () => evalAbortRef.current?.abort();
+  }, []);
 
   useEffect(() => {
     if (isActive) loadProfiles();
@@ -358,7 +370,7 @@ export default function SlaPage({ isActive }: { isActive: boolean }) {
           onEdit={handleEdit}
           onDelete={handleDelete}
           selectedProfileId={selectedProfileId}
-          onSelect={handleProfileSelect}
+          onSelect={setSelectedProfileId}
           loading={loading}
         />
       )}
