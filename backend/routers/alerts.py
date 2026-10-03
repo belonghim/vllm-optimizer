@@ -4,7 +4,6 @@ from collections.abc import Callable
 from fastapi import APIRouter, Request
 from models.sla import SlaProfile
 from pydantic import BaseModel
-from services.rate_limiter import limiter
 from services.shared import multi_target_collector, storage
 
 router = APIRouter()
@@ -81,7 +80,6 @@ def _collect_profile_violations(profile: SlaProfile, latest_metrics: object) -> 
 
 
 @router.get("/sla-violations", response_model=SlaViolationsResponse)
-@limiter.limit("60/minute")
 async def get_sla_violations(request: Request) -> SlaViolationsResponse:
     profiles = await storage.list_sla_profiles()
     latest_metrics = metrics_collector.latest

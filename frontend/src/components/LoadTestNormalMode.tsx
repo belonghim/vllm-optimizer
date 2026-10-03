@@ -1,14 +1,12 @@
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import type { ReactNode } from 'react';
 import { authFetch } from '../utils/authFetch';
-import { useMockData } from '../contexts/MockDataContext';
 import { useClusterConfig } from '../contexts/ClusterConfigContext';
 import { API, LOAD_TEST_PRESETS, CHART_LABELS } from '../constants';
 import { ERROR_MESSAGES } from '../constants/errorMessages';
 import { useThemeColors } from '../contexts/ThemeContext';
 import { fmt } from '../utils/format';
 import MetricCard from './MetricCard';
-import { simulateLoadTest } from '../mockData';
 import LoadTestConfig, { type RerunConfig } from './LoadTestConfig';
 import ErrorAlert from './ErrorAlert';
 import { useLoadTestSSE } from '../hooks/useLoadTestSSE';
@@ -27,6 +25,7 @@ interface LoadTestConfigState {
   prompt_template: string;
   temperature: number;
   stream: boolean;
+  api_key: string;
   [key: string]: string | number | boolean;
 }
 
@@ -57,7 +56,6 @@ function LoadTestNormalMode({
     isLoading: globalIsLoading,
     resolvedModelName,
   } = useClusterConfig();
-  const { isMockEnabled } = useMockData();
   const [config, setConfig] = useState<LoadTestConfigState>({
     endpoint: '',
     model: resolvedModelName || 'auto',
@@ -68,6 +66,7 @@ function LoadTestNormalMode({
     prompt_template: 'Hello, how are you?',
     temperature: 0.7,
     stream: true,
+    api_key: '',
   });
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
@@ -118,7 +117,7 @@ function LoadTestNormalMode({
     return () => {
       disconnectRef.current?.();
     };
-  }, [isMockEnabled]);
+  }, []);
 
   useEffect(() => {
     if (!isActive) return;
@@ -144,7 +143,6 @@ function LoadTestNormalMode({
 
   useEffect(() => {
     if (!isActive) return;
-    if (isMockEnabled) return;
     const controller = new AbortController();
     authFetch(`${API}/status/interrupted`, { signal: controller.signal })
       .then((r) => r.json())
@@ -160,7 +158,7 @@ function LoadTestNormalMode({
         console.warn('Failed to check interrupted status:', error);
       });
     return () => controller.abort();
-  }, [isActive, isMockEnabled]);
+  }, [isActive]);
 
   const handleConfigChange = useCallback(
     (key: string, value: string | number | boolean) => setConfig((c) => ({ ...c, [key]: value })),
@@ -187,26 +185,6 @@ function LoadTestNormalMode({
     setProgress(0);
     setError(null);
     setSaveStatus(null);
-    if (isMockEnabled) {
-      simulateLoadTest(
-        config,
-        setProgress,
-        (mockResult) => setResult({ ...mockResult }),
-        (mockStatus) => {
-          if (
-            mockStatus === 'idle' ||
-            mockStatus === 'running' ||
-            mockStatus === 'completed' ||
-            mockStatus === 'error' ||
-            mockStatus === 'stopped'
-          ) {
-            setStatus(mockStatus);
-          }
-        },
-        setLatencyData
-      );
-      return;
-    }
     const payload = {
       ...config,
       prompt_mode: promptMode,
@@ -248,7 +226,7 @@ function LoadTestNormalMode({
       const resp = await authFetch(`${API}/benchmark/save`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, config, result }),
+        body: JSON.stringify({ name, config: { ...config, api_key: undefined }, result }),
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       setSaveStatus('ok');
@@ -448,7 +426,7 @@ function LoadTestNormalMode({
             </Suspense>
           )}
 
-          {status === 'completed' && result && !isMockEnabled && (
+          {status === 'completed' && result && (
             <div className="loadtest-save-row">
               <button
                 className="btn btn-primary"

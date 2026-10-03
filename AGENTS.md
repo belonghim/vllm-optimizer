@@ -33,6 +33,8 @@ python3 -m venv .venv && .venv/bin/pip install -r backend/requirements.txt ruff
 | Metric collection | `backend/services/multi_target_collector.py` (+ `metric_math.py`) |
 | Storage | `backend/services/storage.py` (+ `storage_schema.py`) |
 | Auto-tuner | `backend/services/auto_tuner.py` (facade) · `tuner_logic.py` · `k8s_operator.py` · `event_broadcaster.py` |
+| Model analysis | `backend/services/model_analysis.py` (pure config.json math) · `model_config_reader.py` (pod exec I/O) · `GET /api/tuner/model-analysis` |
+| Analyst LLM | `backend/services/llm_assistant.py` — separate model via `ANALYST_ENDPOINT` (dev: `llm-ov`); narrates computed facts only |
 | Routers | `backend/routers/*.py` — mounted under `/api/<name>` in `backend/main.py` |
 | Frontend config | `frontend/src/contexts/ClusterConfigContext.tsx` (+ `useConfigMapTargets`, `useResolvedModelName`) |
 | Frontend SSE | `frontend/src/utils/reconnectingEventSource.ts` |
@@ -56,8 +58,9 @@ Canonical definitions: `backend/.env.example` (local) and `openshift/base/02-con
 | `OPTUNA_STORAGE_URL` | Optuna RDB storage (unset → in-memory) | unset |
 | `LOG_LEVEL` / `LOG_FORMAT` | Logging level / `json` or `text` | `INFO` / `text` |
 | `CA_BUNDLE` | CA bundle path for TLS verify (`""` → internal client `verify=False`) | `""` |
+| `ANALYST_ENDPOINT` | Analyst LLM (separate small model, e.g. llm-ov). `""` disables it; skipped during tuning if equal to the tuning endpoint | `""` (dev overlay: llm-ov) |
 
-Advanced/optional: `LOAD_ENGINE_SHORT_TIMEOUT`(5), `MODEL_RESOLVE_TIMEOUT`(10), `SELF_METRICS_URL`, `STORAGE_CAPACITY_BYTES`, `POD_NAMESPACE`.
+Advanced/optional: `ANALYST_MODEL`(resolved via `/v1/models`), `ANALYST_TIMEOUT`(120), `LOAD_ENGINE_SHORT_TIMEOUT`(5), `MODEL_RESOLVE_TIMEOUT`(10), `SELF_METRICS_URL`, `STORAGE_CAPACITY_BYTES`, `POD_NAMESPACE`.
 Integration tests only: `VLLM_MODEL`. Legacy/optional: `K8S_DEPLOYMENT_NAME`.
 
 ---

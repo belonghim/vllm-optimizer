@@ -2,17 +2,12 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { server } from '../../mocks/server';
 import { http, HttpResponse } from 'msw';
-import { MockDataProvider } from '../../contexts/MockDataContext';
 import { ClusterConfigProvider } from '../../contexts/ClusterConfigContext';
 import TunerPage from '../../pages/TunerPage';
 import BenchmarkPage from '../../pages/BenchmarkPage';
 
 function TestProviders({ children }: { children: React.ReactNode }) {
-  return (
-    <MockDataProvider>
-      <ClusterConfigProvider>{children}</ClusterConfigProvider>
-    </MockDataProvider>
-  );
+  return <ClusterConfigProvider>{children}</ClusterConfigProvider>;
 }
 
 beforeEach(() => {

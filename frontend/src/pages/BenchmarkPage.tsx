@@ -1,10 +1,8 @@
 import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 import { authFetch } from '../utils/authFetch';
 import { API } from '../constants';
-import { mockBenchmarks } from '../mockData';
 import { calcGpuEfficiency } from '../utils/metrics';
 import { downloadJSON, downloadCSV, benchmarksToCSV } from '../utils/export';
-import { useMockData } from '../contexts/MockDataContext';
 import { useBenchmarkSelection } from '../contexts/BenchmarkSelectionContext';
 import ErrorAlert from '../components/ErrorAlert';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -28,7 +26,6 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
   const [editing, setEditing] = useState<BenchmarkItem | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { isMockEnabled } = useMockData();
   const [importing, setImporting] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
   const [confirmState, setConfirmState] = useState<{
@@ -45,14 +42,6 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
 
   const fetchBenchmarks = useCallback(() => {
     setLoading(true);
-    if (isMockEnabled) {
-      setBenchmarks(
-        mockBenchmarks().map((b) => ({ ...b, config: b.config ? { ...b.config } : undefined }))
-      );
-      setError(null);
-      setLoading(false);
-      return () => {};
-    }
     const controller = new AbortController();
     authFetch(`${API}/benchmark/list`, { signal: controller.signal })
       .then((r) => {
@@ -70,7 +59,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
-  }, [isMockEnabled]);
+  }, []);
 
   useEffect(() => {
     if (isActive) {
@@ -87,12 +76,6 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
 
   const deleteBenchmark = useCallback(
     async (b: BenchmarkItem) => {
-      if (isMockEnabled) {
-        setBenchmarks((prev) => prev.filter((x) => x.id !== b.id));
-        setSelected((prev) => prev.filter((x) => x !== b.id));
-        setExpanded((prev) => prev.filter((x) => x !== b.id));
-        return;
-      }
       try {
         const res = await authFetch(`${API}/benchmark/${b.id}`, { method: 'DELETE' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -103,7 +86,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
         setError(`Delete failed: ${(err as Error).message}`);
       }
     },
-    [fetchBenchmarks, isMockEnabled, setSelected]
+    [fetchBenchmarks, setSelected]
   );
 
   const handleDelete = async (b: BenchmarkItem, e: React.MouseEvent) => {
@@ -119,11 +102,6 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
   };
 
   const handleSaveMetadata = async (benchmarkId: string | number, metadata: BenchmarkMetadata) => {
-    if (isMockEnabled) {
-      setBenchmarks((prev) => prev.map((b) => (b.id === benchmarkId ? { ...b, metadata } : b)));
-      setEditing(null);
-      return;
-    }
     try {
       const res = await authFetch(`${API}/benchmark/${benchmarkId}/metadata`, {
         method: 'PATCH',
@@ -143,11 +121,6 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
   const bulkDeleteBenchmarks = useCallback(
     async (ids: (string | number)[]) => {
       if (ids.length === 0) return;
-      if (isMockEnabled) {
-        setBenchmarks((prev) => prev.filter((b) => !ids.includes(b.id)));
-        setSelected([]);
-        return;
-      }
       try {
         for (const id of ids) {
           const res = await authFetch(`${API}/benchmark/${id}`, { method: 'DELETE' });
@@ -160,7 +133,7 @@ function BenchmarkPage({ isActive, onRerun }: BenchmarkPageProps) {
         setError(`Bulk delete failed: ${(err as Error).message}`);
       }
     },
-    [fetchBenchmarks, isMockEnabled, setSelected]
+    [fetchBenchmarks, setSelected]
   );
 
   const handleBulkDelete = async () => {

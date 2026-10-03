@@ -2,57 +2,66 @@ import asyncio
 import json
 import logging
 import time
-from dataclasses import dataclass
 
 import httpx
+from services.model_analysis import ModelAnalysis, analyze_config
 
 logger = logging.getLogger(__name__)
 
+_MODEL_DIR = "/mnt/models"
+_SECTION = "__VLLM_OPTIMIZER_SECTION__"
+# One exec round-trip: config.json, optional openvino_config.json, total weight file bytes.
+_READ_SCRIPT = (
+    f"cat {_MODEL_DIR}/config.json; echo; echo {_SECTION}; "
+    f"cat {_MODEL_DIR}/openvino_config.json 2>/dev/null; echo; echo {_SECTION}; "
+    f"du -cbL {_MODEL_DIR}/*.safetensors {_MODEL_DIR}/*.bin {_MODEL_DIR}/*.gguf 2>/dev/null | tail -1"
+)
 
-@dataclass
-class ModelConfigInfo:
-    """Model architecture info derived from config.json / vLLM API / openvino_model.bin."""
 
-    storage_uri: str | None = None
-    actual_served_name: str | None = None
-    max_position_embeddings: int | None = None
-    num_hidden_layers: int | None = None
-    num_key_value_heads: int | None = None
-    num_attention_heads: int | None = None
-    hidden_size: int | None = None
-    kv_dtype_bytes: int = 2  # fp16 default
-    model_weight_gib: float | None = None
-
-    @property
-    def head_dim(self) -> int | None:
-        if self.hidden_size and self.num_attention_heads:
-            return self.hidden_size // self.num_attention_heads
+def _parse_json(raw: str) -> dict | None:
+    raw = raw.strip()
+    if not raw:
         return None
-
-    def kv_bytes_per_token_per_layer(self) -> int | None:
-        hd = self.head_dim
-        if self.num_key_value_heads and hd:
-            return 2 * self.num_key_value_heads * hd * self.kv_dtype_bytes
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as e:
+        logger.debug("[ModelConfigReader] JSON parse error: %s", e)
         return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def parse_read_output(raw: str) -> tuple[dict | None, dict | None, int | None]:
+    parts = raw.split(_SECTION)
+    cfg = _parse_json(parts[0]) if parts else None
+    ov_cfg = _parse_json(parts[1]) if len(parts) > 1 else None
+    weight_bytes: int | None = None
+    if len(parts) > 2:
+        first = parts[2].strip().split()
+        if first and first[0].isdigit() and int(first[0]) > 0:
+            weight_bytes = int(first[0])
+    return cfg, ov_cfg, weight_bytes
 
 
 class ModelConfigReader:
-    """Reads model config from vLLM API (primary) or K8s pod exec (fallback).
+    """Reads the target model's config.json via pod exec and analyzes it deterministically.
 
-    Results are cached by storageUri for the lifetime of the tuning session.
-    All failures degrade gracefully — None is returned instead of raising.
+    Results are cached per (storageUri, kv-cache-dtype). Failures degrade to None — never raise.
     """
 
     _CACHE_TTL = 3600.0
 
     def __init__(self) -> None:
-        self._cache: dict[str, ModelConfigInfo] = {}
+        self._cache: dict[str, ModelAnalysis] = {}
         self._cache_times: dict[str, float] = {}
 
-    def invalidate(self, storage_uri: str) -> None:
-        """Evict cached info when storageUri changes."""
-        self._cache.pop(storage_uri, None)
-        self._cache_times.pop(storage_uri, None)
+    def invalidate(self, storage_uri: str | None = None) -> None:
+        if storage_uri is None:
+            self._cache.clear()
+            self._cache_times.clear()
+            return
+        for key in [k for k in self._cache if k.startswith(f"{storage_uri}|")]:
+            self._cache.pop(key, None)
+            self._cache_times.pop(key, None)
 
     async def read(
         self,
@@ -60,81 +69,60 @@ class ModelConfigReader:
         storage_uri: str | None = None,
         namespace: str | None = None,
         pod_label_selector: str | None = None,
-    ) -> ModelConfigInfo | None:
-        cache_key = storage_uri or vllm_endpoint
+        container: str | None = None,
+        kv_cache_dtype: str | None = None,
+    ) -> ModelAnalysis | None:
+        cache_key = f"{storage_uri or vllm_endpoint}|{kv_cache_dtype or 'auto'}"
         cached = self._cache.get(cache_key)
         if cached is not None and time.time() - self._cache_times.get(cache_key, 0.0) < self._CACHE_TTL:
             return cached
 
-        info = ModelConfigInfo(storage_uri=storage_uri)
-        found_anything = False
+        served_name, served_max_len = await self._read_served_model(vllm_endpoint)
 
-        # Step 1: vLLM /v1/models API — no RBAC risk, always try first.
-        try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                resp = await client.get(f"{vllm_endpoint.rstrip('/')}/v1/models")
-                if resp.status_code == 200:
-                    models = resp.json().get("data", [])
-                    if models:
-                        max_model_len = models[0].get("max_model_len")
-                        if isinstance(max_model_len, int) and max_model_len > 0:
-                            info.max_position_embeddings = max_model_len
-                            found_anything = True
-                        model_id = models[0].get("id")
-                        if isinstance(model_id, str) and model_id:
-                            info.actual_served_name = model_id
-        except Exception as e:
-            logger.debug("[ModelConfigReader] vLLM API fetch failed: %s", e)
-
-        # Step 2: K8s pod exec for config.json + openvino_model.bin size.
-        # Requires pods/exec RBAC — skipped if namespace/selector not provided.
+        cfg = ov_cfg = None
+        weight_bytes: int | None = None
         if namespace and pod_label_selector:
             pod_name = await self._find_running_pod(namespace, pod_label_selector)
             if pod_name:
-                config_raw = await self._exec_cat(namespace, pod_name, "/mnt/models/config.json")
-                if config_raw:
-                    self._parse_config_json(config_raw, info)
-                    found_anything = True
+                raw = await self._exec(namespace, pod_name, container, ["sh", "-c", _READ_SCRIPT])
+                if raw:
+                    cfg, ov_cfg, weight_bytes = parse_read_output(raw)
 
-                # OpenVINO models use .bin instead of safetensors
-                for weight_path in ("/mnt/models/openvino_model.bin", "/mnt/models/model.safetensors"):
-                    bin_bytes = await self._exec_file_size(namespace, pod_name, weight_path)
-                    if bin_bytes and bin_bytes > 0:
-                        info.model_weight_gib = bin_bytes / (1024**3)
-                        found_anything = True
-                        break
+        if cfg is None and served_name is None:
+            return None
 
-        if found_anything:
-            self._cache[cache_key] = info
+        analysis = analyze_config(cfg or {}, kv_cache_dtype=kv_cache_dtype, openvino_cfg=ov_cfg)
+        if cfg is None:
+            analysis.warnings.insert(0, "config.json을 읽지 못함 — pods/exec 권한 또는 파드 상태 확인")
+        analysis.served_model_name = served_name
+        analysis.served_max_model_len = served_max_len
+        if weight_bytes:
+            analysis.model_weight_gib = weight_bytes / (1024**3)
+
+        if cfg is not None:
+            self._cache[cache_key] = analysis
             self._cache_times[cache_key] = time.time()
-            return info
-        return None
+        return analysis
 
-    def _parse_config_json(self, raw: str, info: ModelConfigInfo) -> None:
+    async def _read_served_model(self, vllm_endpoint: str) -> tuple[str | None, int | None]:
+        from services.shared import get_internal_client
+
         try:
-            cfg = json.loads(raw)
-        except json.JSONDecodeError as e:
-            logger.debug("[ModelConfigReader] config.json parse error: %s", e)
-            return
-
-        # max_position_embeddings from API already takes precedence (it's the effective limit).
-        if not info.max_position_embeddings:
-            val = cfg.get("max_position_embeddings")
-            if isinstance(val, int) and val > 0:
-                info.max_position_embeddings = val
-
-        for attr, key in [
-            ("num_hidden_layers", "num_hidden_layers"),
-            ("num_key_value_heads", "num_key_value_heads"),
-            ("num_attention_heads", "num_attention_heads"),
-            ("hidden_size", "hidden_size"),
-        ]:
-            val = cfg.get(key)
-            if isinstance(val, int) and val > 0:
-                setattr(info, attr, val)
-
-        dtype = cfg.get("torch_dtype", "float16")
-        info.kv_dtype_bytes = 2 if dtype in ("float16", "bfloat16") else 4
+            resp = await get_internal_client().get(f"{vllm_endpoint.rstrip('/')}/v1/models", timeout=5.0)
+            if resp.status_code != 200:
+                return None, None
+            models = resp.json().get("data", [])
+            if not models:
+                return None, None
+            model_id = models[0].get("id")
+            max_len = models[0].get("max_model_len")
+            return (
+                model_id if isinstance(model_id, str) and model_id else None,
+                max_len if isinstance(max_len, int) and max_len > 0 else None,
+            )
+        except (httpx.HTTPError, ValueError, AttributeError) as e:
+            logger.debug("[ModelConfigReader] vLLM API fetch failed: %s", e)
+            return None, None
 
     async def _find_running_pod(self, namespace: str, label_selector: str) -> str | None:
         try:
@@ -161,13 +149,13 @@ class ModelConfigReader:
             logger.debug("[ModelConfigReader] pod lookup failed (%s): %s", label_selector, e)
             return None
 
-    async def _exec_cat(self, namespace: str, pod_name: str, path: str) -> str | None:
+    async def _exec(self, namespace: str, pod_name: str, container: str | None, command: list[str]) -> str | None:
         try:
             from kubernetes import client as k8s_client
             from kubernetes import config as k8s_config
             from kubernetes.stream import stream
 
-            def _exec() -> str | None:
+            def _run() -> str | None:
                 try:
                     k8s_config.load_incluster_config()
                 except k8s_config.ConfigException:
@@ -176,56 +164,24 @@ class ModelConfigReader:
                     except k8s_config.ConfigException:
                         return None
                 core = k8s_client.CoreV1Api()
+                kwargs = {"container": container} if container else {}
                 result = stream(
                     core.connect_get_namespaced_pod_exec,
                     pod_name,
                     namespace,
-                    command=["cat", path],
+                    command=command,
                     stderr=False,
                     stdin=False,
                     stdout=True,
                     tty=False,
+                    **kwargs,
                 )
                 return result if isinstance(result, str) and result.strip() else None
 
-            return await asyncio.to_thread(_exec)
+            return await asyncio.to_thread(_run)
         except Exception as e:
-            logger.debug("[ModelConfigReader] exec cat %s on %s failed: %s", path, pod_name, e)
+            logger.debug("[ModelConfigReader] exec %s on %s failed: %s", command, pod_name, e)
             return None
-
-    async def _exec_file_size(self, namespace: str, pod_name: str, path: str) -> int | None:
-        try:
-            from kubernetes import client as k8s_client
-            from kubernetes import config as k8s_config
-            from kubernetes.stream import stream
-
-            def _exec() -> str | None:
-                try:
-                    k8s_config.load_incluster_config()
-                except k8s_config.ConfigException:
-                    try:
-                        k8s_config.load_kube_config()
-                    except k8s_config.ConfigException:
-                        return None
-                core = k8s_client.CoreV1Api()
-                result = stream(
-                    core.connect_get_namespaced_pod_exec,
-                    pod_name,
-                    namespace,
-                    command=["stat", "-c", "%s", path],
-                    stderr=False,
-                    stdin=False,
-                    stdout=True,
-                    tty=False,
-                )
-                return result if isinstance(result, str) else None
-
-            raw = await asyncio.to_thread(_exec)
-            if raw and raw.strip().isdigit():
-                return int(raw.strip())
-        except Exception as e:
-            logger.debug("[ModelConfigReader] exec stat %s on %s failed: %s", path, pod_name, e)
-        return None
 
 
 _reader = ModelConfigReader()

@@ -101,6 +101,7 @@ npm run type-check   # TypeScript type checking
 | `VLLM_CR_TYPE` | `inferenceservice` or `llminferenceservice` | `inferenceservice` |
 | `PROMETHEUS_URL` | Thanos Querier URL | internal SVC |
 | `STORAGE_PATH` | SQLite DB path | `/data/app.db` |
+| `ANALYST_ENDPOINT` | Analyst LLM endpoint (separate model, e.g. llm-ov); empty disables | `""` |
 | `REGISTRY` | Container registry | `quay.io/joopark` |
 | `IMAGE_TAG` | Image tag | `1.0.0` |
 
@@ -166,6 +167,8 @@ The backend is a FastAPI application written in Python, running on port `8000`. 
 -   **`services/k8s_operator.py`**: Handles all Kubernetes API operations — InferenceService readiness checks, args patching, rollback, and preflight permission validation. Lock-free; receives locks as parameters from AutoTuner.
 -   **`services/event_broadcaster.py`**: Manages SSE event queues (subscribe/unsubscribe/broadcast) and Prometheus metrics emission. Includes one-time persistence warning broadcast.
 -   **`services/tuner_logic.py`**: Contains Optuna study management, parameter search space definition, trial evaluation (warmup + probe + full), score computation, and FAnova importance analysis. Stateless; receives study/trial as parameters.
+-   **`services/model_analysis.py`** / **`services/model_config_reader.py`**: Deterministic model analysis. The reader execs into the serving container (`CRAdapter.model_container_name()`) to read `/mnt/models/config.json`, `openvino_config.json` and weight sizes; the analysis computes KV bytes per token (full / sliding-window / linear-attention state, KV-shared layers, MLA), capacity per context length and tuner search ranges. Feeds the startup-OOM pre-filter (one `max_model_len` sequence must fit) and the Tuner page.
+-   **`services/llm_assistant.py`**: Analyst LLM client bound to `ANALYST_ENDPOINT` — a separate small model (dev: `llm-ov`), never the tuning target. It only narrates computed facts (model analysis, tuning report, failure explanation); suggested warm-start params are clamped to the search space.
 -   **`services/metric_math.py`**: Pure histogram/rate math extracted from `multi_target_collector.py` (quantiles, means, counter rates). The collector keeps thin delegating methods for compatibility.
 -   **`services/storage_schema.py`**: SQLite DDL/table-creation extracted from `storage.py`; `Storage._create_*_tables` methods delegate here.
 -   **`metrics/prometheus_metrics.py`**: This module defines custom Prometheus metrics (gauges, counters, histograms) used by the vLLM Optimizer. It also exposes the `/metrics` endpoint, which Prometheus can scrape.

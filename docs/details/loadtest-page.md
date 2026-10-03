@@ -68,6 +68,7 @@ The main configuration form for normal load testing.
 | Concurrency | Number | Number of concurrent requests |
 | RPS | Number | Target requests per second |
 | Max Tokens | Number | Maximum tokens in response |
+| API Key (optional) | Password | Bearer token for gateway-fronted endpoints (MaaS). Sent as `Authorization: Bearer …`; never stored or echoed |
 | Prompt Template | Textarea | Custom prompt text for requests |
 | Temperature | Number | Sampling temperature (0.0–1.0) |
 | Stream | Checkbox | Enable streaming responses |
@@ -151,7 +152,7 @@ Detailed latency breakdown table:
 
 | Element | Condition | Description |
 |---------|-----------|-------------|
-| Save Button | `status === "completed" && !isMockEnabled` | "⬆ Save as Benchmark" — saves result to benchmarks |
+| Save Button | `status === "completed"` | "⬆ Save as Benchmark" — saves result to benchmarks |
 | Saved Status | After save | Shows "✓ Saved" or "✗ Save failed" |
 
 **Behavior**:
@@ -179,6 +180,7 @@ Detailed latency breakdown table:
 |-------|------|-------------|
 | Endpoint | Text input | vLLM API endpoint URL |
 | Model | Text input | Model identifier |
+| API Key (optional) | Password | Bearer token for gateway-fronted endpoints (MaaS); never stored |
 | RPS Start | Number | Starting requests per second |
 | RPS End | Number | Ending requests per second |
 | RPS Step | Number | Increment between steps |
@@ -223,9 +225,10 @@ Detailed latency breakdown table:
 | Card | Label | Data | Color |
 |------|-------|------|-------|
 | 1 | Optimal RPS | `sweepResult.optimal_rps` | Green |
-| 2 | Saturation RPS | `sweepResult.saturation_point` or "None" | Red |
-| 3 | Total Steps | `sweepResult.steps.length` | Cyan |
-| 4 | Duration | `sweepResult.total_duration` seconds | Amber |
+| 2 | Knee RPS | `sweepResult.knee_rps` — step maximizing token throughput / mean latency (Kleinrock power) among steps within the error-rate threshold; also drawn as a green "Knee" line on the chart | Cyan |
+| 3 | Saturation RPS | `sweepResult.saturation_point` or "None" | Red |
+| 4 | Total Steps | `sweepResult.steps.length` | Cyan |
+| 5 | Duration | `sweepResult.total_duration` seconds | Amber |
 
 #### 4.6 Sweep Chart
 
@@ -282,11 +285,6 @@ Visualizes the sweep results showing the relationship between RPS and latency/th
 - On mount, checks `/api/status/interrupted` for interrupted load test runs
 - If found, shows warning banner with dismiss option
 
-### Mock Data Mode
-
-- When `isMockEnabled` is true, uses `simulateLoadTest()` instead of API calls
-- Simulates progress, results, and latency data locally
-
 ---
 
 ## Related Components
@@ -310,7 +308,6 @@ Visualizes the sweep results showing the relationship between RPS and latency/th
 |--------|------|------|
 | useLoadTestSSE | `hooks/useLoadTestSSE.ts` | SSE connection for load tests |
 | ClusterConfigContext | `contexts/ClusterConfigContext.tsx` | Global cluster configuration |
-| MockDataContext | `contexts/MockDataContext.tsx` | Mock data toggle |
 
 ## Error States & Edge Cases
 

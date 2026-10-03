@@ -40,52 +40,44 @@ status: draft
 | 19 | `GET` | `/api/tuner/sessions` | Tuner | List tuning sessions |
 | 20 | `GET` | `/api/tuner/sessions/{session_id}` | Tuner | Get session detail |
 | 21 | `DELETE` | `/api/tuner/sessions/{session_id}` | Tuner | Delete tuning session |
-| 22 | `POST` | `/api/load_test/start` | Load Test | Start load test |
-| 23 | `POST` | `/api/load_test/stop` | Load Test | Stop load test |
-| 24 | `GET` | `/api/load_test/status` | Load Test | Get load test status |
-| 25 | `POST` | `/api/load_test/sweep` | Load Test | Start parameter sweep |
-| 26 | `GET` | `/api/load_test/stream` | Load Test | SSE result stream |
-| 27 | `GET` | `/api/load_test/history` | Load Test | Load test history |
-| 28 | `POST` | `/api/load_test/sweep/save` | Load Test | Save sweep result |
-| 29 | `GET` | `/api/load_test/sweep/history` | Load Test | List saved sweeps |
-| 30 | `GET` | `/api/load_test/sweep/history/{sweep_id}` | Load Test | Get single sweep |
-| 31 | `DELETE` | `/api/load_test/sweep/history/{sweep_id}` | Load Test | Delete sweep |
-| 32 | `GET` | `/api/vllm-config` | vLLM Config | Get vLLM config from K8s |
-| 33 | `PATCH` | `/api/vllm-config` | vLLM Config | Update vLLM config in K8s |
-| 34 | `GET` | `/api/benchmark/list` | Benchmark | List saved benchmarks |
-| 35 | `POST` | `/api/benchmark/save` | Benchmark | Save benchmark result |
-| 36 | `GET` | `/api/benchmark/by-model` | Benchmark | Benchmarks by model |
-| 37 | `POST` | `/api/benchmark/import` | Benchmark | Import from GuideLLM |
-| 38 | `GET` | `/api/benchmark/{benchmark_id}` | Benchmark | Get single benchmark |
-| 39 | `DELETE` | `/api/benchmark/{benchmark_id}` | Benchmark | Delete benchmark |
-| 40 | `PATCH` | `/api/benchmark/{benchmark_id}/metadata` | Benchmark | Update benchmark metadata |
-| 41 | `GET` | `/api/sla/profiles` | SLA | List SLA profiles |
-| 42 | `POST` | `/api/sla/profiles` | SLA | Create SLA profile |
-| 43 | `GET` | `/api/sla/profiles/{profile_id}` | SLA | Get SLA profile |
-| 44 | `PUT` | `/api/sla/profiles/{profile_id}` | SLA | Update SLA profile |
-| 45 | `DELETE` | `/api/sla/profiles/{profile_id}` | SLA | Delete SLA profile |
-| 46 | `POST` | `/api/sla/evaluate` | SLA | Evaluate against SLA |
-| 47 | `GET` | `/api/alerts/sla-violations` | Alerts | Get SLA violations |
-| 48 | `GET` | `/api/status/interrupted` | Status | Get interrupted runs |
-| 49 | `GET` | `/health` | System | Health check |
-| 50 | `GET` | `/` | System | Root endpoint |
-| 51 | `GET` | `/docs` | System | Swagger UI |
-| 52 | `GET` | `/redoc` | System | ReDoc documentation |
-| 53 | `GET` | `/openapi.json` | System | OpenAPI spec JSON |
+| 22 | `GET` | `/api/tuner/model-analysis` | Tuner | Deterministic model analysis (config.json → KV, capacity, search ranges) |
+| 23 | `POST` | `/api/tuner/model-analysis/explain` | Tuner | Analyst LLM narrative of an analysis |
+| 24 | `POST` | `/api/load_test/start` | Load Test | Start load test |
+| 25 | `POST` | `/api/load_test/stop` | Load Test | Stop load test |
+| 26 | `GET` | `/api/load_test/status` | Load Test | Get load test status |
+| 27 | `POST` | `/api/load_test/sweep` | Load Test | Start parameter sweep |
+| 28 | `GET` | `/api/load_test/stream` | Load Test | SSE result stream |
+| 29 | `GET` | `/api/load_test/history` | Load Test | Load test history |
+| 30 | `POST` | `/api/load_test/sweep/save` | Load Test | Save sweep result |
+| 31 | `GET` | `/api/load_test/sweep/history` | Load Test | List saved sweeps |
+| 32 | `GET` | `/api/load_test/sweep/history/{sweep_id}` | Load Test | Get single sweep |
+| 33 | `DELETE` | `/api/load_test/sweep/history/{sweep_id}` | Load Test | Delete sweep |
+| 34 | `GET` | `/api/vllm-config` | vLLM Config | Get vLLM config from K8s |
+| 35 | `PATCH` | `/api/vllm-config` | vLLM Config | Update vLLM config in K8s |
+| 36 | `GET` | `/api/benchmark/list` | Benchmark | List saved benchmarks |
+| 37 | `POST` | `/api/benchmark/save` | Benchmark | Save benchmark result |
+| 38 | `GET` | `/api/benchmark/by-model` | Benchmark | Benchmarks by model |
+| 39 | `POST` | `/api/benchmark/import` | Benchmark | Import from GuideLLM |
+| 40 | `GET` | `/api/benchmark/{benchmark_id}` | Benchmark | Get single benchmark |
+| 41 | `DELETE` | `/api/benchmark/{benchmark_id}` | Benchmark | Delete benchmark |
+| 42 | `PATCH` | `/api/benchmark/{benchmark_id}/metadata` | Benchmark | Update benchmark metadata |
+| 43 | `GET` | `/api/sla/profiles` | SLA | List SLA profiles |
+| 44 | `POST` | `/api/sla/profiles` | SLA | Create SLA profile |
+| 45 | `GET` | `/api/sla/profiles/{profile_id}` | SLA | Get SLA profile |
+| 46 | `PUT` | `/api/sla/profiles/{profile_id}` | SLA | Update SLA profile |
+| 47 | `DELETE` | `/api/sla/profiles/{profile_id}` | SLA | Delete SLA profile |
+| 48 | `POST` | `/api/sla/evaluate` | SLA | Evaluate against SLA |
+| 49 | `GET` | `/api/alerts/sla-violations` | Alerts | Get SLA violations |
+| 50 | `GET` | `/api/status/interrupted` | Status | Get interrupted runs |
+| 51 | `GET` | `/health` | System | Health check |
+| 52 | `GET` | `/` | System | Root endpoint |
+| 53 | `GET` | `/docs` | System | Swagger UI |
+| 54 | `GET` | `/redoc` | System | ReDoc documentation |
+| 55 | `GET` | `/openapi.json` | System | OpenAPI spec JSON |
 
 ---
 
 ## Common Types
-
-### Rate Limit Levels
-
-| Level | Requests | Window | Applies To |
-|-------|----------|--------|------------|
-| Exempt | Unlimited | N/A | Health, SSE streams, Prometheus |
-| Low | 3-5 | per minute | Tuner start, vLLM config writes |
-| Medium | 30 | per minute | vLLM config reads |
-| Standard | 60 | per minute | Config, Benchmark, SLA, Alerts |
-| High | 120 | per minute | Metrics endpoints |
 
 ### Standard Error Response
 
@@ -118,8 +110,6 @@ Configuration management for the vLLM optimizer. Controls which vLLM endpoint an
 ### GET /api/config
 
 Get the current vLLM optimizer configuration.
-
-**Rate Limit:** 60 requests/minute
 
 **Query Parameters:** None
 
@@ -162,8 +152,6 @@ Get the current vLLM optimizer configuration.
 ### PATCH /api/config
 
 Update the optimizer configuration. Allows changing the target endpoint, namespace, inference service name, and custom resource type.
-
-**Rate Limit:** 60 requests/minute
 
 **Request Body:**
 
@@ -213,8 +201,6 @@ Update the optimizer configuration. Allows changing the target endpoint, namespa
 
 Get default target services from the Kubernetes ConfigMap. Returns the configured default InferenceService and LLMInferenceService targets.
 
-**Rate Limit:** 60 requests/minute
-
 **Request Body:** None
 
 **Response (200 OK):**
@@ -246,8 +232,6 @@ Get default target services from the Kubernetes ConfigMap. Returns the configure
 ### PATCH /api/config/default-targets
 
 Update default target services in the Kubernetes ConfigMap.
-
-**Rate Limit:** 60 requests/minute
 
 **Request Body:**
 
@@ -295,8 +279,6 @@ Real-time and historical metrics collection from Prometheus/Thanos for vLLM infe
 ### GET /api/metrics/latest
 
 Get the latest metrics snapshot for the default target or a specified target service.
-
-**Rate Limit:** 120 requests/minute
 
 **Query Parameters:**
 
@@ -374,8 +356,6 @@ Get the latest metrics snapshot for the default target or a specified target ser
 
 Get batch metrics for multiple target services in a single request.
 
-**Rate Limit:** 120 requests/minute
-
 **Request Body:**
 
 ```json
@@ -445,8 +425,6 @@ Get batch metrics for multiple target services in a single request.
 ### POST /api/metrics/pods
 
 Get per-pod metrics breakdown for target services. Returns aggregated metrics plus individual pod-level data.
-
-**Rate Limit:** 120 requests/minute
 
 **Request Body:**
 
@@ -521,8 +499,6 @@ Get per-pod metrics breakdown for target services. Returns aggregated metrics pl
 
 Get per-pod historical metrics via Thanos. Returns time-series data for each pod.
 
-**Rate Limit:** 120 requests/minute
-
 **Request Body:**
 
 ```json
@@ -583,8 +559,6 @@ Get per-pod historical metrics via Thanos. Returns time-series data for each pod
 ### GET /api/metrics/history
 
 Get metrics history for a target service. Returns a time-series of metric snapshots.
-
-**Rate Limit:** 120 requests/minute
 
 **Query Parameters:**
 
@@ -655,8 +629,6 @@ Get metrics history for a target service. Returns a time-series of metric snapsh
 
 Prometheus metrics endpoint. Returns metrics in plain text Prometheus exposition format.
 
-**Rate Limit:** Exempt
-
 **Query Parameters:** None
 
 **Request Body:** None
@@ -682,8 +654,6 @@ Bayesian optimization engine for automatic vLLM parameter tuning using Optuna.
 
 Start Bayesian optimization auto-tuning. Launches an asynchronous optimization job that iteratively tests parameter configurations.
 
-**Rate Limit:** 3 requests/minute
-
 **Request Body:**
 
 ```json
@@ -708,7 +678,9 @@ Start Bayesian optimization auto-tuning. Launches an asynchronous optimization j
   "eval_rps": "number (optional)",
   "auto_benchmark": "boolean (optional)",
   "evaluation_mode": "single | sweep (optional)",
-  "sweep_config": "object (optional)"
+  "sweep_config": "object (optional)",
+  "enable_llm_assistant": "boolean (optional)",
+  "accelerator_memory_gib": "number (optional)"
 }
 ```
 
@@ -737,6 +709,8 @@ Start Bayesian optimization auto-tuning. Launches an asynchronous optimization j
 | `auto_benchmark` | boolean | false | Run benchmark after tuning |
 | `evaluation_mode` | string | `single` | `single` or `sweep` mode |
 | `sweep_config` | object | null | Configuration for sweep mode |
+| `enable_llm_assistant` | boolean | true | Use the analyst LLM (`ANALYST_ENDPOINT`) for warm-start suggestions, failure explanations and the report. No-op when unset or equal to the tuning endpoint |
+| `accelerator_memory_gib` | number | null | Per-GPU memory in GiB. Enables the KV budget (GPU count × this) for the startup-OOM pre-filter and the gpu_memory_utilization floor |
 
 **Response (200 OK):**
 
@@ -758,11 +732,35 @@ Start Bayesian optimization auto-tuning. Launches an asynchronous optimization j
 
 ---
 
+### GET /api/tuner/model-analysis
+
+Deterministic analysis of a target model. Reads `/mnt/models/config.json`, `openvino_config.json` and weight file sizes via pod exec (container `kserve-container` for InferenceService, `main` for LLMInferenceService), plus `/v1/models` for the served name and `max_model_len`.
+
+**Query Parameters:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `namespace`, `is_name`, `cr_type` | string | runtime target | Explicit target; all of `namespace`/`is_name` required to override |
+| `endpoint` | string | runtime endpoint | Endpoint for `/v1/models` |
+| `accelerator_memory_gib` | number | null | Per-GPU memory. Required for GPU targets to compute capacity |
+| `utilization` | number | 0.9 | Fraction of the memory budget usable for weights + KV |
+| `refresh` | boolean | false | Bypass the per-storageUri cache |
+
+**Response (200 OK):** `target`, `available`, `model` (layer mix, `kv_bytes_per_token`, `sliding_kv_bytes_per_token`, `linear_state_bytes_per_seq`, `model_weight_gib`, quantization, MoE, context limits, `warnings`), `runtime` (`gpu_count`, `tensor_parallel_size`, `kv_cache_dtype`, `current_args`), `memory_budget` (`gib`, `source`: `accelerator` | `pod_memory` | `unknown_accelerator_memory` | `unknown`), `capacity` (`context_len`, `kv_bytes_per_seq`, `max_concurrent_seqs`), `suggested_search_space`, `analyst_available`, `warnings`.
+
+KV per sequence = `kv_bytes_per_token × len + sliding_kv_bytes_per_token × min(len, sliding_window) + linear_state_bytes_per_seq`. Capacity is a theoretical upper bound (activation / CUDA graph overhead not subtracted).
+
+---
+
+### POST /api/tuner/model-analysis/explain
+
+Body: a `GET /api/tuner/model-analysis` response. Returns `{ "markdown": string | null, "analyst_available": bool }`. The analyst LLM (`ANALYST_ENDPOINT`) only narrates the given numbers; `markdown` is null when the analyst is not configured or fails.
+
+---
+
 ### GET /api/tuner/status
 
 Get the current status of the tuner, including running state, trial progress, and best results found so far.
-
-**Rate Limit:** 60 requests/minute (default)
 
 **Request Body:** None
 
@@ -803,8 +801,6 @@ Get the current status of the tuner, including running state, trial progress, an
 ### GET /api/tuner/trials
 
 Get tuning trials with pagination support. Returns details of each trial including parameters, scores, and status.
-
-**Rate Limit:** 60 requests/minute (default)
 
 **Query Parameters:**
 
@@ -870,8 +866,6 @@ Get tuning trials with pagination support. Returns details of each trial includi
 
 Stop the currently running auto-tuning job. Gracefully terminates the optimization process.
 
-**Rate Limit:** 60 requests/minute (default)
-
 **Request Body:** None
 
 **Response (200 OK):**
@@ -895,8 +889,6 @@ Stop the currently running auto-tuning job. Gracefully terminates the optimizati
 ### GET /api/tuner/stream
 
 Server-Sent Events (SSE) stream of tuner events. Provides real-time updates on trial progress, results, and status changes.
-
-**Rate Limit:** Exempt
 
 **Request Body:** None
 
@@ -922,8 +914,6 @@ data: {"running": true, "trials_completed": 5}
 ### GET /api/tuner/importance
 
 Get parameter importance rankings from Optuna FAnova analysis. Shows which parameters have the most impact on the optimization objective.
-
-**Rate Limit:** 60 requests/minute (default)
 
 **Request Body:** None
 
@@ -959,8 +949,6 @@ Higher values indicate greater influence on the optimization objective. Values s
 ### GET /api/tuner/all
 
 Get combined tuner state in a single request. Returns status, trials, and parameter importance together.
-
-**Rate Limit:** 60 requests/minute (default)
 
 **Request Body:** None
 
@@ -998,8 +986,6 @@ Get combined tuner state in a single request. Returns status, trials, and parame
 
 Apply the best parameters found during tuning to the vLLM deployment. Updates the Kubernetes deployment with optimized configuration.
 
-**Rate Limit:** 60 requests/minute (default)
-
 **Request Body:** None
 
 **Response (200 OK):**
@@ -1032,8 +1018,6 @@ Apply the best parameters found during tuning to the vLLM deployment. Updates th
 ### GET /api/tuner/sessions
 
 List saved tuning sessions with pagination. Each session represents a complete tuning run.
-
-**Rate Limit:** 60 requests/minute (default)
 
 **Query Parameters:**
 
@@ -1079,8 +1063,6 @@ List saved tuning sessions with pagination. Each session represents a complete t
 
 Get detailed information for a specific tuning session, including all trials and parameter importance data.
 
-**Rate Limit:** 60 requests/minute (default)
-
 **Path Parameters:**
 
 | Parameter | Type | Required | Description |
@@ -1118,8 +1100,6 @@ Get detailed information for a specific tuning session, including all trials and
 
 Delete a saved tuning session and all associated data.
 
-**Rate Limit:** 60 requests/minute (default)
-
 **Path Parameters:**
 
 | Parameter | Type | Required | Description |
@@ -1153,8 +1133,6 @@ Load testing engine for evaluating vLLM performance under various concurrency an
 ### POST /api/load_test/start
 
 Start a new load test against the configured vLLM endpoint.
-
-**Rate Limit:** 5 requests/minute
 
 **Request Body (LoadTestConfig):**
 
@@ -1193,6 +1171,7 @@ Start a new load test against the configured vLLM endpoint.
 | `prompt_mode` | string | No | `"static"` | Prompt mode: `"static"` or `"synthetic"` |
 | `endpoint_type` | string | No | `"completions"` | API endpoint type: `"completions"` or `"chat"` |
 | `synthetic_config` | object | No | `null` | Synthetic prompt config (used when `prompt_mode="synthetic"`) |
+| `api_key` | string | No | `null` | Bearer token for gateway-fronted endpoints (MaaS). Sent as `Authorization: Bearer …` on `/v1/models` and inference calls; excluded from every response and from persisted history/benchmarks |
 
 **Response (200 OK):**
 
@@ -1218,8 +1197,6 @@ Start a new load test against the configured vLLM endpoint.
 ### POST /api/load_test/stop
 
 Stop a running load test.
-
-**Rate Limit:** 5 requests/minute (default)
 
 **Query Parameters:**
 
@@ -1251,8 +1228,6 @@ Stop a running load test.
 ### GET /api/load_test/status
 
 Get the status of a load test. Returns current state, configuration, and partial results.
-
-**Rate Limit:** 60 requests/minute (default)
 
 **Query Parameters:**
 
@@ -1294,8 +1269,6 @@ Get the status of a load test. Returns current state, configuration, and partial
 
 Start a parameter sweep that tests multiple concurrency levels sequentially.
 
-**Rate Limit:** 5 requests/minute
-
 **Request Body (SweepConfig):**
 
 ```json
@@ -1333,6 +1306,9 @@ Start a parameter sweep that tests multiple concurrency levels sequentially.
 | `saturation_error_rate` | number | No | `0.1` | Error rate threshold for saturation detection |
 | `saturation_latency_factor` | number | No | `3.0` | P99 latency multiple vs step-1 for saturation detection |
 | `min_stable_steps` | integer | No | `1` | Consecutive saturated steps required to stop sweep |
+| `api_key` | string | No | `null` | Bearer token (same handling as load test `api_key`) |
+
+The final `sweep_completed` result includes `knee_rps`: the target RPS whose step maximizes token throughput / mean latency (Kleinrock power) among steps within `saturation_error_rate`.
 
 **Response (200 OK):**
 
@@ -1356,8 +1332,6 @@ Start a parameter sweep that tests multiple concurrency levels sequentially.
 ### GET /api/load_test/stream
 
 Server-Sent Events (SSE) stream of load test results. Provides real-time updates as the test progresses.
-
-**Rate Limit:** Exempt
 
 **Query Parameters:**
 
@@ -1387,8 +1361,6 @@ data: {"test_id": "abc123", "result": {...}}
 ### GET /api/load_test/history
 
 Get load test history with pagination.
-
-**Rate Limit:** 60 requests/minute (default)
 
 **Query Parameters:**
 
@@ -1431,8 +1403,6 @@ Get load test history with pagination.
 
 Save a sweep result to persistent storage.
 
-**Rate Limit:** 60 requests/minute (default)
-
 **Request Body:**
 
 ```json
@@ -1462,8 +1432,6 @@ Save a sweep result to persistent storage.
 ### GET /api/load_test/sweep/history
 
 List saved sweep results with pagination.
-
-**Rate Limit:** 60 requests/minute (default)
 
 **Query Parameters:**
 
@@ -1506,8 +1474,6 @@ List saved sweep results with pagination.
 
 Get a single saved sweep result by ID.
 
-**Rate Limit:** 60 requests/minute (default)
-
 **Path Parameters:**
 
 | Parameter | Type | Required | Description |
@@ -1539,8 +1505,6 @@ Get a single saved sweep result by ID.
 ### DELETE /api/load_test/sweep/history/{sweep_id}
 
 Delete a saved sweep result.
-
-**Rate Limit:** 60 requests/minute (default)
 
 **Path Parameters:**
 
@@ -1575,8 +1539,6 @@ Direct management of vLLM InferenceService configuration in Kubernetes. Reads an
 ### GET /api/vllm-config
 
 Get the current vLLM configuration from the Kubernetes InferenceService resource.
-
-**Rate Limit:** 30 requests/minute
 
 **Query Parameters:**
 
@@ -1643,8 +1605,6 @@ Get the current vLLM configuration from the Kubernetes InferenceService resource
 
 Update vLLM configuration in the Kubernetes InferenceService resource. Triggers a rolling update of the deployment.
 
-**Rate Limit:** 30 requests/minute
-
 **Request Body:**
 
 ```json
@@ -1709,8 +1669,6 @@ Storage and retrieval of benchmark results for performance comparison and SLA ev
 
 List saved benchmark results with pagination.
 
-**Rate Limit:** 60 requests/minute
-
 **Query Parameters:**
 
 | Parameter | Type | Required | Description |
@@ -1753,8 +1711,6 @@ List saved benchmark results with pagination.
 ### POST /api/benchmark/save
 
 Save a benchmark result to persistent storage.
-
-**Rate Limit:** 60 requests/minute
 
 **Request Body (Benchmark):**
 
@@ -1804,8 +1760,6 @@ Save a benchmark result to persistent storage.
 
 Get all benchmarks grouped by model name. Includes computed GPU efficiency metrics.
 
-**Rate Limit:** 60 requests/minute
-
 **Request Body:** None
 
 **Response (200 OK):**
@@ -1848,8 +1802,6 @@ Get all benchmarks grouped by model name. Includes computed GPU efficiency metri
 
 Import benchmark results from a GuideLLM JSON export file.
 
-**Rate Limit:** 60 requests/minute
-
 **Request Body:** `multipart/form-data` file upload
 
 | Field | Type | Required | Description |
@@ -1879,8 +1831,6 @@ Import benchmark results from a GuideLLM JSON export file.
 ### GET /api/benchmark/{benchmark_id}
 
 Get a single benchmark result by ID.
-
-**Rate Limit:** 60 requests/minute
 
 **Path Parameters:**
 
@@ -1916,8 +1866,6 @@ Get a single benchmark result by ID.
 
 Delete a benchmark result by ID.
 
-**Rate Limit:** 60 requests/minute
-
 **Path Parameters:**
 
 | Parameter | Type | Required | Description |
@@ -1948,8 +1896,6 @@ Delete a benchmark result by ID.
 ### PATCH /api/benchmark/{benchmark_id}/metadata
 
 Update the metadata of an existing benchmark.
-
-**Rate Limit:** 60 requests/minute
 
 **Path Parameters:**
 
@@ -1996,8 +1942,6 @@ Service Level Agreement management. Define SLA profiles and evaluate benchmark r
 
 List all SLA profiles with pagination.
 
-**Rate Limit:** 60 requests/minute
-
 **Query Parameters:**
 
 | Parameter | Type | Required | Description |
@@ -2042,8 +1986,6 @@ List all SLA profiles with pagination.
 ### POST /api/sla/profiles
 
 Create a new SLA profile.
-
-**Rate Limit:** 60 requests/minute
 
 **Request Body (SlaProfile):**
 
@@ -2093,8 +2035,6 @@ Create a new SLA profile.
 
 Get a specific SLA profile by ID.
 
-**Rate Limit:** 60 requests/minute
-
 **Path Parameters:**
 
 | Parameter | Type | Required | Description |
@@ -2126,8 +2066,6 @@ Get a specific SLA profile by ID.
 ### PUT /api/sla/profiles/{profile_id}
 
 Update an existing SLA profile. Full replacement of the profile data.
-
-**Rate Limit:** 60 requests/minute
 
 **Path Parameters:**
 
@@ -2183,8 +2121,6 @@ Update an existing SLA profile. Full replacement of the profile data.
 
 Delete an SLA profile.
 
-**Rate Limit:** 60 requests/minute
-
 **Path Parameters:**
 
 | Parameter | Type | Required | Description |
@@ -2213,8 +2149,6 @@ Delete an SLA profile.
 ### POST /api/sla/evaluate
 
 Evaluate one or more benchmark results against an SLA profile. Returns pass/fail verdicts for each metric.
-
-**Rate Limit:** 60 requests/minute
 
 **Request Body:**
 
@@ -2293,8 +2227,6 @@ Alerting and violation detection for SLA monitoring.
 
 Get current SLA violations across all active SLA profiles.
 
-**Rate Limit:** 60 requests/minute
-
 **Request Body:** None
 
 **Response (200 OK):**
@@ -2345,8 +2277,6 @@ System status and lifecycle management endpoints.
 
 Get and clear interrupted runs from the previous application lifecycle. Useful for recovering state after a restart.
 
-**Rate Limit:** 60 requests/minute
-
 **Request Body:** None
 
 **Response (200 OK):**
@@ -2383,8 +2313,6 @@ Health, root, and auto-generated documentation endpoints.
 ### GET /health
 
 Health check endpoint with dependency validation. Returns the health status of the application and its external dependencies.
-
-**Rate Limit:** Exempt
 
 **Query Parameters:**
 
@@ -2440,8 +2368,6 @@ Health check endpoint with dependency validation. Returns the health status of t
 
 Root endpoint. Returns basic service information and available API endpoints.
 
-**Rate Limit:** Exempt
-
 **Request Body:** None
 
 **Response (200 OK):**
@@ -2472,8 +2398,6 @@ Root endpoint. Returns basic service information and available API endpoints.
 
 OpenAPI Swagger UI. Auto-generated interactive API documentation.
 
-**Rate Limit:** Exempt
-
 **Response:** HTML page with Swagger UI interface.
 
 ---
@@ -2482,8 +2406,6 @@ OpenAPI Swagger UI. Auto-generated interactive API documentation.
 
 ReDoc documentation. Auto-generated alternative API documentation.
 
-**Rate Limit:** Exempt
-
 **Response:** HTML page with ReDoc interface.
 
 ---
@@ -2491,8 +2413,6 @@ ReDoc documentation. Auto-generated alternative API documentation.
 ### GET /openapi.json
 
 OpenAPI specification in JSON format. Machine-readable API definition.
-
-**Rate Limit:** Exempt
 
 **Response (200 OK):**
 
@@ -2526,10 +2446,6 @@ Endpoints that return lists support pagination via `limit` and `offset` query pa
 ### SSE Connection Handling
 
 Server-Sent Events endpoints maintain persistent connections with periodic keepalive messages. Clients should implement reconnection logic with exponential backoff.
-
-### Rate Limiting
-
-Rate limiting is implemented via slowapi with the `@limiter` decorator. When the rate limit is exceeded, the server returns HTTP 429 Too Many Requests.
 
 ### Error Handling
 

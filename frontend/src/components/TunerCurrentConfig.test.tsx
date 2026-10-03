@@ -2,7 +2,6 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import TunerCurrentConfig from './TunerCurrentConfig';
-import { MockDataProvider } from '../contexts/MockDataContext';
 import { ClusterConfigProvider } from '../contexts/ClusterConfigContext';
 import type { TunerConfig } from '../types';
 
@@ -56,11 +55,7 @@ const defaultProps = {
 };
 
 function renderWithProviders(ui: React.ReactElement) {
-  return render(
-    <MockDataProvider>
-      <ClusterConfigProvider>{ui}</ClusterConfigProvider>
-    </MockDataProvider>
-  );
+  return render(<ClusterConfigProvider>{ui}</ClusterConfigProvider>);
 }
 
 beforeEach(() => {

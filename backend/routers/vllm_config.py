@@ -11,7 +11,6 @@ from models.vllm_config import VllmConfigPatchResponse, VllmConfigResponse
 from pydantic import BaseModel
 from services.cr_adapter import deep_merge, get_cr_adapter
 from services.k8s_operator import get_k8s_namespace, get_vllm_is_name
-from services.rate_limiter import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -188,7 +187,6 @@ def _get_k8s_custom() -> CustomObjectsApi | None:
 
 
 @router.get("", response_model=VllmConfigResponse)
-@limiter.limit("30/minute")
 async def get_vllm_config(
     request: Request,
     namespace: str | None = Query(default=None),
@@ -236,7 +234,6 @@ async def get_vllm_config(
 
 
 @router.patch("", response_model=VllmConfigPatchResponse)
-@limiter.limit("30/minute")
 async def patch_vllm_config(
     request: Request,
     config: VllmConfigPatchRequest,

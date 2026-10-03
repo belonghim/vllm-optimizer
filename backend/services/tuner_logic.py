@@ -42,26 +42,28 @@ def _power_of_2_range(low: int, high: int) -> list[int]:
 
 
 def kv_cache_oom_risk(params: dict[str, Any], config: TuningConfig) -> bool:
-    """Return True when theoretical KV cache exceeds 90% of available memory.
+    """Return True when vLLM would refuse to start for lack of KV memory.
 
-    Skips the check and returns False if any required model dimension is unknown.
+    Startup needs one max_model_len sequence of attention KV plus the linear-attention (GDN/Mamba)
+    state reserved for every max_num_seqs slot. Attention KV beyond one sequence only causes
+    preemption, so max_num_seqs scales only the fixed state. Returns False when unknown.
     """
-    if not (config.model_num_kv_heads and config.model_num_layers and config.model_head_dim and config.pod_memory_gib):
+    if not (config.model_kv_bytes_per_token and config.memory_budget_gib):
         return False
-    max_num_seqs = params.get("max_num_seqs", 256)
     max_model_len = params.get("max_model_len", 4096)
+    max_num_seqs = params.get("max_num_seqs", 256)
     gpu_util = params.get("gpu_memory_utilization", 0.9)
-    kv_bytes = (
-        2  # K + V
-        * config.model_num_kv_heads
-        * config.model_head_dim
-        * config.model_kv_dtype_bytes
-        * config.model_num_layers
-        * max_num_seqs
-        * max_model_len
+    window = min(max_model_len, config.model_sliding_window) if config.model_sliding_window else max_model_len
+    required = (
+        config.model_kv_bytes_per_token * max_model_len
+        + config.model_sliding_kv_bytes_per_token * window
+        + config.model_linear_state_bytes_per_seq * max_num_seqs
     )
-    available_bytes = config.pod_memory_gib * gpu_util * (1024**3)
-    return kv_bytes > available_bytes * 0.9
+    if config.memory_budget_dedicated_kv:
+        available = config.memory_budget_gib * (1024**3)
+    else:
+        available = (config.memory_budget_gib * gpu_util - (config.model_weight_gib or 0.0)) * (1024**3)
+    return required > available * 0.9
 
 
 class _Broadcaster(Protocol):
@@ -158,8 +160,13 @@ class TunerLogic:
         )
 
         _gpu_util_low = config.gpu_memory_utilization_range[0]
-        if config.model_weight_gib and config.pod_memory_gib and config.pod_memory_gib > 0:
-            _weight_fraction = config.model_weight_gib / config.pod_memory_gib
+        if (
+            config.model_weight_gib
+            and config.memory_budget_gib
+            and config.memory_budget_gib > 0
+            and not config.memory_budget_dedicated_kv
+        ):
+            _weight_fraction = config.model_weight_gib / config.memory_budget_gib
             _floor = math.ceil(_weight_fraction * 1.1 * 100) / 100
             _floor = min(_floor, config.gpu_memory_utilization_range[1] - 0.05)
             _gpu_util_low = max(_gpu_util_low, _floor)

@@ -34,6 +34,7 @@ The vLLM Optimizer uses several environment variables for configuration. These a
 | `VLLM_DEPLOYMENT_NAME` | The KServe InferenceService name. Used by auto-tuner for IS name reference. Do not confuse with `K8S_DEPLOYMENT_NAME`. | `llm-ov` |
 | `VLLM_ENDPOINT` | The internal inference endpoint for the vLLM service, used for testing and load generation. | `http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080` |
 | `VLLM_MODEL` | The name of the vLLM model being used for testing. | `OpenVINO/Phi-4-mini-instruct-int4-ov` |
+| `ANALYST_ENDPOINT` | Analyst LLM used to narrate model analyses and tuning reports. Point it at a small model that is **not** the tuning target (dev overlay: `llm-ov`). Empty disables it. | `""` |
 
 ## Build & Push Images
 

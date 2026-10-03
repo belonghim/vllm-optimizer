@@ -239,6 +239,7 @@ export interface TunerConfig {
   eval_requests: number;
   enable_llm_assistant?: boolean;
   p99_latency_sla_ms?: number | null;
+  accelerator_memory_gib?: number | null;
 }
 
 export interface TuningWarmupSuggestionsPayload {
@@ -255,4 +256,70 @@ export interface TuningFailureExplanationPayload {
 export interface TuningReportPayload {
   markdown: string;
   summary?: Record<string, unknown>;
+}
+
+export interface ModelAnalysisModel {
+  architecture: string | null;
+  model_type: string | null;
+  multimodal: boolean;
+  num_hidden_layers: number | null;
+  full_attention_layers: number;
+  sliding_attention_layers: number;
+  linear_attention_layers: number;
+  kv_shared_layers: number;
+  num_attention_heads: number | null;
+  num_key_value_heads: number | null;
+  head_dim: number | null;
+  full_attention_head_dim: number | null;
+  mla: boolean;
+  sliding_window: number | null;
+  max_position_embeddings: number | null;
+  num_experts: number | null;
+  num_experts_per_tok: number | null;
+  weight_dtype: string | null;
+  quantization: string | null;
+  kv_cache_dtype: string;
+  kv_dtype_bytes: number;
+  kv_bytes_per_token: number | null;
+  sliding_kv_bytes_per_token: number;
+  linear_state_bytes_per_seq: number;
+  model_weight_gib: number | null;
+  served_model_name: string | null;
+  served_max_model_len: number | null;
+  warnings: string[];
+}
+
+export interface ModelCapacityRow {
+  context_len: number;
+  kv_bytes_per_seq: number;
+  max_concurrent_seqs: number;
+}
+
+export interface SuggestedSearchSpace {
+  max_num_seqs_min: number;
+  max_num_seqs_max: number;
+  max_model_len_min: number;
+  max_model_len_max: number;
+}
+
+export interface ModelAnalysis {
+  target: { namespace: string; name: string; cr_type: string };
+  available: boolean;
+  model: ModelAnalysisModel | null;
+  runtime: {
+    gpu_count?: number;
+    tensor_parallel_size?: number | null;
+    kv_cache_dtype?: string;
+    current_args?: Record<string, unknown>;
+  };
+  memory_budget: {
+    gib?: number | null;
+    source?: string;
+    utilization?: number | null;
+    dedicated_kv?: boolean;
+  };
+  capacity: ModelCapacityRow[];
+  suggested_search_space: SuggestedSearchSpace | null;
+  analyst_available: boolean;
+  warnings: string[];
 }

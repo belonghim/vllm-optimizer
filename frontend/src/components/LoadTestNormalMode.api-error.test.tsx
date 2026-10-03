@@ -19,10 +19,6 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'bypass' }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
-vi.mock('../contexts/MockDataContext', () => ({
-  useMockData: () => ({ isMockEnabled: false }),
-}));
-
 vi.mock('../contexts/ClusterConfigContext', () => ({
   useClusterConfig: () => ({
     endpoint: 'http://test-endpoint:8080',

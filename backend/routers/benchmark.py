@@ -12,7 +12,6 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Res
 from models.load_test import Benchmark, BenchmarkMetadata, ErrorResponse
 from services.guidellm_parser import parse_guidellm_json
 from services.model_resolver import resolve_model_name
-from services.rate_limiter import limiter
 from services.shared import multi_target_collector
 from services.storage import Storage
 
@@ -34,7 +33,6 @@ def get_storage() -> Storage:
         500: {"model": ErrorResponse},
     },
 )
-@limiter.limit("60/minute")
 async def list_benchmarks(
     request: Request,
     limit: int = Query(default=20, ge=1, le=1000),
@@ -64,7 +62,6 @@ async def list_benchmarks(
         500: {"model": ErrorResponse},
     },
 )
-@limiter.limit("60/minute")
 async def save_benchmark(
     request: Request,
     benchmark: Benchmark,
@@ -116,7 +113,6 @@ async def save_benchmark(
         500: {"model": ErrorResponse},
     },
 )
-@limiter.limit("60/minute")
 async def benchmarks_by_model(
     request: Request,
     storage: Storage = Depends(get_storage),
@@ -141,7 +137,6 @@ async def benchmarks_by_model(
 
 
 @router.post("/import")
-@limiter.limit("60/minute")
 async def import_guidellm_benchmark(
     request: Request,
     file: UploadFile = File(...),
@@ -174,7 +169,6 @@ async def import_guidellm_benchmark(
         500: {"model": ErrorResponse},
     },
 )
-@limiter.limit("60/minute")
 async def get_benchmark(
     request: Request,
     benchmark_id: int,
@@ -204,7 +198,6 @@ async def get_benchmark(
         500: {"model": ErrorResponse},
     },
 )
-@limiter.limit("60/minute")
 async def delete_benchmark(
     request: Request,
     benchmark_id: int,
@@ -235,7 +228,6 @@ async def delete_benchmark(
         500: {"model": ErrorResponse},
     },
 )
-@limiter.limit("60/minute")
 async def patch_benchmark_metadata(
     request: Request,
     benchmark_id: int,

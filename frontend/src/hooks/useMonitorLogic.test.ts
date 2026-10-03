@@ -3,10 +3,6 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { useMonitorLogic } from './useMonitorLogic';
 import { authFetch } from '../utils/authFetch';
 
-vi.mock('../contexts/MockDataContext', () => ({
-  useMockData: () => ({ isMockEnabled: false }),
-}));
-
 const mockState = vi.hoisted(() => ({
   targets: [
     { namespace: 'test-ns', inferenceService: 'test-is', crType: 'inferenceservice' },
@@ -40,11 +36,6 @@ vi.mock('../components/MonitorChartGrid', () => ({
   buildChartLinesMap: () => ({}),
   loadChartConfig: () => ({ order: [], hidden: [] }),
   saveChartConfig: vi.fn(),
-}));
-
-vi.mock('../mockData', () => ({
-  mockMetrics: () => ({}),
-  mockHistory: () => [],
 }));
 
 function makeSuccessResponse() {

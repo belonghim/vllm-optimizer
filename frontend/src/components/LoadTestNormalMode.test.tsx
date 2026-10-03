@@ -2,10 +2,6 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import LoadTestNormalMode from './LoadTestNormalMode';
 
-vi.mock('../contexts/MockDataContext', () => ({
-  useMockData: () => ({ isMockEnabled: false }),
-}));
-
 vi.mock('../contexts/ClusterConfigContext', () => ({
   useClusterConfig: () => ({
     endpoint: 'http://test-endpoint:8080',

@@ -25,6 +25,7 @@ const PARAM_FIELDS = [
   ['Concurrency', 'concurrency', 'number'],
   ['RPS (0=unlimited)', 'rps', 'number'],
   ['Max Tokens', 'max_tokens', 'number'],
+  ['API Key (optional)', 'api_key', 'password'],
 ] as const;
 
 const LoadTestParamForm = memo(function LoadTestParamForm({
@@ -47,7 +48,14 @@ const LoadTestParamForm = memo(function LoadTestParamForm({
             className="input"
             type={type}
             value={config[key] as string | number}
-            placeholder={key === 'model' ? 'auto (auto-detect)' : undefined}
+            placeholder={
+              key === 'model'
+                ? 'auto (auto-detect)'
+                : key === 'api_key'
+                  ? 'Bearer token (MaaS gateway)'
+                  : undefined
+            }
+            autoComplete={key === 'api_key' ? 'off' : undefined}
             onChange={(e) =>
               onChange(
                 key,

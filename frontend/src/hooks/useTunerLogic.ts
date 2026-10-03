@@ -4,9 +4,7 @@ import { useSSE } from './useSSE';
 import { authFetch } from '../utils/authFetch';
 import { API } from '../constants';
 import { ERROR_MESSAGES } from '../constants/errorMessages';
-import { useMockData } from '../contexts/MockDataContext';
 import { useClusterConfig } from '../contexts/ClusterConfigContext';
-import { mockTrials } from '../mockData';
 import { buildDefaultEndpoint } from '../utils/endpointUtils';
 import type {
   SSEErrorPayload,
@@ -110,7 +108,6 @@ export function useTunerLogic({
   onRunningChange?: (running: boolean) => void;
   targetOverride?: ClusterTarget | null;
 }) {
-  const { isMockEnabled } = useMockData();
   const { endpoint, namespace, inferenceservice, crType } = useClusterConfig();
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
@@ -132,49 +129,41 @@ export function useTunerLogic({
   const lastTargetOverrideRef = useRef<ClusterTarget | null | undefined>(undefined);
   const [config, setConfig] = useState<TunerConfig>(DEFAULT_CONFIG);
 
-  const fetchStatus = useCallback(
-    async (signal?: AbortSignal) => {
-      if (isMockEnabled) {
-        setTrials(mockTrials().map((trial) => ({ ...trial, params: { ...trial.params } })));
-        setError(null);
-        return;
+  const fetchStatus = useCallback(async (signal?: AbortSignal) => {
+    const safeFetch = async (url: string) => {
+      try {
+        const response = await authFetch(url, { signal });
+        if (!response.ok) return null;
+        return await response.json();
+      } catch (e) {
+        console.error(`Failed to fetch tuner data from ${url}`, e);
+        return null;
       }
-      const safeFetch = async (url: string) => {
-        try {
-          const response = await authFetch(url, { signal });
-          if (!response.ok) return null;
-          return await response.json();
-        } catch (e) {
-          console.error(`Failed to fetch tuner data from ${url}`, e);
-          return null;
-        }
-      };
-      const results = await Promise.allSettled([
-        safeFetch(`${API}/tuner/status`),
-        safeFetch(`${API}/tuner/trials`),
-        safeFetch(`${API}/tuner/importance`),
-      ]);
-      if (signal?.aborted) return;
-      const s = results[0].status === 'fulfilled' ? results[0].value : null;
-      const t = results[1].status === 'fulfilled' ? results[1].value : null;
-      const imp = results[2].status === 'fulfilled' ? results[2].value : null;
-      if (s) setStatus(s);
-      if (t) setTrials(t);
-      if (imp) setImportance(imp);
-      if (!s && !t && !imp) {
-        setError(ERROR_MESSAGES.TUNER.ALL_API_FAILED);
-      } else if (!s || !t || !imp) {
-        const failed: string[] = [];
-        if (!s) failed.push('status');
-        if (!t) failed.push('trials');
-        if (!imp) failed.push('importance');
-        setError(`${ERROR_MESSAGES.TUNER.PARTIAL_API_FAILED_PREFIX}${failed.join(', ')})`);
-      } else {
-        setError(null);
-      }
-    },
-    [isMockEnabled]
-  );
+    };
+    const results = await Promise.allSettled([
+      safeFetch(`${API}/tuner/status`),
+      safeFetch(`${API}/tuner/trials`),
+      safeFetch(`${API}/tuner/importance`),
+    ]);
+    if (signal?.aborted) return;
+    const s = results[0].status === 'fulfilled' ? results[0].value : null;
+    const t = results[1].status === 'fulfilled' ? results[1].value : null;
+    const imp = results[2].status === 'fulfilled' ? results[2].value : null;
+    if (s) setStatus(s);
+    if (t) setTrials(t);
+    if (imp) setImportance(imp);
+    if (!s && !t && !imp) {
+      setError(ERROR_MESSAGES.TUNER.ALL_API_FAILED);
+    } else if (!s || !t || !imp) {
+      const failed: string[] = [];
+      if (!s) failed.push('status');
+      if (!t) failed.push('trials');
+      if (!imp) failed.push('importance');
+      setError(`${ERROR_MESSAGES.TUNER.PARTIAL_API_FAILED_PREFIX}${failed.join(', ')})`);
+    } else {
+      setError(null);
+    }
+  }, []);
 
   useEffect(() => {
     if (!isActive) return;
@@ -190,8 +179,7 @@ export function useTunerLogic({
     };
   }, [isActive, fetchStatus]);
 
-  const tunerSSEUrl =
-    isActive && status.running && !isMockEnabled && !error ? `${API}/tuner/stream` : null;
+  const tunerSSEUrl = isActive && status.running && !error ? `${API}/tuner/stream` : null;
 
   useSSE(
     tunerSSEUrl,
@@ -237,7 +225,7 @@ export function useTunerLogic({
   );
 
   useEffect(() => {
-    if (!isActive || isMockEnabled) return;
+    if (!isActive) return;
     const controller = new AbortController();
     authFetch(`${API}/status/interrupted`, { signal: controller.signal })
       .then((r) => r.json())
@@ -253,7 +241,7 @@ export function useTunerLogic({
         console.warn('Failed to check interrupted status:', error);
       });
     return () => controller.abort();
-  }, [isActive, isMockEnabled]);
+  }, [isActive]);
 
   useEffect(() => {
     const targetChanged = lastTargetOverrideRef.current !== targetOverride;
@@ -271,7 +259,7 @@ export function useTunerLogic({
   }, [targetOverride, endpoint]);
 
   useEffect(() => {
-    if (!isActive || isMockEnabled) return;
+    if (!isActive) return;
     const controller = new AbortController();
     const query = targetOverride
       ? `?namespace=${encodeURIComponent(targetOverride.namespace)}&is_name=${encodeURIComponent(targetOverride.inferenceService)}&cr_type=${encodeURIComponent(targetOverride.crType)}`
@@ -330,14 +318,14 @@ export function useTunerLogic({
         console.error('Failed to fetch vLLM config:', err);
       });
     return () => controller.abort();
-  }, [isActive, isMockEnabled, targetOverride]);
+  }, [isActive, targetOverride]);
 
   useEffect(() => {
     onRunningChange?.(status.running);
   }, [status.running, onRunningChange]);
 
   const handleConfigChange = useCallback(
-    (field: string, value: string | number | boolean | number[]) => {
+    (field: string, value: string | number | boolean | number[] | null) => {
       setConfig((c) => ({ ...c, [field]: value }));
       userEditedRef.current[field] = true;
     },

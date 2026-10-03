@@ -24,6 +24,8 @@ data:
   DEFAULT_LLMISVC_NAMESPACE: ""
   # Optional CA certificate bundle for TLS verification
   CA_BUNDLE: ""
+  # Analyst LLM (separate small model, e.g. llm-ov) — explains analyses/reports; "" disables it
+  ANALYST_ENDPOINT: ""
 ---
 apiVersion: v1
 kind: Secret

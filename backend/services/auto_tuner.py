@@ -288,8 +288,15 @@ class AutoTuner:
     async def _read_failure_logs(self) -> str | None:
         return await self._k8s_operator.get_pod_logs()
 
-    async def _generate_report(self) -> None:
+    def _assistant_enabled(self) -> bool:
         if self._config is None or not self._config.enable_llm_assistant:
+            return False
+        assistant = get_llm_assistant()
+        # The analyst must not be the model being restarted and measured.
+        return assistant.available and assistant.endpoint != self._vllm_endpoint.rstrip("/")
+
+    async def _generate_report(self) -> None:
+        if self._config is None or not self._assistant_enabled():
             return
         if self._best_trial is None or not self._trials:
             return
@@ -324,16 +331,10 @@ class AutoTuner:
             "failure_breakdown": failure_breakdown,
             "parameter_importance": {k: round(v, 4) for k, v in list(importance.items())[:5]},
             "pareto_front_size": self._pareto_front_size,
-            "model_architecture": {
-                "num_hidden_layers": self._config.model_num_layers,
-                "num_key_value_heads": self._config.model_num_kv_heads,
-                "head_dim": self._config.model_head_dim,
-                "max_position_embeddings": self._config.model_max_position_embeddings,
-                "weight_size_gib": self._config.model_weight_gib,
-            },
+            "model_analysis": self._config.model_analysis,
         }
         try:
-            report = await get_llm_assistant().generate_tuning_report(endpoint=self._vllm_endpoint, summary=summary)
+            report = await get_llm_assistant().generate_tuning_report(summary=summary)
         except Exception as e:
             logger.debug("[AutoTuner] Report generation failed: %s", e)
             return
@@ -343,11 +344,10 @@ class AutoTuner:
     async def _explain_failure(
         self, trial_num: int, params: dict[str, Any], failure_reason: str, logs: str | None
     ) -> None:
-        if self._config is None or not self._config.enable_llm_assistant:
+        if not self._assistant_enabled():
             return
         try:
             explanation = await get_llm_assistant().summarize_failure(
-                endpoint=self._vllm_endpoint,
                 params=params,
                 failure_reason=failure_reason,
                 logs=logs,
@@ -410,13 +410,9 @@ class AutoTuner:
             return None
 
     async def _run_warmup_suggestions(self, config: TuningConfig) -> None:
-        if not config.enable_llm_assistant or self._study is None:
+        if not self._assistant_enabled() or self._study is None:
             return
-        model_info = {
-            "num_hidden_layers": config.model_num_layers,
-            "num_key_value_heads": config.model_num_kv_heads,
-            "head_dim": config.model_head_dim,
-            "kv_dtype_bytes": config.model_kv_dtype_bytes,
+        model_info = config.model_analysis or {
             "max_position_embeddings": config.model_max_position_embeddings,
             "weight_size_gib": config.model_weight_gib,
         }
@@ -440,10 +436,9 @@ class AutoTuner:
             "enable_chunked_prefill": {"choices": [True, False]},
             "enable_enforce_eager": {"choices": [True, False]},
         }
-        hw_context = {"pod_memory_gib": config.pod_memory_gib, "runtime": "OpenVINO or CUDA"}
+        hw_context = {"memory_budget_gib": config.memory_budget_gib, "runtime": "OpenVINO or CUDA"}
         try:
             suggestions = await get_llm_assistant().suggest_warmup_params(
-                endpoint=self._vllm_endpoint,
                 model_info=model_info,
                 search_space=search_space,
                 hw_context=hw_context,

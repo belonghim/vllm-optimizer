@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { authFetch } from '../utils/authFetch';
 import { API } from '../constants';
 import { ERROR_MESSAGES } from '../constants/errorMessages';
-import { useMockData } from '../contexts/MockDataContext';
 import { useClusterConfig } from '../contexts/ClusterConfigContext';
 import TunerConfigForm from './TunerConfigForm';
 import ConfirmDialog from './ConfirmDialog';
@@ -39,7 +38,6 @@ export default function TunerCurrentConfig({
   onError,
   onApplySuccess,
 }: TunerCurrentConfigProps) {
-  const { isMockEnabled } = useMockData();
   const { namespace, inferenceservice } = useClusterConfig();
   const [currentConfig, setCurrentConfig] = useState<Record<string, unknown> | null>(null);
   const [currentResources, setCurrentResources] = useState<Record<
@@ -62,7 +60,6 @@ export default function TunerCurrentConfig({
 
   useEffect(() => {
     if (!isActive) return;
-    if (isMockEnabled) return;
 
     const controller = new AbortController();
     const query = targetOverride
@@ -94,7 +91,7 @@ export default function TunerCurrentConfig({
         onError(`${ERROR_MESSAGES.TUNER.CONFIG_FETCH_ERROR_PREFIX}${err.message}`);
       });
     return () => controller.abort();
-  }, [isActive, isMockEnabled, namespace, inferenceservice, targetOverride, onError]);
+  }, [isActive, namespace, inferenceservice, targetOverride, onError]);
 
   const applyCurrentValues = useCallback(
     async (values: Record<string, unknown>) => {

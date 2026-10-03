@@ -186,3 +186,7 @@ def test_dual_cr_adapter_contract() -> None:
     assert env["name"] == "VLLM_ADDITIONAL_ARGS"
     assert "--max-num-seqs=32" in env["value"]
     assert llmis.deployment_name("phi") == "phi-kserve"
+
+    # Model analysis execs into the serving container that mounts /mnt/models
+    assert isvc.model_container_name() == "kserve-container"
+    assert llmis.model_container_name() == "main"

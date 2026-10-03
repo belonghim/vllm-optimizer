@@ -6,10 +6,6 @@ import MonitorPage, { buildChartLinesMap } from './MonitorPage';
 import { COLORS, TARGET_COLORS } from '../constants';
 
 // vi.mock must be at top level — vitest hoists these
-vi.mock('../contexts/MockDataContext', () => ({
-  useMockData: () => ({ isMockEnabled: true }),
-}));
-
 vi.mock('../contexts/ClusterConfigContext', () => {
   const targets = [
     { namespace: 'llm-d-demo', inferenceService: 'small-llm-d', crType: 'llminferenceservice' },
@@ -65,13 +61,13 @@ describe('MonitorPage', () => {
     const gpuMemTitle = screen.queryByText('GPU Memory (GB)');
     const tpotTitle = screen.queryByText('TPOT (ms)');
     const queueTimeTitle = screen.queryByText('Queue Time (ms) (vLLM v0.6+)');
-    // At least one chart title should be present in mock mode
+    // At least one chart title should be present
     expect(
       tpsTitle || latencyTitle || ttftTitle || gpuMemTitle || tpotTitle || queueTimeTitle
     ).toBeInTheDocument();
   });
 
-  it('does not show error banner in mock mode', () => {
+  it('does not show error banner while inactive', () => {
     render(<MonitorPage isActive={false} />);
     expect(screen.queryByText(/Query failed/)).not.toBeInTheDocument();
   });

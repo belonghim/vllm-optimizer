@@ -57,6 +57,16 @@ def _extract_served_model_name(args: Any) -> str | None:
     return last_name
 
 
+def extract_arg_value(args: list[str], flag: str) -> str | None:
+    value: str | None = None
+    for i, arg in enumerate(args):
+        if arg.startswith(flag + "="):
+            value = arg.split("=", 1)[1].strip() or None
+        elif arg == flag and i + 1 < len(args) and not args[i + 1].startswith("--"):
+            value = args[i + 1].strip() or None
+    return value
+
+
 _BOOLEAN_FLAGS = frozenset({"--enable-chunked-prefill", "--enforce-eager"})
 
 
@@ -245,6 +255,10 @@ class CRAdapter(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    def model_container_name(self) -> str:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     def metric_extra_selector(self, name: str) -> str:
         """Additional Prometheus selector fragment to differentiate this CR's metrics.
 
@@ -345,6 +359,9 @@ class InferenceServiceAdapter(CRAdapter):
     def resolve_model_name(self, spec: dict[str, Any], fallback_name: str) -> str:
         args = spec.get("predictor", {}).get("model", {}).get("args") or []
         return _extract_served_model_name(args) or fallback_name
+
+    def model_container_name(self) -> str:
+        return "kserve-container"
 
 
 class LLMInferenceServiceAdapter(CRAdapter):
@@ -525,6 +542,9 @@ class LLMInferenceServiceAdapter(CRAdapter):
         if isinstance(model_name, str) and model_name.strip():
             return model_name
         return fallback_name
+
+    def model_container_name(self) -> str:
+        return self._MAIN_CONTAINER_NAME
 
 
 def get_cr_adapter(cr_type: str | None = None) -> CRAdapter:

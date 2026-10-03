@@ -333,7 +333,8 @@ export default function TunerConfigForm({
           htmlFor="tuner-llm-assistant"
           style={{ margin: 0, cursor: isRunning ? 'default' : 'pointer' }}
         >
-          Enable LLM Tuning Assistant (warm-start suggestions, failure analysis, final report)
+          Use analyst LLM (ANALYST_ENDPOINT) for warm-start suggestions, failure analysis and the
+          final report
         </label>
       </div>
 

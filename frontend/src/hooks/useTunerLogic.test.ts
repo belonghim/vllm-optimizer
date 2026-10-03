@@ -2,10 +2,6 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useTunerLogic } from './useTunerLogic';
 
-vi.mock('../contexts/MockDataContext', () => ({
-  useMockData: () => ({ isMockEnabled: false }),
-}));
-
 const mockConfig = vi.hoisted(() => ({ endpoint: 'http://test-endpoint:8080' }));
 
 vi.mock('../contexts/ClusterConfigContext', () => ({
@@ -18,10 +14,6 @@ vi.mock('../contexts/ClusterConfigContext', () => ({
 
 vi.mock('./useSSE', () => ({
   useSSE: vi.fn(),
-}));
-
-vi.mock('../mockData', () => ({
-  mockTrials: () => [],
 }));
 
 function makeDefaultFetch() {

@@ -215,11 +215,6 @@ For each target in the batch response:
 - Each timestamp key gets prefixed metric keys: `{targetKey}_{metricKey}`
 - In "Live" mode, filters to last 5 minutes only (cutoff: `Date.now()/1000 - 300`)
 
-### Mock Data Mode
-
-- When `isMockEnabled` is true, uses `mockMetrics()` and `mockHistory()` instead of API calls
-- No network requests are made
-
 ---
 
 ## Related Components
@@ -238,7 +233,6 @@ For each target in the batch response:
 | Module | File | Role |
 |--------|------|------|
 | ClusterConfigContext | `contexts/ClusterConfigContext.tsx` | Provides `targets`, `crType`, `addTarget`, `removeTarget`, `setDefaultTarget` |
-| MockDataContext | `contexts/MockDataContext.tsx` | Provides `isMockEnabled` |
 | ThemeContext | `contexts/ThemeContext.tsx` | Provides `COLORS` for chart theming |
 
 ## Related Hooks

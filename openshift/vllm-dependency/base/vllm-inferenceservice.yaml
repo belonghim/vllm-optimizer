@@ -13,8 +13,10 @@ spec:
       runtime: vllm-openvino-runtime
       storageUri: oci://quay.io/joopark/ai1/modelcar-qwen3.5-2b-int4-ov
       args:
-        - --served-model-name=OpenVINO/Qwen3.5-2B-Instruct-int4-ov
-        - --max-num-seqs=256
+        - --served-model-name=OpenVINO/Qwen3.5-2B-int4-ov
+        # Qwen3.5 is hybrid (GDN): OpenVINO reserves linear state per max_num_seqs slot from the 4 GiB KV space;
+        # 256 slots leave 0 KV blocks and the engine fails to start.
+        - --max-num-seqs=32
         - --gpu-memory-utilization=0.90
         - --max-model-len=8192
         - --max-num-batched-tokens=2048

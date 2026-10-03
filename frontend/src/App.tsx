@@ -7,7 +7,6 @@ const LoadTestPage = lazy(() => import('./pages/LoadTestPage'));
 const BenchmarkPage = lazy(() => import('./pages/BenchmarkPage'));
 const TunerPage = lazy(() => import('./pages/TunerPage'));
 const SlaPage = lazy(() => import('./pages/SlaPage'));
-import MockDataSwitch from './components/MockDataSwitch';
 import ThemeToggle from './components/ThemeToggle';
 import ErrorBoundary from './components/ErrorBoundary';
 import { BenchmarkSelectionProvider } from './contexts/BenchmarkSelectionContext';
@@ -101,8 +100,6 @@ export default function App() {
 
         <div className="app-header-right">
           <ThemeToggle />
-          <div className="app-header-divider" />
-          <MockDataSwitch />
           <div className="app-header-divider" />
           <div className="app-header-status-dot" />
           <span className="app-header-status-text" aria-live="assertive" aria-atomic="true">

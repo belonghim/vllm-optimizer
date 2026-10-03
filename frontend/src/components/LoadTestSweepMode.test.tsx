@@ -229,10 +229,12 @@ describe('LoadTestSweepMode', () => {
         ],
         saturation_point: 15,
         optimal_rps: 10,
+        knee_rps: 5,
         total_duration: 60.5,
       });
     });
     expect(screen.getByText('Optimal RPS')).toBeInTheDocument();
+    expect(screen.getByText('Knee RPS')).toBeInTheDocument();
     expect(screen.getByText('Saturation RPS')).toBeInTheDocument();
     expect(screen.getByText('Total Steps')).toBeInTheDocument();
     expect(screen.getByText('Duration')).toBeInTheDocument();

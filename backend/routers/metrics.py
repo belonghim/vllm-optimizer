@@ -22,7 +22,6 @@ from services.metrics_service import (
     _convert_to_snapshot,
     _get_history_from_thanos,
 )
-from services.rate_limiter import limiter
 from services.shared import multi_target_collector as _default_collector
 from services.shared import runtime_config as _default_runtime_config
 
@@ -44,7 +43,6 @@ def get_runtime_config():
         409: {"model": ErrorResponse},
     },
 )
-@limiter.limit("120/minute")
 async def get_latest_metrics(
     request: Request,
     namespace: str | None = None,
@@ -89,7 +87,6 @@ async def get_latest_metrics(
 
 
 @router.post("/batch", response_model=BatchMetricsResponse)
-@limiter.limit("120/minute")
 async def get_batch_metrics(
     request: Request,
     body: BatchMetricsRequest,
@@ -155,7 +152,6 @@ async def get_batch_metrics(
 
 
 @router.post("/pods", response_model=None)
-@limiter.limit("120/minute")
 async def get_pod_metrics(
     request: Request,
     body: BatchMetricsRequest,
@@ -267,7 +263,6 @@ async def get_pod_metrics(
 
 
 @router.post("/pods/history", response_model=BatchMetricsResponse)
-@limiter.limit("120/minute")
 async def get_pods_history(
     request: Request,
     body: BatchMetricsRequest,
@@ -320,7 +315,6 @@ def _pod_metric_to_snapshot_field(metric_name: str) -> str | None:
 
 
 @router.get("/history", response_model=list[MetricsSnapshot])
-@limiter.limit("120/minute")
 async def get_metrics_history(
     request: Request,
     last_n: int | None = Query(default=60, ge=1, le=10000),
@@ -362,7 +356,6 @@ async def get_metrics_history(
 
 
 @router.get("", response_model=None)
-@limiter.exempt
 async def get_prometheus_metrics() -> PlainTextResponse:
     from fastapi.responses import PlainTextResponse
     from metrics.prometheus_metrics import generate_metrics
@@ -371,7 +364,6 @@ async def get_prometheus_metrics() -> PlainTextResponse:
 
 
 @router.get("/discover")
-@limiter.limit("60/minute")
 async def discover_services(
     request: Request,
     namespace: str | None = Query(default=None, description="Namespace to query for CRs"),

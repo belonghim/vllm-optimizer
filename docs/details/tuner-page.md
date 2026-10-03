@@ -26,7 +26,23 @@ The TunerPage provides automated hyperparameter tuning for vLLM inference servic
 
 ---
 
-### 2. TunerConfigSection Component
+### 2. TunerModelAnalysis Component
+
+**Source**: `frontend/src/components/TunerModelAnalysis.tsx` · API `GET /api/tuner/model-analysis`
+
+Deterministic analysis of the selected target's `/mnt/models/config.json` (read via pod exec into `kserve-container` / `main`). No LLM is involved in the numbers.
+
+| Element | Description |
+|---------|-------------|
+| GPU memory per device (GiB) | Needed for GPU targets (not discoverable from the CR). CPU/OpenVINO targets use the pod memory limit. Also sent with tuner start as `accelerator_memory_gib` |
+| Facts | Architecture, layer mix (full / sliding / linear, KV-shared), heads/head_dim, KV bytes per token, sliding-window and linear-state memory, KV cache dtype, weight size, quantization, MoE, context limits |
+| Capacity table | Max concurrent sequences per context length = (budget × 0.9 − weights) / KV per sequence. Theoretical upper bound |
+| Apply to search space | Copies the suggested `max_num_seqs` / `max_model_len` ranges into the tuner form |
+| Explain with analyst LLM | Shown only when `ANALYST_ENDPOINT` is set. Sends the computed analysis to the analyst model (e.g. llm-ov) for a short Korean narrative; it must not invent numbers |
+
+---
+
+### 3. TunerConfigSection Component
 
 **Source**: `frontend/src/components/TunerConfigSection.tsx`
 
@@ -83,7 +99,7 @@ Contains the tuning configuration form and control buttons. Also fetches current
 
 ---
 
-### 3. TunerResults Component
+### 4. TunerResults Component
 
 **Source**: `frontend/src/components/TunerResults.tsx`
 
@@ -144,7 +160,7 @@ Shown when `bestParams` exists.
 
 ---
 
-### 4. TunerHistoryPanel Component
+### 5. TunerHistoryPanel Component
 
 **Source**: `frontend/src/components/TunerHistoryPanel.tsx`
 
@@ -243,7 +259,6 @@ The core business logic for the TunerPage.
 | useTunerLogic | `hooks/useTunerLogic.ts` | Core tuning logic |
 | useSSE | `hooks/useSSE.ts` | Server-Sent Events connection |
 | ClusterConfigContext | `contexts/ClusterConfigContext.tsx` | Global cluster configuration |
-| MockDataContext | `contexts/MockDataContext.tsx` | Mock data toggle |
 
 ## Error States & Edge Cases
 

@@ -4,7 +4,6 @@ from fastapi import APIRouter, HTTPException, Query, Request, Response
 from models.load_test import Benchmark
 from models.sla import SlaEvaluateResponse, SlaEvaluationResult, SlaProfile, SlaVerdict
 from pydantic import BaseModel
-from services.rate_limiter import limiter
 from services.shared import storage
 
 router = APIRouter()
@@ -268,7 +267,6 @@ def evaluate_benchmarks_against_sla(
 
 
 @router.get("/profiles", response_model=list[SlaProfile])
-@limiter.limit("60/minute")
 async def list_profiles(
     request: Request,
     limit: int = Query(default=50, ge=1),
@@ -284,14 +282,12 @@ async def list_profiles(
 
 
 @router.post("/profiles", response_model=SlaProfile, status_code=201)
-@limiter.limit("60/minute")
 async def create_profile(request: Request, profile: SlaProfile) -> SlaProfile:
     """Create a new SLA profile."""
     return await storage.save_sla_profile(profile)
 
 
 @router.get("/profiles/{profile_id}", response_model=SlaProfile)
-@limiter.limit("60/minute")
 async def get_profile(request: Request, profile_id: int) -> SlaProfile:
     """Retrieve an SLA profile by ID."""
     profile = await storage.get_sla_profile(profile_id)
@@ -301,7 +297,6 @@ async def get_profile(request: Request, profile_id: int) -> SlaProfile:
 
 
 @router.put("/profiles/{profile_id}", response_model=SlaProfile)
-@limiter.limit("60/minute")
 async def update_profile(request: Request, profile_id: int, profile: SlaProfile) -> SlaProfile:
     """Update an existing SLA profile."""
     updated = await storage.update_sla_profile(profile_id, profile)
@@ -311,7 +306,6 @@ async def update_profile(request: Request, profile_id: int, profile: SlaProfile)
 
 
 @router.delete("/profiles/{profile_id}")
-@limiter.limit("60/minute")
 async def delete_profile(request: Request, profile_id: int) -> dict[str, bool]:
     """Delete an SLA profile by ID."""
     deleted = await storage.delete_sla_profile(profile_id)
@@ -321,7 +315,6 @@ async def delete_profile(request: Request, profile_id: int) -> dict[str, bool]:
 
 
 @router.post("/evaluate", response_model=SlaEvaluateResponse)
-@limiter.limit("60/minute")
 async def evaluate_profile(request: Request, eval_request: SlaEvaluateRequest) -> SlaEvaluateResponse:
     """Evaluate benchmarks against an SLA profile."""
     profile = await storage.get_sla_profile(eval_request.profile_id)

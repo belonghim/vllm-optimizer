@@ -13,9 +13,14 @@ rules:
 - apiGroups: [""]
   resources: ["pods"]
   verbs: ["get", "list"]
+# Model analysis reads /mnt/models/config.json and weight sizes via a fixed exec command
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  verbs: ["create", "get"]
 - apiGroups: ["serving.kserve.io"]
   resources: ["inferenceservices", "llminferenceservices"]
-  verbs: ["get", "list", "patch"]
+  # create/delete: the auto-tuner applies trial args by delete + recreate (k8s_operator.apply_params)
+  verbs: ["get", "list", "patch", "create", "delete"]
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1

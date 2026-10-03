@@ -11,7 +11,6 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Request
 from models.load_test import ErrorResponse
 from pydantic import BaseModel
-from services.rate_limiter import limiter
 from services.storage import Storage
 
 router = APIRouter()
@@ -48,7 +47,6 @@ class LoadTargetsResponse(BaseModel):
         500: {"model": ErrorResponse},
     },
 )
-@limiter.limit("60/minute")
 async def save_targets(
     request: Request,
     payload: SaveTargetsRequest,
@@ -78,7 +76,6 @@ async def save_targets(
         500: {"model": ErrorResponse},
     },
 )
-@limiter.limit("60/minute")
 async def load_targets(
     request: Request,
     storage: Storage = Depends(get_storage),

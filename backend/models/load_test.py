@@ -45,6 +45,12 @@ class LoadTestConfig(BaseModel):
     synthetic_config: SyntheticPromptConfig | None = Field(
         default=None, description="Synthetic prompt config (used when prompt_mode='synthetic')"
     )
+    api_key: str | None = Field(
+        default=None,
+        exclude=True,
+        repr=False,
+        description="Bearer token for gateway-fronted endpoints (e.g. MaaS). Never persisted or echoed.",
+    )
 
 
 class RequestResult(BaseModel):
@@ -144,6 +150,12 @@ class SweepConfig(BaseModel):
         default=3.0, ge=1.0, description="P99 latency multiple vs step-1 for saturation detection"
     )
     min_stable_steps: int = Field(default=1, ge=1, description="Consecutive saturated steps required to stop sweep")
+    api_key: str | None = Field(
+        default=None,
+        exclude=True,
+        repr=False,
+        description="Bearer token for gateway-fronted endpoints (e.g. MaaS). Never persisted or echoed.",
+    )
 
 
 class SweepStepResult(BaseModel):
@@ -159,6 +171,10 @@ class SweepResult(BaseModel):
     steps: list[SweepStepResult] = Field(default_factory=list)
     saturation_point: float | None = Field(default=None, description="RPS at which saturation was first detected")
     optimal_rps: float | None = Field(default=None, description="Last non-saturated RPS (recommended operating point)")
+    knee_rps: float | None = Field(
+        default=None,
+        description="Knee: target RPS maximizing token throughput / mean latency (Kleinrock power) among healthy steps",
+    )
     total_duration: float = Field(default=0.0, description="Total sweep duration in seconds")
 
 
@@ -232,32 +248,39 @@ class TuningConfig(BaseModel):
         default=None, description="Model's actual max context length — clamps max_model_len search space"
     )
     model_weight_gib: float | None = Field(
-        default=None, description="Model weight size in GiB (from openvino_model.bin or safetensors)"
+        default=None, description="Model weight size in GiB (sum of safetensors/bin/gguf files)"
     )
-    pod_memory_gib: float | None = Field(
+    memory_budget_gib: float | None = Field(
         default=None,
-        description="Pod memory budget in GiB (from CR requests.memory) — used to derive safe gpu_memory_utilization floor",
+        description="KV+weights memory budget in GiB (GPU: per-device memory × GPU count, CPU: pod memory)",
+    )
+    memory_budget_dedicated_kv: bool = Field(
+        default=False,
+        description="Budget is a dedicated KV pool (OpenVINO KV space): no utilization factor, no weight subtraction",
     )
     served_model_name_warning: str | None = Field(
         default=None, description="Non-None when --served-model-name in CR differs from the name vLLM actually reports"
     )
-    model_num_kv_heads: int | None = Field(
-        default=None, description="KV heads count from config.json — used for KV cache OOM pre-filter"
+    model_kv_bytes_per_token: int | None = Field(
+        default=None, description="KV bytes per token for full-attention layers (grows with context)"
     )
-    model_num_layers: int | None = Field(
-        default=None, description="Transformer layer count — used for KV cache OOM pre-filter"
+    model_sliding_kv_bytes_per_token: int = Field(
+        default=0, description="KV bytes per token for sliding-window layers (capped at model_sliding_window)"
     )
-    model_head_dim: int | None = Field(
-        default=None, description="Attention head dimension (hidden_size/num_heads) — used for KV cache OOM pre-filter"
+    model_sliding_window: int | None = Field(default=None, description="Sliding attention window in tokens")
+    model_linear_state_bytes_per_seq: int = Field(
+        default=0, description="Fixed linear-attention (GDN/Mamba) state bytes per sequence slot (max_num_seqs)"
     )
-    model_kv_dtype_bytes: int = Field(default=2, description="KV cache dtype bytes: 2=fp16/bf16, 4=fp32")
+    model_analysis: dict[str, Any] | None = Field(
+        default=None, description="Deterministic model analysis snapshot — context for the analyst LLM"
+    )
     p99_latency_sla_ms: int | None = Field(
         default=None,
         description="P99 latency SLA in ms — used with objective='sla_tps' to maximize TPS within latency budget",
     )
     enable_llm_assistant: bool = Field(
         default=_D["enable_llm_assistant"],
-        description="Enable LLM-based tuning assistant (warmup suggestions, failure explanations, final report) using the target vLLM endpoint",
+        description="Enable the analyst LLM (ANALYST_ENDPOINT) for warmup suggestions, failure explanations and the final report",
     )
 
     @model_validator(mode="after")

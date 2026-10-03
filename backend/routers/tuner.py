@@ -24,8 +24,10 @@ from models.load_test import (
 )
 from pydantic import BaseModel, Field, model_validator
 from services.auto_tuner import AutoTuner
+from services.cr_adapter import CRAdapter, extract_arg_value, get_cr_adapter
+from services.llm_assistant import get_llm_assistant
+from services.model_analysis import ModelAnalysis, capacity_table, memory_budget, suggest_search_space
 from services.model_config_reader import get_model_config_reader
-from services.rate_limiter import limiter
 from services.shared import load_engine, multi_target_collector, runtime_config, storage
 
 logger = logging.getLogger(__name__)
@@ -92,6 +94,7 @@ class TuningStartRequest(BaseModel):
     sweep_config: SweepConfig | None = None
     p99_latency_sla_ms: int | None = None
     enable_llm_assistant: bool = TUNING_DEFAULTS["enable_llm_assistant"]
+    accelerator_memory_gib: float | None = Field(default=None, gt=0, le=1024)
 
     @model_validator(mode="after")
     def validate_sweep_mode(self) -> "TuningStartRequest":
@@ -192,6 +195,163 @@ def _parse_memory_gib(value: str) -> float | None:
         return None
 
 
+class ModelAnalysisResponse(BaseModel):
+    """Deterministic analysis of the current tuning target (config.json + CR + memory budget)."""
+
+    target: dict[str, str]
+    available: bool = False
+    model: dict[str, Any] | None = None
+    runtime: dict[str, Any] = Field(default_factory=dict)
+    memory_budget: dict[str, Any] = Field(default_factory=dict)
+    capacity: list[dict[str, Any]] = Field(default_factory=list)
+    suggested_search_space: dict[str, int] | None = None
+    analyst_available: bool = False
+    warnings: list[str] = Field(default_factory=list)
+
+
+class ModelAnalysisExplainResponse(BaseModel):
+    markdown: str | None = None
+    analyst_available: bool = False
+
+
+async def _read_target_spec(namespace: str, is_name: str, adapter: CRAdapter) -> dict[str, Any] | None:
+    custom = auto_tuner._k8s_custom
+    if custom is None:
+        return None
+    try:
+        obj = await asyncio.to_thread(
+            custom.get_namespaced_custom_object,
+            group=adapter.api_group(),
+            version=adapter.api_version(),
+            namespace=namespace,
+            plural=adapter.api_plural(),
+            name=is_name,
+        )
+    except ApiException as e:
+        logger.warning("[Tuner] Failed to read %s/%s for model analysis: %s", namespace, is_name, e.reason)
+        return None
+    return obj.get("spec", {}) if isinstance(obj, dict) else None
+
+
+async def _analyze_target(
+    vllm_endpoint: str,
+    accelerator_memory_gib: float | None,
+    utilization: float,
+    refresh: bool = False,
+    target: tuple[str, str, str] | None = None,
+) -> tuple[ModelAnalysisResponse, ModelAnalysis | None, dict[str, Any] | None, CRAdapter]:
+    """Analyze ``target`` (namespace, name, cr_type) or, when None, the runtime-config target."""
+    if target is not None:
+        namespace, is_name, cr_type = target
+        adapter = get_cr_adapter(cr_type)
+        cr_spec = await _read_target_spec(namespace, is_name, adapter)
+    else:
+        namespace = runtime_config.vllm_namespace or "default"
+        is_name = runtime_config.vllm_is_name or "llm-ov"
+        cr_type = runtime_config.cr_type
+        cr_spec, adapter = await auto_tuner.get_cr_context()
+
+    assistant = get_llm_assistant()
+    resp = ModelAnalysisResponse(
+        target={"namespace": namespace, "name": is_name, "cr_type": cr_type},
+        analyst_available=assistant.available,
+    )
+    if assistant.available and assistant.endpoint == vllm_endpoint.rstrip("/"):
+        resp.warnings.append("분석 LLM(ANALYST_ENDPOINT)이 튜닝 대상과 같음 — 튜닝 중 분석 LLM 호출은 생략됩니다")
+
+    storage_uri: str | None = None
+    pod_selector: str | None = None
+    container: str | None = None
+    resources: dict[str, Any] = {}
+    static_args: list[str] = []
+    if cr_spec is None:
+        resp.warnings.append("대상 CR을 읽지 못함 — 대상 설정과 RBAC를 확인하세요")
+    else:
+        storage_uri = adapter.read_model_uri(cr_spec)
+        pod_selector = adapter.pod_label_selector(is_name)
+        container = adapter.model_container_name()
+        resources = adapter.read_resources(cr_spec)
+        static_args = adapter.read_extra_args(cr_spec)
+
+    reader = get_model_config_reader()
+    if refresh:
+        reader.invalidate(storage_uri)
+    analysis = await reader.read(
+        vllm_endpoint=vllm_endpoint,
+        storage_uri=storage_uri,
+        namespace=namespace if pod_selector else None,
+        pod_label_selector=pod_selector,
+        container=container,
+        kv_cache_dtype=extract_arg_value(static_args, "--kv-cache-dtype"),
+    )
+    if analysis is None:
+        resp.warnings.append("모델 정보를 읽지 못함 — 엔드포인트 응답과 pods/exec 권한을 확인하세요")
+        return resp, None, cr_spec, adapter
+
+    resp.available = True
+    resp.model = analysis.to_dict()
+    resp.warnings.extend(analysis.warnings)
+
+    budget = memory_budget(resources, accelerator_memory_gib, _parse_memory_gib, openvino=analysis.openvino)
+    tp = extract_arg_value(static_args, "--tensor-parallel-size") or extract_arg_value(static_args, "-tp")
+    resp.runtime = {
+        "gpu_count": budget.gpu_count,
+        "tensor_parallel_size": int(tp) if tp and tp.isdigit() else None,
+        "kv_cache_dtype": analysis.kv_cache_dtype,
+        "current_args": adapter.read_args(cr_spec) if cr_spec is not None else {},
+    }
+    resp.memory_budget = {
+        "gib": budget.gib,
+        "source": budget.source,
+        "utilization": None if budget.dedicated_kv else utilization,
+        "dedicated_kv": budget.dedicated_kv,
+    }
+    if budget.source == "unknown_accelerator_memory":
+        resp.warnings.append("GPU 장당 메모리(GiB)를 입력하면 동시 시퀀스 상한과 탐색 범위를 계산합니다")
+    if budget.source == "openvino_kvcache_space":
+        resp.warnings.append(
+            "OpenVINO KV 공간을 VLLM_OPENVINO_KVCACHE_SPACE 기본값(4 GiB)·u8로 가정 — 런타임 env로 바꿨다면 다를 수 있습니다"
+        )
+    if budget.gib:
+        max_context = analysis.max_position_embeddings or analysis.served_max_model_len
+        resp.capacity = capacity_table(analysis, budget, utilization, max_context)
+        resp.suggested_search_space = suggest_search_space(resp.capacity, analysis.served_max_model_len)
+    return resp, analysis, cr_spec, adapter
+
+
+@router.get("/model-analysis", response_model=ModelAnalysisResponse)
+async def get_model_analysis(
+    accelerator_memory_gib: float | None = Query(default=None, gt=0, le=1024),
+    utilization: float = Query(default=0.9, gt=0, le=1.0),
+    refresh: bool = False,
+    namespace: str | None = Query(default=None),
+    is_name: str | None = Query(default=None),
+    cr_type: Literal["inferenceservice", "llminferenceservice"] | None = Query(default=None),
+    endpoint: str | None = Query(default=None),
+) -> ModelAnalysisResponse:
+    """Analyze a target model from its config.json — KV per token, capacity, search ranges.
+
+    Without namespace/is_name the runtime-config target is used.
+    """
+    target = (namespace, is_name, cr_type or runtime_config.cr_type) if namespace and is_name else None
+    resp, *_ = await _analyze_target(
+        endpoint or runtime_config.vllm_endpoint, accelerator_memory_gib, utilization, refresh=refresh, target=target
+    )
+    return resp
+
+
+@router.post("/model-analysis/explain", response_model=ModelAnalysisExplainResponse)
+async def explain_model_analysis(body: ModelAnalysisResponse) -> ModelAnalysisExplainResponse:
+    """Narrate an analysis with the analyst LLM (ANALYST_ENDPOINT). Numbers come only from the input."""
+    assistant = get_llm_assistant()
+    if not assistant.available or not body.available:
+        return ModelAnalysisExplainResponse(markdown=None, analyst_available=assistant.available)
+    payload = body.model_dump(exclude={"analyst_available"})
+    payload["runtime"] = {k: v for k, v in body.runtime.items() if k != "current_args"}
+    markdown = await assistant.explain_model_analysis(payload)
+    return ModelAnalysisExplainResponse(markdown=markdown, analyst_available=True)
+
+
 async def _build_tuning_config(body: TuningStartRequest) -> tuple[TuningConfig, str, SweepConfig | None]:
     import os
 
@@ -200,53 +360,36 @@ async def _build_tuning_config(body: TuningStartRequest) -> tuple[TuningConfig, 
     if body.evaluation_mode == "sweep" and sweep_config is not None and not sweep_config.endpoint:
         sweep_config = sweep_config.model_copy(update={"endpoint": vllm_endpoint})
 
-    model_max_position_embeddings: int | None = None
-    model_weight_gib: float | None = None
-    pod_memory_gib: float | None = None
+    analysis: ModelAnalysis | None = None
+    analysis_resp: ModelAnalysisResponse | None = None
     served_model_name_warning: str | None = None
-    model_num_kv_heads: int | None = None
-    model_num_layers: int | None = None
-    model_head_dim: int | None = None
-    model_kv_dtype_bytes: int = 2
-
     try:
-        cr_spec, adapter = await auto_tuner.get_cr_context()
-        namespace = runtime_config.vllm_namespace or "default"
-        is_name = runtime_config.vllm_is_name or "llm-ov"
-
-        if cr_spec is not None:
-            storage_uri = adapter.read_model_uri(cr_spec)
-            pod_selector = adapter.pod_label_selector(is_name)
-            mem_str = adapter.read_resources(cr_spec).get("requests", {}).get("memory")
-            if mem_str:
-                pod_memory_gib = _parse_memory_gib(mem_str)
-        else:
-            storage_uri = None
-            pod_selector = None
-
-        model_info = await get_model_config_reader().read(
-            vllm_endpoint=vllm_endpoint,
-            storage_uri=storage_uri,
-            namespace=namespace if pod_selector else None,
-            pod_label_selector=pod_selector,
+        analysis_resp, analysis, cr_spec, adapter = await _analyze_target(
+            vllm_endpoint, body.accelerator_memory_gib, 0.9
         )
-        if model_info:
-            model_max_position_embeddings = model_info.max_position_embeddings
-            model_weight_gib = model_info.model_weight_gib
-            model_num_kv_heads = model_info.num_key_value_heads
-            model_num_layers = model_info.num_hidden_layers
-            model_head_dim = model_info.head_dim
-            model_kv_dtype_bytes = model_info.kv_dtype_bytes
-            if model_info.actual_served_name and cr_spec is not None:
-                cr_served_name = adapter.resolve_model_name(cr_spec, is_name)
-                if model_info.actual_served_name != cr_served_name:
-                    served_model_name_warning = (
-                        f"--served-model-name 불일치: CR에 설정된 '{cr_served_name}'이(가) "
-                        f"vLLM이 실제 서빙 중인 '{model_info.actual_served_name}'과 다릅니다. "
-                        f"CR의 --served-model-name을 수정하세요."
-                    )
+        if analysis and analysis.served_model_name and cr_spec is not None:
+            is_name = runtime_config.vllm_is_name or "llm-ov"
+            cr_served_name = adapter.resolve_model_name(cr_spec, is_name)
+            if analysis.served_model_name != cr_served_name:
+                served_model_name_warning = (
+                    f"--served-model-name 불일치: CR에 설정된 '{cr_served_name}'이(가) "
+                    f"vLLM이 실제 서빙 중인 '{analysis.served_model_name}'과 다릅니다. "
+                    f"CR의 --served-model-name을 수정하세요."
+                )
     except Exception as e:
-        logger.warning("[Tuner] Model config read failed, using blind search: %s", e)
+        logger.warning("[Tuner] Model analysis failed, using blind search: %s", e)
+
+    model_max_position_embeddings = (
+        (analysis.max_position_embeddings or analysis.served_max_model_len) if analysis else None
+    )
+    memory_budget_gib = analysis_resp.memory_budget.get("gib") if analysis_resp else None
+    analysis_summary: dict[str, Any] | None = None
+    if analysis_resp and analysis_resp.available:
+        analysis_summary = {
+            "model": analysis_resp.model,
+            "memory_budget": analysis_resp.memory_budget,
+            "capacity": analysis_resp.capacity,
+        }
 
     config = TuningConfig(
         max_num_seqs_range=(body.max_num_seqs_min, body.max_num_seqs_max),
@@ -262,13 +405,15 @@ async def _build_tuning_config(body: TuningStartRequest) -> tuple[TuningConfig, 
         objective=body.objective,
         n_trials=body.n_trials,
         model_max_position_embeddings=model_max_position_embeddings,
-        model_weight_gib=model_weight_gib,
-        pod_memory_gib=pod_memory_gib,
+        model_weight_gib=analysis.model_weight_gib if analysis else None,
+        memory_budget_gib=memory_budget_gib,
+        memory_budget_dedicated_kv=bool(analysis_resp and analysis_resp.memory_budget.get("dedicated_kv")),
         served_model_name_warning=served_model_name_warning,
-        model_num_kv_heads=model_num_kv_heads,
-        model_num_layers=model_num_layers,
-        model_head_dim=model_head_dim,
-        model_kv_dtype_bytes=model_kv_dtype_bytes,
+        model_kv_bytes_per_token=analysis.kv_bytes_per_token if analysis else None,
+        model_sliding_kv_bytes_per_token=analysis.sliding_kv_bytes_per_token if analysis else 0,
+        model_sliding_window=analysis.sliding_window if analysis else None,
+        model_linear_state_bytes_per_seq=analysis.linear_state_bytes_per_seq if analysis else 0,
+        model_analysis=analysis_summary,
         p99_latency_sla_ms=body.p99_latency_sla_ms,
         enable_llm_assistant=body.enable_llm_assistant,
     )
@@ -304,7 +449,6 @@ async def _run_preflight_or_raise() -> None:
         409: {"model": ErrorResponse},
     },
 )
-@limiter.limit("3/minute")
 async def start_tuning(request: Request, body: TuningStartRequest) -> dict[str, Any]:
     """Start Bayesian optimization to find best vLLM parameters."""
     if auto_tuner.is_running:
@@ -418,7 +562,6 @@ async def stop_tuning() -> dict[str, Any]:
     return await auto_tuner.stop()
 
 
-@limiter.exempt
 @router.get("/stream")
 async def stream_tuner_events() -> StreamingResponse:
     """Stream tuning events via Server-Sent Events (SSE)."""

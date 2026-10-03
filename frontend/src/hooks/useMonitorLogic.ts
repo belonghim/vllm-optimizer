@@ -1,14 +1,11 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { authFetch } from '../utils/authFetch';
-import { mockMetrics, mockHistory } from '../mockData';
-import { useMockData } from '../contexts/MockDataContext';
 import { useClusterConfig } from '../contexts/ClusterConfigContext';
 import {
   API,
   METRIC_KEYS,
   CHART_LABELS,
   MONITOR_POLL_INTERVAL_MS,
-  MONITOR_HISTORY_SLICE,
   MONITOR_LIVE_CUTOFF_SECS,
 } from '../constants';
 import { useThemeColors } from '../contexts/ThemeContext';
@@ -24,7 +21,6 @@ import type { SlaProfile, TargetResult, TargetState } from '../types';
 import { getTargetKey } from '../utils/targetKey';
 
 export function useMonitorLogic(isActive: boolean) {
-  const { isMockEnabled } = useMockData();
   const { targets, crType } = useClusterConfig();
   const { COLORS } = useThemeColors();
 
@@ -80,24 +76,6 @@ export function useMonitorLogic(isActive: boolean) {
 
   const fetchAllTargets = useCallback(
     async (signal?: AbortSignal) => {
-      if (isMockEnabled) {
-        const newStates: Record<string, TargetState> = {};
-        targets.forEach((target) => {
-          const key = getTargetKey(target);
-          newStates[key] = {
-            metrics: { ...mockMetrics() },
-            history: buildGapFill(
-              mockHistory().map((h) => ({ ...h, t: h.t })),
-              ['ttft', 'lat_p99']
-            ).slice(-MONITOR_HISTORY_SLICE),
-            status: 'ready',
-            error: null,
-          };
-        });
-        setTargetStates(newStates);
-        return;
-      }
-
       try {
         const batchTargets = targets.map((t) => ({
           namespace: t.namespace,
@@ -225,7 +203,7 @@ export function useMonitorLogic(isActive: boolean) {
         setError(`Query failed: ${(err as Error).message}`);
       }
     },
-    [targets, isMockEnabled, crType, metricsSource]
+    [targets, crType, metricsSource]
   );
 
   useEffect(() => {

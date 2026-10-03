@@ -32,6 +32,7 @@ export interface SweepStepResult {
 interface SweepChartProps {
   steps: SweepStepResult[];
   saturationRps?: number | null;
+  kneeRps?: number | null;
 }
 
 interface TooltipEntry {
@@ -87,7 +88,7 @@ const CustomizedDot: React.FC<CustomizedDotProps> = (props) => {
   return <circle cx={cx} cy={cy} r={3} stroke={stroke} fill="#fff" />;
 };
 
-const SweepChart: React.FC<SweepChartProps> = ({ steps, saturationRps }) => {
+const SweepChart: React.FC<SweepChartProps> = ({ steps, saturationRps, kneeRps }) => {
   const { COLORS } = useThemeColors();
 
   const chartData = steps.map((step) => ({
@@ -182,6 +183,15 @@ const SweepChart: React.FC<SweepChartProps> = ({ steps, saturationRps }) => {
                 stroke={COLORS.red}
                 strokeDasharray="3 3"
                 label={{ value: 'Saturation', position: 'top', fill: COLORS.red, fontSize: 10 }}
+              />
+            )}
+            {kneeRps != null && (
+              <ReferenceLine
+                x={kneeRps}
+                yAxisId="left"
+                stroke={COLORS.green}
+                strokeDasharray="6 3"
+                label={{ value: 'Knee', position: 'top', fill: COLORS.green, fontSize: 10 }}
               />
             )}
           </ComposedChart>

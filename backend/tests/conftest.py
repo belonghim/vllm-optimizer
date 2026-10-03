@@ -63,8 +63,6 @@ _MODULES_TO_CLEAR = [
     "backend.startup_metrics_shim",
     "services.shared",
     "backend.services.shared",
-    "services.rate_limiter",
-    "backend.services.rate_limiter",
 ]
 
 
@@ -462,7 +460,7 @@ def _mock_resolve_model_name(request: pytest.FixtureRequest) -> Any:
         yield
         return
 
-    async def _fast_resolve(endpoint: str = "", fallback: str = "auto") -> str:
+    async def _fast_resolve(endpoint: str = "", fallback: str = "auto", api_key: str | None = None) -> str:
         return fallback
 
     targets = [

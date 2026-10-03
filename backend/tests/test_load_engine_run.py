@@ -244,3 +244,49 @@ async def test_compute_stats_rps_actual_counts_only_successful_requests():
     assert stats["total"] == 4
     assert stats["success"] == 2
     assert stats["rps_actual"] == 1.0
+
+
+async def test_api_key_sent_as_bearer_and_never_serialized():
+    captured: dict = {}
+
+    class _Resp:
+        status_code = 200
+
+        def json(self):
+            return {"usage": {"completion_tokens": 3}}
+
+    class _Client:
+        async def post(self, url, json=None, timeout=None, headers=None):
+            captured["headers"] = headers
+            return _Resp()
+
+    config = LoadTestConfig(endpoint="https://maas/ns/m", model="m", stream=False, api_key="sk-secret")
+    engine = LoadTestEngine()
+    payload = engine._build_request_payload(config, "hi")
+    result = await engine._dispatch_completions(config, payload, _Client(), 0.0, 1)
+
+    assert result.success is True
+    assert captured["headers"] == {"Authorization": "Bearer sk-secret"}
+    assert "api_key" not in config.model_dump()
+    assert "sk-secret" not in repr(config)
+
+
+def test_find_knee_rps_maximizes_throughput_per_latency():
+    from models.load_test import SweepStepResult
+    from services.load_engine import find_knee_rps
+
+    def step(rps, tps, lat, failed=0):
+        return SweepStepResult(
+            step=int(rps),
+            rps=rps,
+            stats={"total": 20, "failed": failed, "tps": {"total": tps}, "latency": {"mean": lat}},
+        )
+
+    steps = [
+        step(1, 100, 1.0),  # power 100
+        step(5, 450, 1.5),  # power 300  <- knee
+        step(10, 600, 3.0),  # power 200 (throughput still rising, latency doubling)
+        step(15, 2000, 1.0, failed=10),  # 50% errors: excluded
+    ]
+    assert find_knee_rps(steps, max_error_rate=0.1) == 5
+    assert find_knee_rps([], max_error_rate=0.1) is None

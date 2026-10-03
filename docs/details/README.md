@@ -47,11 +47,10 @@ Detailed documentation for each page in the vLLM Optimizer frontend application.
 ## Architecture
 
 - **Framework**: React + TypeScript
-- **State Management**: React Context (ClusterConfigContext, BenchmarkSelectionContext, MockDataContext, ThemeContext)
+- **State Management**: React Context (ClusterConfigContext, BenchmarkSelectionContext, ThemeContext)
 - **Charts**: Recharts
 - **Real-time**: Server-Sent Events (SSE)
 - **API**: Authenticated fetch via `authFetch` utility
-- **Mock Mode**: Toggleable mock data for development/testing
 
 ## API Reference
 

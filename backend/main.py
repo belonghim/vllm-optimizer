@@ -18,11 +18,7 @@ from logging_config import configure_logging
 from routers import alerts, benchmark, load_test, metrics, sla, status, targets, tuner, vllm_config
 from routers import config as config_router
 from routers.status import check_prometheus_health
-from services.rate_limiter import limiter
 from services.shared import runtime_config
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
 
 # ── Logging Configuration ──
 configure_logging()
@@ -169,16 +165,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
 
 try:
     register_shim(app)
 except Exception as e:  # intentional: fail-open
     logger.debug("Startup shim route registration failed: %s", e)
-
-app.add_middleware(SlowAPIMiddleware)
 
 
 @app.exception_handler(OptimizerError)
@@ -209,7 +200,6 @@ app.include_router(targets, prefix="/api/targets", tags=["targets"])
 
 
 @app.get("/health", tags=["health"], response_model=None)
-@limiter.exempt
 async def health_check(request: Request) -> dict[str, Any] | JSONResponse:
     """Health check with dependency validation.
     Query param: deep=1 enables full connectivity checks (slow)."""

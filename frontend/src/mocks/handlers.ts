@@ -22,6 +22,19 @@ export const handlers = [
   http.get(`${API}/tuner/status`, () => HttpResponse.json({ running: false, trials_completed: 0 })),
   http.get(`${API}/tuner/trials`, () => HttpResponse.json([])),
   http.get(`${API}/tuner/importance`, () => HttpResponse.json({})),
+  http.get(`${API}/tuner/model-analysis`, () =>
+    HttpResponse.json({
+      target: { namespace: 'test-ns', name: 'test-model', cr_type: 'inferenceservice' },
+      available: false,
+      model: null,
+      runtime: {},
+      memory_budget: {},
+      capacity: [],
+      suggested_search_space: null,
+      analyst_available: false,
+      warnings: [],
+    })
+  ),
   http.get(`${API}/benchmark/list`, () => HttpResponse.json([])),
   http.delete(`${API}/benchmark/:id`, ({ params }) =>
     HttpResponse.json({ status: 'deleted', benchmark_id: params.id })

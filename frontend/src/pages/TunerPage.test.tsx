@@ -30,10 +30,6 @@ class MockEventSource {
   }
 }
 
-vi.mock('../contexts/MockDataContext', () => ({
-  useMockData: () => ({ isMockEnabled: false }),
-}));
-
 vi.mock('../contexts/ClusterConfigContext', () => ({
   useClusterConfig: () => ({
     endpoint: 'http://test-endpoint',

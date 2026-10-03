@@ -225,11 +225,6 @@ Used for destructive operations:
 2. Calls `onRerun(config)` callback
 3. Parent (LoadTestPage) receives config and pre-fills the load test form
 
-### Mock Data Mode
-
-- When `isMockEnabled` is true, uses `mockBenchmarks()` instead of API calls
-- All operations (delete, save metadata) work on local state only
-
 ---
 
 ## Related Components
@@ -248,7 +243,6 @@ Used for destructive operations:
 | Module | File | Role |
 |--------|------|------|
 | BenchmarkSelectionContext | `contexts/BenchmarkSelectionContext.tsx` | Multi-select state management |
-| MockDataContext | `contexts/MockDataContext.tsx` | Mock data toggle |
 
 ## Error States & Edge Cases
 

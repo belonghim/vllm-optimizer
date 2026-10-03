@@ -24,13 +24,8 @@ oc get route vllm-optimizer -n vllm-optimizer-dev
 - **자동 파라미터 튜닝**: Bayesian Optimization을 사용하여 vLLM 서비스의 최적 파라미터를 자동으로 탐색합니다.
 - **SLA**: 서비스 수준 agreement(SLA) 프로필 생성 및 성능 대시보드를 제공합니다.
 
-## 2. Mock 모드
+## 2. 헤더
 
-대시보드 헤더의 우측 상단에는 `MOCK` 토글 스위치가 있습니다.
-
-- **기본값: ON** — 대시보드에 처음 접속하면 Mock 데이터(가상 데이터)가 표시됩니다. 이는 실제 vLLM 서비스가 없거나 연결되지 않은 상태에서도 대시보드 기능을 미리 살펴볼 수 있도록 돕습니다.
-- 실제 클러스터 데이터를 보려면 `MOCK` 토글을 클릭하여 비활성화하십시오.
-- `MOCK` 설정은 브라우저의 localStorage에 저장되므로, 페이지를 새로고침하거나 다시 접속해도 설정이 유지됩니다.
 - 헤더에 표시되는 초록색 점과 "CONNECTED" 문구는 대시보드의 디자인 요소이며, 실제 백엔드 연결 상태를 반영하지 않습니다.
 
 ## 3. 실시간 모니터링 탭
@@ -204,7 +199,7 @@ curl -X PATCH http://<backend>/api/vllm-config \
 
 ## 7. 자주 묻는 질문 (FAQ)
 
-**Q1. Mock 모드를 끄면 메트릭이 모두 "—"(대시)로 표시됩니다.**
+**Q1. 메트릭이 모두 "—"(대시)로 표시됩니다.**
 - A: MetricsCollector가 vLLM Pod를 찾지 못했거나 Thanos 연결에 실패한 상태입니다.
   1. `K8S_DEPLOYMENT_NAME` 환경변수가 KServe Deployment 이름(`llm-ov-predictor`)으로 올바르게 설정되었는지 확인하십시오.
   2. 보다 자세한 진단 및 해결 방법은 `docs/troubleshooting.md` 문서를 참조하십시오.

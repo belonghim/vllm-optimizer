@@ -69,8 +69,8 @@ patches:
         predictor:
           model:
             args:
-              - --served-model-name=OpenVINO/Phi-4-mini-instruct-int4-ov
-              - --max-num-seqs=256
+              - --served-model-name=OpenVINO/Qwen3.5-2B-int4-ov
+              - --max-num-seqs=32
               - --gpu-memory-utilization=0.90
               - --max-model-len=8192
               - --max-num-batched-tokens=2048

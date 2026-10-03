@@ -4,9 +4,10 @@ import TunerConfigSection from '../components/TunerConfigSection';
 import TunerHistoryPanel from '../components/TunerHistoryPanel';
 import TunerWarmupSuggestions from '../components/TunerWarmupSuggestions';
 import TunerReport from '../components/TunerReport';
+import TunerModelAnalysis from '../components/TunerModelAnalysis';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TargetSelector from '../components/TargetSelector';
-import type { ClusterTarget } from '../types';
+import type { ClusterTarget, SuggestedSearchSpace } from '../types';
 
 // Lazy: keeps recharts out of the Tuner page chunk until tuning results exist
 const TunerResults = lazy(() => import('../components/TunerResults'));
@@ -45,6 +46,13 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
     tuningReport,
   } = useTunerLogic({ isActive, onRunningChange, targetOverride: selectedTarget });
 
+  const applySearchSpace = (space: SuggestedSearchSpace) => {
+    handleConfigChange('max_num_seqs_min', space.max_num_seqs_min);
+    handleConfigChange('max_num_seqs_max', space.max_num_seqs_max);
+    handleConfigChange('max_model_len_min', space.max_model_len_min);
+    handleConfigChange('max_model_len_max', space.max_model_len_max);
+  };
+
   return (
     <div className="flex-col-16">
       <div className="tuner-target-selector">
@@ -55,6 +63,14 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
           data-testid="tuner-target-selector"
         />
       </div>
+      <TunerModelAnalysis
+        isActive={isActive}
+        targetOverride={selectedTarget}
+        acceleratorMemoryGib={config.accelerator_memory_gib ?? null}
+        onAcceleratorMemoryChange={(gib) => handleConfigChange('accelerator_memory_gib', gib)}
+        onApplySearchSpace={applySearchSpace}
+        disabled={status.running}
+      />
       <TunerConfigSection
         key={
           selectedTarget

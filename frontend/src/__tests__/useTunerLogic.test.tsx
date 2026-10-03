@@ -3,7 +3,6 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { useTunerLogic } from '../hooks/useTunerLogic';
 import { ClusterConfigProvider } from '../contexts/ClusterConfigContext';
-import { MockDataProvider } from '../contexts/MockDataContext';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
 import type { ClusterTarget } from '../types';
@@ -18,11 +17,7 @@ afterEach(() => {
 });
 
 const wrapper = ({ children }: { children: React.ReactNode }) => {
-  return (
-    <MockDataProvider>
-      <ClusterConfigProvider>{children}</ClusterConfigProvider>
-    </MockDataProvider>
-  );
+  return <ClusterConfigProvider>{children}</ClusterConfigProvider>;
 };
 
 describe('useTunerLogic', () => {

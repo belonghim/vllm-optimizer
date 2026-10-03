@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-03] - 모델 분석·분석 LLM 분리·실측 보강, 불필요 기능 제거
+
+목표: RHOAI 테스트 클러스터에서 모델별 vLLM 인자를 정하는 벤치·튜닝 도구로 범위를 좁힘.
+
+### Added
+- **결정적 모델 분석** (`services/model_analysis.py`, `GET /api/tuner/model-analysis`): 대상 파드의 `/mnt/models/config.json`을 읽어 KV bytes/token, 용량표(컨텍스트별 최대 동시 시퀀스), 튜너 탐색 범위 제안을 계산. `text_config` 중첩, 명시적 `head_dim`/`global_head_dim`, `layer_types`(full/sliding/linear), KV-shared 레이어(Gemma 4), GDN 고정 상태(Qwen3.5), MLA, MoE, `--kv-cache-dtype`, OpenVINO 양자화 반영. GPU 대상은 장당 메모리 입력, CPU(OpenVINO) 대상은 파드 메모리를 예산으로 사용. Tuner 페이지에 Model Analysis 패널(용량표, "Apply to search space").
+- **분석 LLM 분리** (`ANALYST_ENDPOINT`, dev overlay: `llm-ov`): 웜스타트 제안·실패 설명·리포트가 튜닝 대상 대신 별도 소형 모델을 호출. 미설정 시 비활성, 튜닝 대상과 같으면 튜닝 중 호출 생략. `POST /api/tuner/model-analysis/explain`은 계산된 수치만 서술.
+- **부하 테스트/스윕 API key** (`api_key`): MaaS 등 게이트웨이 경로에 `Authorization: Bearer` 전송. 응답·이력·벤치마크에 저장되지 않음.
+- **스윕 knee 판정** (`knee_rps`): 오류율 임계 이내 단계 중 토큰 처리량/평균 지연(Kleinrock power) 최대 지점. 요약 카드와 차트 "Knee" 라인.
+- `CRAdapter.model_container_name()` (isvc `kserve-container`, LLMIS `main`), `extract_arg_value()`.
+
+### Changed
+- KV OOM 사전 필터: `max_num_seqs × max_model_len` 전체 할당(과도하게 보수적) → vLLM 기동 조건(최대 길이 시퀀스 1개가 KV 예산에 들어가는지)으로 변경, 가중치 차감.
+- 튜너의 `max_model_len` 상한 clamp를 현재 서빙 값이 아니라 모델 `max_position_embeddings`로 변경.
+- 기존 파서가 `text_config` 모델(Gemma 4, Qwen3.5 등)에서 레이어·헤드를 읽지 못하고 `head_dim`을 `hidden/heads`로만 계산하던 문제 해소. 가중치 크기는 단일 파일 대신 safetensors/bin/gguf 합계.
+
+### Removed
+- Mock 데이터 모드(`MockDataContext`, `MockDataSwitch`, `mockData.ts`) — 실측 도구에서 가상 데이터와 혼동 위험. 관련 테스트는 MSW 픽스처로 전환.
+- slowapi 레이트 리미터 — 내부 단일 사용자 도구이며 중복 시작은 409로 이미 방지.
+
+### Fixed (배포)
+- vLLM 네임스페이스 Role에 `pods/exec`(모델 분석의 config.json 읽기)와 InferenceService/LLMIS `create`/`delete` 추가 — 튜너가 delete+recreate로 trial을 적용하는데 권한이 없어 클러스터에서 403으로 실패하던 문제.
+- llm-ov(분석 LLM): `--max-num-seqs=256`에서 OpenVINO가 4 GiB KV 공간에 GDN 상태를 슬롯마다 예약해 KV 블록 0개로 기동 실패 → 32. served-model-name을 `OpenVINO/Qwen3.5-2B-int4-ov`로 정정.
+- OpenVINO 대상은 KV 예산을 `VLLM_OPENVINO_KVCACHE_SPACE`(기본 4 GiB, u8, 가중치 별도)로 계산하고, OOM 사전 필터가 linear-attention 상태를 `max_num_seqs` 슬롯 수만큼 반영.
+
+### Verification
+- `./scripts/check.sh` → exit 0 (backend 611 passed, frontend 444 passed).
+- `deploy.sh dev` 후 인-클러스터: llm-ov(ISVC) 모델 분석(용량 61 seqs@8K, vLLM 자체 보고 69.6×), 분석 LLM 설명, API key 부하 테스트(키가 응답·SQLite에 없음), 스윕 knee, 튜너 2 trial(파드 교체·best 적용). LLMIS(qwen)·ISVC(gemma) config.json 분석은 kubeconfig 드라이버로 확인. 브라우저(Playwright)로 Model Analysis 패널·탐색 범위 적용·API key 입력 확인.
+
 ## [2026-10-03] - 잔여 결함 2차 수정
 
 **Status**: Completed (로컬 검증 + 서버측 dry-run 검증, 인-클러스터 E2E는 `deploy.sh dev` 후 확인 필요)

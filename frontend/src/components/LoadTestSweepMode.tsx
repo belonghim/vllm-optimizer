@@ -45,6 +45,7 @@ export interface SweepResult {
   steps: SweepStepResult[];
   saturation_point: number | null;
   optimal_rps: number | null;
+  knee_rps?: number | null;
   total_duration: number;
 }
 
@@ -83,6 +84,7 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [localEndpoint, setLocalEndpoint] = useState(endpoint);
+  const [apiKey, setApiKey] = useState('');
   const [localModel, setLocalModel] = useState(model);
 
   useEffect(() => {
@@ -168,7 +170,12 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
     setSweepResult(null);
     setSweepError(null);
 
-    const body = { endpoint: localEndpoint, model: localModel, ...sweepConfig };
+    const body = {
+      endpoint: localEndpoint,
+      model: localModel,
+      ...sweepConfig,
+      ...(apiKey ? { api_key: apiKey } : {}),
+    };
     try {
       const resp = await authFetch(`${API}/load_test/sweep`, {
         method: 'POST',
@@ -280,6 +287,21 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
               aria-label="Model"
               value={localModel}
               onChange={(e) => setLocalModel(e.target.value)}
+              disabled={sweepStatus === 'running'}
+            />
+          </div>
+          <div>
+            <label htmlFor="sweep-api-key" className="label">
+              API Key (optional)
+            </label>
+            <input
+              id="sweep-api-key"
+              className="input"
+              type="password"
+              autoComplete="off"
+              placeholder="Bearer token (MaaS gateway)"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
               disabled={sweepStatus === 'running'}
             />
           </div>
@@ -418,6 +440,12 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
               color="green"
             />
             <MetricCard
+              label="Knee RPS"
+              value={sweepResult.knee_rps ?? 'N/A'}
+              unit=""
+              color="cyan"
+            />
+            <MetricCard
               label="Saturation RPS"
               value={sweepResult.saturation_point ?? 'None'}
               unit=""
@@ -433,7 +461,11 @@ function LoadTestSweepMode({ isActive, onRunningChange, endpoint, model }: LoadT
           </div>
           {sweepResult.steps && sweepResult.steps.length > 0 && (
             <Suspense fallback={<div style={{ height: '30vh', minHeight: '220px' }} />}>
-              <SweepChart steps={sweepResult.steps} saturationRps={sweepResult.saturation_point} />
+              <SweepChart
+                steps={sweepResult.steps}
+                saturationRps={sweepResult.saturation_point}
+                kneeRps={sweepResult.knee_rps}
+              />
             </Suspense>
           )}
           {sweepStatus === 'completed' && (

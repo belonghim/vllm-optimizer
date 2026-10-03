@@ -20,12 +20,36 @@ from urllib.parse import urlparse
 import httpx
 import numpy as np
 from models.load_test import LoadTestConfig, RequestResult, SweepConfig, SweepResult, SweepStepResult
+from services.model_resolver import auth_headers
 from services.prompt_generator import generate_prompt
 
 logger = logging.getLogger(__name__)
 SELF_METRICS_URL = os.getenv("SELF_METRICS_URL", "http://localhost:8000")
 LOAD_ENGINE_SHORT_TIMEOUT = float(os.getenv("LOAD_ENGINE_SHORT_TIMEOUT", "5"))
 LOAD_ENGINE_TIMEOUT = int(os.getenv("LOAD_ENGINE_TIMEOUT", "120"))
+
+
+def find_knee_rps(steps: list[SweepStepResult], max_error_rate: float) -> float | None:
+    """Operating point maximizing Kleinrock power (token throughput / mean latency).
+
+    Past this point extra load buys less throughput than it costs in latency. Steps whose error
+    rate exceeds ``max_error_rate`` are ignored.
+    """
+    best_rps: float | None = None
+    best_power = 0.0
+    for step in steps:
+        stats = step.stats or {}
+        total = stats.get("total", 0) or 0
+        if total <= 0 or (stats.get("failed", 0) or 0) / total > max_error_rate:
+            continue
+        throughput = (stats.get("tps") or {}).get("total", 0) or 0
+        latency = (stats.get("latency") or {}).get("mean", 0) or 0
+        if throughput <= 0 or latency <= 0:
+            continue
+        power = throughput / latency
+        if power > best_power:
+            best_power, best_rps = power, step.rps
+    return best_rps
 
 
 def _normalize_url(url: str) -> str:
@@ -133,7 +157,9 @@ class LoadTestEngine:
 
         try:
             internal_client = get_internal_client()
-            response = await internal_client.get(models_url, timeout=LOAD_ENGINE_SHORT_TIMEOUT)
+            response = await internal_client.get(
+                models_url, timeout=LOAD_ENGINE_SHORT_TIMEOUT, headers=auth_headers(config.api_key)
+            )
         except httpx.ConnectError as e:
             return {
                 "success": False,
@@ -217,6 +243,7 @@ class LoadTestEngine:
                 f"{config.endpoint}/v1/completions",
                 json={**payload, "stream": True, "stream_options": {"include_usage": True}},
                 timeout=LOAD_ENGINE_TIMEOUT,
+                headers=auth_headers(config.api_key),
             ) as resp:
                 if resp.status_code >= 400:
                     return self._http_error_result(request_id, t0, resp.status_code)
@@ -246,7 +273,10 @@ class LoadTestEngine:
                 itl_mean = itl_p50 = itl_p95 = itl_p99 = None
         else:
             resp = await external_client.post(
-                f"{config.endpoint}/v1/completions", json=payload, timeout=LOAD_ENGINE_TIMEOUT
+                f"{config.endpoint}/v1/completions",
+                json=payload,
+                timeout=LOAD_ENGINE_TIMEOUT,
+                headers=auth_headers(config.api_key),
             )
             if resp.status_code >= 400:
                 return self._http_error_result(request_id, t0, resp.status_code)
@@ -301,6 +331,7 @@ class LoadTestEngine:
                 f"{config.endpoint}/v1/chat/completions",
                 json={**chat_payload, "stream": True, "stream_options": {"include_usage": True}},
                 timeout=LOAD_ENGINE_TIMEOUT,
+                headers=auth_headers(config.api_key),
             ) as resp:
                 if resp.status_code >= 400:
                     return self._http_error_result(request_id, t0, resp.status_code)
@@ -330,7 +361,10 @@ class LoadTestEngine:
                 itl_mean = itl_p50 = itl_p95 = itl_p99 = None
         else:
             resp = await external_client.post(
-                f"{config.endpoint}/v1/chat/completions", json=chat_payload, timeout=LOAD_ENGINE_TIMEOUT
+                f"{config.endpoint}/v1/chat/completions",
+                json=chat_payload,
+                timeout=LOAD_ENGINE_TIMEOUT,
+                headers=auth_headers(config.api_key),
             )
             if resp.status_code >= 400:
                 return self._http_error_result(request_id, t0, resp.status_code)
@@ -683,6 +717,7 @@ class LoadTestEngine:
                     max_tokens=config.max_tokens,
                     temperature=0.7,
                     stream=config.stream,
+                    api_key=config.api_key,
                 )
 
                 step_result_raw = await self.run(step_config, skip_preflight=True)
@@ -751,6 +786,7 @@ class LoadTestEngine:
                 steps=steps,
                 saturation_point=saturation_point,
                 optimal_rps=optimal_rps,
+                knee_rps=find_knee_rps(steps, config.saturation_error_rate),
                 total_duration=round(time.time() - sweep_start, 2),
             )
         finally:

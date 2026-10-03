@@ -8,7 +8,6 @@ from kubernetes.client.exceptions import ApiException
 from models.default_targets import DefaultTargetItem, DefaultTargetsPatch, DefaultTargetsResponse
 from pydantic import BaseModel
 from services.model_resolver import resolve_model_name
-from services.rate_limiter import limiter
 from services.shared import runtime_config
 
 logger = logging.getLogger(__name__)
@@ -34,7 +33,6 @@ class ConfigPatch(BaseModel):
 
 
 @router.get("", response_model=ConfigResponse)
-@limiter.limit("60/minute")
 async def get_config(request: Request) -> ConfigResponse:
     endpoint = runtime_config.vllm_endpoint
     try:
@@ -53,7 +51,6 @@ async def get_config(request: Request) -> ConfigResponse:
 
 
 @router.patch("", response_model=ConfigResponse)
-@limiter.limit("60/minute")
 async def patch_config(request: Request, patch: ConfigPatch) -> ConfigResponse:
     if patch.cr_type is not None:
         try:
@@ -117,7 +114,6 @@ async def patch_config(request: Request, patch: ConfigPatch) -> ConfigResponse:
 
 
 @router.get("/default-targets", response_model=DefaultTargetsResponse)
-@limiter.limit("60/minute")
 async def get_default_targets(request: Request) -> DefaultTargetsResponse:
     import asyncio
 
@@ -152,7 +148,6 @@ async def get_default_targets(request: Request) -> DefaultTargetsResponse:
 
 
 @router.patch("/default-targets", response_model=DefaultTargetsResponse)
-@limiter.limit("60/minute")
 async def patch_default_targets(request: Request, patch: DefaultTargetsPatch) -> DefaultTargetsResponse:
     import asyncio
 

@@ -23,7 +23,6 @@ from models.load_test import (
 from pydantic import BaseModel
 from services.load_engine import LoadTestStatus, load_engine
 from services.model_resolver import resolve_model_name
-from services.rate_limiter import limiter
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -178,7 +177,6 @@ async def _run_test_background(test_id: str, config: LoadTestConfig, storage_ins
         409: {"model": ErrorResponse},
     },
 )
-@limiter.limit("5/minute")
 async def start_load_test(request: Request, config: LoadTestConfig, storage=Depends(get_storage)) -> dict[str, Any]:
     """
     Start a new load test with the given configuration.
@@ -200,7 +198,7 @@ async def start_load_test(request: Request, config: LoadTestConfig, storage=Depe
         test_id = str(uuid.uuid4())
 
         if config.model == "auto":
-            config.model = await resolve_model_name(config.endpoint)
+            config.model = await resolve_model_name(config.endpoint, api_key=config.api_key)
 
         preflight = await load_engine._preflight_check(config)
         if not preflight.get("success"):
@@ -270,7 +268,6 @@ async def get_load_test_status(test_id: str | None = None) -> dict[str, Any]:
 
 
 @router.post("/sweep", responses={409: {"model": ErrorResponse}})
-@limiter.limit("5/minute")
 async def start_sweep(request: Request, config: SweepConfig) -> dict[str, Any]:
     """Start a parameter sweep with multiple concurrent loads."""
     if (not await _state.can_start_sweep()) or load_engine.is_sweep_running():
@@ -284,7 +281,7 @@ async def start_sweep(request: Request, config: SweepConfig) -> dict[str, Any]:
     await _state.mark_sweep_started()
 
     if config.model == "auto":
-        config.model = await resolve_model_name(config.endpoint)
+        config.model = await resolve_model_name(config.endpoint, api_key=config.api_key)
 
     async def run_sweep_task():
         """Background task that executes a sweep load test across concurrency levels."""
@@ -306,7 +303,6 @@ async def start_sweep(request: Request, config: SweepConfig) -> dict[str, Any]:
     return {"status": "running", "config": config.model_dump()}
 
 
-@limiter.exempt
 @router.get("/stream")
 async def stream_load_test_results(test_id: str | None = None) -> StreamingResponse:
     """
