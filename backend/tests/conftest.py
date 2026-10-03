@@ -456,7 +456,7 @@ def _mock_resolve_model_name(request: pytest.FixtureRequest) -> Any:
     import sys
     from unittest.mock import patch as mock_patch
 
-    if request.node.fspath.basename == "test_model_resolver.py":
+    if request.node.fspath.basename == "test_model_resolver.py" or request.node.get_closest_marker("integration"):
         yield
         return
 
@@ -485,9 +485,13 @@ def _mock_resolve_model_name(request: pytest.FixtureRequest) -> Any:
 
 
 @pytest.fixture(autouse=True)
-def _mock_auto_tuner_preflight() -> Any:
+def _mock_auto_tuner_preflight(request: pytest.FixtureRequest) -> Any:
     """Prevent real K8s calls from AutoTuner._preflight_check in unit tests."""
     from unittest.mock import AsyncMock
+
+    if request.node.get_closest_marker("integration"):
+        yield
+        return
 
     stub = AsyncMock(return_value={"success": True})
     patched: list[tuple[Any, Any]] = []

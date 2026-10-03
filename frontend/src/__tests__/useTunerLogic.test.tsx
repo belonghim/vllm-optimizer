@@ -140,7 +140,7 @@ describe('useTunerLogic', () => {
       await waitFor(() => {
         expect(lastRequestBody).not.toBeNull();
         expect(lastRequestBody?.vllm_cr_type).toBe('llminferenceservice');
-        // LLMIS endpoint format: http://openshift-ai-inference-openshift-default.openshift-ingress.svc/{namespace}/{name}
+        // LLMIS endpoint format: https://{name}-kserve-workload-svc.{namespace}.svc.cluster.local:8000
         const endpoint = lastRequestBody?.vllm_endpoint as string;
         expect(endpoint).toContain('llmis-ns');
         expect(endpoint).toContain('llmis-svc');

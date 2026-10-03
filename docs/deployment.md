@@ -142,6 +142,7 @@ oc exec -it $(oc get pod -l app=vllm-optimizer-backend -n $NS -o name | head -1)
 The vLLM Optimizer requires specific Role-Based Access Control (RBAC) to operate correctly within OpenShift.
 
 *   **ServiceAccount**: The `vllm-optimizer-backend` ServiceAccount is defined in `openshift/base/01-namespace-rbac.yaml`.
+*   **ClusterRoleBinding for targets**: The `vllm-optimizer-target-operator` ClusterRole (same file) grants access to tuning/benchmark targets in any namespace — CR get/list/patch/create/delete (the tuner applies trials by delete + recreate), pod get/list, `pods/log`, `pods/exec` (model analysis reads `/mnt/models/config.json`) and namespace `get` (monitoring-label check). Cluster-scoped so new target namespaces need no extra RoleBinding.
 *   **SCC**: vLLM Optimizer uses OpenShift's default `restricted-v2` SCC, which is automatically applied. No custom SCC is required.
 *   **ClusterRoleBinding for Thanos**: To allow the vLLM Optimizer backend to query the OpenShift Monitoring Stack (Thanos Querier), a `ClusterRoleBinding` for the `cluster-monitoring-view` ClusterRole is applied in `openshift/base/05-monitoring.yaml`.
 

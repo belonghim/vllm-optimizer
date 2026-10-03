@@ -190,3 +190,18 @@ def test_dual_cr_adapter_contract() -> None:
     # Model analysis execs into the serving container that mounts /mnt/models
     assert isvc.model_container_name() == "kserve-container"
     assert llmis.model_container_name() == "main"
+
+
+def test_inference_client_trusts_openshift_service_ca(tmp_path) -> None:
+    import ssl
+
+    import certifi
+
+    from ..main import _external_verify
+
+    assert _external_verify("/etc/custom-ca.pem") == "/etc/custom-ca.pem"
+    without = _external_verify("", service_ca_path=str(tmp_path / "missing.crt"))
+    with_service_ca = _external_verify("", service_ca_path=certifi.where())
+    assert isinstance(without, ssl.SSLContext) and isinstance(with_service_ca, ssl.SSLContext)
+    assert without.verify_mode == ssl.CERT_REQUIRED
+    assert with_service_ca.cert_store_stats()["x509_ca"] >= without.cert_store_stats()["x509_ca"]

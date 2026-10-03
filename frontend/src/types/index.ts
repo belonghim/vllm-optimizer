@@ -290,8 +290,20 @@ export interface ModelAnalysisModel {
 
 export interface ModelCapacityRow {
   context_len: number;
-  kv_bytes_per_seq: number;
-  max_concurrent_seqs: number;
+  kv_bytes_per_seq: number | null;
+  max_concurrent_seqs: number | null;
+  observed_max_seqs?: number;
+}
+
+export interface ObservedKvCache {
+  kv_cache_size_tokens: number;
+  max_concurrency: number | null;
+  block_size: number | null;
+  gpu_memory_utilization: number | null;
+  prefix_caching: boolean;
+  cache_dtype: string | null;
+  pod: string;
+  estimate_ratio: number | null;
 }
 
 export interface SuggestedSearchSpace {
@@ -318,6 +330,7 @@ export interface ModelAnalysis {
     dedicated_kv?: boolean;
   };
   capacity: ModelCapacityRow[];
+  observed?: ObservedKvCache | null;
   suggested_search_space: SuggestedSearchSpace | null;
   analyst_available: boolean;
   warnings: string[];

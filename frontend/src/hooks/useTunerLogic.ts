@@ -32,7 +32,7 @@ const DEFAULT_CONFIG: TunerConfig = {
   max_model_len_max: 8192,
   max_num_batched_tokens_min: 256,
   max_num_batched_tokens_max: 2048,
-  block_size_options: [8, 16, 32],
+  block_size_options: [16, 32],
   include_swap_space: false,
   swap_space_min: 1.0,
   swap_space_max: 8.0,

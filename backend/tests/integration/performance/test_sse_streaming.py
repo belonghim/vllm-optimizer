@@ -9,7 +9,11 @@ pytestmark = [pytest.mark.integration, pytest.mark.performance]
 class TestSSEStreaming:
     @pytest.mark.asyncio
     async def test_load_test_sse_events(self, async_http_client, skip_if_overloaded, vllm_endpoint, vllm_model):
-        """부하 테스트 중 SSE 이벤트가 정상적으로 수신되는지 확인."""
+        """부하 테스트 중 SSE 이벤트가 정상적으로 수신되는지 확인.
+
+        스트림을 먼저 구독한 뒤 테스트를 시작한다 — 완료 후 늦게 구독하면 이벤트가 이미 broadcast된
+        뒤라 keepalive만 수신하고 종료되지 않는다.
+        """
         base_url = async_http_client
 
         async with httpx.AsyncClient(base_url=base_url, timeout=60) as client:
@@ -24,13 +28,14 @@ class TestSSEStreaming:
                 "temperature": 0.7,
                 "stream": False,
             }
-            resp = await client.post("/api/load_test/start", json=config)
-            assert resp.status_code == 200
 
             events = []
             buffer = ""
             try:
                 async with client.stream("GET", "/api/load_test/stream", timeout=60) as stream:
+                    resp = await client.post("/api/load_test/start", json=config)
+                    assert resp.status_code == 200
+
                     async for chunk in stream.aiter_text():
                         buffer += chunk
                         while "\n\n" in buffer:
@@ -42,8 +47,8 @@ class TestSSEStreaming:
                                         events.append(data)
                                     except json.JSONDecodeError:
                                         pass
-                            if len(events) >= 3:
-                                break
+                        if len(events) >= 3:
+                            break
             except (httpx.ReadTimeout, httpx.RemoteProtocolError):
                 pass
 

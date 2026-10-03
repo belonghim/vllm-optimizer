@@ -16,13 +16,32 @@ import pytest
 
 from .conftest import BACKEND_URL, VLLM_NAMESPACE
 
-VLLM_POD_LABEL = os.getenv("VLLM_POD_LABEL", "app=isvc.llm-ov-predictor")
+VLLM_POD_LABEL = os.getenv("VLLM_POD_LABEL", "serving.kserve.io/inferenceservice=llm-ov")
 POD_RESTART_TIMEOUT = int(os.getenv("POD_RESTART_TIMEOUT", "300"))
 POD_POLL_INTERVAL = 10
 
+_SA_TOKEN = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+_SA_CA = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+
 
 def _get_pod_uids(namespace: str, label: str) -> set[str]:
-    """oc get pods로 현재 vLLM 파드 UID 목록 반환."""
+    """현재 vLLM 파드 UID 목록.
+
+    백엔드 이미지에는 oc가 없으므로 파드 내에서는 ServiceAccount 토큰으로 K8s API를 직접 호출한다.
+    """
+    if os.path.exists(_SA_TOKEN):
+        with open(_SA_TOKEN) as f:
+            token = f.read().strip()
+        resp = httpx.get(
+            f"https://kubernetes.default.svc/api/v1/namespaces/{namespace}/pods",
+            params={"labelSelector": label},
+            headers={"Authorization": f"Bearer {token}"},
+            verify=_SA_CA if os.path.exists(_SA_CA) else False,
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return {item["metadata"]["uid"] for item in resp.json().get("items", [])}
+
     import subprocess
 
     result = subprocess.run(
@@ -49,10 +68,20 @@ def _wait_for_pod_restart(namespace: str, label: str, original_uids: set[str], t
     return False
 
 
+def _wait_for_tuner_idle(http_client: httpx.Client, timeout: int = 300) -> None:
+    """튜너가 끝날 때까지 대기 — 실행 중에는 PATCH /api/vllm-config가 409로 거부된다."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        status_resp = http_client.get("/api/tuner/status", timeout=10)
+        if status_resp.status_code == 200 and not status_resp.json().get("running"):
+            return
+        time.sleep(5)
+
+
 @pytest.mark.integration
 def test_pod_restart_on_tuner_apply(
     http_client: httpx.Client,
-    _backup_restore_is_args: None,
+    backup_restore_is_args: None,
 ):
     """
     자동 파라미터 튜닝 1 trial 실행 후 vLLM 파드 UID 변경 검증.
@@ -69,12 +98,18 @@ def test_pod_restart_on_tuner_apply(
     original_uids = _get_pod_uids(VLLM_NAMESPACE, VLLM_POD_LABEL)
     assert original_uids, f"No vLLM pods found with label {VLLM_POD_LABEL} in namespace {VLLM_NAMESPACE}"
 
-    # 2. 1-trial 튜닝 시작
+    # 2. 1-trial 튜닝 시작 — 첫 trial이 OOM 사전 필터에 걸리지 않도록 유효 범위를 명시한다
     config = {
         "n_trials": 1,
         "eval_requests": 10,
         "warmup_requests": 0,
         "objective": "tps",
+        "max_num_seqs_min": 32,
+        "max_num_seqs_max": 128,
+        "gpu_memory_min": 0.8,
+        "gpu_memory_max": 0.9,
+        "max_model_len_min": 2048,
+        "max_model_len_max": 8192,
     }
     vllm_endpoint = os.getenv("VLLM_ENDPOINT", "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local")
     resp = http_client.post("/api/tuner/start", json={**config, "vllm_endpoint": vllm_endpoint}, timeout=30)
@@ -84,13 +119,8 @@ def test_pod_restart_on_tuner_apply(
     # 3. 파드 UID 변경 대기
     restarted = _wait_for_pod_restart(VLLM_NAMESPACE, VLLM_POD_LABEL, original_uids, timeout=POD_RESTART_TIMEOUT)
 
-    # 4. 튜너가 완료될 때까지 대기 (최대 120초)
-    deadline = time.monotonic() + 120
-    while time.monotonic() < deadline:
-        status_resp = http_client.get("/api/tuner/status", timeout=10)
-        if status_resp.status_code == 200 and not status_resp.json().get("running"):
-            break
-        time.sleep(5)
+    # 4. 튜너가 완료될 때까지 대기 (최대 300초)
+    _wait_for_tuner_idle(http_client, timeout=300)
 
     # 5. 파드 재기동 검증
     assert restarted, (
@@ -108,7 +138,7 @@ def test_pod_restart_on_tuner_apply(
 @pytest.mark.integration
 def test_vllm_config_patch_via_api(
     http_client: httpx.Client,
-    _backup_restore_is_args: None,
+    backup_restore_is_args: None,
 ):
     """
     /api/vllm-config PATCH로 IS args 수정 후 값 확인.
@@ -119,6 +149,7 @@ def test_vllm_config_patch_via_api(
     original_data = resp.json().get("data", {})
     original_seqs = original_data.get("max_num_seqs", "256")
 
+    _wait_for_tuner_idle(http_client)
     new_value = "128" if original_seqs != "128" else "256"
     patch_resp = http_client.patch("/api/vllm-config", json={"data": {"max_num_seqs": new_value}}, timeout=30)
     assert patch_resp.status_code == 200, f"PATCH failed: {patch_resp.text}"

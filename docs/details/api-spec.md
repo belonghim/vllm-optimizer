@@ -748,9 +748,9 @@ Deterministic analysis of a target model. Reads `/mnt/models/config.json`, `open
 | `utilization` | number | 0.9 | Fraction of the memory budget usable for weights + KV |
 | `refresh` | boolean | false | Bypass the per-storageUri cache |
 
-**Response (200 OK):** `target`, `available`, `model` (layer mix, `kv_bytes_per_token`, `sliding_kv_bytes_per_token`, `linear_state_bytes_per_seq`, `model_weight_gib`, quantization, MoE, context limits, `warnings`), `runtime` (`gpu_count`, `tensor_parallel_size`, `kv_cache_dtype`, `current_args`), `memory_budget` (`gib`, `source`: `accelerator` | `pod_memory` | `unknown_accelerator_memory` | `unknown`), `capacity` (`context_len`, `kv_bytes_per_seq`, `max_concurrent_seqs`), `suggested_search_space`, `analyst_available`, `warnings`.
+**Response (200 OK):** `target`, `available`, `model` (layer mix, `kv_bytes_per_token`, `sliding_kv_bytes_per_token`, `linear_state_bytes_per_seq`, `model_weight_gib`, quantization, MoE, context limits, `warnings`), `runtime` (`gpu_count`, `tensor_parallel_size`, `kv_cache_dtype`, `current_args`), `memory_budget` (`gib`, `source`: `accelerator` | `pod_memory` | `unknown_accelerator_memory` | `unknown`), `capacity` (`context_len`, `kv_bytes_per_seq`, `max_concurrent_seqs` | null, `observed_max_seqs`), `observed` (vLLM's allocated pool from the pod's `/metrics` `cache_config_info`: `kv_cache_size_tokens`, `max_concurrency`, `block_size`, `gpu_memory_utilization`, `prefix_caching`, `cache_dtype`, `pod`, `estimate_ratio`), `suggested_search_space`, `analyst_available`, `warnings`.
 
-KV per sequence = `kv_bytes_per_token × len + sliding_kv_bytes_per_token × min(len, sliding_window) + linear_state_bytes_per_seq`. Capacity is a theoretical upper bound (activation / CUDA graph overhead not subtracted).
+KV per sequence = `kv_bytes_per_token × len + sliding_kv_bytes_per_token × min(len, sliding_window) + linear_state_bytes_per_seq`. The estimate is a theoretical upper bound (activation / CUDA graph / vision-encoder overhead not subtracted). `observed` needs only pod `list` (no exec); measured rows stop at the served `max_model_len` (`observed_max_seqs = kv_cache_size_tokens // context_len`) and the suggested search space prefers measured capacity when present.
 
 ---
 

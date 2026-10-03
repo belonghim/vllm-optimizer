@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 import time
 from collections.abc import AsyncIterator, Iterator
@@ -7,6 +8,7 @@ from typing import cast
 
 import httpx
 import pytest
+import pytest_asyncio
 
 BACKEND_URL = os.getenv(
     "PERF_TEST_BACKEND_URL", "http://vllm-optimizer-backend.vllm-optimizer-dev.svc.cluster.local:8000"
@@ -58,8 +60,11 @@ def warm_up_vllm(http_client: httpx.Client) -> None:
         pytest.fail(f"vLLM optimizer backend unreachable after warm-up: {e}")
 
 
-@pytest.fixture(autouse=True)
+@pytest_asyncio.fixture(autouse=True)
 async def backup_restore_is_args() -> AsyncIterator[None]:
+    if shutil.which("oc") is None:
+        yield
+        return
     result = subprocess.run(
         [
             "oc",
@@ -102,12 +107,14 @@ async def backup_restore_is_args() -> AsyncIterator[None]:
 @pytest.fixture(scope="function")
 def skip_if_overloaded(http_client: httpx.Client) -> None:
     """vLLM이 과부하 상태이면 최대 120초 대기 후 skip."""
+    params = {"namespace": VLLM_NAMESPACE, "is_name": VLLM_IS_NAME, "cr_type": VLLM_CR_TYPE}
     for attempt in range(24):  # 24 * 5s = 120s max wait
         try:
-            resp = http_client.get("/api/metrics/latest")
+            resp = http_client.get("/api/metrics/latest", params=params)
             if resp.status_code == 200:
-                data = cast(dict[str, object], resp.json())
-                latency = data.get("latency_p99", 0)
+                body = cast(dict[str, object], resp.json())
+                payload = body.get("data")
+                latency = payload.get("latency_p99", 0) if isinstance(payload, dict) else 0
                 if isinstance(latency, (int, float)) and latency > 2000:
                     if attempt < 23:
                         time.sleep(5)

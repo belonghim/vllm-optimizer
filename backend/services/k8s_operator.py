@@ -41,11 +41,22 @@ class K8sOperator:
         self._total_wait_seconds: float = 0.0
         self._poll_count: int = 0
         self._cooldown_secs: int = 30
+        self._target: tuple[str, str, str] | None = None
         self._init_k8s()
+
+    def set_target(self, namespace: str, is_name: str, cr_type: str) -> None:
+        """Pin the CR this operator reads, patches and recreates (else the runtime-config default)."""
+        self._target = (namespace, is_name, cr_type)
+
+    @property
+    def target(self) -> tuple[str, str, str]:
+        if self._target is not None:
+            return self._target
+        return get_k8s_namespace(), get_vllm_is_name(), runtime_config.cr_type
 
     @property
     def _cr_adapter(self) -> CRAdapter:
-        return get_cr_adapter()
+        return get_cr_adapter(self.target[2])
 
     @property
     def k8s_available(self) -> bool:
@@ -72,8 +83,8 @@ class K8sOperator:
             logger.warning("K8s client unavailable: %s", e)
 
     async def wait_for_ready(self, cancel_event: asyncio.Event, timeout: int = 300, interval: int = 5) -> bool:
-        namespace = get_k8s_namespace()
-        is_name = get_vllm_is_name()
+        namespace = self.target[0]
+        is_name = self.target[1]
         custom_api = cast(Any, self._k8s_custom)
         logger.info(f"[AutoTuner] InferenceService '{is_name}' 준비 대기 중...")
         wait_start = time.monotonic()
@@ -169,8 +180,8 @@ class K8sOperator:
     async def read_current_spec(self) -> dict[str, Any] | None:
         if not self._k8s_available or self._k8s_custom is None:
             return None
-        namespace = get_k8s_namespace()
-        is_name = get_vllm_is_name()
+        namespace = self.target[0]
+        is_name = self.target[1]
         custom_api = cast(Any, self._k8s_custom)
         try:
             cr_obj = await asyncio.to_thread(
@@ -189,8 +200,8 @@ class K8sOperator:
     async def get_pod_logs(self, tail_lines: int = 100) -> str | None:
         if not self._k8s_available:
             return None
-        namespace = get_k8s_namespace()
-        is_name = get_vllm_is_name()
+        namespace = self.target[0]
+        is_name = self.target[1]
         label_selector = self._cr_adapter.pod_label_selector(is_name)
         try:
             core = k8s_client.CoreV1Api()
@@ -219,8 +230,8 @@ class K8sOperator:
                 "error": "K8s 클라이언트를 초기화할 수 없습니다. 클러스터 연결을 확인하세요.",
                 "error_type": "k8s_unavailable",
             }
-        namespace = get_k8s_namespace()
-        is_name = get_vllm_is_name()
+        namespace = self.target[0]
+        is_name = self.target[1]
         custom_api = cast(Any, self._k8s_custom)
         try:
             await asyncio.to_thread(
@@ -254,9 +265,9 @@ class K8sOperator:
     async def get_model_name(self) -> str:
         """Resolve the model name from the InferenceService spec."""
         if not self._k8s_available or self._k8s_custom is None:
-            return get_vllm_is_name()
-        namespace = get_k8s_namespace()
-        is_name = get_vllm_is_name()
+            return self.target[1]
+        namespace = self.target[0]
+        is_name = self.target[1]
         custom_api = cast(Any, self._k8s_custom)
         try:
             cr_obj = await asyncio.to_thread(
@@ -313,8 +324,8 @@ class K8sOperator:
 
         try:
             async with k8s_lock:
-                namespace = get_k8s_namespace()
-                is_name = get_vllm_is_name()
+                namespace = self.target[0]
+                is_name = self.target[1]
                 custom_api = cast(Any, self._k8s_custom)
                 logger.info(f"[AutoTuner] InferenceService '{is_name}' in namespace '{namespace}'")
                 cr_obj = await asyncio.to_thread(
@@ -393,8 +404,8 @@ class K8sOperator:
                     "error_type": "rbac",
                 }
             if e.status == 404:
-                namespace = get_k8s_namespace()
-                is_name = get_vllm_is_name()
+                namespace = self.target[0]
+                is_name = self.target[1]
                 return {
                     "success": False,
                     "error": f"InferenceService '{is_name}'을(를) '{namespace}'에서 찾을 수 없습니다.",
@@ -408,8 +419,8 @@ class K8sOperator:
     async def _recreate_from_snapshot(self) -> None:
         if self._is_args_snapshot is None:
             return
-        namespace = get_k8s_namespace()
-        is_name = get_vllm_is_name()
+        namespace = self.target[0]
+        is_name = self.target[1]
         custom_api = cast(Any, self._k8s_custom)
         group = self._cr_adapter.api_group()
         version = self._cr_adapter.api_version()
@@ -436,8 +447,8 @@ class K8sOperator:
             return False
         try:
             async with k8s_lock:
-                namespace = get_k8s_namespace()
-                is_name = get_vllm_is_name()
+                namespace = self.target[0]
+                is_name = self.target[1]
                 custom_api = cast(Any, self._k8s_custom)
 
                 restore_body = self._cr_adapter.restore_cr_from_snapshot(self._is_args_snapshot)

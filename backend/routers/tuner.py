@@ -26,7 +26,13 @@ from pydantic import BaseModel, Field, model_validator
 from services.auto_tuner import AutoTuner
 from services.cr_adapter import CRAdapter, extract_arg_value, get_cr_adapter
 from services.llm_assistant import get_llm_assistant
-from services.model_analysis import ModelAnalysis, capacity_table, memory_budget, suggest_search_space
+from services.model_analysis import (
+    ModelAnalysis,
+    capacity_table,
+    memory_budget,
+    observed_capacity,
+    suggest_search_space,
+)
 from services.model_config_reader import get_model_config_reader
 from services.shared import load_engine, multi_target_collector, runtime_config, storage
 
@@ -95,6 +101,9 @@ class TuningStartRequest(BaseModel):
     p99_latency_sla_ms: int | None = None
     enable_llm_assistant: bool = TUNING_DEFAULTS["enable_llm_assistant"]
     accelerator_memory_gib: float | None = Field(default=None, gt=0, le=1024)
+    vllm_namespace: str | None = None
+    vllm_is_name: str | None = None
+    vllm_cr_type: Literal["inferenceservice", "llminferenceservice"] | None = None
 
     @model_validator(mode="after")
     def validate_sweep_mode(self) -> "TuningStartRequest":
@@ -204,6 +213,7 @@ class ModelAnalysisResponse(BaseModel):
     runtime: dict[str, Any] = Field(default_factory=dict)
     memory_budget: dict[str, Any] = Field(default_factory=dict)
     capacity: list[dict[str, Any]] = Field(default_factory=list)
+    observed: dict[str, Any] | None = None
     suggested_search_space: dict[str, int] | None = None
     analyst_available: bool = False
     warnings: list[str] = Field(default_factory=list)
@@ -246,9 +256,7 @@ async def _analyze_target(
         adapter = get_cr_adapter(cr_type)
         cr_spec = await _read_target_spec(namespace, is_name, adapter)
     else:
-        namespace = runtime_config.vllm_namespace or "default"
-        is_name = runtime_config.vllm_is_name or "llm-ov"
-        cr_type = runtime_config.cr_type
+        namespace, is_name, cr_type = auto_tuner.target
         cr_spec, adapter = await auto_tuner.get_cr_context()
 
     assistant = get_llm_assistant()
@@ -276,6 +284,10 @@ async def _analyze_target(
     reader = get_model_config_reader()
     if refresh:
         reader.invalidate(storage_uri)
+    if pod_selector:
+        resp.observed = await reader.read_observed_kv(
+            namespace, pod_selector, adapter.metrics_port(), adapter.metrics_scheme()
+        )
     analysis = await reader.read(
         vllm_endpoint=vllm_endpoint,
         storage_uri=storage_uri,
@@ -306,16 +318,28 @@ async def _analyze_target(
         "utilization": None if budget.dedicated_kv else utilization,
         "dedicated_kv": budget.dedicated_kv,
     }
-    if budget.source == "unknown_accelerator_memory":
+    observed = resp.observed
+    if budget.source == "unknown_accelerator_memory" and observed is None:
         resp.warnings.append("GPU 장당 메모리(GiB)를 입력하면 동시 시퀀스 상한과 탐색 범위를 계산합니다")
-    if budget.source == "openvino_kvcache_space":
+    if budget.source == "openvino_kvcache_space" and observed is None:
         resp.warnings.append(
             "OpenVINO KV 공간을 VLLM_OPENVINO_KVCACHE_SPACE 기본값(4 GiB)·u8로 가정 — 런타임 env로 바꿨다면 다를 수 있습니다"
         )
+    served_len = analysis.served_max_model_len
     if budget.gib:
-        max_context = analysis.max_position_embeddings or analysis.served_max_model_len
+        max_context = analysis.max_position_embeddings or served_len
         resp.capacity = capacity_table(analysis, budget, utilization, max_context)
-        resp.suggested_search_space = suggest_search_space(resp.capacity, analysis.served_max_model_len)
+        resp.suggested_search_space = suggest_search_space(resp.capacity, served_len)
+    if observed is not None:
+        estimated = next(
+            (r["max_concurrent_seqs"] for r in resp.capacity if served_len and r["context_len"] == served_len), None
+        )
+        reported = observed.get("max_concurrency")
+        observed["estimate_ratio"] = round(estimated / reported, 3) if estimated and reported else None
+        resp.capacity = observed_capacity(resp.capacity, observed["kv_cache_size_tokens"], served_len, analysis)
+        resp.suggested_search_space = (
+            suggest_search_space(resp.capacity, served_len, key="observed_max_seqs") or resp.suggested_search_space
+        )
     return resp, analysis, cr_spec, adapter
 
 
@@ -352,7 +376,9 @@ async def explain_model_analysis(body: ModelAnalysisResponse) -> ModelAnalysisEx
     return ModelAnalysisExplainResponse(markdown=markdown, analyst_available=True)
 
 
-async def _build_tuning_config(body: TuningStartRequest) -> tuple[TuningConfig, str, SweepConfig | None]:
+async def _build_tuning_config(
+    body: TuningStartRequest, target: tuple[str, str, str]
+) -> tuple[TuningConfig, str, SweepConfig | None]:
     import os
 
     vllm_endpoint = body.vllm_endpoint or os.getenv("VLLM_ENDPOINT", "http://localhost:8000")
@@ -365,11 +391,10 @@ async def _build_tuning_config(body: TuningStartRequest) -> tuple[TuningConfig, 
     served_model_name_warning: str | None = None
     try:
         analysis_resp, analysis, cr_spec, adapter = await _analyze_target(
-            vllm_endpoint, body.accelerator_memory_gib, 0.9
+            vllm_endpoint, body.accelerator_memory_gib, 0.9, target=target
         )
         if analysis and analysis.served_model_name and cr_spec is not None:
-            is_name = runtime_config.vllm_is_name or "llm-ov"
-            cr_served_name = adapter.resolve_model_name(cr_spec, is_name)
+            cr_served_name = adapter.resolve_model_name(cr_spec, target[1])
             if analysis.served_model_name != cr_served_name:
                 served_model_name_warning = (
                     f"--served-model-name 불일치: CR에 설정된 '{cr_served_name}'이(가) "
@@ -389,6 +414,7 @@ async def _build_tuning_config(body: TuningStartRequest) -> tuple[TuningConfig, 
             "model": analysis_resp.model,
             "memory_budget": analysis_resp.memory_budget,
             "capacity": analysis_resp.capacity,
+            "observed": analysis_resp.observed,
         }
 
     config = TuningConfig(
@@ -409,6 +435,7 @@ async def _build_tuning_config(body: TuningStartRequest) -> tuple[TuningConfig, 
         memory_budget_gib=memory_budget_gib,
         memory_budget_dedicated_kv=bool(analysis_resp and analysis_resp.memory_budget.get("dedicated_kv")),
         served_model_name_warning=served_model_name_warning,
+        target_key="/".join(target),
         model_kv_bytes_per_token=analysis.kv_bytes_per_token if analysis else None,
         model_sliding_kv_bytes_per_token=analysis.sliding_kv_bytes_per_token if analysis else 0,
         model_sliding_window=analysis.sliding_window if analysis else None,
@@ -476,7 +503,17 @@ async def start_tuning(request: Request, body: TuningStartRequest) -> dict[str, 
         RuntimeError,
     ) as e:  # intentional: fail-open, storage clear failure must not block new tuning session
         logger.warning("[Tuner] Failed to clear trials from storage before new session: %s", e)
-    config, vllm_endpoint, sweep_config = await _build_tuning_config(body)
+    if body.vllm_namespace and body.vllm_is_name:
+        target = (body.vllm_namespace, body.vllm_is_name, body.vllm_cr_type or runtime_config.cr_type)
+    else:
+        target = (
+            runtime_config.vllm_namespace or "default",
+            runtime_config.vllm_is_name or "llm-ov",
+            runtime_config.cr_type,
+        )
+    # Trials patch/recreate this CR; it stays pinned afterwards so apply-best hits the tuned target.
+    auto_tuner.set_target(*target)
+    config, vllm_endpoint, sweep_config = await _build_tuning_config(body, target)
     await _run_preflight_or_raise()
     tuning_id = str(uuid.uuid4())
     auto_tuner._current_task = asyncio.create_task(
@@ -625,7 +662,6 @@ async def get_tuner_all() -> TunerAllResponse:
 @router.post("/apply-best", response_model=ApplyBestResponse)
 async def apply_best_parameters() -> ApplyBestResponse:
     """Apply the best parameters found by auto-tuning to vLLM deployment."""
-    import os
 
     # If no best trial is available yet
     if auto_tuner.best is None:
@@ -646,11 +682,12 @@ async def apply_best_parameters() -> ApplyBestResponse:
 
     result = await auto_tuner._apply_params(auto_tuner.best.params)
     if isinstance(result, dict) and result.get("success"):
+        namespace, is_name, _cr_type = auto_tuner.target
         return ApplyBestResponse(
             success=True,
             message="Best parameters applied successfully.",
             applied_parameters=auto_tuner.best.params,
-            deployment_name=os.getenv("VLLM_DEPLOYMENT_NAME", "llm-ov"),
+            deployment_name=f"{namespace}/{is_name}",
         )
     return ApplyBestResponse(
         success=False,

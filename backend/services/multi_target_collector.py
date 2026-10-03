@@ -384,7 +384,7 @@ class MultiTargetMetricsCollector:
                     is_default=is_first,
                     cr_type=cr_type,
                     model_name=model_name,
-                    metrics_source=metrics_source,
+                    metrics_source=metrics_source or "direct",
                 )
                 new_target = self._targets[key]
 

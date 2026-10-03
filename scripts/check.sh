@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Minimal verification gate for vLLM Optimizer.
 #
-#   ./scripts/check.sh            full gate: smoke + full suites + lint/type/build
+#   ./scripts/check.sh            full gate: full suites incl. slow tests + lint/type/build
 #   ./scripts/check.sh --smoke    fast core-functionality smoke only
 #   ./scripts/check.sh --help     show this help
 #
@@ -57,8 +57,8 @@ if [ "$MODE" = "smoke" ]; then
   exit 0
 fi
 
-step "backend tests"
-"$PY" -m pytest backend/tests -q || fail "backend tests"
+step "backend tests (incl. slow; integration needs a cluster)"
+"$PY" -m pytest backend/tests -q -m "not integration" || fail "backend tests"
 
 step "backend lint"
 "$PY" -m ruff check backend/ || fail "ruff check"

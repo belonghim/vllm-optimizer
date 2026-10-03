@@ -298,3 +298,16 @@ async def test_evaluate_uses_mocked_httpx_async_client_for_model_lookup(auto_tun
     assert score == pytest.approx(30.0)
     assert tps == 30.0
     assert p99 == 0.2
+
+
+def test_study_name_is_scoped_to_target_and_search_space() -> None:
+    from ..services.tuner_logic import study_name_for
+
+    gpu = TuningConfig(objective="tps", target_key="serving3/qwen-gpu/inferenceservice")
+    assert study_name_for(gpu) == study_name_for(gpu.model_copy())
+    assert study_name_for(gpu).startswith("vllm-tuner-tps-")
+    other_target = gpu.model_copy(update={"target_key": "vllm-lab-dev/llm-ov/inferenceservice"})
+    other_choices = gpu.model_copy(update={"max_model_len_range": (8192, 8192)})
+    other_blocks = gpu.model_copy(update={"block_size_options": [16]})
+    names = {study_name_for(c) for c in (gpu, other_target, other_choices, other_blocks)}
+    assert len(names) == 4

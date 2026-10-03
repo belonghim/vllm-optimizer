@@ -464,6 +464,13 @@ class AutoTuner:
                 {"type": "tuning_warmup_suggestions", "data": {"count": len(enqueued), "configurations": enqueued}}
             )
 
+    def set_target(self, namespace: str, is_name: str, cr_type: str) -> None:
+        self._k8s_operator.set_target(namespace, is_name, cr_type)
+
+    @property
+    def target(self) -> tuple[str, str, str]:
+        return self._k8s_operator.target
+
     async def get_cr_context(self) -> tuple[dict[str, Any] | None, Any]:
         """Return (cr_spec, cr_adapter) without exposing _k8s_operator internals."""
         cr_spec = await self._k8s_operator.read_current_spec()

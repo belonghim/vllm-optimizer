@@ -37,6 +37,7 @@ Deterministic analysis of the selected target's `/mnt/models/config.json` (read 
 | GPU memory per device (GiB) | Needed for GPU targets (not discoverable from the CR). CPU/OpenVINO targets use the pod memory limit. Also sent with tuner start as `accelerator_memory_gib` |
 | Facts | Architecture, layer mix (full / sliding / linear, KV-shared), heads/head_dim, KV bytes per token, sliding-window and linear-state memory, KV cache dtype, weight size, quantization, MoE, context limits |
 | Capacity table | Max concurrent sequences per context length = (budget × 0.9 − weights) / KV per sequence. Theoretical upper bound |
+| Measured (vLLM) | When the target pod's `/metrics` is reachable (`vllm:cache_config_info`, pod `list` only), the table shows vLLM's measured `observed_max_seqs` next to the estimate, with the pool size and `estimate/measured` ratio above it; the suggested search space then prefers the measured capacity |
 | Apply to search space | Copies the suggested `max_num_seqs` / `max_model_len` ranges into the tuner form |
 | Explain with analyst LLM | Shown only when `ANALYST_ENDPOINT` is set. Sends the computed analysis to the analyst model (e.g. llm-ov) for a short Korean narrative; it must not invent numbers |
 

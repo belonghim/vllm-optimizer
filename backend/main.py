@@ -6,10 +6,12 @@ This module creates the main FastAPI app and mounts routers for the vLLM optimiz
 
 import logging
 import os
+import ssl
 import time
 from contextlib import asynccontextmanager, suppress
 from typing import Any
 
+import certifi
 import httpx
 from errors import OptimizerError
 from fastapi import FastAPI, Request
@@ -46,6 +48,23 @@ except Exception as e:  # intentional: fail-open
         return _noop_lifespan
 
 
+SERVICE_CA_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
+
+
+def _external_verify(ca_bundle: str, service_ca_path: str = SERVICE_CA_PATH) -> str | ssl.SSLContext:
+    """TLS trust for inference traffic: CA_BUNDLE if set, else public CAs plus the OpenShift service CA.
+
+    In-cluster HTTPS targets (LLMIS workload Services) carry certificates from the cluster's
+    service-serving signer, which public CA bundles do not include.
+    """
+    if ca_bundle:
+        return ca_bundle
+    ctx = ssl.create_default_context(cafile=certifi.where())
+    if os.path.exists(service_ca_path):
+        ctx.load_verify_locations(service_ca_path)
+    return ctx
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     import services.shared as shared_module
@@ -54,7 +73,7 @@ async def lifespan(app: FastAPI):
     try:
         ca_bundle = os.environ.get("CA_BUNDLE", "")
         internal_verify = ca_bundle if ca_bundle else False
-        external_verify = ca_bundle if ca_bundle else True
+        external_verify = _external_verify(ca_bundle)
         shared_module.internal_client = httpx.AsyncClient(
             verify=internal_verify, timeout=httpx.Timeout(30.0, connect=10.0)
         )

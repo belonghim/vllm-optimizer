@@ -1,7 +1,9 @@
 import asyncio
 import json
 import logging
+import re
 import time
+from typing import Any
 
 import httpx
 from services.model_analysis import ModelAnalysis, analyze_config
@@ -28,6 +30,52 @@ def _parse_json(raw: str) -> dict | None:
         logger.debug("[ModelConfigReader] JSON parse error: %s", e)
         return None
     return parsed if isinstance(parsed, dict) else None
+
+
+_LABEL_RE = re.compile(r'(\w+)="([^"]*)"')
+
+
+def _label_int(value: str | None) -> int | None:
+    try:
+        return int(float(value)) if value not in (None, "", "None") else None
+    except ValueError:
+        return None
+
+
+def _label_float(value: str | None) -> float | None:
+    try:
+        return float(value) if value not in (None, "", "None") else None
+    except ValueError:
+        return None
+
+
+def parse_cache_config_info(text: str) -> dict[str, Any] | None:
+    """Extract vLLM's allocated KV pool from the ``vllm:cache_config_info`` gauge labels.
+
+    Newer vLLM exposes ``kv_cache_size_tokens``/``kv_cache_max_concurrency``; older releases only
+    ``num_gpu_blocks`` × ``block_size``. Works for both the ``vllm:`` and ``kserve_vllm:`` prefixes.
+    """
+    for line in text.splitlines():
+        name, brace, rest = line.partition("{")
+        if not brace or not name.endswith("vllm:cache_config_info"):
+            continue
+        labels = dict(_LABEL_RE.findall(rest))
+        block_size = _label_int(labels.get("block_size"))
+        tokens = _label_int(labels.get("kv_cache_size_tokens"))
+        if tokens is None:
+            blocks = _label_int(labels.get("num_gpu_blocks"))
+            tokens = blocks * block_size if blocks and block_size else None
+        if not tokens:
+            return None
+        return {
+            "kv_cache_size_tokens": tokens,
+            "max_concurrency": _label_float(labels.get("kv_cache_max_concurrency")),
+            "block_size": block_size,
+            "gpu_memory_utilization": _label_float(labels.get("gpu_memory_utilization")),
+            "prefix_caching": labels.get("enable_prefix_caching") == "True",
+            "cache_dtype": labels.get("cache_dtype"),
+        }
+    return None
 
 
 def parse_read_output(raw: str) -> tuple[dict | None, dict | None, int | None]:
@@ -82,7 +130,7 @@ class ModelConfigReader:
         cfg = ov_cfg = None
         weight_bytes: int | None = None
         if namespace and pod_label_selector:
-            pod_name = await self._find_running_pod(namespace, pod_label_selector)
+            pod_name, _pod_ip = await self._find_running_pod(namespace, pod_label_selector)
             if pod_name:
                 raw = await self._exec(namespace, pod_name, container, ["sh", "-c", _READ_SCRIPT])
                 if raw:
@@ -124,30 +172,49 @@ class ModelConfigReader:
             logger.debug("[ModelConfigReader] vLLM API fetch failed: %s", e)
             return None, None
 
-    async def _find_running_pod(self, namespace: str, label_selector: str) -> str | None:
+    async def read_observed_kv(
+        self, namespace: str, pod_label_selector: str, port: int, scheme: str
+    ) -> dict[str, Any] | None:
+        """vLLM's measured KV pool from a running target pod's /metrics (needs only pods list)."""
+        pod_name, pod_ip = await self._find_running_pod(namespace, pod_label_selector)
+        if not pod_ip:
+            return None
+        try:
+            async with httpx.AsyncClient(verify=False, timeout=5.0) as http:
+                resp = await http.get(f"{scheme}://{pod_ip}:{port}/metrics")
+                resp.raise_for_status()
+        except httpx.HTTPError as e:
+            logger.debug("[ModelConfigReader] metrics scrape of %s failed: %s", pod_name, e)
+            return None
+        observed = parse_cache_config_info(resp.text)
+        if observed is not None:
+            observed["pod"] = pod_name
+        return observed
+
+    async def _find_running_pod(self, namespace: str, label_selector: str) -> tuple[str | None, str | None]:
         try:
             from kubernetes import client as k8s_client
             from kubernetes import config as k8s_config
 
-            def _find() -> str | None:
+            def _find() -> tuple[str | None, str | None]:
                 try:
                     k8s_config.load_incluster_config()
                 except k8s_config.ConfigException:
                     try:
                         k8s_config.load_kube_config()
                     except k8s_config.ConfigException:
-                        return None
+                        return None, None
                 core = k8s_client.CoreV1Api()
                 pods = core.list_namespaced_pod(namespace, label_selector=label_selector)
                 for pod in pods.items:
                     if pod.status and pod.status.phase == "Running":
-                        return pod.metadata.name  # type: ignore[return-value]
-                return None
+                        return pod.metadata.name, pod.status.pod_ip
+                return None, None
 
             return await asyncio.to_thread(_find)
         except Exception as e:
             logger.debug("[ModelConfigReader] pod lookup failed (%s): %s", label_selector, e)
-            return None
+            return None, None
 
     async def _exec(self, namespace: str, pod_name: str, container: str | None, command: list[str]) -> str | None:
         try:

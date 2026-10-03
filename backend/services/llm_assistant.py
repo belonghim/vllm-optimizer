@@ -93,10 +93,17 @@ def format_analysis_facts(analysis: dict[str, Any]) -> str:
         f"- 메모리 예산: {budget.get('gib')} GiB ({budget.get('source')})",
     ]
     capacity = analysis.get("capacity") or []
-    if capacity:
+    estimated = [r for r in capacity if r.get("max_concurrent_seqs") is not None]
+    if estimated:
         lines.append(
             "- 컨텍스트 길이별 최대 동시 시퀀스(이론 상한): "
-            + ", ".join(f"{r['context_len']} 토큰 → {r['max_concurrent_seqs']}" for r in capacity)
+            + ", ".join(f"{r['context_len']} 토큰 → {r['max_concurrent_seqs']}" for r in estimated)
+        )
+    observed = analysis.get("observed")
+    if observed:
+        lines.append(
+            f"- vLLM 실측 KV 풀: {observed.get('kv_cache_size_tokens')} 토큰, "
+            f"현재 max_model_len에서 동시 {observed.get('max_concurrency')}배 (현재 설정 기준 실측값)"
         )
     space = analysis.get("suggested_search_space")
     if space:

@@ -18,6 +18,14 @@ class TestRegisterTarget:
         assert collector.build_target_key("test-ns", "test-is", "inferenceservice") in collector._targets
 
     @pytest.mark.asyncio
+    async def test_register_new_target_defaults_to_direct_source(self, collector: MultiTargetMetricsCollector) -> None:
+        with patch.object(collector, "_ensure_collect_loop", new_callable=AsyncMock):
+            await collector.register_target("default-src-ns", "default-src-is")
+
+        key = collector.build_target_key("default-src-ns", "default-src-is", "inferenceservice")
+        assert collector._targets[key].metrics_source == "direct"
+
+    @pytest.mark.asyncio
     async def test_register_target_monitoring_label_false_when_k8s_unavailable(
         self, collector: MultiTargetMetricsCollector
     ) -> None:

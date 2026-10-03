@@ -187,7 +187,8 @@ TUNING_DEFAULTS: dict[str, Any] = {
     "max_model_len_max": 8192,
     "max_num_batched_tokens_min": 256,
     "max_num_batched_tokens_max": 2048,
-    "block_size_options": [8, 16, 32],
+    # vLLM's CUDA FlashAttention backend rejects block sizes that are not a multiple of 16
+    "block_size_options": [16, 32],
     "include_swap_space": False,
     "swap_space_min": 1.0,
     "swap_space_max": 8.0,
@@ -260,6 +261,9 @@ class TuningConfig(BaseModel):
     )
     served_model_name_warning: str | None = Field(
         default=None, description="Non-None when --served-model-name in CR differs from the name vLLM actually reports"
+    )
+    target_key: str = Field(
+        default="", description="namespace/name/cr_type of the tuned CR — scopes the persistent Optuna study"
     )
     model_kv_bytes_per_token: int | None = Field(
         default=None, description="KV bytes per token for full-attention layers (grows with context)"
@@ -421,7 +425,8 @@ class BatchMetricsRequest(BaseModel):
     )
     metrics_source: Literal["direct", "thanos"] | None = Field(
         default=None,
-        description="Metrics collection source: 'direct' (vLLM pod scrape) or 'thanos' (Thanos Querier). No fallback is applied when omitted.",
+        description="Metrics collection source: 'direct' (vLLM pod scrape) or 'thanos' (Thanos Querier). "
+        "New targets default to 'direct'; existing targets keep their source unless set here.",
     )
 
 

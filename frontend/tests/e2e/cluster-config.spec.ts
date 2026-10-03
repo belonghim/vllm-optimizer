@@ -23,15 +23,17 @@ test('클러스터 설정 바에서 설정 저장', async ({ page, mockApi: _moc
   const currentNamespace = await namespaceInput.inputValue();
   const currentIsvc = await isvcInput.inputValue();
 
-  await endpointInput.fill(currentEndpoint || 'http://openshift-ai-inference-openshift-default.openshift-ingress.svc/llm-d-demo/small-llm-d');
+  await endpointInput.fill(
+    currentEndpoint || 'https://small-llm-d-kserve-workload-svc.llm-d-demo.svc.cluster.local:8000'
+  );
   await namespaceInput.fill(`${currentNamespace || 'llm-d'}-demo`);
   await isvcInput.fill(currentIsvc || 'small-llm-d');
 
   const saveButton = page.getByRole('button', { name: '💾 Save' });
   await expect(saveButton).toBeEnabled();
 
-  const patchResponse = page.waitForResponse((response) =>
-    response.url().includes('/api/config') && response.request().method() === 'PATCH'
+  const patchResponse = page.waitForResponse(
+    (response) => response.url().includes('/api/config') && response.request().method() === 'PATCH'
   );
   await saveButton.click();
 

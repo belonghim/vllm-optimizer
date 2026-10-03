@@ -48,6 +48,47 @@ subjects:
     name: vllm-optimizer-frontend
     namespace: "vllm-optimizer"
 ---
+# Access to tuning/benchmark targets in any namespace (ISVC and LLMIS). Cluster-scoped so new
+# target namespaces need no per-namespace RoleBinding.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vllm-optimizer-target-operator
+rules:
+  # Tuner applies trial args by delete + recreate (k8s_operator.apply_params); discovery lists CRs
+  - apiGroups: ["serving.kserve.io"]
+    resources: ["inferenceservices", "llminferenceservices"]
+    verbs: ["get", "list", "patch", "create", "delete"]
+  # Target pods (direct metrics scrape, measured KV pool) and the DCGM exporter lookup
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  # Failed-trial log tail
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  # Model analysis reads /mnt/models/config.json and weight sizes via a fixed exec command
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create", "get"]
+  # Monitoring label check on the target namespace
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vllm-optimizer-target-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vllm-optimizer-target-operator
+subjects:
+  - kind: ServiceAccount
+    name: vllm-optimizer-backend
+    namespace: "vllm-optimizer"
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:

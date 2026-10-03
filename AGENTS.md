@@ -9,7 +9,7 @@ python3 -m venv .venv && .venv/bin/pip install -r backend/requirements.txt ruff
 (cd frontend && npm ci)
 
 # Verification gate — run before finishing any change
-./scripts/check.sh          # full: smoke + tests + lint + type + build
+./scripts/check.sh          # full: tests (incl. slow) + lint + type + build
 ./scripts/check.sh --smoke  # fast core-feature contracts (~4s)
 
 # Deploy
@@ -33,7 +33,7 @@ python3 -m venv .venv && .venv/bin/pip install -r backend/requirements.txt ruff
 | Metric collection | `backend/services/multi_target_collector.py` (+ `metric_math.py`) |
 | Storage | `backend/services/storage.py` (+ `storage_schema.py`) |
 | Auto-tuner | `backend/services/auto_tuner.py` (facade) · `tuner_logic.py` · `k8s_operator.py` · `event_broadcaster.py` |
-| Model analysis | `backend/services/model_analysis.py` (pure config.json math) · `model_config_reader.py` (pod exec I/O) · `GET /api/tuner/model-analysis` |
+| Model analysis | `backend/services/model_analysis.py` (pure config.json math) · `model_config_reader.py` (pod exec I/O + measured KV from pod `/metrics`) · `GET /api/tuner/model-analysis` |
 | Analyst LLM | `backend/services/llm_assistant.py` — separate model via `ANALYST_ENDPOINT` (dev: `llm-ov`); narrates computed facts only |
 | Routers | `backend/routers/*.py` — mounted under `/api/<name>` in `backend/main.py` |
 | Frontend config | `frontend/src/contexts/ClusterConfigContext.tsx` (+ `useConfigMapTargets`, `useResolvedModelName`) |
@@ -102,7 +102,7 @@ Integration tests only: `VLLM_MODEL`. Legacy/optional: `K8S_DEPLOYMENT_NAME`.
 | **Namespace** | from target/config (`VLLM_NAMESPACE`) | from target/config (no hardcoded default) |
 | **Deployment** | `{name}-predictor` | `{name}-kserve` |
 | **Pod label selector** | `serving.kserve.io/inferenceservice={name}` | `app.kubernetes.io/name={name},kserve.io/component=workload` |
-| **Endpoint** | `http://{name}-predictor.{ns}.svc.cluster.local` (port 80) | `https://openshift-ai-inference-openshift-default.openshift-ingress.svc/{ns}/{name}` |
+| **Endpoint** | `http://{name}-predictor.{ns}.svc.cluster.local` (port 80) | `https://{name}-kserve-workload-svc.{ns}.svc.cluster.local:8000` (per-LLMIS workload Service; gateway-independent) |
 | **Args location** | `spec.predictor.model.args` | `spec.template.containers[main].env` → `VLLM_ADDITIONAL_ARGS` |
 | **Model name** | `--served-model-name` from args | `.spec.model.name` |
 | **Metric prefix** | `vllm:` | `kserve_vllm:` |
@@ -116,7 +116,7 @@ Integration tests only: `VLLM_MODEL`. Legacy/optional: `K8S_DEPLOYMENT_NAME`.
 
 - **args PATCH**: `vllm_config` = dict-merge (safe partial). `auto_tuner._apply_params` = full replacement — do not modify.
 - **resources**: `ALLOWED_RESOURCE_KEYS = {"cpu", "memory", "nvidia.com/gpu"}`. GPU only in `limits`. Empty string removes key.
-- **metrics_source** is **per target** (`direct` | `thanos`), not an environment variable.
+- **metrics_source** is **per target** (`direct` | `thanos`), not an environment variable. New targets default to `direct`.
 - **Default target**: selected from ConfigMap (`DEFAULT_ISVC_*` / `DEFAULT_LLMISVC_*`) or explicit target; there is no hardcoded frontend/backend default registration.
 
 ---

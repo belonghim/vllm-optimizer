@@ -1,4 +1,6 @@
 import asyncio
+import hashlib
+import json
 import logging
 import math
 import time
@@ -39,6 +41,29 @@ def _power_of_2_range(low: int, high: int) -> list[int]:
     if not result:
         result = [max(low, min(high, (low + high) // 2))]
     return result
+
+
+def study_name_for(config: TuningConfig) -> str:
+    """Persistent study name scoped to the tuned CR and its search space.
+
+    Optuna refuses a categorical whose choices differ from earlier trials in the same study, and
+    warm-starting from another model's best params is meaningless — so each target/space gets its own.
+    """
+    space = json.dumps(
+        [
+            config.target_key,
+            config.max_num_seqs_range,
+            config.gpu_memory_utilization_range,
+            config.max_model_len_range,
+            config.model_max_position_embeddings,
+            config.max_num_batched_tokens_range,
+            config.block_size_options,
+            config.include_swap_space,
+            config.swap_space_range if config.include_swap_space else None,
+        ],
+        default=str,
+    )
+    return f"vllm-tuner-{config.objective}-{hashlib.sha1(space.encode()).hexdigest()[:12]}"
 
 
 def kv_cache_oom_risk(params: dict[str, Any], config: TuningConfig) -> bool:
@@ -90,14 +115,13 @@ class TunerLogic:
         if config.objective == "pareto":
             sampler = optuna.samplers.NSGAIISampler(seed=42)
             pruner = optuna.pruners.NopPruner()
-            _study_name = "vllm-tuner-pareto"
             direction_kwarg: dict[str, Any] = {"directions": ["maximize", "minimize"]}
         else:
             # compute_trial_score is signed so that larger is always better for every objective
             sampler = optuna.samplers.TPESampler(seed=42)
             pruner = optuna.pruners.MedianPruner(n_startup_trials=3, n_warmup_steps=0)
-            _study_name = f"vllm-tuner-{config.objective}"
             direction_kwarg = {"direction": direction}
+        _study_name = study_name_for(config)
 
         if storage_url:
             try:

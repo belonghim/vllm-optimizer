@@ -121,6 +121,7 @@ export default function TunerModelAnalysis({
   };
 
   const m = analysis?.model;
+  const observed = analysis?.observed;
   const space = analysis?.suggested_search_space;
   const facts: [string, string][] = m
     ? [
@@ -250,13 +251,28 @@ export default function TunerModelAnalysis({
         </div>
       )}
 
+      {observed && (
+        <div style={{ fontSize: '12px', marginBottom: '0.5rem' }} data-testid="tma-observed">
+          <span style={{ color: 'var(--text-muted)' }}>Measured (vLLM): </span>
+          KV pool {observed.kv_cache_size_tokens.toLocaleString()} tokens
+          {observed.max_concurrency != null && m?.served_max_model_len
+            ? ` · ${observed.max_concurrency.toFixed(1)}× @ ${m.served_max_model_len.toLocaleString()}`
+            : ''}
+          {observed.estimate_ratio != null
+            ? ` · estimate/measured ${observed.estimate_ratio.toFixed(2)}`
+            : ''}
+          {observed.prefix_caching ? ' · prefix caching on' : ''}
+        </div>
+      )}
+
       {analysis && analysis.capacity.length > 0 && (
         <table className="table" aria-label="KV capacity by context length">
           <thead>
             <tr>
               <th>Context length</th>
               <th>KV / sequence</th>
-              <th>Max concurrent sequences</th>
+              <th>Max concurrent sequences (estimate)</th>
+              {observed && <th>Measured (vLLM)</th>}
             </tr>
           </thead>
           <tbody>
@@ -264,7 +280,8 @@ export default function TunerModelAnalysis({
               <tr key={row.context_len}>
                 <td>{row.context_len.toLocaleString()}</td>
                 <td>{formatBytes(row.kv_bytes_per_seq)}</td>
-                <td>{row.max_concurrent_seqs.toLocaleString()}</td>
+                <td>{row.max_concurrent_seqs?.toLocaleString() ?? '—'}</td>
+                {observed && <td>{row.observed_max_seqs?.toLocaleString() ?? '—'}</td>}
               </tr>
             ))}
           </tbody>
@@ -272,7 +289,10 @@ export default function TunerModelAnalysis({
       )}
       {analysis && analysis.capacity.length > 0 && (
         <div style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '4px 0 0.75rem' }}>
-          Theoretical upper bound — activation, CUDA graph and runtime overhead are not subtracted.
+          Estimate is a theoretical upper bound — activation, CUDA graph and runtime overhead are
+          not subtracted.
+          {observed &&
+            ' Measured = KV pool vLLM actually allocated with the current args (shown up to the served max_model_len); suggestions use it.'}
         </div>
       )}
 

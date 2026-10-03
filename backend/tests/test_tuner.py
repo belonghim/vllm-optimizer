@@ -605,6 +605,7 @@ def test_apply_best_with_existing_trial(client):
     mock_tuner.best = best_trial
     mock_tuner.is_running = False
     mock_tuner._apply_params = AsyncMock(return_value={"success": True})
+    mock_tuner.target = ("serving3", "qwen-gpu", "inferenceservice")
 
     with patch.dict(handler_globals, {"auto_tuner": mock_tuner}):
         resp = client.post("/api/tuner/apply-best")
@@ -612,6 +613,7 @@ def test_apply_best_with_existing_trial(client):
         data = resp.json()
         assert data["success"] is True
         assert data["applied_parameters"] == best_trial.params
+        assert data["deployment_name"] == "serving3/qwen-gpu"
         mock_tuner._apply_params.assert_called_once_with(best_trial.params)
 
 
@@ -1801,3 +1803,42 @@ def test_compute_trial_score_missing_data():
     result = {}  # empty result
     score = logic.compute_trial_score(result, config)
     assert score == 0  # default when tps missing
+
+
+@pytest.mark.parametrize("cr_type", ["inferenceservice", "llminferenceservice"])
+def test_tuner_start_pins_requested_target(cr_type: str) -> None:
+    handler_globals = get_route_handler_globals(app, "/api/tuner/start", "POST")
+    assert handler_globals is not None
+    tuner = handler_globals["auto_tuner"]
+    seen: dict[str, Any] = {}
+
+    async def fake_build(body, target):
+        seen["target"] = target
+        return MagicMock(), body.vllm_endpoint, None
+
+    with (
+        patch.dict(
+            handler_globals,
+            {
+                "_build_tuning_config": fake_build,
+                "_run_preflight_or_raise": AsyncMock(),
+                "_auto_save_tuning_session": AsyncMock(),
+            },
+        ),
+        patch.object(tuner, "start", AsyncMock(return_value={"success": True})),
+        patch.object(type(tuner), "is_running", new_callable=lambda: property(lambda self: False)),
+    ):
+        resp = TestClient(app).post(
+            "/api/tuner/start",
+            json={
+                "n_trials": 1,
+                "vllm_endpoint": "http://qwen-gpu-predictor.serving3.svc.cluster.local",
+                "vllm_namespace": "serving3",
+                "vllm_is_name": "qwen-gpu",
+                "vllm_cr_type": cr_type,
+            },
+        )
+    assert resp.status_code == 200, resp.text
+    assert seen["target"] == ("serving3", "qwen-gpu", cr_type)
+    assert tuner.target == ("serving3", "qwen-gpu", cr_type)
+    tuner._k8s_operator._target = None

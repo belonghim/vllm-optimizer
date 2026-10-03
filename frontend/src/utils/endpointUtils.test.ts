@@ -9,9 +9,7 @@ describe('buildDefaultEndpoint', () => {
 
   it('returns llmis gateway pattern for llminferenceservice crType', () => {
     const result = buildDefaultEndpoint('llminferenceservice', 'my-ns', 'my-model');
-    expect(result).toBe(
-      'https://openshift-ai-inference-openshift-default.openshift-ingress.svc/my-ns/my-model'
-    );
+    expect(result).toBe('https://my-model-kserve-workload-svc.my-ns.svc.cluster.local:8000');
   });
 
   it('falls back to isvc pattern for empty string crType', () => {
@@ -32,7 +30,7 @@ describe('buildDefaultEndpoint', () => {
   it('interpolates namespace and isName correctly in llmis pattern', () => {
     const result = buildDefaultEndpoint('llminferenceservice', 'llm-d-demo', 'small-llm-d');
     expect(result).toBe(
-      'https://openshift-ai-inference-openshift-default.openshift-ingress.svc/llm-d-demo/small-llm-d'
+      'https://small-llm-d-kserve-workload-svc.llm-d-demo.svc.cluster.local:8000'
     );
   });
 });

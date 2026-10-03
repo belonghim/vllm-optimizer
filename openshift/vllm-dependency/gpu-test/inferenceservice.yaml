@@ -1,0 +1,30 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: qwen-gpu
+  labels:
+    opendatahub.io/dashboard: "true"
+spec:
+  predictor:
+    deploymentStrategy:
+      type: Recreate
+    model:
+      modelFormat:
+        name: vLLM
+      runtime: vllm-cuda-runtime
+      # registry.redhat.io/rhai/modelcar-redhatai-qwen3-5-2b:3.0 is the Red Hat build; this cluster's
+      # mirror serves it only by digest and currently fails on one layer, so the 0.8B modelcar is used.
+      storageUri: oci://quay.io/joopark/ai1/modelcar-qwen3.5-0.8b
+      args:
+        - --max-model-len=8192
+        - --max-num-seqs=64
+        - --gpu-memory-utilization=0.85
+        - '--override-generation-config={"temperature":0}'
+      resources:
+        requests:
+          cpu: "2"
+          memory: 6Gi
+        limits:
+          cpu: "6"
+          memory: 12Gi
+          nvidia.com/gpu: "1"

@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-03] - 실측 KV 용량·클러스터 전역 RBAC·LLMIS/GPU 실증·통합 테스트 복구
+
+### Added
+- **vLLM 실측 KV 용량** (`observed`): 대상 파드 `/metrics`의 `vllm:cache_config_info`(또는 `kserve_vllm:` / 구버전 `num_gpu_blocks×block_size`)를 읽어 `kv_cache_size_tokens`, `max_concurrency`, `block_size`, prefix caching을 분석 응답에 포함. 용량표에 `observed_max_seqs` 열, 이론 추정 대비 `estimate_ratio` 표시, 탐색 범위는 실측값 우선. 파드 `list`만 필요(exec 불필요).
+- **ClusterRole/ClusterRoleBinding `vllm-optimizer-target-operator`**: 타깃 네임스페이스별 Role/RoleBinding(`vllm-rbac.yaml`, `llmis-rbac/`, `dcgm-rbac/`) 제거 — 새 네임스페이스에 RBAC 추가 불필요. `pods/log`(실패 로그), `namespaces get`(모니터링 라벨) 포함, 미사용 `deployments`/`services` 권한 제거.
+- **GPU 테스트 타깃** `openshift/vllm-dependency/gpu-test/`: serving3에 Red Hat vLLM CUDA runtime + modelcar(0.8B) ISVC.
+
+### Changed
+- **튜너 타깃 고정**: `/api/tuner/start`의 `vllm_namespace`/`vllm_is_name`/`vllm_cr_type`를 `K8sOperator`에 반영 — 해당 CR만 읽고 trial args를 적용(delete+recreate). 기본값은 runtime-config. `apply-best` 응답 `deployment_name`도 실제 타깃(`ns/name`) 표기. (프런트는 이미 전송 중이었으나 백엔드가 무시해 기본 타깃이 수정되던 문제)
+- **Optuna study 분리**: study 이름을 `objective + 타깃 + 탐색공간 해시`로 스코프 — 다른 모델/범위 trial과 충돌(CategoricalDistribution 오류·웜스타트 누수) 제거.
+- **`block_size` 기본 옵션** `[8,16,32]` → `[16,32]`: CUDA FlashAttention이 16의 배수만 허용.
+- **추론 트래픽 TLS**: `CA_BUNDLE` 미설정 시 certifi + OpenShift `service-ca.crt` 결합 컨텍스트(`_external_verify`) — LLMIS workload Service의 self-signed 인증서 검증.
+- **LLMIS 기본 엔드포인트**: `https://{name}-kserve-workload-svc.{ns}.svc.cluster.local:8000` (게이트웨이 무관·검증됨).
+- **메트릭 소스**: 새 타깃은 `metrics_source` 미지정 시 `direct`로 등록(+`/pods`, `/pods/history`가 요청의 source 전달) — `/latest`가 영구 `collecting`이던 문제 수정.
+- `check.sh` full 게이트에 slow 테스트 포함(방치 방지).
+
+### Fixed (tests)
+- 통합 테스트 복구: `/api/metrics/latest` 타깃 지정 계약 반영(cluster_health·metrics_collection·direct_scrape), async 마커/픽스처 명시(`@pytest.mark.asyncio`, `pytest_asyncio.fixture`)로 이미지(설정 없는 strict 모드)에서 실행 가능, `oc` 부재 시 args 백업 픽스처 no-op, `skip_if_overloaded` 실동작화, `test_thanos_path_still_works`를 실제 `metrics_source=thanos` 배치 검증으로 교체.
+- SSE 통합 테스트(부하·스윕): 스트림 구독을 테스트 시작 **전**으로 이동 — 시작 후 늦게 구독하면 완료 이벤트를 놓치고 keepalive만 받아 영구 대기하던 문제.
+- conftest autouse mock이 integration 마커 테스트까지 가로채던 문제(모델명 resolve, preflight) 수정.
+
+### Verification
+- `./scripts/check.sh` exit 0 (backend 780, frontend 445).
+- 인-클러스터 통합 테스트 **17/17 통과**(복구 전에는 다수 실패·행): cluster_health(3), metrics_collection(2), direct_scrape(3), itl(2), load_test(1), sse(1), sweep(2), auto_tuner(1), pod_restart(2).
+- GPU `serving3/qwen-gpu`(vLLM 0.24 CUDA): KV 459,614 tokens·56.1× @8,192, estimate/measured 1.36(이론 상한), 튜너 2 trial 완료(tps 266.6→329.5, best 적용).
+- LLMIS `serving1/qwen`(0.8B OpenVINO): 분석·실측 257,536 tokens(31.4× @8,192), 부하 테스트 8/8 성공(workload Service 직접, TLS 검증).
+- 테스트 후 llm-ov args는 overlay 기준으로 복원(Ready 확인).
+
 ## [2026-10-03] - 정리: 죽은 max-targets 경로·stale 테스트·prefix caching·배포 순서
 
 ### Removed

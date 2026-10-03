@@ -10,9 +10,10 @@ from ..services.model_analysis import (
     analyze_config,
     capacity_table,
     memory_budget,
+    observed_capacity,
     suggest_search_space,
 )
-from ..services.model_config_reader import parse_read_output
+from ..services.model_config_reader import parse_cache_config_info, parse_read_output
 from ..services.tuner_logic import kv_cache_oom_risk
 from .conftest import get_route_handler_globals
 
@@ -237,26 +238,36 @@ def test_explain_endpoint_returns_none_when_analyst_unset(monkeypatch) -> None:
 
 
 class _FakeReader:
-    def __init__(self, cfg: dict[str, Any]) -> None:
+    def __init__(self, cfg: dict[str, Any], observed: dict[str, Any] | None = None) -> None:
         self.calls: list[dict[str, Any]] = []
+        self.observed_calls: list[tuple[str, str, int, str]] = []
         self._cfg = cfg
+        self._observed = observed
 
     def invalidate(self, storage_uri: str | None = None) -> None:
         pass
+
+    async def read_observed_kv(self, namespace: str, pod_label_selector: str, port: int, scheme: str):
+        self.observed_calls.append((namespace, pod_label_selector, port, scheme))
+        return dict(self._observed) if self._observed else None
 
     async def read(self, **kwargs: Any):
         self.calls.append(kwargs)
         analysis = analyze_config(self._cfg, kv_cache_dtype=kwargs.get("kv_cache_dtype"))
         analysis.model_weight_gib = 1.0
+        if self._observed:
+            analysis.served_max_model_len = 8192
         return analysis
 
 
-def _call_analysis(cr_type: str, spec: dict[str, Any], query: str) -> tuple[dict[str, Any], _FakeReader]:
+def _call_analysis(
+    cr_type: str, spec: dict[str, Any], query: str, observed: dict[str, Any] | None = None
+) -> tuple[dict[str, Any], _FakeReader]:
     from ..main import app
 
     handler_globals = get_route_handler_globals(app, "/api/tuner/model-analysis", "GET")
     assert handler_globals is not None
-    reader = _FakeReader(LLAMA_8B)
+    reader = _FakeReader(LLAMA_8B, observed)
     auto_tuner = handler_globals["auto_tuner"]
     original_ctx = auto_tuner.get_cr_context
     original_reader = handler_globals["get_model_config_reader"]
@@ -376,3 +387,88 @@ def test_analyst_facts_are_preformatted_with_units() -> None:
     assert "OpenVINO KV 공간 가정" in text
     assert "ANALYST_ENDPOINT" not in text
     assert "19537920" not in text
+
+
+# Verbatim line from llm-ov (vLLM 0.30.0, OpenVINO) on the dev cluster, trimmed of unrelated labels.
+CACHE_CONFIG_LINE = (
+    'vllm:cache_config_info{_block_size_resolved="True",block_size="32",cache_dtype="auto",'
+    'enable_prefix_caching="True",engine="0",gpu_memory_utilization="0.9",kv_cache_dtype_skip_layers="[]",'
+    'kv_cache_max_concurrency="69.62109375",kv_cache_memory_bytes="None",kv_cache_size_tokens="570336",'
+    'mamba_cache_mode="align"} 1.0'
+)
+
+
+def test_parse_cache_config_info_new_and_legacy_formats() -> None:
+    text = "# HELP vllm:cache_config_info x\n# TYPE vllm:cache_config_info gauge\n" + CACHE_CONFIG_LINE
+    observed = parse_cache_config_info(text)
+    assert observed == {
+        "kv_cache_size_tokens": 570336,
+        "max_concurrency": 69.62109375,
+        "block_size": 32,
+        "gpu_memory_utilization": 0.9,
+        "prefix_caching": True,
+        "cache_dtype": "auto",
+    }
+    legacy = parse_cache_config_info(
+        'kserve_vllm:cache_config_info{block_size="16",num_gpu_blocks="2000",gpu_memory_utilization="0.85"} 1.0'
+    )
+    assert legacy is not None
+    assert legacy["kv_cache_size_tokens"] == 32000
+    assert legacy["max_concurrency"] is None
+    assert parse_cache_config_info('vllm:num_requests_running{engine="0"} 0.0') is None
+    assert parse_cache_config_info('vllm:cache_config_info{block_size="16",num_gpu_blocks="None"} 1.0') is None
+
+
+def test_observed_capacity_merges_and_stops_at_served_len() -> None:
+    estimated = [
+        {"context_len": 4096, "kv_bytes_per_seq": 1, "max_concurrent_seqs": 90},
+        {"context_len": 8192, "kv_bytes_per_seq": 2, "max_concurrent_seqs": 61},
+        {"context_len": 16384, "kv_bytes_per_seq": 3, "max_concurrent_seqs": 30},
+    ]
+    rows = observed_capacity(estimated, 570336, 8192)
+    by_len = {r["context_len"]: r for r in rows}
+    assert by_len[8192]["observed_max_seqs"] == 69
+    assert by_len[8192]["max_concurrent_seqs"] == 61
+    assert by_len[1024] == {
+        "context_len": 1024,
+        "kv_bytes_per_seq": None,
+        "max_concurrent_seqs": None,
+        "observed_max_seqs": 556,
+    }
+    assert "observed_max_seqs" not in by_len[16384]
+    space = suggest_search_space(rows, 8192, key="observed_max_seqs")
+    assert space == {
+        "max_num_seqs_min": 64,
+        "max_num_seqs_max": 256,
+        "max_model_len_min": 2048,
+        "max_model_len_max": 8192,
+    }
+
+
+OBSERVED = {"kv_cache_size_tokens": 570336, "max_concurrency": 69.62109375, "block_size": 32, "pod": "p-0"}
+
+
+def test_model_analysis_endpoint_isvc_observed_compares_estimate() -> None:
+    spec = {
+        "predictor": {"model": {"storageUri": "oci://example/llama", "resources": {"limits": {"nvidia.com/gpu": "1"}}}}
+    }
+    data, reader = _call_analysis("inferenceservice", spec, "?accelerator_memory_gib=12", observed=OBSERVED)
+    assert reader.observed_calls[0][2:] == (8080, "http")
+    estimated_8k = next(r["max_concurrent_seqs"] for r in data["capacity"] if r["context_len"] == 8192)
+    assert data["observed"]["estimate_ratio"] == round(estimated_8k / 69.62109375, 3)
+    assert next(r for r in data["capacity"] if r["context_len"] == 8192)["observed_max_seqs"] == 69
+    assert data["suggested_search_space"]["max_model_len_max"] == 8192
+
+
+def test_model_analysis_endpoint_llmis_observed_without_gpu_memory() -> None:
+    spec = {
+        "model": {"uri": "oci://example/llama", "name": "llama"},
+        "template": {"containers": [{"name": "main", "resources": {"limits": {"nvidia.com/gpu": "1"}}}]},
+    }
+    data, reader = _call_analysis("llminferenceservice", spec, "", observed=OBSERVED)
+    assert reader.observed_calls[0][2:] == (8000, "https")
+    assert data["memory_budget"]["source"] == "unknown_accelerator_memory"
+    assert not any("GPU 장당 메모리" in w for w in data["warnings"])
+    assert data["observed"]["estimate_ratio"] is None
+    assert all(r["max_concurrent_seqs"] is None for r in data["capacity"])
+    assert data["suggested_search_space"] is not None

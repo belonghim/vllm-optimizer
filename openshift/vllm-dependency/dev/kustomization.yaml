@@ -5,28 +5,6 @@ resources:
   - ../base
 patches:
   - target:
-      kind: Role
-      name: vllm-optimizer-backend-role
-    patch: |
-      apiVersion: rbac.authorization.k8s.io/v1
-      kind: Role
-      metadata:
-        name: vllm-optimizer-backend-role
-        namespace: vllm-lab-dev
-  - target:
-      kind: RoleBinding
-      name: vllm-optimizer-backend-rb
-    patch: |
-      apiVersion: rbac.authorization.k8s.io/v1
-      kind: RoleBinding
-      metadata:
-        name: vllm-optimizer-backend-rb
-        namespace: vllm-lab-dev
-      subjects:
-      - kind: ServiceAccount
-        name: vllm-optimizer-backend
-        namespace: vllm-optimizer-dev
-  - target:
       kind: NetworkPolicy
       name: vllm-networkpolicy
     patch: |

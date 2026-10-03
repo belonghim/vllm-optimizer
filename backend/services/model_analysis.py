@@ -296,28 +296,62 @@ def capacity_table(
     return rows
 
 
+def observed_capacity(
+    capacity: list[dict[str, Any]],
+    kv_cache_size_tokens: int,
+    served_max_model_len: int | None,
+    analysis: ModelAnalysis | None = None,
+) -> list[dict[str, Any]]:
+    """Add vLLM's measured capacity (``observed_max_seqs``) to the estimated rows.
+
+    vLLM reports its allocated KV pool in tokens; at context length L it fits pool // L sequences
+    (the same figure it logs as "Maximum concurrency"). Rows are only measured up to the served
+    max_model_len — longer contexts are rejected by the running server. Rows missing from the
+    estimate (no memory budget known) are added with ``max_concurrent_seqs`` = None.
+    """
+    rows = {r["context_len"]: dict(r) for r in capacity}
+    for ctx in CAPACITY_CONTEXT_LENS:
+        if served_max_model_len and ctx > served_max_model_len:
+            break
+        row = rows.setdefault(
+            ctx,
+            {
+                "context_len": ctx,
+                "kv_bytes_per_seq": analysis.kv_bytes_per_seq(ctx) if analysis else None,
+                "max_concurrent_seqs": None,
+            },
+        )
+        row["observed_max_seqs"] = kv_cache_size_tokens // ctx
+    return [rows[k] for k in sorted(rows)]
+
+
 TYPICAL_REQUEST_TOKENS = 2048
 
 
-def suggest_search_space(capacity: list[dict[str, Any]], served_max_model_len: int | None) -> dict[str, int] | None:
+def suggest_search_space(
+    capacity: list[dict[str, Any]],
+    served_max_model_len: int | None,
+    key: str = "max_concurrent_seqs",
+) -> dict[str, int] | None:
     """Tuner ranges consistent with the KV budget.
 
     max_model_len: never above what is served today (the tuner should not widen the context),
     lowered to the longest context that still fits one sequence. max_num_seqs: ceiling from the
     capacity at a typical request length (prompt + output ≈ TYPICAL_REQUEST_TOKENS); beyond it
-    vLLM only preempts, so it is a useful upper bound rather than a hard limit.
+    vLLM only preempts, so it is a useful upper bound rather than a hard limit. ``key`` selects the
+    estimated (``max_concurrent_seqs``) or measured (``observed_max_seqs``) capacity.
     """
     fitting = [
         r
         for r in capacity
-        if r["max_concurrent_seqs"] >= 1 and (not served_max_model_len or r["context_len"] <= served_max_model_len)
+        if (r.get(key) or 0) >= 1 and (not served_max_model_len or r["context_len"] <= served_max_model_len)
     ]
     if not fitting:
         return None
     max_len_max = fitting[-1]["context_len"]
     max_len_min = min(TYPICAL_REQUEST_TOKENS, max_len_max // 2)
-    by_len = {r["context_len"]: r["max_concurrent_seqs"] for r in capacity}
-    typical_cap = by_len.get(TYPICAL_REQUEST_TOKENS, fitting[0]["max_concurrent_seqs"])
+    by_len = {r["context_len"]: r.get(key) for r in fitting}
+    typical_cap = by_len.get(TYPICAL_REQUEST_TOKENS) or fitting[0][key]
     seqs_max = max(64, min(1024, (typical_cap // 32) * 32))
     seqs_min = max(32, (seqs_max // 4 // 32) * 32)
     return {

@@ -1,17 +1,23 @@
+import os
 import time
 
 import pytest
 
 pytestmark = [pytest.mark.integration, pytest.mark.performance]
 
+TARGET_PARAMS = {
+    "namespace": os.getenv("VLLM_NAMESPACE", "vllm-lab-dev"),
+    "is_name": os.getenv("VLLM_IS_NAME", "llm-ov"),
+}
+
 
 class TestMetricsCollection:
     def test_metrics_response_time(self, http_client):
-        """GET /api/metrics/latest 응답 시간 측정 (5회 median)."""
+        """GET /api/metrics/latest (targeted) 응답 시간 측정 (5회 median)."""
         times = []
         for _ in range(5):
             start = time.time()
-            resp = http_client.get("/api/metrics/latest")
+            resp = http_client.get("/api/metrics/latest", params=TARGET_PARAMS)
             elapsed = time.time() - start
             assert resp.status_code == 200
             times.append(elapsed)

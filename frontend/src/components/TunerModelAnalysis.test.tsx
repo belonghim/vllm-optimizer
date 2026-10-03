@@ -89,6 +89,54 @@ describe('TunerModelAnalysis', () => {
     expect(onApply).toHaveBeenCalledWith(ANALYSIS.suggested_search_space);
   });
 
+  it('shows vLLM measured KV capacity next to the estimate', async () => {
+    server.use(
+      http.get(`${API}/tuner/model-analysis`, () =>
+        HttpResponse.json({
+          ...ANALYSIS,
+          capacity: [
+            {
+              context_len: 2048,
+              kv_bytes_per_seq: 44708864,
+              max_concurrent_seqs: 154,
+              observed_max_seqs: 278,
+            },
+            {
+              context_len: 8192,
+              kv_bytes_per_seq: 120206336,
+              max_concurrent_seqs: 57,
+              observed_max_seqs: 69,
+            },
+          ],
+          observed: {
+            kv_cache_size_tokens: 570336,
+            max_concurrency: 69.62,
+            block_size: 32,
+            gpu_memory_utilization: 0.9,
+            prefix_caching: true,
+            cache_dtype: 'auto',
+            pod: 'qwen-0',
+            estimate_ratio: 0.819,
+          },
+        })
+      )
+    );
+    render(
+      <TunerModelAnalysis
+        isActive={true}
+        acceleratorMemoryGib={null}
+        onAcceleratorMemoryChange={vi.fn()}
+        onApplySearchSpace={vi.fn()}
+      />
+    );
+    const observed = await screen.findByTestId('tma-observed');
+    expect(observed).toHaveTextContent('KV pool 570,336 tokens');
+    expect(observed).toHaveTextContent('69.6× @ 8,192');
+    expect(observed).toHaveTextContent('estimate/measured 0.82');
+    expect(screen.getByRole('columnheader', { name: 'Measured (vLLM)' })).toBeInTheDocument();
+    expect(screen.getByText('278')).toBeInTheDocument();
+  });
+
   it('asks the analyst LLM only on demand and renders its markdown', async () => {
     let explainBody: unknown = null;
     server.use(

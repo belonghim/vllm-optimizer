@@ -169,10 +169,14 @@ async def get_pod_metrics(
     for target in body.targets:
         cr_type = target.cr_type or "inferenceservice"
         key = f"{target.namespace}/{target.inferenceService}/{cr_type}"
-        await collector.register_target(target.namespace, target.inferenceService, cr_type=target.cr_type)
+        await collector.register_target(
+            target.namespace, target.inferenceService, cr_type=target.cr_type, metrics_source=body.metrics_source
+        )
 
         # Get aggregated metrics (same as /batch)
-        vllm_metrics = await collector.get_metrics(target.namespace, target.inferenceService, cr_type=target.cr_type)
+        vllm_metrics = await collector.get_metrics(
+            target.namespace, target.inferenceService, cr_type=target.cr_type, metrics_source=body.metrics_source
+        )
         snapshot = _convert_to_snapshot(vllm_metrics)
 
         # Build per-pod queries and fetch results
@@ -256,7 +260,9 @@ async def get_pods_history(
     for target in body.targets:
         cr_type = target.cr_type or "inferenceservice"
         key = f"{target.namespace}/{target.inferenceService}/{cr_type}"
-        await collector.register_target(target.namespace, target.inferenceService, cr_type=target.cr_type)
+        await collector.register_target(
+            target.namespace, target.inferenceService, cr_type=target.cr_type, metrics_source=body.metrics_source
+        )
 
         if body.time_range in _TIME_RANGE_CONFIG:
             history = await _get_history_from_thanos(

@@ -102,7 +102,7 @@ class RuntimeConfig:
         self.set_cr_type("llminferenceservice")
         self.set_vllm_namespace(namespace)
         self.set_vllm_is_name(name)
-        endpoint = f"https://openshift-ai-inference-openshift-default.openshift-ingress.svc/{namespace}/{name}"
+        endpoint = f"https://{name}-kserve-workload-svc.{namespace}.svc.cluster.local:8000"
         self._default_endpoint = endpoint
 
         logger = logging.getLogger(__name__)

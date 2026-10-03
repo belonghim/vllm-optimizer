@@ -147,3 +147,33 @@ def test_params_to_args_generates_correct_flags(operator: K8sOperator) -> None:
     assert "--max-model-len=4096" in args
     assert "--enable-chunked-prefill" in args
     assert "--enforce-eager" not in args
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("cr_type", "plural"),
+    [("inferenceservice", "inferenceservices"), ("llminferenceservice", "llminferenceservices")],
+)
+async def test_pinned_target_is_the_cr_that_gets_recreated(
+    operator: K8sOperator, mock_k8s: dict[str, Any], cr_type: str, plural: str
+) -> None:
+    operator.set_target("serving3", "qwen-gpu", cr_type)
+    with patch.object(k8s_operator_module, "runtime_config", _make_runtime_config("vllm-lab-dev", "llm-ov")):
+        assert operator.target == ("serving3", "qwen-gpu", cr_type)
+        result = await operator.apply_params({"max_num_seqs": 64}, asyncio.Lock())
+
+    assert result["success"] is True
+    for call in (
+        mock_k8s["custom"].delete_namespaced_custom_object.call_args,
+        mock_k8s["custom"].create_namespaced_custom_object.call_args,
+    ):
+        assert call.kwargs["namespace"] == "serving3"
+        assert call.kwargs["plural"] == plural
+    assert mock_k8s["custom"].delete_namespaced_custom_object.call_args.kwargs["name"] == "qwen-gpu"
+
+
+def test_unpinned_target_follows_runtime_config(operator: K8sOperator) -> None:
+    rc = _make_runtime_config("vllm-lab-dev", "llm-ov")
+    rc.cr_type = "inferenceservice"
+    with patch.object(k8s_operator_module, "runtime_config", rc):
+        assert operator.target == ("vllm-lab-dev", "llm-ov", "inferenceservice")
