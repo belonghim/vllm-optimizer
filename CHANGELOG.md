@@ -2,6 +2,45 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-03] - 잔여 결함 2차 수정
+
+**Status**: Completed (로컬 검증 + 서버측 dry-run 검증, 인-클러스터 E2E는 `deploy.sh dev` 후 확인 필요)
+
+1차 점검에서 남겨둔 항목과 테스트 인프라 결함을 수정.
+
+### Fixed (vLLM config PATCH)
+- **LLMIS args 패치 시 `containers`/`env` 배열이 통째로 교체되어 형제 env(HF_HOME 등)와 `resources`가 삭제되던 문제** 수정 — 라이브 CR을 읽어 name 기준으로 병합한 배열로 확장. `oc patch --dry-run=server`로 보존 확인.
+- PATCH가 `namespace`/`is_name`/`cr_type` 쿼리 파라미터를 무시하고 기본 타겟만 수정하던 문제 수정 (프런트는 이미 전달 중이었음).
+- 리소스 빈 문자열이 무시되어 키 삭제가 불가능하던 문제 수정 — merge patch null로 변환. `requests.nvidia.com/gpu`는 422로 거부.
+- `cr_type`을 `Literal`로 검증 (GET/PATCH).
+
+### Fixed (Backend)
+- `rps_actual`이 실패 요청까지 포함하던 문제 → 성공 요청 수 기준 (guidellm parser와 일치).
+- targets 저장/불러오기: `metrics_source` 기본값이 수집기가 거부하는 `"prometheus"`이던 문제 → `"direct"` + `Literal` 검증. 프런트가 `inferenceService`/`crType`을 보내 저장이 422, 불러오기가 undefined로 매핑되던 계약 불일치 수정.
+- SQLite 백업이 `app.db`만 백업하던 문제 → 기본적으로 `app.db` + `optuna.db`(튜닝 이력) 백업, 소스별 보존 개수 적용, 없는 DB는 건너뛰되 전부 없으면 실패.
+
+### Fixed (Test infrastructure)
+- FastAPI 0.142의 `_IncludedRouter` 래퍼 때문에 `app.routes` 직접 순회로는 라우트를 찾지 못해 vllm-config 테스트 24건이 조용히 skip되던 문제 수정 (`conftest.iter_api_routes` 도입, auto-tuner preflight 스캔 포함).
+- 테스트가 존재하지 않는 `_get_vllm_is_name`을 패치하던 stale 키 수정.
+
+### Fixed (Frontend)
+- SSE: `connect()`가 이전 핸들을 dispose하지 않아 실행마다 스트림이 누적되고, `disconnect()`/완료 시 재연결 타이머가 살아남던 문제 수정 (`dispose` 사용).
+- 모니터: 타겟 제거 시 `targetStates`가 정리되지 않아 stale 차트/메모리 누수 발생 → 현재 타겟 키로 prune.
+- ConfigMap 초기 동기화가 같은 CR 타입의 수동 타겟을 모두 삭제하던 문제 수정 (configmap 소스만 교체, 중복 방지).
+- `resolvedModelName`이 전역 `/api/config` 값을 사용하던 문제 → 기본 타겟의 `/api/vllm-config` 조회 결과 사용.
+- 백엔드가 제공한 `vllm_endpoint`를 프런트가 계산값으로 덮어쓰던 문제 수정.
+- 숫자 입력란을 비우면 0으로 강제 변환되던 문제 수정 (`parseNumberInput`, 4개 컴포넌트).
+- 프로덕션 빌드에서 mock 모드가 localStorage에 영속되던 문제 수정.
+- SLA 프로필 전환 경합(늦게 도착한 이전 응답이 최신 결과를 덮어씀) 및 중복 평가 요청 수정.
+- 튜너: endpoint 폴링 변경 시 사용자 편집이 초기화되던 문제 수정.
+- nginx: `client_max_body_size 50m` (백엔드 50MB import와 일치), `location ^~ /api/`로 정적 regex location의 shadow 방지.
+
+### Verification
+- `./scripts/check.sh` → exit 0 (backend 597 passed, frontend 452 passed).
+- 라이브 `oc patch --dry-run=server`로 LLMIS args+resources 병합 결과 검증.
+
+---
+
 ## [2026-10-03] - 실무 기능 점검 및 결함 수정
 
 **Status**: Completed (로컬 검증 완료, 인-클러스터 E2E는 `deploy.sh dev` 후 확인 필요)
