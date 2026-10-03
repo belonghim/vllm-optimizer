@@ -148,7 +148,7 @@ class LLMAssistant:
         system: str,
         user: str,
         max_tokens: int = 512,
-        temperature: float = 0.2,
+        temperature: float = 0.0,
         extra: dict[str, Any] | None = None,
     ) -> str | None:
         endpoint = self.endpoint
@@ -204,7 +204,7 @@ class LLMAssistant:
             f"enable_chunked_prefill (bool), enable_enforce_eager (bool). "
             f"All values must fall within the search space. Output the JSON array now."
         )
-        raw = await self._chat(system, user, max_tokens=1024, temperature=0.3)
+        raw = await self._chat(system, user, max_tokens=1024, temperature=0.0)
         if not raw:
             return []
         parsed = _extract_json_array(raw)
@@ -231,7 +231,7 @@ class LLMAssistant:
             f"Pod log tail:\n{log_tail}\n\n"
             f"What went wrong and how should the next trial avoid it?"
         )
-        return await self._chat(system, user, max_tokens=256, temperature=0.2)
+        return await self._chat(system, user, max_tokens=256, temperature=0.0)
 
     async def generate_tuning_report(self, summary: dict[str, Any]) -> str | None:
         system = (
@@ -243,7 +243,7 @@ class LLMAssistant:
         user = (
             f"Tuning session summary:\n{json.dumps(summary, indent=2, default=str)}\n\nWrite the markdown report now."
         )
-        return await self._chat(system, user, max_tokens=768, temperature=0.4)
+        return await self._chat(system, user, max_tokens=768, temperature=0.0)
 
     async def explain_model_analysis(self, analysis: dict[str, Any]) -> str | None:
         system = (
@@ -255,7 +255,7 @@ class LLMAssistant:
         )
         user = "모델 분석 결과:\n" + format_analysis_facts(analysis)
         return await self._chat(
-            system, user, max_tokens=450, temperature=0.2, extra={"frequency_penalty": 0.5, "repetition_penalty": 1.1}
+            system, user, max_tokens=450, temperature=0.0, extra={"frequency_penalty": 0.5, "repetition_penalty": 1.1}
         )
 
 
