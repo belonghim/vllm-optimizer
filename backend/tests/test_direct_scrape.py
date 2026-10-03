@@ -249,6 +249,61 @@ async def test_collect_target_direct_gpu_memory_total(collector, monkeypatch):
     assert target.latest.gpu_memory_total_gb == 32.0
 
 
+async def test_collect_target_direct_gpu_utilization_is_averaged(collector, monkeypatch):
+    import types
+
+    from services.multi_target_collector import TargetCache
+
+    collector._k8s_available = True
+
+    def _pod(name, ip):
+        return types.SimpleNamespace(
+            metadata=types.SimpleNamespace(name=name),
+            spec=types.SimpleNamespace(node_name="node-1"),
+            status=types.SimpleNamespace(
+                phase="Running",
+                pod_ip=ip,
+                container_statuses=[types.SimpleNamespace(ready=True)],
+            ),
+        )
+
+    pod_list = types.SimpleNamespace(items=[_pod("is-predictor-a", "10.0.0.1"), _pod("is-predictor-b", "10.0.0.2")])
+    collector._k8s_core = types.SimpleNamespace(list_namespaced_pod=lambda **kw: pod_list)
+
+    async def _fake_scrape(*args, **kwargs):
+        return {}
+
+    async def _fake_exporter_ip(node_name):
+        return "10.0.1.1"
+
+    async def _fake_dcgm(*args, **kwargs):
+        return {
+            "is-predictor-a": {"gpu_utilization_pct": 80.0},
+            "is-predictor-b": {"gpu_utilization_pct": 40.0},
+        }
+
+    monkeypatch.setattr(collector, "_scrape_pod_metrics", _fake_scrape)
+    monkeypatch.setattr(collector, "_get_dcgm_exporter_ip", _fake_exporter_ip)
+    monkeypatch.setattr(collector, "_scrape_dcgm_for_pods", _fake_dcgm)
+    target = TargetCache(key="ns/is/inferenceservice", namespace="ns", is_name="is", cr_type="inferenceservice")
+
+    await collector._collect_target_direct(target)
+
+    assert target.latest is not None
+    assert target.latest.gpu_utilization_pct == pytest.approx(60.0)
+
+
+async def test_scrape_dcgm_for_pods_averages_utilization_across_gpus(collector):
+    text = (
+        'DCGM_FI_DEV_GPU_UTIL{namespace="ns",pod="pod1",gpu="0"} 90.0\n'
+        'DCGM_FI_DEV_GPU_UTIL{namespace="ns",pod="pod1",gpu="1"} 70.0\n'
+    )
+    mock_client, _ = _make_mock_client(text)
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await collector._scrape_dcgm_for_pods("10.0.0.1", {"pod1"}, "ns")
+    assert result["pod1"]["gpu_utilization_pct"] == pytest.approx(80.0)
+
+
 async def test_collect_target_direct_p99_ttft_from_buckets(collector, monkeypatch):
     import types
 

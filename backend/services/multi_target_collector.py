@@ -794,7 +794,8 @@ class MultiTargetMetricsCollector:
             vals = agg_gauges["kv_cache_usage_pct"]
             metrics.kv_cache_usage_pct = (sum(vals) / len(vals)) * 100
         if "gpu_utilization_pct" in agg_gauges:
-            metrics.gpu_utilization_pct = sum(agg_gauges["gpu_utilization_pct"])
+            gpu_utils = agg_gauges["gpu_utilization_pct"]
+            metrics.gpu_utilization_pct = sum(gpu_utils) / len(gpu_utils)
         if "gpu_memory_used_gb" in agg_gauges:
             metrics.gpu_memory_used_gb = sum(agg_gauges["gpu_memory_used_gb"])
         if (
@@ -1215,7 +1216,7 @@ class MultiTargetMetricsCollector:
         for pod in pod_names:
             entry: dict[str, float] = {}
             if pod_util.get(pod):
-                entry["gpu_utilization_pct"] = sum(pod_util[pod])
+                entry["gpu_utilization_pct"] = sum(pod_util[pod]) / len(pod_util[pod])
             if pod_fb_used.get(pod):
                 entry["gpu_memory_used_gb"] = sum(pod_fb_used[pod]) / 1024.0
             if pod_fb_free.get(pod):
