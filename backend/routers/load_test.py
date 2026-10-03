@@ -40,6 +40,7 @@ class LoadTestState:
     def __init__(self) -> None:
         self._active_test_task: asyncio.Task[None] | None = None
         self._current_config: LoadTestConfig | None = None
+        self._active_test_id: str | None = None
         self._sweep_task: asyncio.Task[None] | None = None
         self._sweep_result: SweepResult | None = None
         self._is_sweeping: bool = False
@@ -49,10 +50,17 @@ class LoadTestState:
         async with self._test_lock:
             return self._active_test_task is not None and not self._active_test_task.done()
 
-    async def set_active_test(self, task: asyncio.Task[None], config: LoadTestConfig) -> None:
+    async def set_active_test(
+        self, task: asyncio.Task[None], config: LoadTestConfig, test_id: str | None = None
+    ) -> None:
         async with self._test_lock:
             self._active_test_task = task
             self._current_config = config
+            self._active_test_id = test_id
+
+    @property
+    def active_test_id(self) -> str | None:
+        return self._active_test_id
 
     async def clear_active_test(self) -> None:
         async with self._test_lock:
@@ -105,6 +113,7 @@ class LoadTestState:
 
 
 _state = LoadTestState()
+_start_lock = asyncio.Lock()
 
 
 # Simple response models for start/stop
@@ -139,7 +148,7 @@ class StatusResponse(BaseModel):
 
 async def _run_test_background(test_id: str, config: LoadTestConfig, storage_instance: Any) -> None:
     try:
-        result = await load_engine.run(config, skip_preflight=True)
+        result = await load_engine.run(config, skip_preflight=True, persist=False)
         entry = {
             "test_id": test_id,
             "config": config.model_dump(),
@@ -178,32 +187,33 @@ async def start_load_test(request: Request, config: LoadTestConfig, storage=Depe
     - Returns a test_id to track this specific test run
     - Test runs asynchronously; use /status or /stream to monitor progress
     """
-    if await _state.has_running_test():
-        raise HTTPException(
-            status_code=409,
-            detail=ErrorResponse(
-                error="A load test is already running.",
-                error_type="already_running",
-            ).model_dump(),
-        )
+    async with _start_lock:
+        if await _state.has_running_test():
+            raise HTTPException(
+                status_code=409,
+                detail=ErrorResponse(
+                    error="A load test is already running.",
+                    error_type="already_running",
+                ).model_dump(),
+            )
 
-    test_id = str(uuid.uuid4())
+        test_id = str(uuid.uuid4())
 
-    if config.model == "auto":
-        config.model = await resolve_model_name(config.endpoint)
+        if config.model == "auto":
+            config.model = await resolve_model_name(config.endpoint)
 
-    preflight = await load_engine._preflight_check(config)
-    if not preflight.get("success"):
-        raise HTTPException(
-            status_code=400,
-            detail=ErrorResponse(
-                error=preflight.get("error", "Preflight check failed"),
-                error_type=preflight.get("error_type", "preflight_error"),
-            ).model_dump(),
-        )
+        preflight = await load_engine._preflight_check(config)
+        if not preflight.get("success"):
+            raise HTTPException(
+                status_code=400,
+                detail=ErrorResponse(
+                    error=preflight.get("error", "Preflight check failed"),
+                    error_type=preflight.get("error_type", "preflight_error"),
+                ).model_dump(),
+            )
 
-    active_task = asyncio.create_task(_run_test_background(test_id, config, storage))
-    await _state.set_active_test(active_task, config)
+        active_task = asyncio.create_task(_run_test_background(test_id, config, storage))
+        await _state.set_active_test(active_task, config, test_id)
 
     return {
         "test_id": test_id,
@@ -249,7 +259,7 @@ async def get_load_test_status(test_id: str | None = None) -> dict[str, Any]:
     is_running = active_task is not None and not active_task.done() and load_engine.status == LoadTestStatus.RUNNING
 
     return {
-        "test_id": test_id,
+        "test_id": test_id or _state.active_test_id,
         "running": is_running,
         "config": current_config,
         "current_result": None,

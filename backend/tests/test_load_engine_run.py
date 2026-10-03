@@ -31,6 +31,7 @@ def _make_mock_httpx_client():
     async def _post(url, json=None, **kwargs):
         await asyncio.sleep(0)  # Force event loop yield — DO NOT REMOVE
         resp = MagicMock()
+        resp.status_code = 200
         resp.json.return_value = {"usage": {"completion_tokens": 10}}
         return resp
 
@@ -125,6 +126,7 @@ async def test_run_no_valueerror_when_all_tasks_done_instantly():
     # Instant mock — no sleep(0), tasks complete in one event loop step
     async def _instant_post(url, json=None, **kwargs):
         resp = MagicMock()
+        resp.status_code = 200
         resp.json.return_value = {"usage": {"completion_tokens": 10}}
         return resp
 
@@ -172,6 +174,7 @@ async def test_run_failed_requests_counted_correctly():
         if idx % 2 == 0:
             raise httpx.ConnectError("mock error")
         resp = MagicMock()
+        resp.status_code = 200
         resp.json.return_value = {"usage": {"completion_tokens": 10}}
         return resp
 

@@ -1219,6 +1219,7 @@ async def test_dispatch_completions_non_streaming_handles_malformed_usage_dict()
     payload = engine._build_request_payload(config, "hello")
 
     mock_response = MagicMock()
+    mock_response.status_code = 200
     mock_response.json.return_value = {"usage": None}
 
     mock_external_client = MagicMock()
@@ -1266,3 +1267,69 @@ def test_load_test_config_rejects_rps_above_maximum():
 
     with pytest.raises(ValidationError):
         LoadTestConfig(rps=10001)
+
+
+@pytest.mark.parametrize(
+    "endpoint_type,stream", [("completions", False), ("chat", False), ("completions", True), ("chat", True)]
+)
+async def test_dispatch_marks_http_error_status_as_failure(endpoint_type, stream):
+    from unittest.mock import AsyncMock, MagicMock
+
+    from models.load_test import LoadTestConfig
+    from services.load_engine import LoadTestEngine
+
+    engine = LoadTestEngine()
+    config = LoadTestConfig(endpoint="http://localhost:8080", model="m", stream=stream, endpoint_type=endpoint_type)
+    payload = engine._build_request_payload(config, "hello")
+
+    error_response = MagicMock()
+    error_response.status_code = 503
+
+    stream_ctx = MagicMock()
+    stream_ctx.__aenter__ = AsyncMock(return_value=error_response)
+    stream_ctx.__aexit__ = AsyncMock(return_value=False)
+    client = MagicMock()
+    client.post = AsyncMock(return_value=error_response)
+    client.stream = MagicMock(return_value=stream_ctx)
+
+    dispatch = engine._dispatch_chat_completions if endpoint_type == "chat" else engine._dispatch_completions
+    result = await dispatch(config=config, payload=payload, external_client=client, t0=time.time(), request_id=0)
+
+    assert result.success is False
+    assert result.error == "HTTP 503"
+
+
+async def test_finalize_results_keeps_stopped_status():
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from models.load_test import LoadTestConfig
+    from services.load_engine import LoadTestEngine, LoadTestStatus
+
+    engine = LoadTestEngine()
+    engine._state.status = LoadTestStatus.STOPPED
+    engine._state.start_time = time.time() - 1
+    shared = MagicMock()
+    shared.runtime_config.vllm_endpoint = "http://localhost:8080"
+    shared.storage.save_load_test = AsyncMock()
+
+    with patch("services.load_engine.importlib.import_module", return_value=shared):
+        await engine._finalize_results(LoadTestConfig(endpoint="http://localhost:8080", model="m"), persist=False)
+
+    assert engine.status == LoadTestStatus.STOPPED
+    shared.storage.save_load_test.assert_not_called()
+
+
+def test_compute_stats_tps_total_is_aggregate_throughput():
+    from models.load_test import RequestResult
+    from services.load_engine import LoadTestEngine
+
+    engine = LoadTestEngine()
+    engine._state.start_time = time.time() - 10
+    for i in range(4):
+        engine._state.results.append(RequestResult(req_id=i, success=True, latency=1.0, output_tokens=100, tps=100.0))
+        engine._state.total_output_tokens += 100
+
+    stats = engine._compute_stats()
+
+    assert stats["tps"]["mean"] == 100.0
+    assert 39.0 <= stats["tps"]["total"] <= 41.0

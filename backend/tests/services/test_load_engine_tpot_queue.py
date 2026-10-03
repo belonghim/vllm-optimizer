@@ -22,6 +22,7 @@ def _make_mock_httpx_client():
 
     async def _post(url, json=None, **kwargs):
         resp = MagicMock()
+        resp.status_code = 200
         resp.json.return_value = {"usage": {"completion_tokens": 10}}
         return resp
 

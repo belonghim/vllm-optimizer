@@ -383,7 +383,9 @@ class MetricsTarget(BaseModel):
 
     namespace: str = Field(description="Kubernetes namespace")
     inferenceService: str = Field(description="InferenceService name")
-    cr_type: str | None = Field(default=None, description="CR type: inferenceservice or llminferenceservice")
+    cr_type: Literal["inferenceservice", "llminferenceservice"] | None = Field(
+        default=None, description="CR type: inferenceservice or llminferenceservice"
+    )
 
 
 class BatchMetricsRequest(BaseModel):

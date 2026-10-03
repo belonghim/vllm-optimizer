@@ -63,6 +63,7 @@ class LoadTestState:
     total_requests: int = 0
     completed_requests: int = 0
     failed_requests: int = 0
+    total_output_tokens: int = 0
 
 
 class LoadTestEngine:
@@ -188,6 +189,10 @@ class LoadTestEngine:
             "temperature": config.temperature,
         }
 
+    @staticmethod
+    def _http_error_result(request_id: int, t0: float, status_code: int) -> RequestResult:
+        return RequestResult(req_id=request_id, success=False, latency=time.time() - t0, error=f"HTTP {status_code}")
+
     async def _dispatch_completions(
         self,
         config: LoadTestConfig,
@@ -213,6 +218,8 @@ class LoadTestEngine:
                 json={**payload, "stream": True, "stream_options": {"include_usage": True}},
                 timeout=LOAD_ENGINE_TIMEOUT,
             ) as resp:
+                if resp.status_code >= 400:
+                    return self._http_error_result(request_id, t0, resp.status_code)
                 async for chunk in resp.aiter_lines():
                     if chunk.startswith("data: ") and chunk != "data: [DONE]":
                         token_timestamps.append(time.time())
@@ -241,6 +248,8 @@ class LoadTestEngine:
             resp = await external_client.post(
                 f"{config.endpoint}/v1/completions", json=payload, timeout=LOAD_ENGINE_TIMEOUT
             )
+            if resp.status_code >= 400:
+                return self._http_error_result(request_id, t0, resp.status_code)
             try:
                 data = resp.json()
                 output_tokens = data["usage"]["completion_tokens"]
@@ -293,6 +302,8 @@ class LoadTestEngine:
                 json={**chat_payload, "stream": True, "stream_options": {"include_usage": True}},
                 timeout=LOAD_ENGINE_TIMEOUT,
             ) as resp:
+                if resp.status_code >= 400:
+                    return self._http_error_result(request_id, t0, resp.status_code)
                 async for chunk in resp.aiter_lines():
                     if chunk.startswith("data: ") and chunk != "data: [DONE]":
                         token_timestamps.append(time.time())
@@ -321,6 +332,8 @@ class LoadTestEngine:
             resp = await external_client.post(
                 f"{config.endpoint}/v1/chat/completions", json=chat_payload, timeout=LOAD_ENGINE_TIMEOUT
             )
+            if resp.status_code >= 400:
+                return self._http_error_result(request_id, t0, resp.status_code)
             try:
                 data = resp.json()
                 output_tokens = data["usage"]["completion_tokens"]
@@ -387,6 +400,7 @@ class LoadTestEngine:
                     self._state.results = self._state.results[-1000:]
                 if result.success:
                     self._state.completed_requests += 1
+                    self._state.total_output_tokens += result.output_tokens
                 else:
                     self._state.failed_requests += 1
             stats = self._compute_stats()
@@ -429,13 +443,15 @@ class LoadTestEngine:
     async def _finalize_results(
         self,
         config: LoadTestConfig,
+        persist: bool = True,
     ) -> dict[str, Any]:
         """Finalize test: set status, compute final stats, broadcast, return."""
         shared_module = importlib.import_module("services.shared")
         runtime_config = shared_module.runtime_config
 
         async with self._state_lock:
-            self._state.status = LoadTestStatus.COMPLETED
+            if self._state.status != LoadTestStatus.STOPPED:
+                self._state.status = LoadTestStatus.COMPLETED
         final_stats = self._compute_stats()
 
         test_endpoint = config.endpoint if config.endpoint else runtime_config.vllm_endpoint
@@ -468,18 +484,19 @@ class LoadTestEngine:
             except Exception as e:
                 logger.warning("[LoadEngine] Failed to get TPOT/Queue Time from metrics_collector: %s", e)
         await self._broadcast({"type": "completed", "data": final_stats})
-        try:
-            storage = shared_module.storage
-            await storage.save_load_test(
-                {
-                    "test_id": f"run-{int(time.time())}",
-                    "config": config.model_dump(),
-                    "result": final_stats,
-                    "timestamp": time.time(),
-                }
-            )
-        except Exception as _e:  # intentional: storage errors must not abort result broadcast
-            logger.warning("Failed to persist load test result: %s", _e)
+        if persist:
+            try:
+                storage = shared_module.storage
+                await storage.save_load_test(
+                    {
+                        "test_id": f"run-{int(time.time())}",
+                        "config": config.model_dump(),
+                        "result": final_stats,
+                        "timestamp": time.time(),
+                    }
+                )
+            except Exception as _e:  # intentional: storage errors must not abort result broadcast
+                logger.warning("Failed to persist load test result: %s", _e)
         return final_stats
 
     def _create_consecutive_failure_checker(
@@ -541,6 +558,7 @@ class LoadTestEngine:
                     self._state.results = self._state.results[-1000:]
                 if result.success:
                     self._state.completed_requests += 1
+                    self._state.total_output_tokens += result.output_tokens
                 else:
                     self._state.failed_requests += 1
 
@@ -583,7 +601,7 @@ class LoadTestEngine:
 
         return await self._drain_remaining_tasks(tasks, processed_tasks, check_consecutive_failures)
 
-    async def run(self, config: LoadTestConfig, skip_preflight: bool = False) -> dict[str, Any]:
+    async def run(self, config: LoadTestConfig, skip_preflight: bool = False, persist: bool = True) -> dict[str, Any]:
         """부하 테스트 실행 — 실시간 결과 yield"""
         async with self._state_lock:
             if self._state.status == LoadTestStatus.RUNNING:
@@ -615,7 +633,7 @@ class LoadTestEngine:
             )
             if consecutive_failure:
                 return await self._fail_run(consecutive_failure, pending_tasks)
-            return await self._finalize_results(config)
+            return await self._finalize_results(config, persist=persist)
         finally:
             if _running_row_id is not None:
                 try:
@@ -792,7 +810,7 @@ class LoadTestEngine:
             "queue_time": {"mean": 0, "p95": 0},
             "tps": {
                 "mean": round(statistics.mean(tps_values), 1) if tps_values else 0,
-                "total": round(sum(tps_values), 1) if tps_values else 0,
+                "total": round(self._state.total_output_tokens / elapsed, 1) if elapsed > 0 else 0,
             },
             "itl": itl_stats,
         }

@@ -102,8 +102,10 @@ def test_chaos_k8s_forbidden_tuner_sse_error(isolated_client: TestClient):
 
 
 def test_chaos_vllm_timeout_load_engine_fails_gracefully(isolated_client: TestClient):
-    async def _timeout_run(config: LoadTestConfig, skip_preflight: bool = False) -> dict[str, object]:
-        _ = skip_preflight
+    async def _timeout_run(
+        config: LoadTestConfig, skip_preflight: bool = False, persist: bool = True
+    ) -> dict[str, object]:
+        _ = skip_preflight, persist
         return {
             "success": False,
             "error": "vLLM request timed out",
