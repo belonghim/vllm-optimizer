@@ -57,17 +57,43 @@ def _extract_served_model_name(args: Any) -> str | None:
     return last_name
 
 
+_BOOLEAN_FLAGS = frozenset({"--enable-chunked-prefill", "--enforce-eager"})
+
+
 def args_list_to_config_dict(args: list[str]) -> dict[str, Any]:
     result: dict[str, Any] = {}
-    for arg in args:
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        i += 1
+        key = _ARG_TO_KEY.get(arg)
+        if key is not None:
+            if arg not in _BOOLEAN_FLAGS and i < len(args) and not args[i].startswith("--"):
+                result[key] = args[i]
+                i += 1
+            else:
+                result[key] = "true"
+            continue
         for cli_flag, config_key in _ARG_TO_KEY.items():
-            if arg == cli_flag:
-                result[config_key] = "true"
-                break
             if arg.startswith(cli_flag + "="):
                 result[config_key] = arg.split("=", 1)[1]
                 break
     return result
+
+
+def strip_tuning_args(args: list[str]) -> list[str]:
+    static: list[str] = []
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        i += 1
+        if arg in _ARG_TO_KEY:
+            if arg not in _BOOLEAN_FLAGS and i < len(args) and not args[i].startswith("--"):
+                i += 1
+            continue
+        if not arg.startswith(TUNING_ARG_PREFIXES):
+            static.append(arg)
+    return static
 
 
 def config_dict_to_args_list(config: dict[str, Any]) -> list[str]:
@@ -245,7 +271,7 @@ class InferenceServiceAdapter(CRAdapter):
 
     def build_args_patch(self, current_spec: dict[str, Any], new_config: dict[str, Any]) -> dict[str, Any]:
         current_args = current_spec.get("predictor", {}).get("model", {}).get("args") or []
-        static_args = [arg for arg in current_args if not arg.startswith(TUNING_ARG_PREFIXES)]
+        static_args = strip_tuning_args(current_args)
 
         current_config = args_list_to_config_dict(current_args)
         current_config.update(new_config)
@@ -314,7 +340,7 @@ class InferenceServiceAdapter(CRAdapter):
 
     def read_extra_args(self, spec: dict[str, Any]) -> list[str]:
         args = spec.get("predictor", {}).get("model", {}).get("args") or []
-        return [arg for arg in args if not arg.startswith(TUNING_ARG_PREFIXES)]
+        return strip_tuning_args(args)
 
     def resolve_model_name(self, spec: dict[str, Any], fallback_name: str) -> str:
         args = spec.get("predictor", {}).get("model", {}).get("args") or []
@@ -357,7 +383,7 @@ class LLMInferenceServiceAdapter(CRAdapter):
     def build_args_patch(self, current_spec: dict[str, Any], new_config: dict[str, Any]) -> dict[str, Any]:
         current_value = self._get_additional_args_value(current_spec)
         current_parts = _split_space_args(current_value)
-        static_parts = [arg for arg in current_parts if not arg.startswith(TUNING_ARG_PREFIXES)]
+        static_parts = strip_tuning_args(current_parts)
 
         current_config = space_str_to_config_dict(current_value)
         current_config.update(new_config)
@@ -492,8 +518,7 @@ class LLMInferenceServiceAdapter(CRAdapter):
 
     def read_extra_args(self, spec: dict[str, Any]) -> list[str]:
         value = self._get_additional_args_value(spec)
-        args = _split_space_args(value)
-        return [arg for arg in args if not arg.startswith(TUNING_ARG_PREFIXES)]
+        return strip_tuning_args(_split_space_args(value))
 
     def resolve_model_name(self, spec: dict[str, Any], fallback_name: str) -> str:
         model_name = spec.get("model", {}).get("name")

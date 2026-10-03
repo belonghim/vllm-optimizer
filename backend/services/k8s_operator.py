@@ -139,7 +139,7 @@ class K8sOperator:
         version: str,
         plural: str,
         cancel_event: asyncio.Event | None = None,
-        timeout: int = 60,
+        timeout: int = 180,
         interval: int = 2,
     ) -> None:
         custom_api = cast(Any, self._k8s_custom)
@@ -341,13 +341,18 @@ class K8sOperator:
                     name=is_name,
                     body={},
                 )
-                await self._wait_for_deletion(
-                    name=is_name,
-                    namespace=namespace,
-                    group=self._cr_adapter.api_group(),
-                    version=self._cr_adapter.api_version(),
-                    plural=self._cr_adapter.api_plural(),
-                )
+                try:
+                    await self._wait_for_deletion(
+                        name=is_name,
+                        namespace=namespace,
+                        group=self._cr_adapter.api_group(),
+                        version=self._cr_adapter.api_version(),
+                        plural=self._cr_adapter.api_plural(),
+                    )
+                except (TimeoutError, asyncio.CancelledError):
+                    logger.error("[AutoTuner] CR deletion wait interrupted, restoring snapshot")
+                    await self._recreate_from_snapshot()
+                    raise
 
                 try:
                     await asyncio.to_thread(
@@ -399,6 +404,31 @@ class K8sOperator:
         except Exception as e:  # intentional: K8s operation fallback (fail-open)
             logger.error(f"[AutoTuner] 파라미터 적용 실패: {e}")
             return {"success": False, "error": str(e)}
+
+    async def _recreate_from_snapshot(self) -> None:
+        if self._is_args_snapshot is None:
+            return
+        namespace = get_k8s_namespace()
+        is_name = get_vllm_is_name()
+        custom_api = cast(Any, self._k8s_custom)
+        group = self._cr_adapter.api_group()
+        version = self._cr_adapter.api_version()
+        plural = self._cr_adapter.api_plural()
+        try:
+            await self._wait_for_deletion(
+                name=is_name, namespace=namespace, group=group, version=version, plural=plural, timeout=300
+            )
+            await asyncio.to_thread(
+                custom_api.create_namespaced_custom_object,
+                group=group,
+                version=version,
+                namespace=namespace,
+                plural=plural,
+                body=self._cr_adapter.restore_cr_from_snapshot(self._is_args_snapshot),
+            )
+            logger.info("[AutoTuner] Snapshot restore create succeeded after interrupted apply")
+        except Exception as e:  # intentional: best-effort restore must not mask the original failure
+            logger.error("[AutoTuner] Snapshot restore after interrupted apply failed: %s", e)
 
     async def rollback_to_snapshot(self, trial_num: int, k8s_lock: asyncio.Lock) -> bool:
         if not self._k8s_available or self._is_args_snapshot is None:

@@ -32,14 +32,36 @@ async def test_setup_study_tps_creates_maximize_study() -> None:
 
 
 @pytest.mark.asyncio
-async def test_setup_study_latency_creates_minimize_study() -> None:
+@pytest.mark.parametrize("objective", ["latency", "balanced", "sla_tps"])
+async def test_setup_study_signed_score_objectives_maximize(objective: str) -> None:
     logic = TunerLogic(_make_load_engine())
-    config = _default_config("latency")
+    config = _default_config(objective)
 
     direction, study = await logic.setup_study(config, storage_url=None)
 
-    assert direction == "minimize"
-    assert study.direction == optuna.study.StudyDirection.MINIMIZE
+    assert direction == "maximize"
+    assert study.direction == optuna.study.StudyDirection.MAXIMIZE
+
+
+def test_compute_trial_score_latency_prefers_lower_p99() -> None:
+    logic = TunerLogic(_make_load_engine())
+    config = _default_config("latency")
+
+    fast = logic.compute_trial_score({"tps": {"total": 1.0}, "latency": {"p99": 0.2}}, config)
+    slow = logic.compute_trial_score({"tps": {"total": 1.0}, "latency": {"p99": 2.0}}, config)
+
+    assert fast > slow
+
+
+def test_compute_trial_score_sla_violation_ranks_below_feasible() -> None:
+    logic = TunerLogic(_make_load_engine())
+    config = _default_config("sla_tps")
+    config.p99_latency_sla_ms = 500
+
+    feasible = logic.compute_trial_score({"tps": {"total": 1.0}, "latency": {"p99": 0.4}}, config)
+    violating = logic.compute_trial_score({"tps": {"total": 10000.0}, "latency": {"p99": 0.9}}, config)
+
+    assert feasible > violating
 
 
 def test_suggest_params_returns_all_required_keys() -> None:

@@ -10,6 +10,7 @@ from services.cr_adapter import (
     config_dict_to_space_str,
     get_cr_adapter,
     space_str_to_config_dict,
+    strip_tuning_args,
 )
 
 SAMPLE_IS_SPEC = {
@@ -67,6 +68,16 @@ class TestArgHelpers:
             "max_num_seqs": "128",
             "enable_chunked_prefill": "true",
         }
+
+    def test_args_list_to_config_dict_space_separated(self):
+        result = args_list_to_config_dict(
+            ["--max-num-seqs", "128", "--enable-chunked-prefill", "--tensor-parallel-size", "1"]
+        )
+        assert result == {"max_num_seqs": "128", "enable_chunked_prefill": "true"}
+
+    def test_strip_tuning_args_drops_space_separated_values(self):
+        args = ["--max-num-seqs", "128", "--tensor-parallel-size", "1", "--enforce-eager", "--block-size=16"]
+        assert strip_tuning_args(args) == ["--tensor-parallel-size", "1"]
 
     def test_config_dict_to_args_list(self):
         result = config_dict_to_args_list(

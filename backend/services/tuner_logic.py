@@ -91,7 +91,7 @@ class TunerLogic:
             _study_name = "vllm-tuner-pareto"
             direction_kwarg: dict[str, Any] = {"directions": ["maximize", "minimize"]}
         else:
-            direction = "maximize" if config.objective in ("tps", "sla_tps") else "minimize"
+            # compute_trial_score is signed so that larger is always better for every objective
             sampler = optuna.samplers.TPESampler(seed=42)
             pruner = optuna.pruners.MedianPruner(n_startup_trials=3, n_warmup_steps=0)
             _study_name = f"vllm-tuner-{config.objective}"
@@ -219,7 +219,7 @@ class TunerLogic:
             return -p99_lat
         if config.objective == "sla_tps":
             if config.p99_latency_sla_ms and p99_lat * 1000 > config.p99_latency_sla_ms:
-                return tps * 0.01
+                return -(p99_lat * 1000 / config.p99_latency_sla_ms)
             return tps
         return tps / (p99_lat + 1) * 100
 
@@ -597,9 +597,18 @@ async def finalize_tuning_for_tuner(
 ) -> int | None:  # AutoTuner — avoid circular import
     benchmark_id: int | None = None
     if tuner._best_trial:
-        await tuner._apply_params(tuner._best_trial.params)
-        await tuner._wait_for_ready()
-        if auto_benchmark:
+        apply_result = await tuner._apply_params(tuner._best_trial.params)
+        best_applied = not (isinstance(apply_result, dict) and not apply_result.get("success", True))
+        best_ready = best_applied and (await tuner._wait_for_ready()) is not False
+        if not best_ready:
+            logger.warning("[AutoTuner] Best params were not applied or the service is not ready; skipping benchmark")
+            await tuner._broadcast(
+                {
+                    "type": "tuning_warning",
+                    "data": {"message": "최적 파라미터 적용 또는 서비스 준비에 실패했습니다. 현재 설정을 확인하세요"},
+                }
+            )
+        if auto_benchmark and best_ready:
             try:
                 benchmark_id = await tuner._save_auto_benchmark()
                 if benchmark_id is not None:

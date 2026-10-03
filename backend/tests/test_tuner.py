@@ -554,6 +554,23 @@ async def test_apply_params_uses_correct_configmap_keys(auto_tuner_instance, moc
     assert "--enable-chunked-prefill" in patch_args
 
 
+@pytest.mark.asyncio
+async def test_apply_params_restores_snapshot_when_deletion_wait_times_out(auto_tuner_instance, mock_k8s_clients):
+    tuner = auto_tuner_instance
+    mock_custom_api = mock_k8s_clients[2].return_value
+    mock_custom_api.get_namespaced_custom_object.return_value = {
+        "spec": {"predictor": {"model": {"args": []}}},
+    }
+    wait_mock = AsyncMock(side_effect=[TimeoutError("still terminating"), None])
+    tuner._k8s_operator._wait_for_deletion = wait_mock
+
+    result = await tuner._apply_params({"max_num_seqs": 64})
+
+    assert result["success"] is False
+    assert wait_mock.await_count == 2
+    mock_custom_api.create_namespaced_custom_object.assert_called_once()
+
+
 def test_importance_returns_empty_when_no_trials(client):
     """When no trials have been run, /importance should return {}"""
     resp = client.get("/api/tuner/importance")
