@@ -98,6 +98,7 @@ class LoadTestEngine:
         self._subscribers: list[asyncio.Queue[Any]] = []
         self._state_lock: asyncio.Lock = asyncio.Lock()
         self._subscribers_lock: asyncio.Lock = asyncio.Lock()
+        self._last_terminal_event: dict[str, Any] | None = None
 
     @property
     def status(self) -> LoadTestStatus:
@@ -122,6 +123,20 @@ class LoadTestEngine:
     async def unsubscribe(self, q: asyncio.Queue[Any]) -> None:
         async with self._subscribers_lock:
             self._subscribers.remove(q)
+
+    @property
+    def last_terminal_event(self) -> dict[str, Any] | None:
+        """마지막 터미널 이벤트(completed/stopped/error/sweep_completed) — 늦은 구독자 재생용."""
+        return self._last_terminal_event
+
+    def clear_terminal_event(self) -> None:
+        """새 실행 시작 시 이전 터미널 이벤트를 제거한다."""
+        self._last_terminal_event = None
+
+    async def broadcast_terminal(self, data: dict[str, Any]) -> None:
+        """터미널 이벤트를 기록하고 브로드캐스트 — 완료 후 늦게 구독한 클라이언트도 받을 수 있도록."""
+        self._last_terminal_event = data
+        await self._broadcast(data)
 
     async def _broadcast(self, data: dict[str, Any]):
         async with self._subscribers_lock:
@@ -448,7 +463,7 @@ class LoadTestEngine:
     ) -> dict[str, Any]:
         error = str(error_data.get("error", "부하 테스트 실패"))
         error_type = str(error_data.get("error_type", "unknown"))
-        await self._broadcast(
+        await self.broadcast_terminal(
             {
                 "type": "error",
                 "data": {
@@ -517,7 +532,7 @@ class LoadTestEngine:
                         }
             except Exception as e:
                 logger.warning("[LoadEngine] Failed to get TPOT/Queue Time from metrics_collector: %s", e)
-        await self._broadcast({"type": "completed", "data": final_stats})
+        await self.broadcast_terminal({"type": "completed", "data": final_stats})
         if persist:
             try:
                 storage = shared_module.storage
@@ -648,6 +663,7 @@ class LoadTestEngine:
                 start_time=time.time(),
                 total_requests=config.total_requests,
             )
+            self._last_terminal_event = None
         _running_row_id: int | None = None
         try:
             try:
@@ -680,7 +696,10 @@ class LoadTestEngine:
     async def stop(self) -> None:
         self._stop_event.set()
         async with self._state_lock:
+            was_active = self._state.status == LoadTestStatus.RUNNING or self._sweep_running
             self._state.status = LoadTestStatus.STOPPED
+        if was_active:
+            await self.broadcast_terminal({"type": "stopped", "data": {"status": "stopped"}})
 
     async def run_sweep(self, config: SweepConfig) -> SweepResult:
         async with self._state_lock:
@@ -692,6 +711,7 @@ class LoadTestEngine:
                 )
 
         self._sweep_running = True
+        self._last_terminal_event = None
         try:
             sweep_start = time.time()
             steps: list[SweepStepResult] = []

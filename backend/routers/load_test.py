@@ -210,6 +210,7 @@ async def start_load_test(request: Request, config: LoadTestConfig, storage=Depe
                 ).model_dump(),
             )
 
+        load_engine.clear_terminal_event()
         active_task = asyncio.create_task(_run_test_background(test_id, config, storage))
         await _state.set_active_test(active_task, config, test_id)
 
@@ -288,15 +289,16 @@ async def start_sweep(request: Request, config: SweepConfig) -> dict[str, Any]:
         try:
             result = await load_engine.run_sweep(config)
             await _state.set_sweep_result(result)
-            await load_engine._broadcast({"type": "sweep_completed", "data": result.model_dump()})
+            await load_engine.broadcast_terminal({"type": "sweep_completed", "data": result.model_dump()})
         except asyncio.CancelledError:
             pass
         except (TimeoutError, RuntimeError, ValueError) as e:
             logger.error("[Sweep] Error: %s", e)
-            await load_engine._broadcast({"type": "sweep_completed", "data": None})
+            await load_engine.broadcast_terminal({"type": "sweep_completed", "data": None})
         finally:
             await _state.finish_sweep()
 
+    load_engine.clear_terminal_event()
     sweep_task = asyncio.create_task(run_sweep_task())
     await _state.set_sweep_task(sweep_task)
 
@@ -319,6 +321,10 @@ async def stream_load_test_results(test_id: str | None = None) -> StreamingRespo
     async def event_generator():
         """Async generator that streams load test progress events via SSE."""
         try:
+            replay = load_engine.last_terminal_event
+            if replay is not None:
+                yield f"data: {json.dumps(replay)}\n\n"
+                return
             while True:
                 try:
                     data = await asyncio.wait_for(queue.get(), timeout=15)

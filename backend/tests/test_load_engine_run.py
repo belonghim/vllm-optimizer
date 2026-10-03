@@ -290,3 +290,33 @@ def test_find_knee_rps_maximizes_throughput_per_latency():
     ]
     assert find_knee_rps(steps, max_error_rate=0.1) == 5
     assert find_knee_rps([], max_error_rate=0.1) is None
+
+
+async def test_run_resets_previous_terminal_event_before_executing():
+    """새 run()은 이전 터미널 이벤트를 지운 뒤 실행한다."""
+    engine = LoadTestEngine()
+    await engine.broadcast_terminal({"type": "completed", "data": {"total": 0}})
+
+    observed: dict[str, object] = {}
+    original_execute = engine._execute_requests
+
+    async def _spy(*args, **kwargs):
+        observed["terminal_at_start"] = engine.last_terminal_event
+        return await original_execute(*args, **kwargs)
+
+    engine._execute_requests = _spy
+
+    config = LoadTestConfig(
+        total_requests=1,
+        rps=0,
+        concurrency=1,
+        stream=False,
+        endpoint="http://test",
+        model="test-model",
+    )
+    with patch("services.shared.external_client", _make_mock_httpx_client()):
+        await engine.run(config, skip_preflight=True)
+
+    assert observed["terminal_at_start"] is None
+    assert engine.last_terminal_event is not None
+    assert engine.last_terminal_event["type"] == "completed"

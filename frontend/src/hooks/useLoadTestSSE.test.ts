@@ -99,6 +99,22 @@ describe('useLoadTestSSE', () => {
     expect(result.current.result).toEqual({ summary: 'done' });
   });
 
+  it('stopped message sets status=stopped and closes the connection', () => {
+    const { result } = renderHook(() => useLoadTestSSE());
+
+    act(() => {
+      result.current.connect(10);
+    });
+    const es = MockEventSource.instances[0];
+
+    act(() => {
+      es.simulateMessage({ type: 'stopped', data: {} });
+    });
+
+    expect(result.current.status).toBe('stopped');
+    expect(es.readyState).toBe(2);
+  });
+
   it('error message sets status=error and stores error string', () => {
     const { result } = renderHook(() => useLoadTestSSE());
 

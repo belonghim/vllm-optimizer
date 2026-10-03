@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-04] - SSE 터미널 재생·TLS 컨텍스트 현대화·이미지 내 스모크
+
+### Fixed
+- **SSE 늦은 구독 이벤트 유실**: `/api/load_test/stream`이 구독 이후 이벤트만 전달해 완료 후 재연결한 클라이언트가 keepalive만 받고 멈추던 문제. 엔진이 마지막 터미널 이벤트(`completed`/`stopped`/`error`/`sweep_completed`)를 기록하고 늦은 구독자에게 즉시 재생 후 스트림을 종료한다. 새 실행 시작 시(`/start`, `/sweep`, `run()`, `run_sweep()`) 이전 이벤트는 초기화. `stop()`은 실행 중일 때 `stopped` 이벤트를 브로드캐스트.
+- **프런트**: `useLoadTestSSE`가 `stopped` 이벤트를 처리(상태 표시 후 연결 종료) — 서버 주도 정지와 재접속 루프 방지.
+
+### Changed
+- **TLS 검증 컨텍스트화**: `CA_BUNDLE`을 httpx `verify=<str>`(deprecated)로 넘기던 것을 `services/tls.py`의 `internal_verify()`/`external_verify()`가 `ssl.create_default_context(cafile=...)`로 생성하도록 통합. `main.py`·`shared.py` 공용, `main._external_verify` 제거(httpx 0.28+ deprecation 해소, 향후 버전 대비).
+
+### Fixed (tests)
+- **이미지 내부 스모크 실행 가능**: conftest가 `backend.*` 모듈을 무조건 import해 `/app`(이미지 레이아웃)에서 `ModuleNotFoundError: backend`로 전부 실패하던 문제 — 리포 경로/이미지 경로 어느 쪽이든 동작하는 optional import/패치로 전환. `podman run -w /app … pytest tests/test_smoke.py` 10 passed.
+- 통합 테스트(SSE·스윕) 구독 순서를 "시작 후 구독"으로 복원 — 터미널 재생 덕분에 완료를 놓치지 않는다. `test_pod_restart`의 CA 경로 문자열(httpx deprecation) 제거.
+
+### Verification
+- `./scripts/check.sh` exit 0 (ALL CHECKS PASSED): backend 784 passed, frontend 446 passed (57 files).
+- 이미지 빌드 후 in-image `pip check` OK · `app.version=1.0.0` · 스모크 10 passed.
+- 통합 테스트는 클러스터 API 다운(EOF)으로 이번 라운드 미실행 — 복구 시 재검증 예정.
+
 ## [2026-10-04] - 메타데이터 정리: 의존성·버전·K8s 라벨·문서 컨텍스트
 
 ### Changed

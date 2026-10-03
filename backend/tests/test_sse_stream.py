@@ -7,6 +7,8 @@ SSE event_generator 동작 단위 테스트
 import asyncio
 import json
 
+import pytest
+
 
 async def test_event_generator_sends_keepalive_on_idle():
     """큐에 데이터 없을 시 timeout 후 keepalive comment 전송"""
@@ -96,3 +98,50 @@ async def test_event_generator_sends_data_before_keepalive():
     assert len(collected) == 2
     assert all(c.startswith("data: ") for c in collected)
     assert not any(c.startswith(": keepalive") for c in collected)
+
+
+async def test_broadcast_terminal_records_last_event_and_clear_resets():
+    """터미널 이벤트는 마지막 이벤트로 기록되고 clear로 제거된다."""
+    from services.load_engine import LoadTestEngine
+
+    engine = LoadTestEngine()
+    assert engine.last_terminal_event is None
+
+    await engine.broadcast_terminal({"type": "error", "data": {"error": "boom"}})
+    assert engine.last_terminal_event is not None
+    assert engine.last_terminal_event["type"] == "error"
+
+    engine.clear_terminal_event()
+    assert engine.last_terminal_event is None
+
+
+async def test_late_subscriber_receives_terminal_replay():
+    """완료 후 늦게 구독한 클라이언트는 재생된 터미널 이벤트를 받고 스트림이 종료된다."""
+    from routers.load_test import load_engine, stream_load_test_results
+
+    load_engine.clear_terminal_event()
+    await load_engine.broadcast_terminal({"type": "completed", "data": {"total": 3}})
+
+    response = await stream_load_test_results(test_id=None)
+    first_chunk = await response.body_iterator.__anext__()
+    assert '"type": "completed"' in first_chunk
+    assert '"total": 3' in first_chunk
+    with pytest.raises(StopAsyncIteration):
+        await response.body_iterator.__anext__()
+
+    load_engine.clear_terminal_event()
+
+
+async def test_stop_broadcasts_stopped_terminal_when_running():
+    """실행 중 stop()은 stopped 터미널 이벤트를 브로드캐스트하고 기록한다."""
+    from services.load_engine import LoadTestEngine, LoadTestStatus
+
+    engine = LoadTestEngine()
+    engine._state.status = LoadTestStatus.RUNNING
+    q = await engine.subscribe()
+
+    await engine.stop()
+
+    assert q.get_nowait()["type"] == "stopped"
+    assert engine.last_terminal_event is not None
+    assert engine.last_terminal_event["type"] == "stopped"

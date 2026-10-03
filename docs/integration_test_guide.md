@@ -1,7 +1,7 @@
 ---
 title: "vLLM Optimizer 통합 테스트 가이드"
 date: 2026-03-08
-updated: 2026-09-30
+updated: 2026-10-04
 tags: [integration-test, performance, vllm, korean]
 status: published
 ---
@@ -18,6 +18,18 @@ status: published
 cd backend && python3 -m pytest tests/ -x -q -m "not integration"
 ```
 
+### 컨테이너 이미지 내부 스모크 (클러스터 불필요)
+
+빌드된 백엔드 이미지에서 핵심 계약 스모크 테스트를 바로 실행할 수 있습니다(폐쇄망 검증용).
+
+```bash
+podman run --rm -w /app vllm-optimizer-backend:dev \
+  python -m pytest tests/test_smoke.py -q
+```
+
+이미지에는 리포 루트의 `pyproject.toml`이 없어 async 테스트를 포함한 전체 스위트는
+`-o asyncio_mode=auto`가 필요합니다. 스모크 티어는 동기 테스트만 포함하므로 그대로 실행됩니다.
+
 ## 2. 성능 통합 테스트 (Performance Integration Tests)
 
 성능 통합 테스트는 OpenShift 클러스터에 배포된 vLLM Optimizer와 vLLM 서비스 간의 상호작용을 검증합니다. `backend/tests/integration/performance/` 디렉토리에 위치하며, 다음 시나리오를 포함합니다:
@@ -25,9 +37,11 @@ cd backend && python3 -m pytest tests/ -x -q -m "not integration"
 - `test_cluster_health.py`: 클러스터 상태 및 기본 연결 확인
 - `test_load_test_throughput.py`: 부하 테스트 기능의 처리량 검증
 - `test_metrics_collection.py`: 메트릭 수집 기능 검증
+- `test_sweep_e2e.py`: 스윕(포화점 탐색) SSE/결과 검증
+- `test_pod_restart.py`: 튜너 적용/args 패치 시 파드 재기동 검증
 - `test_auto_tuner.py`: 자동 튜너 기능 검증
 - `test_sse_streaming.py`: SSE 스트리밍 기능 검증
-- `test_auto_tuner.py`: 자동 튜너 기능 검증
+- `test_direct_scrape_integration.py`(integration/ 루트): 타깃 파드 직접 스크레이프 검증
 
 ## 3. 환경변수
 
@@ -41,7 +55,7 @@ cd backend && python3 -m pytest tests/ -x -q -m "not integration"
 | `VLLM_NAMESPACE` | vLLM 네임스페이스 | `vllm-lab-dev` |
 | `OPTIMIZER_NAMESPACE` | Optimizer 네임스페이스 | `vllm-optimizer-dev` |
 | `PERF_BASELINE_FILE` | Baseline JSON 경로 | `baseline.dev.json` |
-| `VLLM_POD_LABEL` | vLLM 파드 식별 레이블 | `app=isvc.llm-ov-predictor` |
+| `VLLM_POD_LABEL` | vLLM 파드 식별 레이블 | `serving.kserve.io/inferenceservice=llm-ov` |
 | `POD_RESTART_TIMEOUT` | 파드 재기동 대기 최대 시간(초) | `300` |
 
 ## 4. Baseline 관리

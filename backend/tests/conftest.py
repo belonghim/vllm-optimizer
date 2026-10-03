@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 _MODULES_TO_CLEAR = [
     "backend.main",
+    "main",
     "backend.metrics.prometheus_metrics",
     "metrics.prometheus_metrics",
     "backend.services.load_engine",
@@ -68,6 +69,34 @@ _MODULES_TO_CLEAR = [
 
 def _noop(*args: Any, **kwargs: Any) -> None:
     return None
+
+
+def _import_optional(name: str) -> types.ModuleType | None:
+    """Import by repo path (`backend.X`) or image path (`X`); None when neither exists."""
+    try:
+        return importlib.import_module(name)
+    except ModuleNotFoundError:
+        if not name.startswith("backend."):
+            return None
+        try:
+            return importlib.import_module(name.removeprefix("backend."))
+        except ModuleNotFoundError:
+            return None
+
+
+def _module_exists(name: str) -> bool:
+    try:
+        importlib.import_module(name)
+    except ModuleNotFoundError:
+        return False
+    return True
+
+
+def _setattr_if_present(monkeypatch: pytest.MonkeyPatch, target: str, value: Any) -> None:
+    """Patch a dotted target only when its module is importable (image runs lack `backend.`)."""
+    module_path, _, _attr = target.rpartition(".")
+    if _module_exists(module_path):
+        monkeypatch.setattr(target, value, raising=False)
 
 
 def iter_api_routes(app: Any) -> Iterator[tuple[str, Any]]:
@@ -348,16 +377,17 @@ def _install_stub_metrics_collector_modules() -> list[str]:
     stub_multi_target_instance = _StubMultiTargetMetricsCollector()
     stub_event_broadcaster = _StubEventBroadcaster()
     load_engine_module = importlib.import_module("services.load_engine")
-    backend_load_engine_module = importlib.import_module("backend.services.load_engine")
+    backend_load_engine_module = _import_optional("backend.services.load_engine")
     from services.runtime_config import RuntimeConfig
     from services.storage import Storage
 
     shared_storage = Storage(":memory:")
 
-    for module_name, load_engine_target in (
-        ("services.shared", load_engine_module),
-        ("backend.services.shared", backend_load_engine_module),
-    ):
+    module_pairs = [("services.shared", load_engine_module)]
+    if backend_load_engine_module is not None:
+        module_pairs.append(("backend.services.shared", backend_load_engine_module))
+
+    for module_name, load_engine_target in module_pairs:
         stub_module = types.ModuleType(module_name)
         stub_any = cast(Any, stub_module)
         stub_any.multi_target_collector = stub_multi_target_instance
@@ -385,7 +415,8 @@ def _mock_update_metrics(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _reload_app(monkeypatch: pytest.MonkeyPatch) -> FastAPI:
-    main_module = importlib.import_module("backend.main")
+    main_module = _import_optional("backend.main")
+    assert main_module is not None
     app: FastAPI = importlib.reload(main_module).app
 
     load_engine_module = importlib.import_module("services.load_engine")
@@ -403,21 +434,13 @@ def _reload_app(monkeypatch: pytest.MonkeyPatch) -> FastAPI:
         _stub_run,
         raising=False,
     )
-    monkeypatch.setattr(
-        "backend.services.load_engine.LoadTestEngine.run",
-        _stub_run,
-        raising=False,
-    )
+    _setattr_if_present(monkeypatch, "backend.services.load_engine.LoadTestEngine.run", _stub_run)
     monkeypatch.setattr(
         "services.load_engine.LoadTestEngine._preflight_check",
         _stub_preflight,
         raising=False,
     )
-    monkeypatch.setattr(
-        "backend.services.load_engine.LoadTestEngine._preflight_check",
-        _stub_preflight,
-        raising=False,
-    )
+    _setattr_if_present(monkeypatch, "backend.services.load_engine.LoadTestEngine._preflight_check", _stub_preflight)
 
     load_engine_module.load_engine._state = load_engine_module.LoadTestState()
 
@@ -476,9 +499,14 @@ def _mock_resolve_model_name(request: pytest.FixtureRequest) -> Any:
         if mod_name in sys.modules:
             targets.append(f"{mod_name}.resolve_model_name")
 
-    patches = [mock_patch(t, new=_fast_resolve) for t in targets]
-    for p in patches:
-        p.start()
+    patches = []
+    for target in targets:
+        try:
+            p = mock_patch(target, new=_fast_resolve)
+            p.start()
+        except ModuleNotFoundError:
+            continue
+        patches.append(p)
     yield
     for p in patches:
         p.stop()

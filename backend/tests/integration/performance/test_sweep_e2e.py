@@ -11,7 +11,7 @@ class TestSweepE2E:
     @pytest.mark.asyncio
     @pytest.mark.integration
     async def test_sweep_sse_events_received(self, async_http_client, skip_if_overloaded, vllm_endpoint, vllm_model):
-        """스윕 SSE 이벤트 수신 확인 — 완료 전에 스트림을 구독해야 한다 (늦으면 이벤트 유실)."""
+        """스윕 SSE 이벤트 수신 확인 — 시작 후 구독해도 늦은 구독자 재생으로 완료를 놓치지 않는다."""
         base_url = async_http_client
 
         config = {
@@ -28,13 +28,13 @@ class TestSweepE2E:
         }
 
         async with httpx.AsyncClient(base_url=base_url, timeout=300) as client:
+            resp = await client.post("/api/load_test/sweep", json=config)
+            assert resp.status_code == 200, f"Sweep start failed: {resp.text}"
+
             events: list[dict] = []
             buffer = ""
             try:
                 async with client.stream("GET", "/api/load_test/stream", timeout=300) as stream:
-                    resp = await client.post("/api/load_test/sweep", json=config)
-                    assert resp.status_code == 200, f"Sweep start failed: {resp.text}"
-
                     async for chunk in stream.aiter_text():
                         buffer += chunk
                         while "\n\n" in buffer:

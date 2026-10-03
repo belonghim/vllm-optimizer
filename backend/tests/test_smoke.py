@@ -196,12 +196,12 @@ def test_inference_client_trusts_openshift_service_ca(tmp_path) -> None:
     import ssl
 
     import certifi
+    from services.tls import external_verify
 
-    from ..main import _external_verify
-
-    assert _external_verify("/etc/custom-ca.pem") == "/etc/custom-ca.pem"
-    without = _external_verify("", service_ca_path=str(tmp_path / "missing.crt"))
-    with_service_ca = _external_verify("", service_ca_path=certifi.where())
+    custom = external_verify(certifi.where())
+    assert isinstance(custom, ssl.SSLContext)
+    without = external_verify("", service_ca_path=str(tmp_path / "missing.crt"))
+    with_service_ca = external_verify("", service_ca_path=certifi.where())
     assert isinstance(without, ssl.SSLContext) and isinstance(with_service_ca, ssl.SSLContext)
     assert without.verify_mode == ssl.CERT_REQUIRED
     assert with_service_ca.cert_store_stats()["x509_ca"] >= without.cert_store_stats()["x509_ca"]

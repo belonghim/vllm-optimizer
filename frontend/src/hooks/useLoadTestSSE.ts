@@ -88,6 +88,10 @@ export function useLoadTestSSE(): UseLoadTestSSEReturn {
           handle.dispose();
           setResult(data.data ?? null);
         }
+        if (data.type === 'stopped') {
+          setStatus('stopped');
+          handle.dispose();
+        }
       },
       onParseError: (err) => {
         console.error('Failed to parse SSE message data', err);

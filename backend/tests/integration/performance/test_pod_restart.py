@@ -9,6 +9,7 @@ E2E 파드 재기동 검증 테스트
 """
 
 import os
+import ssl
 import time
 
 import httpx
@@ -36,7 +37,7 @@ def _get_pod_uids(namespace: str, label: str) -> set[str]:
             f"https://kubernetes.default.svc/api/v1/namespaces/{namespace}/pods",
             params={"labelSelector": label},
             headers={"Authorization": f"Bearer {token}"},
-            verify=_SA_CA if os.path.exists(_SA_CA) else False,
+            verify=ssl.create_default_context(cafile=_SA_CA) if os.path.exists(_SA_CA) else False,
             timeout=30,
         )
         resp.raise_for_status()
