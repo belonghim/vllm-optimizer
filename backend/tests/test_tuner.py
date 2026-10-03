@@ -14,6 +14,7 @@ from ..services.auto_tuner import AutoTuner
 from ..services.k8s_operator import get_k8s_namespace, get_vllm_is_name
 from ..services.load_engine import LoadTestEngine
 from ..services.multi_target_collector import MultiTargetMetricsCollector
+from .conftest import get_route_handler_globals, iter_api_routes
 
 pytestmark = pytest.mark.slow
 
@@ -38,7 +39,7 @@ def _extract_tuning_args_from_created_cr(body: dict[str, Any]) -> list[str]:
 
 
 def test_stream_endpoint_exists(client):
-    routes = [route.path for route in client.app.routes]
+    routes = [path for path, _route in iter_api_routes(client.app)]
     assert "/api/tuner/stream" in routes
 
 
@@ -64,11 +65,7 @@ def test_stream_endpoint_returns_sse_content_type(client):
         async def unsubscribe(self, q):
             pass
 
-    handler_globals = None
-    for route in client.app.routes:
-        if getattr(route, "path", None) == "/api/tuner/stream":
-            handler_globals = route.endpoint.__globals__
-            break
+    handler_globals = get_route_handler_globals(client.app, "/api/tuner/stream")
     assert handler_globals is not None
     with patch.dict(handler_globals, {"auto_tuner": DummyAutoTuner()}):
         with client.stream("GET", "/api/tuner/stream") as response:
@@ -212,12 +209,7 @@ def test_tuner_start_endpoint_rejects_when_sweep_running(client):
         "gpu_memory_max": 0.95,
     }
 
-    handler_globals = None
-    for route in client.app.routes:
-        if getattr(route, "path", None) == "/api/tuner/start":
-            endpoint = route.endpoint
-            handler_globals = getattr(endpoint, "__wrapped__", endpoint).__globals__
-            break
+    handler_globals = get_route_handler_globals(client.app, "/api/tuner/start")
     assert handler_globals is not None
 
     mock_tuner = MagicMock()
@@ -384,7 +376,7 @@ async def test_median_pruner_marks_trial_as_pruned(auto_tuner_instance, mock_k8s
     tuner = auto_tuner_instance
     call_count = 0
 
-    async def mock_evaluate(endpoint, config, trial=None, trial_num=0):
+    async def mock_evaluate(endpoint, config, trial=None, trial_num=0, broadcaster=None):
         nonlocal call_count
         call_count += 1
         if trial:
@@ -492,11 +484,7 @@ def test_tuner_trials_item_shape_with_data(client):
     mock_tuner = MagicMock()
     mock_tuner.trials = [trial]
 
-    handler_globals = None
-    for route in client.app.routes:
-        if getattr(route, "path", None) == "/api/tuner/trials":
-            handler_globals = route.endpoint.__globals__
-            break
+    handler_globals = get_route_handler_globals(client.app, "/api/tuner/trials")
     assert handler_globals is not None, "Could not find /api/tuner/trials route"
 
     with patch.dict(handler_globals, {"auto_tuner": mock_tuner}):
@@ -610,11 +598,7 @@ def test_apply_best_with_existing_trial(client):
         status="completed",
     )
 
-    handler_globals = None
-    for route in client.app.routes:
-        if getattr(route, "path", None) == "/api/tuner/apply-best":
-            handler_globals = route.endpoint.__globals__
-            break
+    handler_globals = get_route_handler_globals(client.app, "/api/tuner/apply-best")
     assert handler_globals is not None
 
     mock_tuner = MagicMock()
@@ -912,7 +896,7 @@ async def test_best_score_history_monotonically_nondecreasing_for_tps(auto_tuner
     scores = [10.0, 30.0, 20.0, 50.0, 40.0]
     call_idx = [0]
 
-    async def mock_eval(endpoint, config, trial=None, trial_num=0):
+    async def mock_eval(endpoint, config, trial=None, trial_num=0, broadcaster=None):
         idx = call_idx[0]
         call_idx[0] += 1
         score = scores[idx % len(scores)]
@@ -948,11 +932,7 @@ def test_apply_best_returns_error_when_tuning_running(client):
     mock_tuner.best = best_trial
     mock_tuner.is_running = True
 
-    handler_globals = None
-    for route in client.app.routes:
-        if getattr(route, "path", None) == "/api/tuner/apply-best":
-            handler_globals = route.endpoint.__globals__
-            break
+    handler_globals = get_route_handler_globals(client.app, "/api/tuner/apply-best")
 
     assert handler_globals is not None
     with patch.dict(handler_globals, {"auto_tuner": mock_tuner}):
@@ -1088,7 +1068,7 @@ async def test_pruned_trials_not_counted_as_best_trial(auto_tuner_instance, mock
     tuner = auto_tuner_instance
     call_count = 0
 
-    async def mock_evaluate(endpoint, config, trial=None, trial_num=0):
+    async def mock_evaluate(endpoint, config, trial=None, trial_num=0, broadcaster=None):
         nonlocal call_count
         call_count += 1
         if trial:

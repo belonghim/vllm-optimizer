@@ -113,7 +113,6 @@ export interface ClusterConfig {
   version: number;
   endpoint: string;
   targets: ClusterTarget[];
-  maxTargets: number;
 }
 
 export interface SSEState {

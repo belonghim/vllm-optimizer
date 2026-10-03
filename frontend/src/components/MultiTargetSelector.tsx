@@ -60,7 +60,6 @@ export default function MultiTargetSelector({
 }: MultiTargetSelectorProps) {
   const {
     targets,
-    maxTargets,
     addTarget,
     removeTarget,
     setDefaultTarget,
@@ -406,9 +405,7 @@ export default function MultiTargetSelector({
   return (
     <div className="multi-target-selector panel multi-target-no-border">
       <div className="section-title multi-target-header">
-        <span>
-          Monitoring Targets ({targets.length}/{maxTargets})
-        </span>
+        <span>Monitoring Targets ({targets.length})</span>
         <div className="multi-target-header-actions">
           <button
             type="button"
@@ -463,7 +460,6 @@ export default function MultiTargetSelector({
               type="button"
               className="btn btn-primary multi-target-add-btn"
               onClick={() => setIsAdding(true)}
-              disabled={targets.length >= maxTargets}
               data-testid="add-target-btn"
             >
               + Add

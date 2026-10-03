@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-03] - 정리: 죽은 max-targets 경로·stale 테스트·prefix caching·배포 순서
+
+### Removed
+- **도달 불가능한 max-targets 경로**: `register_target()`은 MAX_TARGETS 제거(`24b0fa0`) 이후 항상 성공하므로 반환값을 없애고, `/api/metrics/latest`의 409, `/batch`·`/pods`·`/pods/history`의 `max_targets_reached` 분기, OpenAPI 409 선언, api-spec 409 기술을 삭제. `/latest`는 400(타깃 누락)을 문서화.
+- **프런트 `maxTargets`**: 헤더가 `(N/Infinity)`로 표시되고, 예전 localStorage에 숫자(예: 5)가 남아 있으면 백엔드엔 제한이 없는데 UI만 Add를 막던 잔재 제거 → `Monitoring Targets (N)`.
+
+### Fixed (tests)
+- slow 마커 테스트 18건이 조용히 실패 중이던 문제(기본 게이트에서 제외): 리팩터로 옮겨진 `_fetch_query_range` import 경로, 제거된 기본 타깃 대신 의존성 override로 NaN history 검증, `get_metrics` 목에 `metrics_source` 인자, FastAPI 0.142 라우트 래퍼 대응(`conftest.get_route_handler_globals`/`iter_api_routes`), `_evaluate` 목에 `broadcaster` 인자, discover 응답 계약(이름 배열) 반영. `pytest -m "slow and not integration"` 156/156.
+
+### Changed
+- **llm-ov**: dev overlay가 args 배열을 통째로 교체하면서 빠져 있던 `--enable-prefix-caching`을 base와 일치시킴. OpenVINO hybrid(GDN)에서 Mamba cache mode `align`으로 기동, KV 용량 불변(8K 기준 69.62×), 같은 시스템 프롬프트 재요청 2.3s→1.2s, prefix hit 32/68.
+- **deploy.sh**: 이미지 digest 비교/롤아웃을 kustomize 적용·ConfigMap 해시 동기화 뒤로 이동 — 이미지와 설정이 함께 바뀌어도 파드가 한 번만 재시작(`imagePullPolicy: Always` 전제).
+- 문서: architecture.md 메트릭 흐름(Monitor는 `/batch`), monitor-page.md 헤더/Add 버튼 설명, 테스트 픽스처의 `:8080` 엔드포인트 정리.
+
+### Verification
+- `./scripts/check.sh` exit 0 (backend 612, frontend 444), slow 156 passed.
+- `deploy.sh dev`: 백엔드 ReplicaSet 1개만 생성(단일 재시작), `/api/metrics/latest` 무파라미터 400·타깃 지정 200, `/batch` 정상. Playwright: 헤더 `Monitoring Targets (1)`, Add 활성, 4xx/5xx·콘솔 오류 0건.
+
 ## [2026-10-03] - 후속 수정: 세션 하트비트·기본 엔드포인트·배포 반영·llm-ov 샘플링 고정
 
 E2E에서 남은 콘솔 오류와 배포 반영 문제를 수정.

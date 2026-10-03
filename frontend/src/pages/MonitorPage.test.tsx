@@ -13,7 +13,6 @@ vi.mock('../contexts/ClusterConfigContext', () => {
   return {
     useClusterConfig: () => ({
       targets,
-      maxTargets: 5,
       addTarget: vi.fn(),
       removeTarget: vi.fn(),
     }),
@@ -45,7 +44,7 @@ describe('MonitorPage', () => {
   it('renders without crashing', async () => {
     render(<MonitorPage isActive={true} />);
     await act(async () => {});
-    expect(screen.getByText('Monitoring Targets (1/5)')).toBeInTheDocument();
+    expect(screen.getByText('Monitoring Targets (1)')).toBeInTheDocument();
   });
 
   it('renders chart titles', async () => {

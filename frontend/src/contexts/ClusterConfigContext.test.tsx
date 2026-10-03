@@ -385,11 +385,10 @@ describe('ClusterConfigContext', () => {
   it('aborts previous resolvedModelName re-fetch when deps change', async () => {
     vi.mocked(Storage.prototype.getItem).mockReturnValue(
       JSON.stringify({
-        endpoint: 'http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080',
+        endpoint: 'http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local',
         targets: [
           { namespace: 'vllm-lab-dev', inferenceService: 'llm-ov', crType: 'inferenceservice' },
         ],
-        maxTargets: 5,
         version: 2,
       })
     );
@@ -431,11 +430,10 @@ describe('ClusterConfigContext', () => {
   it('keeps previous resolvedModelName when re-fetch fails', async () => {
     vi.mocked(Storage.prototype.getItem).mockReturnValue(
       JSON.stringify({
-        endpoint: 'http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080',
+        endpoint: 'http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local',
         targets: [
           { namespace: 'vllm-lab-dev', inferenceService: 'llm-ov', crType: 'inferenceservice' },
         ],
-        maxTargets: 5,
         version: 2,
       })
     );
@@ -513,11 +511,10 @@ describe('ClusterConfigContext', () => {
     it('ConfigMap values override localStorage default target', async () => {
       vi.mocked(Storage.prototype.getItem).mockReturnValue(
         JSON.stringify({
-          endpoint: 'http://local-predictor.local-ns.svc.cluster.local:8080',
+          endpoint: 'http://local-predictor.local-ns.svc.cluster.local',
           targets: [
             { namespace: 'local-ns', inferenceService: 'local-is', crType: 'inferenceservice' },
           ],
-          maxTargets: 5,
           version: 2,
         })
       );
@@ -593,7 +590,6 @@ describe('ClusterConfigContext', () => {
             { namespace: 'ns1', inferenceService: 'isvc1', crType: 'inferenceservice' },
             { namespace: 'ns2', inferenceService: 'isvc2', crType: 'inferenceservice' },
           ],
-          maxTargets: 5,
           version: 3,
         })
       );
@@ -641,7 +637,6 @@ describe('ClusterConfigContext', () => {
           targets: [
             { namespace: 'cm-ns', inferenceService: 'cm-isvc', crType: 'inferenceservice' },
           ],
-          maxTargets: 5,
           version: 3,
         })
       );
@@ -820,7 +815,6 @@ describe('ClusterConfigContext', () => {
             { namespace: 'ns2', inferenceService: 'isvc2', crType: 'inferenceservice' },
             { namespace: 'ns3', inferenceService: 'llmisvc1', crType: 'llminferenceservice' },
           ],
-          maxTargets: 5,
           version: 2,
         })
       );
@@ -850,7 +844,6 @@ describe('ClusterConfigContext', () => {
             { namespace: 'ns2', inferenceService: 'isvc2', crType: 'inferenceservice' },
             { namespace: 'ns3', inferenceService: 'llmisvc1', crType: 'llminferenceservice' },
           ],
-          maxTargets: 5,
           version: 2,
         })
       );

@@ -355,7 +355,7 @@ class MultiTargetMetricsCollector:
         is_name: str,
         cr_type: str | None = None,
         metrics_source: Literal["direct", "thanos"] | None = None,
-    ) -> bool:
+    ) -> None:
         if cr_type is None:
             cr_type = runtime_config.cr_type
         key = self.build_target_key(namespace, is_name, cr_type)
@@ -392,7 +392,6 @@ class MultiTargetMetricsCollector:
             await self._check_cr_exists(new_target)
 
         await self._ensure_collect_loop()
-        return True
 
     async def remove_target(self, namespace: str, is_name: str, cr_type: str | None = None) -> bool:
         if cr_type is None:

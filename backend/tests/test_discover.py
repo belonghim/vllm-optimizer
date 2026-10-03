@@ -54,9 +54,8 @@ def test_discover_endpoint_returns_isvc_and_llmisvc_arrays(isolated_client, monk
     assert isinstance(data["llmisvc"], list)
     assert len(data["isvc"]) == 2
     assert len(data["llmisvc"]) == 1
-    assert data["isvc"][0] == {"name": "isvc-1", "namespace": "test-ns"}
-    assert data["isvc"][1] == {"name": "isvc-2", "namespace": "test-ns"}
-    assert data["llmisvc"][0] == {"name": "llmisvc-1", "namespace": "test-ns"}
+    assert data["isvc"] == ["isvc-1", "isvc-2"]
+    assert data["llmisvc"] == ["llmisvc-1"]
 
 
 def test_discover_endpoint_nonexistent_namespace_returns_empty(isolated_client, monkeypatch):

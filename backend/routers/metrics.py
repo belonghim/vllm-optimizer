@@ -9,7 +9,6 @@ from kubernetes.client.exceptions import ApiException
 from models.load_test import (
     BatchMetricsRequest,
     BatchMetricsResponse,
-    ErrorResponse,
     MetricsSnapshot,
     PerPodMetricSnapshot,
     PerPodMetricsResponse,
@@ -40,7 +39,7 @@ def get_runtime_config():
     "/latest",
     response_model=None,
     responses={
-        409: {"model": ErrorResponse},
+        400: {"description": "namespace and is_name are required"},
     },
 )
 async def get_latest_metrics(
@@ -53,15 +52,7 @@ async def get_latest_metrics(
 ) -> MetricsSnapshot | TargetedMetricsResponse:
     if namespace is not None and is_name is not None:
         cr_type = cr_type or rt_config.cr_type
-        registered = await collector.register_target(namespace, is_name, cr_type=cr_type)
-        if not registered:
-            raise HTTPException(
-                status_code=409,
-                detail=ErrorResponse(
-                    error="Max targets reached",
-                    error_type="max_targets",
-                ).model_dump(),
-            )
+        await collector.register_target(namespace, is_name, cr_type=cr_type)
 
         vllm_metrics = await collector.get_metrics(namespace, is_name, cr_type=cr_type)
         has_monitoring_label = collector.get_has_monitoring_label(namespace, is_name, cr_type=cr_type)
@@ -97,12 +88,9 @@ async def get_batch_metrics(
     for target in body.targets:
         cr_type = target.cr_type or "inferenceservice"
         key = f"{target.namespace}/{target.inferenceService}/{cr_type}"
-        registered = await collector.register_target(
+        await collector.register_target(
             target.namespace, target.inferenceService, cr_type=target.cr_type, metrics_source=body.metrics_source
         )
-        if not registered:
-            results[key] = {"data": None, "status": "max_targets_reached"}
-            continue
 
         vllm_metrics = await collector.get_metrics(
             target.namespace, target.inferenceService, cr_type=target.cr_type, metrics_source=body.metrics_source
@@ -176,22 +164,12 @@ async def get_pod_metrics(
     """
     import time
 
-    from models.load_test import MetricsSnapshot
-
     results: dict[str, PerPodMetricsResponse] = {}
 
     for target in body.targets:
         cr_type = target.cr_type or "inferenceservice"
         key = f"{target.namespace}/{target.inferenceService}/{cr_type}"
-        registered = await collector.register_target(target.namespace, target.inferenceService, cr_type=target.cr_type)
-        if not registered:
-            results[key] = PerPodMetricsResponse(
-                aggregated=MetricsSnapshot(timestamp=time.time()),
-                per_pod=[],
-                pod_names=[],
-                timestamp=time.time(),
-            )
-            continue
+        await collector.register_target(target.namespace, target.inferenceService, cr_type=target.cr_type)
 
         # Get aggregated metrics (same as /batch)
         vllm_metrics = await collector.get_metrics(target.namespace, target.inferenceService, cr_type=target.cr_type)
@@ -278,10 +256,7 @@ async def get_pods_history(
     for target in body.targets:
         cr_type = target.cr_type or "inferenceservice"
         key = f"{target.namespace}/{target.inferenceService}/{cr_type}"
-        registered = await collector.register_target(target.namespace, target.inferenceService, cr_type=target.cr_type)
-        if not registered:
-            results[key] = {"data": None, "status": "max_targets_reached", "history": []}
-            continue
+        await collector.register_target(target.namespace, target.inferenceService, cr_type=target.cr_type)
 
         if body.time_range in _TIME_RANGE_CONFIG:
             history = await _get_history_from_thanos(

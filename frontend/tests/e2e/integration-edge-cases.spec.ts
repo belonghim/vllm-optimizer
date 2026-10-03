@@ -130,7 +130,6 @@ test.describe('Multiple CR Types', () => {
       window.localStorage.setItem('vllm-opt-cluster-config', JSON.stringify({
         endpoint: '',
         targets: [{ namespace: 'base-ns', inferenceService: 'base-isvc', crType: 'inferenceservice', source: 'manual' }],
-        maxTargets: 6,
         version: 3,
       }));
     });

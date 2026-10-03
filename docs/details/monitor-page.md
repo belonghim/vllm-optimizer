@@ -84,8 +84,8 @@ This is the central target management component. It displays all monitoring targ
 
 | Element | Description |
 |---------|-------------|
-| Title | "Monitoring Targets (N/Max)" — shows current count vs. maximum allowed |
-| + Add Button | Opens the inline add form. Disabled when max targets reached |
+| Title | "Monitoring Targets (N)" — current target count (no upper limit) |
+| + Add Button | Opens the inline add form |
 
 #### Target Table
 

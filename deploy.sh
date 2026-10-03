@@ -357,11 +357,6 @@ else
 fi
 
 if [[ "$DRY_RUN" != "true" ]]; then
-  compare_and_rollout "vllm-optimizer-backend" "${REGISTRY}/vllm-optimizer-backend:${IMAGE_TAG}" "${NAMESPACE}"
-  compare_and_rollout "vllm-optimizer-frontend" "${REGISTRY}/vllm-optimizer-frontend:${IMAGE_TAG}" "${NAMESPACE}"
-fi
-
-if [[ "$DRY_RUN" != "true" ]]; then
   log "Copying oauth-proxy ImageStream tag..."
   oc tag openshift/oauth-proxy:v4.4 "${NAMESPACE}/oauth-proxy:v4.4" --reference-policy=source 2>/dev/null || echo "WARNING: Failed to tag oauth-proxy ImageStream (may already exist or cluster lacks access)"
 fi
@@ -383,7 +378,11 @@ else
   fi
 fi
 if [[ "$DRY_RUN" != "true" ]]; then
+  # Config first: a config-triggered restart pulls the new image too (imagePullPolicy: Always),
+  # so the digest check below then sees no change and the Pod restarts only once.
   sync_configmap_rollout "vllm-optimizer-backend" "vllm-optimizer-config" "${NAMESPACE}"
+  compare_and_rollout "vllm-optimizer-backend" "${REGISTRY}/vllm-optimizer-backend:${IMAGE_TAG}" "${NAMESPACE}"
+  compare_and_rollout "vllm-optimizer-frontend" "${REGISTRY}/vllm-optimizer-frontend:${IMAGE_TAG}" "${NAMESPACE}"
   log "Waiting for vllm-optimizer-backend deployment to be ready..."
   oc rollout status deployment/vllm-optimizer-backend -n "${NAMESPACE}" --timeout=5m
 

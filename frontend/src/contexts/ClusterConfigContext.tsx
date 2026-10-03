@@ -27,7 +27,6 @@ export interface ClusterConfigContextValue {
   isLoading: boolean;
   updateConfig: (field: string, value: string) => void;
   targets: ClusterTarget[];
-  maxTargets: number;
   addTarget: (namespace: string, inferenceService: string, crType?: string) => void;
   removeTarget: (namespace: string, inferenceService: string, crType: string) => void;
   setDefaultTarget: (namespace: string, inferenceService: string, crType: string) => Promise<void>;
@@ -45,7 +44,6 @@ const ClusterConfigContext = createContext<ClusterConfigContextValue>({
   isLoading: true,
   updateConfig: () => {},
   targets: [],
-  maxTargets: Infinity,
   addTarget: () => {},
   removeTarget: () => {},
   setDefaultTarget: async () => {},
@@ -75,7 +73,6 @@ function migrateLegacyConfig(stored: Record<string, unknown>): ClusterConfig {
     const { namespace, inferenceservice, ...rest } = stored;
     return {
       endpoint: typeof rest.endpoint === 'string' ? rest.endpoint : '',
-      maxTargets: typeof rest.maxTargets === 'number' ? rest.maxTargets : Infinity,
       version: typeof rest.version === 'number' ? rest.version : SCHEMA_VERSION,
       targets: [
         {
@@ -89,7 +86,6 @@ function migrateLegacyConfig(stored: Record<string, unknown>): ClusterConfig {
   const targets = isClusterTargetArray(stored.targets) ? stored.targets : [];
   return {
     endpoint: typeof stored.endpoint === 'string' ? stored.endpoint : '',
-    maxTargets: typeof stored.maxTargets === 'number' ? stored.maxTargets : Infinity,
     version: typeof stored.version === 'number' ? stored.version : SCHEMA_VERSION,
     targets: targets.length > 0 ? targets : [],
   };
@@ -132,7 +128,6 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
     return {
       endpoint: '',
       targets: [],
-      maxTargets: Infinity,
       version: SCHEMA_VERSION,
     };
   });
@@ -398,7 +393,6 @@ export function ClusterConfigProvider({ children }: ClusterConfigProviderProps):
       isLoading,
       updateConfig,
       targets: config.targets,
-      maxTargets: config.maxTargets || Infinity,
       addTarget,
       removeTarget,
       setDefaultTarget,

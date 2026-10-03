@@ -21,7 +21,6 @@ describe('MultiTargetSelector', () => {
     targets: [
       { namespace: 'llm-d-demo', inferenceService: 'small-llm-d', crType: 'inferenceservice' },
     ],
-    maxTargets: 5,
     addTarget: vi.fn(),
     removeTarget: vi.fn(),
     setDefaultTarget: vi.fn(),
@@ -40,7 +39,7 @@ describe('MultiTargetSelector', () => {
 
   it('renders targets and add button', () => {
     render(<MultiTargetSelector targetStatuses={{}} targetStates={{}} />);
-    expect(screen.getByText('Monitoring Targets (1/5)')).toBeInTheDocument();
+    expect(screen.getByText('Monitoring Targets (1)')).toBeInTheDocument();
     expect(screen.getByTestId('add-target-btn')).toBeInTheDocument();
   });
 

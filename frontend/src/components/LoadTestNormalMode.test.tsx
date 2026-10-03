@@ -10,7 +10,6 @@ vi.mock('../contexts/ClusterConfigContext', () => ({
     isLoading: false,
     updateConfig: vi.fn(),
     targets: [],
-    maxTargets: 5,
     addTarget: vi.fn(),
     removeTarget: vi.fn(),
     setDefaultTarget: vi.fn(),

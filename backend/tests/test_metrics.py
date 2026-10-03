@@ -1,4 +1,5 @@
 import asyncio
+import importlib
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -29,11 +30,9 @@ def test_metrics_history_endpoint_returns_list(client):
     assert isinstance(data, list)
 
 
-def test_metrics_history_endpoint_handles_nan_gracefully(client):
-    # Inject a VLLMMetrics with NaN values into the collector's history
-    from ..services.shared import multi_target_collector
+def test_metrics_history_endpoint_handles_nan_gracefully(isolated_client):
+    metrics_router = importlib.import_module("routers.metrics")
 
-    # Create a metrics object with NaN latency values
     nan_metrics = VLLMMetrics(
         timestamp=time.time(),
         tokens_per_second=100.0,
@@ -53,21 +52,21 @@ def test_metrics_history_endpoint_handles_nan_gracefully(client):
         pod_ready=3,
     )
 
-    default_target = multi_target_collector._get_default_target()
-    assert default_target is not None
-    default_target.history.append(nan_metrics)
+    target = MagicMock()
+    target.history = [nan_metrics]
+    collector = MagicMock()
+    collector.get_target.return_value = target
+    isolated_client.app.dependency_overrides[metrics_router.get_multi_target_collector] = lambda: collector
+    try:
+        response = isolated_client.get("/api/metrics/history", params={"namespace": "ns", "is_name": "is", "last_n": 5})
+    finally:
+        isolated_client.app.dependency_overrides.clear()
 
-    # Call /api/metrics/history — should return 200, not 500
-    response = client.get("/api/metrics/history?last_n=5")
     assert response.status_code == 200, f"Expected 200, got {response.status_code}"
-
-    # Verify response body does NOT contain literal "NaN" string
-    response_text = response.text
-    assert "NaN" not in response_text, "Response should not contain literal NaN string"
-
-    # Verify response is valid JSON
+    assert "NaN" not in response.text, "Response should not contain literal NaN string"
     data = response.json()
-    assert isinstance(data, list)
+    assert len(data) == 1
+    assert data[0]["tps"] == 100.0
 
 
 def test_metrics_batch_endpoint(isolated_client):
@@ -174,15 +173,11 @@ def test_metrics_batch_endpoint_with_llmisvc_cr_type(isolated_client, monkeypatc
 
     call_args = []
 
-    async def mock_get_metrics(namespace, is_name, cr_type=None):
-        call_args.append({"namespace": namespace, "is_name": is_name, "cr_type": cr_type})
-        return await multi_target_collector.get_metrics.__wrapped__(namespace, is_name, cr_type)
-
-    async def mock_get_metrics_v2(namespace, is_name, cr_type=None):
+    async def mock_get_metrics(namespace, is_name, cr_type=None, metrics_source=None):
         call_args.append({"namespace": namespace, "is_name": is_name, "cr_type": cr_type})
         return None
 
-    monkeypatch.setattr(multi_target_collector, "get_metrics", mock_get_metrics_v2)
+    monkeypatch.setattr(multi_target_collector, "get_metrics", mock_get_metrics)
 
     response = isolated_client.post(
         "/api/metrics/batch",
@@ -203,7 +198,7 @@ def test_metrics_batch_endpoint_with_inferenceservice_cr_type(isolated_client, m
 
     call_args = []
 
-    async def mock_get_metrics(namespace, is_name, cr_type=None):
+    async def mock_get_metrics(namespace, is_name, cr_type=None, metrics_source=None):
         call_args.append({"namespace": namespace, "is_name": is_name, "cr_type": cr_type})
         return None
 
@@ -226,7 +221,7 @@ def test_metrics_batch_endpoint_without_cr_type_defaults(isolated_client, monkey
 
     call_args = []
 
-    async def mock_get_metrics(namespace, is_name, cr_type=None):
+    async def mock_get_metrics(namespace, is_name, cr_type=None, metrics_source=None):
         call_args.append({"namespace": namespace, "is_name": is_name, "cr_type": cr_type})
         return None
 
@@ -305,7 +300,7 @@ def test_thanos_malformed_response(isolated_client):
 
 
 def test_fetch_query_range_thanos_500_returns_empty():
-    from routers.metrics import _fetch_query_range
+    from services.metrics_service import _fetch_query_range
 
     mock_response = MagicMock()
     mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
@@ -319,7 +314,7 @@ def test_fetch_query_range_thanos_500_returns_empty():
 
 
 def test_fetch_query_range_malformed_json_returns_empty():
-    from routers.metrics import _fetch_query_range
+    from services.metrics_service import _fetch_query_range
 
     mock_response = MagicMock()
     mock_response.raise_for_status = MagicMock()
@@ -332,7 +327,7 @@ def test_fetch_query_range_malformed_json_returns_empty():
 
 
 def test_fetch_query_range_nan_inf_values_filtered():
-    from routers.metrics import _fetch_query_range
+    from services.metrics_service import _fetch_query_range
 
     mock_response = MagicMock()
     mock_response.raise_for_status = MagicMock()
@@ -401,7 +396,7 @@ def test_metrics_batch_endpoint_mixed_isvc_and_llmisvc(isolated_client, monkeypa
 
     call_args = []
 
-    async def mock_get_metrics(namespace, is_name, cr_type=None):
+    async def mock_get_metrics(namespace, is_name, cr_type=None, metrics_source=None):
         call_args.append({"namespace": namespace, "is_name": is_name, "cr_type": cr_type})
         return None
 

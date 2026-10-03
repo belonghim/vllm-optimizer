@@ -349,7 +349,7 @@ Omit both `namespace` and `is_name` to receive `400` — there is no default tar
 
 | Status | Condition |
 |--------|-----------|
-| 409 | Maximum targets reached |
+| 400 | `namespace` or `is_name` missing |
 | 500 | Internal server error fetching metrics |
 
 ---

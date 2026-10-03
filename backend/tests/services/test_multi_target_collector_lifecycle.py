@@ -12,9 +12,8 @@ class TestRegisterTarget:
         initial_count = len(collector._targets)
 
         with patch.object(collector, "_ensure_collect_loop", new_callable=AsyncMock):
-            result = await collector.register_target("test-ns", "test-is")
+            await collector.register_target("test-ns", "test-is")
 
-        assert result is True
         assert len(collector._targets) == initial_count + 1
         assert collector.build_target_key("test-ns", "test-is", "inferenceservice") in collector._targets
 

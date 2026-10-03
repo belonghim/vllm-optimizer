@@ -153,7 +153,7 @@ describe('useTunerLogic', () => {
       server.use(
         http.get('/api/config', () =>
           HttpResponse.json({
-            vllm_endpoint: 'http://default-predictor.default-ns.svc.cluster.local:8080',
+            vllm_endpoint: 'http://default-predictor.default-ns.svc.cluster.local',
             vllm_namespace: 'default-ns',
             vllm_is_name: 'default-isvc',
             cr_type: 'inferenceservice',

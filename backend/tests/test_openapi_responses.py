@@ -88,17 +88,16 @@ def test_load_test_history_has_error_schema(client):
     assert "ErrorResponse" in responses["500"]["content"]["application/json"]["schema"]["$ref"]
 
 
-def test_metrics_latest_has_error_schema(client):
-    """Verify /api/metrics/latest has 409 error schema."""
+def test_metrics_latest_documents_missing_target(client):
+    """Verify /api/metrics/latest documents the 400 for a missing target."""
     spec = app.openapi()
     paths = spec.get("paths", {})
 
     assert "/api/metrics/latest" in paths
     responses = paths["/api/metrics/latest"]["get"]["responses"]
 
-    assert "409" in responses, "409 response not found for /api/metrics/latest"
-    assert "$ref" in responses["409"]["content"]["application/json"]["schema"]
-    assert "ErrorResponse" in responses["409"]["content"]["application/json"]["schema"]["$ref"]
+    assert "400" in responses, "400 response not found for /api/metrics/latest"
+    assert "409" not in responses
 
 
 def test_tuner_start_has_error_schemas(client):

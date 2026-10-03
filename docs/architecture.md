@@ -187,7 +187,7 @@ The `MultiTargetMetricsCollector` is designed as a singleton to ensure only one 
 2.  The collected data updates internal Prometheus client metrics within the FastAPI backend.
 3.  OpenShift's Prometheus (via a `ServiceMonitor`) scrapes the `/metrics` endpoint of the FastAPI backend.
 4.  The scraped metrics are stored in Thanos.
-5.  The frontend queries the FastAPI backend's `/api/metrics/latest` endpoint to retrieve the most recent metrics for dashboard display.
+5.  The Monitor page polls `POST /api/metrics/batch` with its explicit target list (latest snapshot + history per target). `GET /api/metrics/latest` requires `namespace`/`is_name` and is used to validate a target when it is added; there is no default-target auto-registration and no target count limit.
 
 ### Load Test Data Flow
 
