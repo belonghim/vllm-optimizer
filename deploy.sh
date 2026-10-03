@@ -198,6 +198,27 @@ compare_and_rollout() {
    fi
 }
 
+sync_configmap_rollout() {
+  local deployment_name="$1"
+  local configmap_name="$2"
+  local _namespace="$3"
+  if [ -z "$deployment_name" ] || [ -z "$configmap_name" ]; then
+    log "[WARN] sync_configmap_rollout called with missing arguments"; return 0
+  fi
+
+  local current_hash desired_hash
+  current_hash=$(oc get deployment "$deployment_name" -n "$_namespace" -o jsonpath='{.spec.template.metadata.annotations.configmap-hash}' 2>/dev/null || true)
+  desired_hash=$(oc get configmap "$configmap_name" -n "$_namespace" -o jsonpath='{.data}' 2>/dev/null | sha256sum | cut -c1-16)
+  if [ -z "$desired_hash" ] || [ "$current_hash" = "$desired_hash" ]; then
+    return 0
+  fi
+
+  log "[INFO] ConfigMap $configmap_name changed; triggering rollout of $deployment_name"
+  oc patch deployment "$deployment_name" -n "$_namespace" --type merge \
+    -p "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"configmap-hash\":\"${desired_hash}\"}}}}}" || true
+  oc rollout status deployment/$deployment_name -n "$_namespace" --timeout=5m
+}
+
 patch_monitoring_labels() {
   local target_namespace="$1"
   if [ -z "$target_namespace" ]; then
@@ -362,6 +383,7 @@ else
   fi
 fi
 if [[ "$DRY_RUN" != "true" ]]; then
+  sync_configmap_rollout "vllm-optimizer-backend" "vllm-optimizer-config" "${NAMESPACE}"
   log "Waiting for vllm-optimizer-backend deployment to be ready..."
   oc rollout status deployment/vllm-optimizer-backend -n "${NAMESPACE}" --timeout=5m
 

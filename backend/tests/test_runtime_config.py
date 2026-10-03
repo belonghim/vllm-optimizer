@@ -12,12 +12,12 @@ pytestmark = pytest.mark.slow
 def reset_runtime_config():
     """Reset runtime_config to defaults before each test."""
     runtime_config.set_vllm_namespace("vllm-lab-dev")
-    runtime_config.set_vllm_endpoint("http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080")
+    runtime_config.set_vllm_endpoint("http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local")
     runtime_config.set_vllm_is_name("llm-ov")
     runtime_config.reset_cr_type()
     yield
     runtime_config.set_vllm_namespace("vllm-lab-dev")
-    runtime_config.set_vllm_endpoint("http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080")
+    runtime_config.set_vllm_endpoint("http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local")
     runtime_config.set_vllm_is_name("llm-ov")
     runtime_config.reset_cr_type()
 
@@ -36,7 +36,7 @@ class TestRuntimeConfigSingleton:
 
     def test_initial_vllm_endpoint_default(self):
         cfg = RuntimeConfig()
-        expected = "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080"
+        expected = "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local"
         assert cfg.vllm_endpoint == expected
 
     def test_initial_vllm_is_name_default(self):

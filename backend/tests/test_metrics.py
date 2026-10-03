@@ -17,14 +17,9 @@ def client():
     return TestClient(app)
 
 
-def test_metrics_latest_endpoint(client):
+def test_metrics_latest_requires_target(client):
     response = client.get("/api/metrics/latest")
-    assert response.status_code == 200
-    data = response.json()
-    # Basic shape checks
-    assert "timestamp" in data
-    assert "tps" in data
-    assert "latency_mean" in data
+    assert response.status_code == 400
 
 
 def test_metrics_history_endpoint_returns_list(client):

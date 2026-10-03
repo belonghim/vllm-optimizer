@@ -10,7 +10,7 @@ export function useSessionKeepAlive() {
   useEffect(() => {
     const ping = async () => {
       try {
-        const res = await authFetch(`${API}/metrics/latest`);
+        const res = await authFetch(`${API}/status/ping`);
         if (res.status === 403) {
           window.location.href = '/oauth/sign_out';
         }

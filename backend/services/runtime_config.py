@@ -33,7 +33,7 @@ class RuntimeConfig:
         self._default_namespace: str = os.getenv("VLLM_NAMESPACE", "vllm-lab-dev")
         self._default_endpoint: str = os.getenv(
             "VLLM_ENDPOINT",
-            "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080",
+            "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local",
         )
         self._default_is_name: str = _normalize_target_name(raw_default_name, default_cr_type)
         self._cr_type_override: str | None = None

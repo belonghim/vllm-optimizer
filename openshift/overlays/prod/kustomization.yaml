@@ -80,7 +80,7 @@ patches:
     patch: |-
       - op: add
         path: /data/VLLM_ENDPOINT
-        value: "https://llm-ov-predictor.vllm-lab-prod.svc.cluster.local:8080"
+        value: "http://llm-ov-predictor.vllm-lab-prod.svc.cluster.local"
       - op: add
         path: /data/VLLM_NAMESPACE
         value: "vllm-lab-prod"

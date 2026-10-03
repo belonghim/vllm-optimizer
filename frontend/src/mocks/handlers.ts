@@ -18,6 +18,7 @@ export const handlers = [
     })
   ),
   http.get(`${API}/metrics/latest`, () => HttpResponse.json({ tps: 10, kv_cache: 50 })),
+  http.get(`${API}/status/ping`, () => HttpResponse.json({ status: 'ok' })),
   http.post(`${API}/metrics/batch`, () => HttpResponse.json({ results: {} })),
   http.get(`${API}/tuner/status`, () => HttpResponse.json({ running: false, trials_completed: 0 })),
   http.get(`${API}/tuner/trials`, () => HttpResponse.json([])),

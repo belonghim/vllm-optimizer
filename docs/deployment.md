@@ -32,7 +32,7 @@ The vLLM Optimizer uses several environment variables for configuration. These a
 | `PROMETHEUS_URL` | The internal URL for the Thanos Querier service within OpenShift Monitoring. This is used by the backend to query metrics. | `https://thanos-querier.openshift-monitoring.svc.cluster.local:9091` |
 | `K8S_DEPLOYMENT_NAME` | **Crucial**: This must be the actual Deployment name created by KServe for your vLLM InferenceService (e.g., `llm-ov-predictor`), not the InferenceService name itself (`llm-ov`). | `llm-ov-predictor` |
 | `VLLM_DEPLOYMENT_NAME` | The KServe InferenceService name. Used by auto-tuner for IS name reference. Do not confuse with `K8S_DEPLOYMENT_NAME`. | `llm-ov` |
-| `VLLM_ENDPOINT` | The internal inference endpoint for the vLLM service, used for testing and load generation. | `http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080` |
+| `VLLM_ENDPOINT` | The internal inference endpoint for the vLLM service, used for testing and load generation. | `http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local` |
 | `VLLM_MODEL` | The name of the vLLM model being used for testing. | `OpenVINO/Phi-4-mini-instruct-int4-ov` |
 | `ANALYST_ENDPOINT` | Analyst LLM used to narrate model analyses and tuning reports. Point it at a small model that is **not** the tuning target (dev overlay: `llm-ov`). Empty disables it. | `""` |
 

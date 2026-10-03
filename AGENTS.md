@@ -51,7 +51,7 @@ Canonical definitions: `backend/.env.example` (local) and `openshift/base/02-con
 | `VLLM_NAMESPACE` | vLLM workload namespace | `vllm-lab-dev` |
 | `VLLM_CR_TYPE` | CR type: `inferenceservice` \| `llminferenceservice` | `inferenceservice` |
 | `VLLM_DEPLOYMENT_NAME` | InferenceService name (not the Deployment; `{name}-predictor` is normalized to `{name}`) | `llm-ov-predictor` → `llm-ov` |
-| `VLLM_ENDPOINT` | Inference endpoint | `http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080` |
+| `VLLM_ENDPOINT` | Inference endpoint | `http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local` |
 | `PROMETHEUS_URL` | Thanos Querier base URL | `https://thanos-querier.openshift-monitoring.svc.cluster.local:9091` |
 | `STORAGE_PATH` | SQLite DB path | `/data/app.db` |
 | `LOAD_ENGINE_TIMEOUT` | Load-test timeout (seconds) | `120` |
@@ -102,7 +102,7 @@ Integration tests only: `VLLM_MODEL`. Legacy/optional: `K8S_DEPLOYMENT_NAME`.
 | **Namespace** | from target/config (`VLLM_NAMESPACE`) | from target/config (no hardcoded default) |
 | **Deployment** | `{name}-predictor` | `{name}-kserve` |
 | **Pod label selector** | `serving.kserve.io/inferenceservice={name}` | `app.kubernetes.io/name={name},kserve.io/component=workload` |
-| **Endpoint** | `http://{name}-predictor.{ns}.svc.cluster.local:8080` | `https://openshift-ai-inference-openshift-default.openshift-ingress.svc/{ns}/{name}` |
+| **Endpoint** | `http://{name}-predictor.{ns}.svc.cluster.local` (port 80) | `https://openshift-ai-inference-openshift-default.openshift-ingress.svc/{ns}/{name}` |
 | **Args location** | `spec.predictor.model.args` | `spec.template.containers[main].env` → `VLLM_ADDITIONAL_ARGS` |
 | **Model name** | `--served-model-name` from args | `.spec.model.name` |
 | **Metric prefix** | `vllm:` | `kserve_vllm:` |

@@ -34,6 +34,12 @@ async def set_interrupted_runs(runs: list[dict[str, Any]]) -> None:
         _interrupted_runs = list(runs)
 
 
+@router.get("/status/ping", response_model=None)
+async def ping(request: Request) -> dict[str, str]:
+    """Lightweight authenticated liveness probe for the UI session heartbeat."""
+    return {"status": "ok"}
+
+
 @router.get("/status/interrupted", response_model=InterruptedRunsResponse)
 async def get_interrupted_runs(request: Request) -> dict[str, Any]:
     """Return interrupted runs, clear the stored list, and mark DB rows as cleared."""

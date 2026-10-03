@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-03] - 후속 수정: 세션 하트비트·기본 엔드포인트·배포 반영·llm-ov 샘플링 고정
+
+E2E에서 남은 콘솔 오류와 배포 반영 문제를 수정.
+
+### Fixed
+- **세션 하트비트 400**: `useSessionKeepAlive`가 명시 타깃 전용이 된 `/api/metrics/latest`를 파라미터 없이 호출(4분마다 콘솔 오류) → 경량 인증 엔드포인트 `GET /api/status/ping` 추가 후 사용. 커밋 `24b0fa0`의 "no default target" 계약은 유지.
+- **KServe ISVC 기본 엔드포인트 `:8080`**: predictor Service는 80 포트(클러스터에서 `llm-ov-predictor`/`gemma-predictor` = 80 확인). 백엔드·프런트 기본값, ConfigMap(base/dev/prod), `.env.example`, 통합 테스트 기본값, 문서(AGENTS.md 포함) 수정. prod overlay의 `https://…:8080` → `http://…`(80).
+- **배포 시 ConfigMap 변경이 파드에 반영되지 않던 문제**: `deploy.sh`가 이미지 롤아웃 → kustomize 적용 순서라 env(`VLLM_ENDPOINT` 등)가 갱신되지 않음. 적용 후 ConfigMap 해시가 달라진 경우에만 백엔드를 재시작하는 `sync_configmap_rollout` 추가.
+- **콘솔 CSP 오류**: CSP(`font-src 'self'`)가 이미 차단하는 Google Fonts `@import` 제거(폐쇄망에서 로드 불가, 배포 화면은 폴백 폰트로 렌더링 중이었음).
+- api-spec: `/api/metrics/latest` 파라미터를 명시 필수(누락 시 400)로 정정, stale slow 테스트를 계약에 맞게 수정.
+- 분석 LLM 프롬프트: 파라미터·환경변수 이름 창작 금지 명시.
+
+### Changed
+- **llm-ov**: `--max-num-batched-tokens=2048` 제거, `--override-generation-config={"temperature":0}` 추가(분석 LLM 겸용, 결정적 출력). vLLM 0.30.0 런타임에 플래그 존재 확인.
+
+### Verification
+- `./scripts/check.sh` exit 0 (backend 612, frontend 444), `--smoke` OK.
+- 클러스터: llm-ov 새 옵션으로 Ready(3/3)·`/v1/models` 정상. 백엔드 env·`/api/config` = 포트 없는 엔드포인트, `resolved_model_name=OpenVINO/Qwen3.5-2B-int4-ov`, `GET /api/status/ping` 200. Playwright: 페이지 로드 시 `/api/status/ping` 200, 콘솔 오류 0건. `deploy.sh dev` 재실행에서 ConfigMap 변경 시에만 롤아웃되는 것 확인.
+
 ## [2026-10-03] - 모델 분석·분석 LLM 분리·실측 보강, 불필요 기능 제거
 
 목표: RHOAI 테스트 클러스터에서 모델별 vLLM 인자를 정하는 벤치·튜닝 도구로 범위를 좁힘.

@@ -216,7 +216,7 @@ The vLLM instance is deployed on OpenShift using KServe. KServe follows a specif
 -   **InferenceService Name**: If the KServe `InferenceService` is named `llm-ov`, configured via `VLLM_DEPLOYMENT_NAME` environment variable.
 -   **Deployment Name**: KServe automatically creates a Deployment named `{InferenceService_name}-predictor`, e.g., `llm-ov-predictor`. This is the value used for the `K8S_DEPLOYMENT_NAME` environment variable (legacy; pod listing now uses the target's `pod_label_selector`).
 -   **Pod Label**: The collector lists pods via the CR adapter's label selector — `serving.kserve.io/inferenceservice={name}` for KServe, `app.kubernetes.io/name={name},kserve.io/component=workload` for LLMIS.
--   **vLLM Endpoint**: The internal service endpoint for the vLLM instance will be `http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080`.
+-   **vLLM Endpoint**: The internal service endpoint for the vLLM instance will be `http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local` (KServe predictor Service, port 80).
 -   **Auto-Tuner Restart**: The auto-tuner uses `K8S_DEPLOYMENT_NAME` (Deployment name, `llm-ov-predictor`) for pod restarts, and `VLLM_DEPLOYMENT_NAME` (InferenceService name, `llm-ov`) is kept separate. Do not confuse the two.
 
 #### New API Endpoints

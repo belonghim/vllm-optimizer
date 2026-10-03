@@ -73,4 +73,4 @@ patches:
               - --max-num-seqs=32
               - --gpu-memory-utilization=0.90
               - --max-model-len=8192
-              - --max-num-batched-tokens=2048
+              - '--override-generation-config={"temperature":0}'

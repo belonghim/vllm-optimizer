@@ -19,7 +19,8 @@ spec:
         - --max-num-seqs=32
         - --gpu-memory-utilization=0.90
         - --max-model-len=8192
-        - --max-num-batched-tokens=2048
+        # llm-ov is also used as the analyst LLM — pin sampling to greedy for deterministic output.
+        - '--override-generation-config={"temperature":0}'
         - --enable-prefix-caching
       resources:
         requests:

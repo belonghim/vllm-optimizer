@@ -278,15 +278,17 @@ Real-time and historical metrics collection from Prometheus/Thanos for vLLM infe
 
 ### GET /api/metrics/latest
 
-Get the latest metrics snapshot for the default target or a specified target service.
+Get the latest metrics snapshot for a specified target service.
 
 **Query Parameters:**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `namespace` | string | No | Kubernetes namespace (uses default if omitted) |
-| `is_name` | string | No | InferenceService name (uses default if omitted) |
+| `namespace` | string | Yes | Kubernetes namespace |
+| `is_name` | string | Yes | InferenceService name |
 | `cr_type` | string | No | Custom resource type override |
+
+Omit both `namespace` and `is_name` to receive `400` — there is no default target auto-registration.
 
 **Request Body:** None
 

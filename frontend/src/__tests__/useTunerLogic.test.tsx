@@ -236,9 +236,9 @@ describe('useTunerLogic', () => {
 
       await waitFor(() => {
         expect(lastRequestBody).not.toBeNull();
-        // KServe endpoint format: http://{name}-predictor.{namespace}.svc.cluster.local:8080
+        // KServe endpoint format: http://{name}-predictor.{namespace}.svc.cluster.local (port 80)
         const endpoint = lastRequestBody?.vllm_endpoint as string;
-        expect(endpoint).toBe('http://isvc-name-predictor.isvc-ns.svc.cluster.local:8080');
+        expect(endpoint).toBe('http://isvc-name-predictor.isvc-ns.svc.cluster.local');
       });
     });
   });

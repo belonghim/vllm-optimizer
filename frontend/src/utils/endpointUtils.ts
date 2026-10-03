@@ -2,5 +2,6 @@ export function buildDefaultEndpoint(crType: string, namespace: string, isName: 
   if (crType === 'llminferenceservice') {
     return `https://openshift-ai-inference-openshift-default.openshift-ingress.svc/${namespace}/${isName}`;
   }
-  return `http://${isName}-predictor.${namespace}.svc.cluster.local:8080`;
+  // KServe predictor Service listens on port 80 (HTTP default).
+  return `http://${isName}-predictor.${namespace}.svc.cluster.local`;
 }

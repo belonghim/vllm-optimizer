@@ -7,6 +7,13 @@ def client(isolated_client: TestClient) -> TestClient:
     return isolated_client
 
 
+class TestPing:
+    def test_ping_returns_ok(self, client: TestClient) -> None:
+        r = client.get("/api/status/ping")
+        assert r.status_code == 200
+        assert r.json() == {"status": "ok"}
+
+
 class TestInterruptedRuns:
     def test_get_interrupted_returns_200(self, client: TestClient) -> None:
         r = client.get("/api/status/interrupted")

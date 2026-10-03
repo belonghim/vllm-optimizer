@@ -206,7 +206,7 @@ curl -X PATCH http://<backend>/api/vllm-config \
 
 **Q2. 부하 테스트가 시작되지 않습니다.**
 - A: `vLLM Endpoint`가 올바르게 설정되었는지 확인하십시오.
-  - 내부 클러스터 URL 형식은 `http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local:8080`과 같습니다.
+  - 내부 클러스터 URL 형식은 `http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local`과 같습니다. (KServe predictor Service는 80 포트)
   - 브라우저에서 직접 접근하는 경우, 클러스터 내부 URL은 사용할 수 없습니다. OpenShift Route URL을 사용해야 합니다.
 
 **Q3. 벤치마크 테이블이 비어 있습니다.**
