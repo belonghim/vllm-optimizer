@@ -98,6 +98,10 @@ The main configuration form for normal load testing.
 |---------|-----------|-------------|
 | Reconnecting Banner | `isReconnecting && status === 'running'` | Shows "↺ Reconnecting SSE... (attempt N/3)" |
 
+If the run finishes while the client is disconnected, the reconnected stream immediately
+replays the terminal event (`completed`/`stopped`/`error`) and closes, so the UI settles
+instead of hanging at the last percentage.
+
 #### 3.4 Interrupted Warning
 
 | Element | Condition | Description |

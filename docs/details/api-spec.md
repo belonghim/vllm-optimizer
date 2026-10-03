@@ -1346,17 +1346,21 @@ Server-Sent Events (SSE) stream of load test results. Provides real-time updates
 **Response (200 OK):**
 
 ```
-event: test_start
-data: {"test_id": "abc123", "config": {...}}
+data: {"type": "progress", "data": {...}}
 
-event: progress
-data: {"elapsed": 30, "requests_completed": 150, "current_tps": 45.2}
-
-event: test_complete
-data: {"test_id": "abc123", "result": {...}}
+data: {"type": "completed", "data": {...}}
 ```
 
 **Content-Type:** `text/event-stream`
+
+Each message is a JSON object `{"type": <string>, "data": <object|null>}`. Event types:
+`progress`, `completed`, `stopped`, `error` (sweep runs also emit `sweep_step`, `sweep_completed`).
+While idle, the server sends `: keepalive` comments every 15 seconds.
+
+**Late subscribers:** if the last run has already finished, the stream immediately replays the
+final terminal event (`completed` / `stopped` / `error` / `sweep_completed`) and closes — a
+client reconnecting after completion never hangs waiting on keepalives. Starting a new run
+(`POST /start`, `POST /sweep`) clears the recorded terminal event.
 
 ---
 
@@ -2447,7 +2451,7 @@ Endpoints that return lists support pagination via `limit` and `offset` query pa
 
 ### SSE Connection Handling
 
-Server-Sent Events endpoints maintain persistent connections with periodic keepalive messages. Clients should implement reconnection logic with exponential backoff.
+Server-Sent Events endpoints maintain persistent connections with periodic keepalive messages. Clients should implement reconnection logic with exponential backoff. Terminal events are recorded per engine and replayed to late subscribers (see `/api/load_test/stream`), so reconnecting after a run completes still yields the final result.
 
 ### Error Handling
 
