@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-03] - 실무 기능 점검 및 결함 수정
+
+**Status**: Completed (로컬 검증 완료, 인-클러스터 E2E는 `deploy.sh dev` 후 확인 필요)
+
+실제 클러스터(KServe ISVC / LLMIS)에 대해 부하 테스트·메트릭·튜너·알림 경로를 점검하고 확인된 결함만 최소 수정.
+
+### Fixed (Load test)
+- HTTP 4xx/5xx 응답을 성공으로 집계하던 문제 수정 (completions/chat 모두 `HTTP {status}` 실패 처리).
+- `tps.total`이 마지막 요청 값이던 문제 → 누적 출력 토큰 / 경과 시간으로 계산.
+- 중지(STOPPED)된 테스트가 COMPLETED로 덮어써지던 문제 및 이력이 두 번 저장되던 문제 수정 (라우터 백그라운드 실행은 `persist=False`).
+- `/status`의 `test_id` 누락, 동시 시작 경합(`_start_lock`) 수정.
+- `cr_type`을 `Literal`로 검증(잘못된 값 거부), `/api/metrics/latest`·`/pods`가 기본 `cr_type`을 일관되게 사용.
+
+### Fixed (Auto-tuner)
+- latency/balanced 목표에서 Optuna direction을 minimize로 바꾸면서 점수 부호가 이미 반전되어 있어 최적화 방향이 뒤집히던 문제 수정 (항상 maximize). sla_tps 위반 점수도 부호 일관화.
+  - ⚠️ 이전 방향(minimize)으로 영속화된 `vllm-tuner-latency`/`vllm-tuner-balanced` study는 로드 실패 시 in-memory로 폴백(경고 브로드캐스트).
+- 최적 파라미터 적용 실패 또는 서비스 미준비 시 `auto_benchmark`를 건너뛰고 `tuning_warning` 전송.
+- 삭제 대기 타임아웃/취소 시 CR이 사라진 채 남던 문제 → 스냅샷으로 복원 (`_wait_for_deletion` 기본 180s).
+- `cr_adapter`: `--max-num-seqs 128`처럼 공백 구분 인자에서 값 토큰이 정적 인자로 남아 vLLM에 전달되던 문제 수정 (`strip_tuning_args`, `args_list_to_config_dict` 공백 형식 지원).
+
+### Fixed (Alerts / Frontend / Deploy)
+- 알림 임계값: 동작하지 않던 `max_ttft_ms` 대신 실제 수집되는 TTFT/E2E/TPOT/Queue 지표에 매핑.
+- LLMIS 기본 엔드포인트를 `https://openshift-ai-inference-openshift-default.openshift-ingress.svc/{ns}/{name}`로 수정 (frontend `endpointUtils`).
+- backend Deployment `strategy: Recreate` (RWO PVC + SQLite 동시 마운트 방지).
+
+### Known (pre-existing, not changed)
+- `backend/tests/test_tuner.py` slow 마커 테스트 중 mock이 `broadcaster` 인자를 받지 않는 5건 및 SSE 2건은 변경 이전부터 실패.
+
+### Verification
+- `./scripts/check.sh` → exit 0 (backend 558 passed, frontend 435 passed, ruff/tsc/eslint/prettier OK), `oc kustomize openshift/base` OK.
+
+---
+
 ## [2026-09-30] - 배포/빌드 메타데이터 정리
 
 **Status**: Completed
