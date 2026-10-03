@@ -30,6 +30,17 @@ class SlaViolationsResponse(BaseModel):
     checked_at: float
 
 
+_LIVE_THRESHOLD_METRICS = (
+    ("mean_ttft_max_ms", "mean_ttft_ms"),
+    ("p95_ttft_max_ms", "p99_ttft_ms"),
+    ("mean_e2e_latency_max_ms", "mean_e2e_latency_ms"),
+    ("mean_tpot_max_ms", "mean_tpot_ms"),
+    ("p95_tpot_max_ms", "p99_tpot_ms"),
+    ("mean_queue_time_max_ms", "mean_queue_time_ms"),
+    ("p95_queue_time_max_ms", "p99_queue_time_ms"),
+)
+
+
 def _collect_profile_violations(profile: SlaProfile, latest_metrics: object) -> list[ViolatedMetric]:
     thresholds = profile.thresholds
     violations: list[ViolatedMetric] = []
@@ -58,13 +69,13 @@ def _collect_profile_violations(profile: SlaProfile, latest_metrics: object) -> 
         getattr(latest_metrics, "p99_e2e_latency_ms", None),
         lambda actual, threshold: actual > threshold,
     )
-    max_ttft_ms = getattr(thresholds, "max_ttft_ms", None)
-    add_if_violated(
-        "max_ttft_ms",
-        max_ttft_ms,
-        getattr(latest_metrics, "p99_ttft_ms", None),
-        lambda actual, threshold: actual > threshold,
-    )
+    for threshold_field, metric_attr in _LIVE_THRESHOLD_METRICS:
+        add_if_violated(
+            threshold_field,
+            getattr(thresholds, threshold_field, None),
+            getattr(latest_metrics, metric_attr, None),
+            lambda actual, threshold: actual > threshold,
+        )
 
     return violations
 

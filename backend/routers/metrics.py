@@ -1,4 +1,5 @@
 import asyncio
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
@@ -48,12 +49,13 @@ async def get_latest_metrics(
     request: Request,
     namespace: str | None = None,
     is_name: str | None = None,
-    cr_type: str | None = None,
+    cr_type: Literal["inferenceservice", "llminferenceservice"] | None = None,
     collector=Depends(get_multi_target_collector),
     rt_config=Depends(get_runtime_config),
 ) -> MetricsSnapshot | TargetedMetricsResponse:
     if namespace is not None and is_name is not None:
-        registered = await collector.register_target(namespace, is_name, cr_type=cr_type or rt_config.cr_type)
+        cr_type = cr_type or rt_config.cr_type
+        registered = await collector.register_target(namespace, is_name, cr_type=cr_type)
         if not registered:
             raise HTTPException(
                 status_code=409,
@@ -63,21 +65,21 @@ async def get_latest_metrics(
                 ).model_dump(),
             )
 
-        vllm_metrics = await collector.get_metrics(namespace, is_name)
-        has_monitoring_label = collector.get_has_monitoring_label(namespace, is_name)
+        vllm_metrics = await collector.get_metrics(namespace, is_name, cr_type=cr_type)
+        has_monitoring_label = collector.get_has_monitoring_label(namespace, is_name, cr_type=cr_type)
 
         if vllm_metrics is None:
             return TargetedMetricsResponse(
                 status="collecting",
                 data=None,
                 hasMonitoringLabel=has_monitoring_label,
-                crExists=collector.get_cr_exists(namespace, is_name),
+                crExists=collector.get_cr_exists(namespace, is_name, cr_type=cr_type),
             )
         return TargetedMetricsResponse(
             status="ready",
             data=_convert_to_snapshot(vllm_metrics),
             hasMonitoringLabel=has_monitoring_label,
-            crExists=collector.get_cr_exists(namespace, is_name),
+            crExists=collector.get_cr_exists(namespace, is_name, cr_type=cr_type),
         )
 
     raise HTTPException(
@@ -196,7 +198,7 @@ async def get_pod_metrics(
             continue
 
         # Get aggregated metrics (same as /batch)
-        vllm_metrics = await collector.get_metrics(target.namespace, target.inferenceService)
+        vllm_metrics = await collector.get_metrics(target.namespace, target.inferenceService, cr_type=target.cr_type)
         snapshot = _convert_to_snapshot(vllm_metrics)
 
         # Build per-pod queries and fetch results
