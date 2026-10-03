@@ -38,7 +38,7 @@ python3 -m venv .venv && .venv/bin/pip install -r backend/requirements.txt ruff
 | Routers | `backend/routers/*.py` — mounted under `/api/<name>` in `backend/main.py` |
 | Frontend config | `frontend/src/contexts/ClusterConfigContext.tsx` (+ `useConfigMapTargets`, `useResolvedModelName`) |
 | Frontend SSE | `frontend/src/utils/reconnectingEventSource.ts` |
-| Docs | `docs/architecture.md`, `docs/details/*.md` · Changelog: `CHANGELOG.md` (append per round) |
+| Docs | `docs/details/README.md` (page index) · `docs/architecture.md` · `docs/integration_test_guide.md` (in-pod pytest recipe) · Changelog: `CHANGELOG.md` (append per round; older rounds in `docs/CHANGELOG-archive.md`) |
 
 ---
 
@@ -118,6 +118,8 @@ Integration tests only: `VLLM_MODEL`. Legacy/optional: `K8S_DEPLOYMENT_NAME`.
 - **resources**: `ALLOWED_RESOURCE_KEYS = {"cpu", "memory", "nvidia.com/gpu"}`. GPU only in `limits`. Empty string removes key.
 - **metrics_source** is **per target** (`direct` | `thanos`), not an environment variable. New targets default to `direct`.
 - **Default target**: selected from ConfigMap (`DEFAULT_ISVC_*` / `DEFAULT_LLMISVC_*`) or explicit target; there is no hardcoded frontend/backend default registration.
+- **Version**: single value `1.0.0` in `backend/main.py` (`APP_VERSION`), `frontend/package.json`, and `openshift/overlays/prod/kustomization.yaml` (image tags + `app.kubernetes.io/version` label) — bump together.
+- **K8s labels**: `app.kubernetes.io/name=vllm-optimizer` · `instance=vllm-optimizer-{env}` · `component` per resource (`backend`/`frontend`/`monitoring`/`backup`). Selectors stay on the plain `app:` label — do not point selectors at `app.kubernetes.io/*`.
 
 ---
 

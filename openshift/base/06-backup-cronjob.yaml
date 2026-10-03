@@ -27,6 +27,8 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: vllm-optimizer-sqlite-backup
+  labels:
+    app.kubernetes.io/component: backup
 spec:
   schedule: "0 2 * * *"
   concurrencyPolicy: Forbid
@@ -35,6 +37,9 @@ spec:
   jobTemplate:
     spec:
       template:
+        metadata:
+          labels:
+            app.kubernetes.io/component: backup
         spec:
           serviceAccountName: vllm-optimizer-backend
           restartPolicy: OnFailure

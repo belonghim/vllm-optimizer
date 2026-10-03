@@ -9,10 +9,8 @@ metadata:
   name: vllm-optimizer-frontend
   labels:
     app: vllm-optimizer-frontend
-    app.kubernetes.io/name: vllm-optimizer-frontend
     app.kubernetes.io/component: frontend
     app.kubernetes.io/part-of: vllm-optimizer
-    app.kubernetes.io/version: "1.0.0"
 spec:
   replicas: 2
   selector:
@@ -27,7 +25,7 @@ spec:
     metadata:
       labels:
         app: vllm-optimizer-frontend
-        app.kubernetes.io/name: vllm-optimizer-frontend
+        app.kubernetes.io/component: frontend
         app.kubernetes.io/part-of: vllm-optimizer
       annotations:
         # OpenShift가 이미지스트림 이름을 자동으로 해석하도록 설정
@@ -198,7 +196,7 @@ kind: HorizontalPodAutoscaler
 metadata:
   name: vllm-optimizer-frontend
   labels:
-    app.kubernetes.io/name: vllm-optimizer-frontend
+    app.kubernetes.io/component: frontend
     app.kubernetes.io/part-of: vllm-optimizer
 spec:
   scaleTargetRef:
@@ -228,6 +226,7 @@ metadata:
   name: vllm-optimizer-frontend
   labels:
     app: vllm-optimizer-frontend
+    app.kubernetes.io/component: frontend
     app.kubernetes.io/part-of: vllm-optimizer
 spec:
   selector:
@@ -248,6 +247,7 @@ metadata:
   name: vllm-optimizer
   labels:
     app.kubernetes.io/name: vllm-optimizer
+    app.kubernetes.io/component: frontend
     app.kubernetes.io/part-of: vllm-optimizer
   annotations:
     # 대용량 응답 (SSE 스트림) 타임아웃 증가

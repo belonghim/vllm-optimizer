@@ -5,9 +5,10 @@ resources:
   - ../../base
 labels:
   - pairs:
-      app.kubernetes.io/name: vllm-optimizer-prod
-      app.kubernetes.io/component: production
+      app.kubernetes.io/instance: vllm-optimizer-prod
       app.kubernetes.io/version: "1.0.0"
+    includeSelectors: false
+    includeTemplates: true
 patches:
   - target:
       kind: Namespace
@@ -61,6 +62,9 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/image
         value: quay.io/joopark/vllm-optimizer-backend:1.0.0
+      - op: replace
+        path: /spec/template/spec/dnsConfig/searches/0
+        value: vllm-optimizer-prod.svc.cluster.local
   - target:
       kind: Deployment
       name: vllm-optimizer-frontend
@@ -71,6 +75,9 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/image
         value: quay.io/joopark/vllm-optimizer-frontend:1.0.0
+      - op: replace
+        path: /spec/template/spec/dnsConfig/searches/0
+        value: vllm-optimizer-prod.svc.cluster.local
       - op: replace
         path: /spec/template/spec/containers/1/resources/requests/cpu
         value: "50m"

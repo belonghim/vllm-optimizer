@@ -14,7 +14,7 @@ kind: ServiceMonitor
 metadata:
   name: vllm-optimizer-backend
   labels:
-    app.kubernetes.io/name: vllm-optimizer-backend
+    app.kubernetes.io/component: monitoring
     app.kubernetes.io/part-of: vllm-optimizer
     # OpenShift Monitoring이 이 레이블로 ServiceMonitor를 감지
     openshift.io/cluster-monitoring: "true"
@@ -35,6 +35,7 @@ kind: PrometheusRule
 metadata:
   name: vllm-optimizer-alerts
   labels:
+    app.kubernetes.io/component: monitoring
     app.kubernetes.io/part-of: vllm-optimizer
     openshift.io/cluster-monitoring: "true"
     # Prometheus Operator가 이 레이블로 Rule 감지

@@ -1,5 +1,3 @@
-# See full version in session artifacts - this is the Namespace, RBAC, SCC file
-# (Full content generated above in session)
 ---
 apiVersion: v1
 kind: Namespace

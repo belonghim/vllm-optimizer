@@ -3,9 +3,10 @@ kind: Kustomization
 namespace: vllm-optimizer-dev
 labels:
   - pairs:
-      app.kubernetes.io/name: vllm-optimizer-dev
-      app.kubernetes.io/component: development
+      app.kubernetes.io/instance: vllm-optimizer-dev
       app.kubernetes.io/version: "dev"
+    includeSelectors: false
+    includeTemplates: true
 resources:
   - ../../base
 patches:

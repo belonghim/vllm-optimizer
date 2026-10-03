@@ -27,6 +27,8 @@ configure_logging()
 
 logger = logging.getLogger(__name__)
 
+APP_VERSION = "1.0.0"
+
 
 # Load optional startup shim for MetricsCollector (Dev-friendly)
 try:
@@ -177,7 +179,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="vLLM Optimizer API",
     description="Backend API for vLLM performance optimization and load testing",
-    version="0.1.0",
+    version=APP_VERSION,
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
@@ -258,7 +260,7 @@ async def root() -> dict[str, Any]:
     """Root endpoint with API information."""
     return {
         "message": "vLLM Optimizer API",
-        "version": "0.1.0",
+        "version": APP_VERSION,
         "docs": "/docs",
         "health": "/health",
         "endpoints": {

@@ -28,6 +28,7 @@ spec:
     metadata:
       labels:
         app: vllm-optimizer-backend
+        app.kubernetes.io/component: backend
         app.kubernetes.io/part-of: vllm-optimizer
       annotations:
         prometheus.io/scrape: "true"
@@ -140,6 +141,7 @@ metadata:
   name: vllm-optimizer-backend
   labels:
     app: vllm-optimizer-backend
+    app.kubernetes.io/component: backend
   annotations:
     service.beta.openshift.io/serving-cert-secret-name: backend-tls-cert
 spec:

@@ -10,7 +10,11 @@ resources:
   - 06-backup-cronjob.yaml
 labels:
   - pairs:
+      app.kubernetes.io/name: vllm-optimizer
       app.kubernetes.io/part-of: vllm-optimizer
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: false
+    includeTemplates: true
 patches:
   - target:
       kind: Namespace
