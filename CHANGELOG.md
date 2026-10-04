@@ -16,7 +16,7 @@ All notable changes to this project will be documented in this file.
 - **K8s RBAC 환경 분리**: 클러스터 범위 ClusterRoleBinding 3개(`vllm-optimizer-monitoring-view`/`auth-delegator`/`target-operator`)가 dev·prod에서 같은 이름이라 prod 배포가 dev 서브젝트를 덮어써 dev 백엔드가 `vllm-lab-dev`의 InferenceService를 못 읽던(403→500) 문제 → 오버레이별 `-dev`/`-prod` 이름(`e96fc09`). 기존 무접미 바인딩 3개는 클러스터에서 삭제(총 6개). 교훈: 클러스터 범위 객체는 오버레이마다 고유 이름이 필요하고 `oc apply`는 prune하지 않는다.
 
 ### Verification
-- **인-파드 통합 테스트**: 이전 라운드 13 passed / 3 skipped(정당한 과부하 skip) / 1 failed(튜너 버그) → 위 2건 수정 후 `test_auto_tuner_completes_with_results` 단독 재실행 PASSED(`best.tps=21.4`, trials 2건: 완료 1 + skipped 1). 테스트 후 llm-ov args를 overlay 기준으로 복원, Ready=True.
+- **인-파드 통합 테스트**: 이전 라운드 13 passed / 3 skipped(정당한 과부하 skip) / 1 failed(튜너 버그) → 위 2건 수정 후 `test_auto_tuner_completes_with_results` 단독 재실행 PASSED(`best.tps=21.4`, trials 2건: 완료 1 + skipped 1). 이후 전체 스위트(`/app/tests/integration/`, 17 tests, `-k`/`--deselect` 없음) 재실행 → 15 passed / 2 skipped / 0 failed(1138.78s), `test_auto_tuner_completes_with_results` 포함 통과. 2 skipped는 일시적 과부하 skip(`skip_if_overloaded`)으로 해당 2건만 따로 재실행 시 2 passed. 테스트 후 llm-ov args를 overlay 기준으로 복원, Ready=True.
 - **SSE 터미널 재생**: `completed` 1회 후 EOF, `stopped` 1회 후 EOF.
 - **LLMIS HTTPS 워크로드 서비스 경로**: 모델 `qwen`, success=2/failed=0, SSL 오류 없음, `CA_BUNDLE` 불필요.
 - **UI QA(Playwright, 번들 Chromium)**: LoadTest 완료 흐름(0→90%→COMPLETED+결과표)·Stop 흐름(RUNNING→STOPPED, Start 재활성화) 모두 정상, 수정 후 콘솔 오류 0건·bad response 0건. oauth-proxy 때문에 프런트 파드 nginx `:8080` port-forward로 접근.
