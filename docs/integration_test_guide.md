@@ -54,23 +54,10 @@ podman run --rm -w /app vllm-optimizer-backend:dev \
 | `VLLM_MODEL` | vLLM 모델명 | `OpenVINO/Phi-4-mini-instruct-int4-ov` |
 | `VLLM_NAMESPACE` | vLLM 네임스페이스 | `vllm-lab-dev` |
 | `OPTIMIZER_NAMESPACE` | Optimizer 네임스페이스 | `vllm-optimizer-dev` |
-| `PERF_BASELINE_FILE` | Baseline JSON 경로 | `baseline.dev.json` |
 | `VLLM_POD_LABEL` | vLLM 파드 식별 레이블 | `serving.kserve.io/inferenceservice=llm-ov` |
 | `POD_RESTART_TIMEOUT` | 파드 재기동 대기 최대 시간(초) | `300` |
 
-## 4. Baseline 관리
-
-`scripts/collect_baseline.sh` 스크립트를 사용하여 성능 테스트의 기준값(baseline)을 수집하고 관리할 수 있습니다. 이 기준값은 `baseline.dev.json` 파일에 저장되며, 향후 테스트 결과와 비교하는 데 사용됩니다.
-
-```bash
-# 기본 타겟(VLLM_NAMESPACE=vllm-lab-dev, VLLM_DEPLOYMENT_NAME=llm-ov) 기준
-./scripts/collect_baseline.sh
-
-# 타겟 오버라이드
-VLLM_NAMESPACE=my-ns VLLM_DEPLOYMENT_NAME=my-isvc VLLM_CR_TYPE=llminferenceservice ./scripts/collect_baseline.sh
-```
-
-## 5. 클러스터에서 직접 실행 (Pod exec)
+## 4. 클러스터에서 직접 실행 (Pod exec)
 
 OpenShift 클러스터 내에서 vLLM Optimizer 백엔드 Pod에 직접 접속하여 통합 테스트를 실행할 수 있습니다. 이는 CI/CD 파이프라인 외부에서 디버깅하거나 특정 테스트를 수동으로 실행할 때 유용합니다.
 
@@ -86,7 +73,7 @@ oc exec -n $NS $BACKEND_POD -- env \
   python3 -m pytest /app/tests/integration/performance/ -v --tb=short -m "integration"
 ```
 
-## 6. pytest 마커 설명
+## 5. pytest 마커 설명
 
 `pyproject.toml` 파일에 정의된 pytest 마커를 사용하여 특정 테스트 그룹을 선택적으로 실행할 수 있습니다.
 
@@ -106,7 +93,7 @@ pytest -m "performance"
 pytest -m "not slow"
 ```
 
-## 7. 문제 해결
+## 6. 문제 해결
 
 통합 테스트 실행 중 문제가 발생하면 다음 사항을 확인하십시오.
 

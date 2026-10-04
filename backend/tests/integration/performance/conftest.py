@@ -127,18 +127,6 @@ def skip_if_overloaded(http_client: httpx.Client) -> None:
 
 
 @pytest.fixture(scope="session")
-def performance_baseline() -> dict[str, object]:
-    """baseline.dev.json 로드. 없으면 빈 dict 반환."""
-    baseline_path = os.getenv(
-        "PERF_BASELINE_FILE", os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "baseline.dev.json")
-    )
-    if os.path.exists(baseline_path):
-        with open(baseline_path) as f:
-            return cast(dict[str, object], json.load(f))
-    return {}
-
-
-@pytest.fixture(scope="session")
 def vllm_endpoint() -> str:
     return VLLM_ENDPOINT
 

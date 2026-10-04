@@ -26,7 +26,7 @@ for arg in "$@"; do
       echo "  REGISTRY=${REGISTRY:-quay.io/joopark}"
       echo "  IMAGE_TAG (dev) => dev  |  (prod) => 1.0.0"
       echo "  NAMESPACE (dev) => vllm-optimizer-dev | (prod) => vllm-optimizer-prod"
-      echo "  VLLM_NAMESPACE (default) => llm-d-demo (dev) | vllm-lab-prod (prod)"
+      echo "  VLLM_NAMESPACE (default) => vllm-lab-dev (dev) | vllm-lab-prod (prod)"
       echo ""
       echo "Examples:"
       echo "  $0 dev --dry-run         # Preview dev deployment"
@@ -52,19 +52,14 @@ else
   IMAGE_TAG="dev"
 fi
 
-# LLMIS RBAC 배포용 기본값 (llm-d-demo 네임스페이스에 RBAC 리소스 배포)
-# 백엔드 ConfigMap의 VLLM_NAMESPACE(vllm-lab-dev)와는 별개
 # Set VLLM_NAMESPACE based on environment
 if [[ "$ENV" == "dev" ]]; then
-  VLLM_NAMESPACE="${VLLM_NAMESPACE:-llm-d-demo}"
+  VLLM_NAMESPACE="${VLLM_NAMESPACE:-vllm-lab-dev}"
 elif [[ "$ENV" == "prod" ]]; then
   VLLM_NAMESPACE="${VLLM_NAMESPACE:-vllm-lab-prod}"
 else
-  VLLM_NAMESPACE="${VLLM_NAMESPACE:-llm-d-demo}"
+  VLLM_NAMESPACE="${VLLM_NAMESPACE:-vllm-lab-dev}"
 fi
-
-VLLM_DEPLOYMENT_NAME="${VLLM_DEPLOYMENT_NAME:-small-llm-d}"
-LLMIS_NAMESPACE="${LLMIS_NAMESPACE:-llm-d-demo}"
 : "${REGISTRY:?ERROR: REGISTRY env var is required (e.g., quay.io/joopark)}"
 
 log() { echo "[$(date +%H:%M:%S)] $*"; }

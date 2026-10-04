@@ -46,7 +46,6 @@ frontend/test-results/
 guidellm_results/
 
 # personal environment config
-baseline.dev.json
 .pre-commit-config.yaml
 pyrightconfig.json
 backend/pyrightconfig.json
