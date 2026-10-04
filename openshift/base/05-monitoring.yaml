@@ -3,7 +3,6 @@
 # OpenShift Monitoring Stack 연동
 # - ServiceMonitor (Prometheus Operator)
 # - PrometheusRule (알람 규칙)
-# - PodDisruptionBudget
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # ── ServiceMonitor: Backend 메트릭 수집 ───────────────────────────────────────
@@ -164,33 +163,6 @@ spec:
               PVC {{ $labels.persistentvolumeclaim }} 사용량이
               {{ $value | humanizePercentage }}로 80% 임계치를 초과했습니다.
               SQLite DB 파일 정리를 고려하세요.
-
----
-# ── PodDisruptionBudget: 롤링 업데이트 시 가용성 보장 ─────────────────────────
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: vllm-optimizer-backend-pdb
-  labels:
-    app.kubernetes.io/part-of: vllm-optimizer
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app: vllm-optimizer-backend
-
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: vllm-optimizer-frontend-pdb
-  labels:
-    app.kubernetes.io/part-of: vllm-optimizer
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app: vllm-optimizer-frontend
 
 ---
 # ── NetworkPolicy: 최소 권한 네트워크 접근 ────────────────────────────────────
