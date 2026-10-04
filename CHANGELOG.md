@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-04] - 군더더기 제거·튜너 수정·RBAC 환경 분리 및 검증 라운드
+
+### Removed
+- **백엔드 HPA(`vllm-optimizer-backend-hpa`, 단일 레플리카라 무의미), 두 PDB(`vllm-optimizer-backend-pdb`/`-frontend-pdb`, 단일 레플리카), prod 백엔드 replicas=2 패치**(`5d033ed`). 프런트엔드 HPA는 유지. dev 클러스터의 잔재 삭제(`oc apply`는 prune 안 함); prod에는 잔재 없음.
+- **vLLM 알림 정리**(`91acf12`): `vllm.performance`·`vllm.availability` 그룹과 `OptimizerBackendHighErrorRate` 알림, 오버레이 PrometheusRule 패치 2개, 가짜 runbook URL 제거. `vllm-lab-*`의 의존성 알림은 `vllm:`/`kserve_vllm:` 이중 접두사로 통합.
+- **죽은 스크립트/도구**(`709b1c9`): `scripts/run_performance_tests.sh`, `scripts/collect_baseline.sh`, `backend/tests/integration/performance/utils/`, `performance_baseline` 픽스처, 문서 §4, deploy.sh 죽은 변수 및 dev 기본 네임스페이스 `vllm-lab-dev`로 수정.
+
+### Fixed
+- **튜너 study 재사용 prune**: 세션마다 이전 Optuna study를 재사용해 `MedianPruner`가 새 세션 trial을 prune하던 문제 → 세션 시작 시 동일 이름 study 삭제(`df7b424`, 단위 테스트 `test_setup_study_fresh_study_per_session`).
+- **튜너 OOM skip 기록 누락**: KV OOM 예측으로 건너뛴 trial이 trial 목록에 기록되지 않던 문제 → `status="skipped"`, `pruned=true`로 기록, best 선택에는 영향 없음(`c392125`, 테스트 `test_oom_skipped_trial_recorded_with_skipped_status`).
+- **로드 테스트 stop 500**: `POST /api/load_test/stop`을 `test_id` 없이 호출하면 `StopResponse.test_id: str` 때문에 500(ResponseValidationError) → `str | None = None`(`be20de9`, 회귀 테스트 추가). UI Stop 버튼이 항상 콘솔 500을 내던 문제 해소.
+- **K8s RBAC 환경 분리**: 클러스터 범위 ClusterRoleBinding 3개(`vllm-optimizer-monitoring-view`/`auth-delegator`/`target-operator`)가 dev·prod에서 같은 이름이라 prod 배포가 dev 서브젝트를 덮어써 dev 백엔드가 `vllm-lab-dev`의 InferenceService를 못 읽던(403→500) 문제 → 오버레이별 `-dev`/`-prod` 이름(`e96fc09`). 기존 무접미 바인딩 3개는 클러스터에서 삭제(총 6개). 교훈: 클러스터 범위 객체는 오버레이마다 고유 이름이 필요하고 `oc apply`는 prune하지 않는다.
+
+### Verification
+- **인-파드 통합 테스트**: 이전 라운드 13 passed / 3 skipped(정당한 과부하 skip) / 1 failed(튜너 버그) → 위 2건 수정 후 `test_auto_tuner_completes_with_results` 단독 재실행 PASSED(`best.tps=21.4`, trials 2건: 완료 1 + skipped 1). 테스트 후 llm-ov args를 overlay 기준으로 복원, Ready=True.
+- **SSE 터미널 재생**: `completed` 1회 후 EOF, `stopped` 1회 후 EOF.
+- **LLMIS HTTPS 워크로드 서비스 경로**: 모델 `qwen`, success=2/failed=0, SSL 오류 없음, `CA_BUNDLE` 불필요.
+- **UI QA(Playwright, 번들 Chromium)**: LoadTest 완료 흐름(0→90%→COMPLETED+결과표)·Stop 흐름(RUNNING→STOPPED, Start 재활성화) 모두 정상, 수정 후 콘솔 오류 0건·bad response 0건. oauth-proxy 때문에 프런트 파드 nginx `:8080` port-forward로 접근.
+- **`./scripts/check.sh`** exit 0 (ALL CHECKS PASSED): backend 782 passed, frontend 446 passed (57 files), ruff·타입·빌드 통과.
+- **정리 후 dev**: 백엔드 HPA/PDB 0건(프런트 HPA만), optimizer 알림 룰에 워크로드 알림 0건, `vllm-performance-alerts` 적용됨. GPU 테스트 ISVC `qwen-gpu`(serving3) 삭제(매니페스트 `openshift/vllm-dependency/gpu-test/`는 유지).
+- **prod**: `vllm-optimizer-prod` 네임스페이스 신규 생성 후 배포 — 백엔드 1/1·프런트 Running 0 재시작, `instance=vllm-optimizer-prod`·`version=1.0.0`, HPA는 프런트만, PDB 0건. 서버 dry-run은 대상 네임스페이스 부재로 실패(매니페스트 결함 아님; 클라이언트 렌더 22개 리소스 OK).
+
+### Known blockers
+- **MaaS 게이트웨이 경유 부하 테스트 불가**: 읽기 전용으로 얻을 수 있는 API 키가 없음(APIKey/Request/Approval CR 0건). 백엔드 SA 토큰은 인증은 되나 `403 not_found: no matching subscription found for user`. 게이트웨이 호스트(`maas.apps.compact.jooan.local`) SNI 필요, 인증서가 ingress-operator 자체서명 CA라 `CERTIFICATE_VERIFY_FAILED` — 해결하려면 CA 마운트(매니페스트 변경)가 필요하므로 `CA_BUNDLE` 설정만으로는 불가. 워크로드 서비스 경로로 대체 검증됨.
+- **prod 의존성 단계**: `vllm-lab-prod` 네임스페이스 부재로 `openshift/vllm-dependency/prod` 적용이 `namespaces "vllm-lab-prod" not found`로 실패(optimizer 배포는 정상 유지). 해당 네임스페이스를 만들 때까지 prod 모니터링 라벨 패치 단계는 미실행.
+- Red Hat 2B modelcar 미러 pull 실패로 0.8B 대체 사용 중(이전 라운드부터).
+
 ## [2026-10-04] - 요청되지 않은 SQLite 백업 CronJob 제거
 
 ### Removed
