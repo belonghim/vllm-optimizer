@@ -129,7 +129,7 @@ class StopResponse(BaseModel):
     """Response when stopping a load test"""
 
     status: str
-    test_id: str
+    test_id: str | None = None
     message: str
 
 

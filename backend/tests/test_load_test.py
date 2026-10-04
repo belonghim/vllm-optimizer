@@ -65,6 +65,14 @@ def test_load_test_status_endpoint_defaults(isolated_client: TestClient):
     assert data.get("elapsed") == 0.0
 
 
+def test_load_test_stop_without_test_id_returns_stopped(isolated_client: TestClient):
+    response = isolated_client.post("/api/load_test/stop")
+    assert response.status_code == 200
+    data = response.json()
+    assert data.get("status") == "stopped"
+    assert data.get("test_id") is None
+
+
 def test_load_test_history_endpoint_returns_list(isolated_client: TestClient):
     response = isolated_client.get("/api/load_test/history?limit=5")
     assert response.status_code == 200
