@@ -1865,3 +1865,35 @@ def test_tuner_start_pins_requested_target(cr_type: str) -> None:
     assert seen["target"] == ("serving3", "qwen-gpu", cr_type)
     assert tuner.target == ("serving3", "qwen-gpu", cr_type)
     tuner._k8s_operator._target = None
+
+
+@pytest.mark.asyncio
+async def test_oom_skipped_trial_recorded_with_skipped_status(auto_tuner_instance, mock_k8s_clients):
+    """OOM-skipped trials must appear in the trials list with status 'skipped' and never become best."""
+    tuner = auto_tuner_instance
+
+    async def mock_evaluate(endpoint, config, trial=None, trial_num=0, broadcaster=None):
+        if trial_num == 1:
+            assert tuner._best_trial is None, "skipped trial must not become best"
+        if trial:
+            trial.report(100.0, step=0)
+        return 100.0, 100.0, 0.1
+
+    tuner._evaluate = mock_evaluate
+    tuner._wait_for_ready = AsyncMock(return_value=True)
+    tuner._apply_params = AsyncMock(return_value={"success": True})
+
+    config = TuningConfig(n_trials=2, eval_requests=10, warmup_requests=0, objective="tps")
+    with patch("services.tuner_logic.kv_cache_oom_risk", side_effect=[True, False]):
+        await tuner.start(config, "http://mock:8080")
+
+    assert len(tuner.trials) == 2
+    skipped = tuner.trials[0]
+    assert skipped.status == "skipped"
+    assert skipped.pruned is True
+    assert skipped.tps == 0.0
+    assert skipped.params, "skipped trial must record its suggested params"
+    assert tuner._best_trial is not None
+    assert tuner._best_trial.trial_id == 1
+    assert tuner._best_trial.status == "completed"
+    assert tuner._best_score_history == [0, 100.0]

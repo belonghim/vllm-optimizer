@@ -545,6 +545,25 @@ async def execute_trial_for_tuner(
         async with tuner._study_lock:
             assert tuner._study is not None
             tuner._study.tell(trial, state=optuna.trial.TrialState.PRUNED)
+        # Record the skip so the trials list reflects every trial the session asked for.
+        t = TuningTrial(
+            trial_id=trial_num, params=params, tps=0.0, p99_latency=0.0, score=0.0, status="skipped", pruned=True
+        )
+        async with tuner._lock:
+            tuner._trials.append(t)
+            tuner._best_score_history.append(tuner._best_trial.score if tuner._best_trial else 0)
+        try:
+            await tuner._save_trial_fn()(t)
+        except (OSError, RuntimeError, ValueError) as e:
+            logger.warning("[AutoTuner] Failed to persist trial %d to storage: %s", trial_num, e)
+            await tuner._broadcast_persistence_warning_once()
+        await tuner._emit_trial_metrics(trial_start, "skipped")
+        await tuner._broadcast(
+            {
+                "type": "trial_complete",
+                "data": {"trial_id": trial_num, "score": 0.0, "tps": 0.0, "p99_latency": 0.0, "pruned": True},
+            }
+        )
         return
     await tuner._broadcast({"type": "trial_start", "data": {"trial_id": trial_num, "params": params}})
     if not await tuner._apply_trial_params(trial, trial_num, params):
