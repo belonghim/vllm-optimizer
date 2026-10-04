@@ -163,7 +163,7 @@ spec:
             description: |
               PVC {{ $labels.persistentvolumeclaim }} 사용량이
               {{ $value | humanizePercentage }}로 80% 임계치를 초과했습니다.
-              SQLite DB 파일 및 백업 정리를 고려하세요.
+              SQLite DB 파일 정리를 고려하세요.
 
 ---
 # ── PodDisruptionBudget: 롤링 업데이트 시 가용성 보장 ─────────────────────────

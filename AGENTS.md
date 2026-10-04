@@ -119,7 +119,7 @@ Integration tests only: `VLLM_MODEL`. Legacy/optional: `K8S_DEPLOYMENT_NAME`.
 - **metrics_source** is **per target** (`direct` | `thanos`), not an environment variable. New targets default to `direct`.
 - **Default target**: selected from ConfigMap (`DEFAULT_ISVC_*` / `DEFAULT_LLMISVC_*`) or explicit target; there is no hardcoded frontend/backend default registration.
 - **Version**: single value `1.0.0` in `backend/main.py` (`APP_VERSION`), `frontend/package.json`, and `openshift/overlays/prod/kustomization.yaml` (image tags + `app.kubernetes.io/version` label) — bump together.
-- **K8s labels**: `app.kubernetes.io/name=vllm-optimizer` · `instance=vllm-optimizer-{env}` · `component` per resource (`backend`/`frontend`/`monitoring`/`backup`). Selectors stay on the plain `app:` label — do not point selectors at `app.kubernetes.io/*`.
+- **K8s labels**: `app.kubernetes.io/name=vllm-optimizer` · `instance=vllm-optimizer-{env}` · `component` per resource (`backend`/`frontend`/`monitoring`). Selectors stay on the plain `app:` label — do not point selectors at `app.kubernetes.io/*`.
 
 ---
 

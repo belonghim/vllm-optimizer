@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-04] - 요청되지 않은 SQLite 백업 CronJob 제거
+
+### Removed
+- **`vllm-optimizer-sqlite-backup` CronJob + `vllm-optimizer-pod-exec` Role/`vllm-optimizer-backup-exec` RoleBinding + `backend/scripts/backup_sqlite.py`(+테스트)**: 요청 없이 추가됐던 기능(`eb927ed`). 같은 PVC에 백업을 써서 PVC 장애 대비가 되지 않았고, `registry.redhat.io/openshift4/ose-cli:latest`를 직접 pull해 폐쇄망에서 매번 `ImagePullBackOff` — 실제로 백업이 한 번도 생성되지 않았다(`/data/backup` 없음). 백엔드 SA의 네임스페이스 `pods/exec` 권한도 함께 사라짐.
+- dev 클러스터에 남아 있던 CronJob·Job·Role·RoleBinding 삭제(`oc apply`는 prune하지 않음). prod에는 없음.
+
+### Verification
+- dev/prod `oc kustomize` 렌더 OK(26 objects, backup 참조 0), `./scripts/check.sh --smoke` OK.
+
 ## [2026-10-04] - SSE 터미널 재생·TLS 컨텍스트 현대화·이미지 내 스모크
 
 ### Fixed
