@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import tempfile
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -807,6 +808,28 @@ def test_start_uses_inmemory_when_no_storage_url(auto_tuner_instance, mock_k8s_c
     with patch.dict(os.environ, {}, clear=False):
         os.environ.pop("OPTUNA_STORAGE_URL", None)
         assert auto_tuner_instance is not None
+
+
+@pytest.mark.asyncio
+async def test_setup_study_fresh_study_per_session(auto_tuner_instance, mock_k8s_clients):
+    """Two consecutive sessions with identical config must not share trial history."""
+    tuner = auto_tuner_instance
+    config = TuningConfig(n_trials=2, eval_requests=5, warmup_requests=0, objective="tps")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        storage_url = f"sqlite:///{tmp}/optuna.db"
+        _, first = await tuner._tuner_logic.setup_study(config, storage_url)
+        first.optimize(
+            lambda trial: tuner._tuner_logic.compute_trial_score(
+                {"tps": {"total": 100.0}, "latency": {"p99": 0.5}}, config
+            ),
+            n_trials=3,
+        )
+        assert len(first.trials) == 3
+
+        _, second = await tuner._tuner_logic.setup_study(config, storage_url)
+        assert second.study_name == first.study_name
+        assert len(second.trials) == 0, "Second session must start with an empty study, not inherit prior trials"
 
 
 @pytest.mark.asyncio

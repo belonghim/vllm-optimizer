@@ -130,6 +130,15 @@ class TunerLogic:
                     storage_url,
                     engine_kwargs={"connect_args": {"check_same_thread": False}},
                 )
+                # Deleting persisted history is safe only because AutoTuner.start rejects
+                # concurrent sessions; without it MedianPruner would prune this session's
+                # early trials against another session's stale medians.
+                try:
+                    study_id = await asyncio.to_thread(storage.get_study_id_from_name, _study_name)
+                    await asyncio.to_thread(storage.delete_study, study_id)
+                    logger.info("[AutoTuner] Deleted stale study %s for fresh session", _study_name)
+                except KeyError:
+                    pass  # first session for this study name
                 study = await asyncio.to_thread(  # type: ignore[arg-type]  # optuna.create_study returns Study|None, pyright can't track through to_thread
                     optuna.create_study,
                     sampler=sampler,
