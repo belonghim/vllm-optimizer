@@ -25,7 +25,7 @@ All notable changes to this project will be documented in this file.
 - **prod**: `vllm-optimizer-prod` 네임스페이스 신규 생성 후 배포 — 백엔드 1/1·프런트 Running 0 재시작, `instance=vllm-optimizer-prod`·`version=1.0.0`, HPA는 프런트만, PDB 0건. 서버 dry-run은 대상 네임스페이스 부재로 실패(매니페스트 결함 아님; 클라이언트 렌더 22개 리소스 OK).
 
 ### Known blockers
-- **MaaS 게이트웨이 경유 부하 테스트 불가**: 읽기 전용으로 얻을 수 있는 API 키가 없음(APIKey/Request/Approval CR 0건). 백엔드 SA 토큰은 인증은 되나 `403 not_found: no matching subscription found for user`. 게이트웨이 호스트(`maas.apps.compact.jooan.local`) SNI 필요, 인증서가 ingress-operator 자체서명 CA라 `CERTIFICATE_VERIFY_FAILED` — 해결하려면 CA 마운트(매니페스트 변경)가 필요하므로 `CA_BUNDLE` 설정만으로는 불가. 워크로드 서비스 경로로 대체 검증됨.
+- **MaaS 게이트웨이 경유 부하 테스트 — API 키로 검증 완료, 상시 사용은 CA 마운트 필요**: 사용자 제공 API 키로 `https://maas.apps.compact.jooan.local/serving1/qwen`·`serving2/lfm` 각각 4/4 성공(스트리밍, c=1, max_tokens=8; 모델 목록 200). 단, 게이트웨이 인증서가 ingress-operator 자체서명 CA라 배포된 백엔드는 기본 설정으로 `CERTIFICATE_VERIFY_FAILED` — 검증은 파드 안에서 해당 CA를 담은 httpx 클라이언트로 1회성 수행(저장소 변경 없음). 상시 사용하려면 `default-ingress-cert` CA를 마운트하고 `CA_BUNDLE`을 설정해야 함(매니페스트 변경, 미반영).
 - **prod 의존성 단계**: `vllm-lab-prod` 네임스페이스 부재로 `openshift/vllm-dependency/prod` 적용이 `namespaces "vllm-lab-prod" not found`로 실패(optimizer 배포는 정상 유지). 해당 네임스페이스를 만들 때까지 prod 모니터링 라벨 패치 단계는 미실행.
 - Red Hat 2B modelcar 미러 pull 실패로 0.8B 대체 사용 중(이전 라운드부터).
 
