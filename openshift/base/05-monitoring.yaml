@@ -41,62 +41,6 @@ metadata:
     role: alert-rules
 spec:
   groups:
-    # ── vLLM 성능 알람 ───────────────────────────────────────────────────────
-    - name: vllm.performance
-      interval: 30s
-      rules:
-        - alert: VLLMHighP99Latency
-          expr: |
-            histogram_quantile(0.99,
-              rate(vllm:e2e_request_latency_seconds_bucket[5m])
-            ) > 2.0
-          for: 5m
-          labels:
-            severity: warning
-            team: mlops
-          annotations:
-            summary: "vLLM P99 레이턴시 임계치 초과"
-            description: |
-              vLLM P99 레이턴시가 {{ $value | humanizeDuration }}으로
-              2초 임계치를 초과했습니다. (namespace: {{ $labels.namespace }})
-            runbook_url: "https://wiki.example.com/runbooks/vllm-high-latency"
-
-        - alert: VLLMHighQueueDepth
-          expr: vllm:num_requests_waiting > 50
-          for: 2m
-          labels:
-            severity: warning
-            team: mlops
-          annotations:
-            summary: "vLLM 대기 요청 큐 증가"
-            description: |
-              대기 중인 요청이 {{ $value }}개로 50개 임계치를 초과했습니다.
-              HPA 스케일아웃 또는 파라미터 튜닝을 고려하세요.
-
-        - alert: VLLMKVCacheSaturation
-          # Threshold (0.95) can be tuned per environment via Kustomize patch
-          expr: vllm:gpu_cache_usage_perc > 0.95
-          for: 3m
-          labels:
-            severity: critical
-            team: mlops
-          annotations:
-            summary: "vLLM KV Cache 포화 상태"
-            description: |
-              KV Cache 사용률이 {{ $value | humanizePercentage }}로
-              95% 임계치를 초과했습니다. OOM 위험이 있습니다.
-
-        - alert: VLLMLowThroughput
-          expr: |
-            rate(vllm:generation_tokens_total[5m]) < 10
-          for: 10m
-          labels:
-            severity: warning
-            team: mlops
-          annotations:
-            summary: "vLLM 처리량 비정상적으로 낮음"
-            description: "TPS가 {{ $value | humanize }}로 10 이하로 떨어졌습니다."
-
     # ── vLLM Optimizer 앱 알람 ───────────────────────────────────────────────
     - name: vllm-optimizer.app
       rules:
@@ -110,38 +54,6 @@ spec:
           annotations:
             summary: "vLLM Optimizer Backend 다운"
             description: "Optimizer Backend Pod가 응답하지 않습니다."
-
-        - alert: OptimizerBackendHighErrorRate
-          expr: |
-            rate(http_requests_total{job="vllm-optimizer-backend",status=~"5.."}[5m])
-            /
-            rate(http_requests_total{job="vllm-optimizer-backend"}[5m]) > 0.05
-          for: 5m
-          labels:
-            severity: warning
-            team: mlops
-          annotations:
-            summary: "Optimizer Backend 에러율 5% 초과"
-            description: "에러율: {{ $value | humanizePercentage }}"
-
-    # ── vLLM Pod 가용성 알람 ─────────────────────────────────────────────────
-    - name: vllm.availability
-      rules:
-        - alert: VLLMPodNotReady
-          expr: |
-            # NOTE: "vllm-deployment" is a placeholder — override via Kustomize patch
-            # for each environment (e.g., llm-ov-predictor in dev, different name in prod)
-            kube_deployment_status_replicas_available{deployment="vllm-deployment"}
-            <
-            kube_deployment_spec_replicas{deployment="vllm-deployment"} * 0.5
-          for: 5m
-          labels:
-            severity: critical
-            team: mlops
-          annotations:
-            summary: "vLLM Pod 50% 이상 비가용 상태"
-            description: |
-              전체 {{ $labels.deployment }} 레플리카 중 절반 이상이 비가용입니다.
 
     # ── vLLM Optimizer 인프라 알람 ───────────────────────────────────────────
     - name: vllm-optimizer.infra
