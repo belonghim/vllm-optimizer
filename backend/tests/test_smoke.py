@@ -192,16 +192,14 @@ def test_dual_cr_adapter_contract() -> None:
     assert llmis.model_container_name() == "main"
 
 
-def test_inference_client_trusts_openshift_service_ca(tmp_path) -> None:
+def test_tls_verify_off_unless_ca_bundle(monkeypatch) -> None:
     import ssl
 
     import certifi
-    from services.tls import external_verify
+    from services.tls import tls_verify
 
-    custom = external_verify(certifi.where())
-    assert isinstance(custom, ssl.SSLContext)
-    without = external_verify("", service_ca_path=str(tmp_path / "missing.crt"))
-    with_service_ca = external_verify("", service_ca_path=certifi.where())
-    assert isinstance(without, ssl.SSLContext) and isinstance(with_service_ca, ssl.SSLContext)
-    assert without.verify_mode == ssl.CERT_REQUIRED
-    assert with_service_ca.cert_store_stats()["x509_ca"] >= without.cert_store_stats()["x509_ca"]
+    monkeypatch.delenv("CA_BUNDLE", raising=False)
+    assert tls_verify() is False
+    assert tls_verify("") is False
+    ctx = tls_verify(certifi.where())
+    assert isinstance(ctx, ssl.SSLContext) and ctx.verify_mode == ssl.CERT_REQUIRED

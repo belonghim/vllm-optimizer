@@ -57,7 +57,7 @@ Canonical definitions: `backend/.env.example` (local) and `openshift/base/02-con
 | `LOAD_ENGINE_TIMEOUT` | Load-test timeout (seconds) | `120` |
 | `OPTUNA_STORAGE_URL` | Optuna RDB storage (unset → in-memory) | unset |
 | `LOG_LEVEL` / `LOG_FORMAT` | Logging level / `json` or `text` | `INFO` / `text` |
-| `CA_BUNDLE` | CA bundle path for TLS verify (`""` → internal client `verify=False`) | `""` |
+| `CA_BUNDLE` | CA bundle path for TLS verify (`""` → all httpx clients `verify=False`) | `""` |
 | `ANALYST_ENDPOINT` | Analyst LLM (separate small model, e.g. llm-ov). `""` disables it; skipped during tuning if equal to the tuning endpoint | `""` (dev overlay: llm-ov) |
 
 Advanced/optional: `ANALYST_MODEL`(resolved via `/v1/models`), `ANALYST_TIMEOUT`(120), `LOAD_ENGINE_SHORT_TIMEOUT`(5), `MODEL_RESOLVE_TIMEOUT`(10), `SELF_METRICS_URL`, `STORAGE_CAPACITY_BYTES`, `POD_NAMESPACE`.

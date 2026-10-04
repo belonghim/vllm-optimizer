@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [2026-10-04] - 군더더기 제거·튜너 수정·RBAC 환경 분리 및 검증 라운드
 
 ### Removed
+- **TLS 정책 단일화**: `services/tls.py`의 `internal_verify`/`external_verify`(certifi + service-ca 결합 컨텍스트)를 `tls_verify()` 하나로 통합 — `CA_BUNDLE` 미설정 시 모든 httpx 클라이언트 `verify=False`(폐쇄망 자체서명: Thanos·LLMIS workload Service·MaaS 게이트웨이). 이로써 MaaS 게이트웨이도 CA 마운트 없이 호출됨. `certifi` 직접 의존 제거.
 - **백엔드 HPA(`vllm-optimizer-backend-hpa`, 단일 레플리카라 무의미), 두 PDB(`vllm-optimizer-backend-pdb`/`-frontend-pdb`, 단일 레플리카), prod 백엔드 replicas=2 패치**(`5d033ed`). 프런트엔드 HPA는 유지. dev 클러스터의 잔재 삭제(`oc apply`는 prune 안 함); prod에는 잔재 없음.
 - **vLLM 알림 정리**(`91acf12`): `vllm.performance`·`vllm.availability` 그룹과 `OptimizerBackendHighErrorRate` 알림, 오버레이 PrometheusRule 패치 2개, 가짜 runbook URL 제거. `vllm-lab-*`의 의존성 알림은 `vllm:`/`kserve_vllm:` 이중 접두사로 통합.
 - **죽은 스크립트/도구**(`709b1c9`): `scripts/run_performance_tests.sh`, `scripts/collect_baseline.sh`, `backend/tests/integration/performance/utils/`, `performance_baseline` 픽스처, 문서 §4, deploy.sh 죽은 변수 및 dev 기본 네임스페이스 `vllm-lab-dev`로 수정.
@@ -25,7 +26,7 @@ All notable changes to this project will be documented in this file.
 - **prod**: `vllm-optimizer-prod` 네임스페이스 신규 생성 후 배포 — 백엔드 1/1·프런트 Running 0 재시작, `instance=vllm-optimizer-prod`·`version=1.0.0`, HPA는 프런트만, PDB 0건. 서버 dry-run은 대상 네임스페이스 부재로 실패(매니페스트 결함 아님; 클라이언트 렌더 22개 리소스 OK).
 
 ### Known blockers
-- **MaaS 게이트웨이 경유 부하 테스트 — API 키로 검증 완료, 상시 사용은 CA 마운트 필요**: 사용자 제공 API 키로 `https://maas.apps.compact.jooan.local/serving1/qwen`·`serving2/lfm` 각각 4/4 성공(스트리밍, c=1, max_tokens=8; 모델 목록 200). 단, 게이트웨이 인증서가 ingress-operator 자체서명 CA라 배포된 백엔드는 기본 설정으로 `CERTIFICATE_VERIFY_FAILED` — 검증은 파드 안에서 해당 CA를 담은 httpx 클라이언트로 1회성 수행(저장소 변경 없음). 상시 사용하려면 `default-ingress-cert` CA를 마운트하고 `CA_BUNDLE`을 설정해야 함(매니페스트 변경, 미반영).
+- **MaaS 게이트웨이 경유 부하 테스트**: 사용자 제공 API 키로 `serving1/qwen`·`serving2/lfm` 각각 4/4 성공(스트리밍, c=1, max_tokens=8). 자체서명 CA 문제는 TLS 정책 단일화(`verify=False`)로 해소.
 - **prod 의존성 단계**: `vllm-lab-prod` 네임스페이스 부재로 `openshift/vllm-dependency/prod` 적용이 `namespaces "vllm-lab-prod" not found`로 실패(optimizer 배포는 정상 유지). 해당 네임스페이스를 만들 때까지 prod 모니터링 라벨 패치 단계는 미실행.
 - Red Hat 2B modelcar 미러 pull 실패로 0.8B 대체 사용 중(이전 라운드부터).
 

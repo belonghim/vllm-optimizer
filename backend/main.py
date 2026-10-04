@@ -19,7 +19,7 @@ from routers import alerts, benchmark, load_test, metrics, sla, status, targets,
 from routers import config as config_router
 from routers.status import check_prometheus_health
 from services.shared import runtime_config
-from services.tls import external_verify, internal_verify
+from services.tls import tls_verify
 
 # ── Logging Configuration ──
 configure_logging()
@@ -56,10 +56,10 @@ async def lifespan(app: FastAPI):
     # ── Initialize httpx clients ──
     try:
         shared_module.internal_client = httpx.AsyncClient(
-            verify=internal_verify(), timeout=httpx.Timeout(30.0, connect=10.0)
+            verify=tls_verify(), timeout=httpx.Timeout(30.0, connect=10.0)
         )
         shared_module.external_client = httpx.AsyncClient(
-            verify=external_verify(), timeout=httpx.Timeout(30.0, connect=10.0)
+            verify=tls_verify(), timeout=httpx.Timeout(30.0, connect=10.0)
         )
         logger.info("[Lifespan] HTTP clients initialized")
     except Exception as e:  # intentional: fail-open
