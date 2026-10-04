@@ -23,6 +23,9 @@ patches:
       name: vllm-optimizer-monitoring-view
     patch: |-
       - op: replace
+        path: /metadata/name
+        value: vllm-optimizer-monitoring-view-dev
+      - op: replace
         path: /subjects/0/namespace
         value: vllm-optimizer-dev
   - target:
@@ -32,6 +35,9 @@ patches:
       name: vllm-optimizer-auth-delegator
     patch: |-
       - op: replace
+        path: /metadata/name
+        value: vllm-optimizer-auth-delegator-dev
+      - op: replace
         path: /subjects/0/namespace
         value: vllm-optimizer-dev
   - target:
@@ -40,6 +46,9 @@ patches:
       kind: ClusterRoleBinding
       name: vllm-optimizer-target-operator
     patch: |-
+      - op: replace
+        path: /metadata/name
+        value: vllm-optimizer-target-operator-dev
       - op: replace
         path: /subjects/0/namespace
         value: vllm-optimizer-dev
