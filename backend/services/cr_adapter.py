@@ -211,14 +211,6 @@ class CRAdapter(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def snapshot_args(self, spec: dict[str, Any]) -> Any:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def build_rollback_patch(self, snapshot: Any) -> dict[str, Any]:
-        raise NotImplementedError
-
-    @abc.abstractmethod
     def pod_label_selector(self, name: str) -> str:
         raise NotImplementedError
 
@@ -318,12 +310,6 @@ class InferenceServiceAdapter(CRAdapter):
 
     def build_model_uri_patch(self, uri: str) -> dict[str, Any]:
         return {"spec": {"predictor": {"model": {"storageUri": uri}}}}
-
-    def snapshot_args(self, spec: dict[str, Any]) -> Any:
-        return list(spec.get("predictor", {}).get("model", {}).get("args") or [])
-
-    def build_rollback_patch(self, snapshot: Any) -> dict[str, Any]:
-        return {"spec": {"predictor": {"model": {"args": snapshot}}}}
 
     def pod_label_selector(self, name: str) -> str:
         return f"serving.kserve.io/inferenceservice={name}"
@@ -486,23 +472,6 @@ class LLMInferenceServiceAdapter(CRAdapter):
 
     def build_model_uri_patch(self, uri: str) -> dict[str, Any]:
         return {"spec": {"model": {"uri": uri}}}
-
-    def snapshot_args(self, spec: dict[str, Any]) -> Any:
-        return self._get_additional_args_value(spec)
-
-    def build_rollback_patch(self, snapshot: Any) -> dict[str, Any]:
-        return {
-            "spec": {
-                "template": {
-                    "containers": [
-                        {
-                            "name": self._MAIN_CONTAINER_NAME,
-                            "env": [{"name": self._ADDITIONAL_ARGS_ENV_NAME, "value": snapshot}],
-                        }
-                    ]
-                }
-            }
-        }
 
     def pod_label_selector(self, name: str) -> str:
         return f"app.kubernetes.io/name={name},kserve.io/component=workload"

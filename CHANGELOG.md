@@ -10,7 +10,10 @@ All notable changes to this project will be documented in this file.
 - **학습 상한 영속화**: 학습한 상한을 `tuner_learned_limits`(target 키별, 7일 TTL)에 저장하고 다음 튜닝 시작 시 자동 적용(시작 시 `tuning_warning`으로 안내). `DELETE /api/tuner/learned-limits`로 현재 타깃의 학습분 초기화.
 - **오버헤드 관측 보정**: 순수 full-attention 모델이 기동 중이면 `overhead = budget×util − weights − 관측 KV 풀`로 역산해 용량표와 튜너 OOM 예측에 사용(`memory_budget.overhead_source`: `table`/`observed`). hybrid/sliding 모델은 풀 토큰 수가 단일 토큰 크기의 배수가 아니라 보정하지 않음.
 
-- **오버헤드 보정 확장(hybrid/sliding 포함)**: 파드 로그 앞부분의 `Available KV cache memory: X GiB`(GPU당)로 `overhead = budget×util − weights − X×GPU수`를 역산 — 토큰 수 기반 보정이 불가능한 hybrid/sliding-window 모델도 보정. 실제 RTX 3060 + Qwen3.5-0.8B에서 표 오버헤드 6.0 → 관측 ≈2.1 GiB, 8192 컨텍스트 동시성 예측 17 → 52(관측 49). `observed.available_kv_gib` 추가, `estimate_ratio`는 보정 후 기준으로 계산.
+- **오버헤드 보정 확장(hybrid/sliding 포함)**: 파드 로그 앞부분의 `Available KV cache memory: X GiB`(GPU당)로 `overhead = budget×util − weights − X×GPU수`를 역산 — 토큰 수 기반 보정이 불가능한 hybrid/sliding-window 모델도 보정. 실제 RTX 3060 + Qwen3.5-0.8B(`openshift/vllm-dependency/gpu-test`의 `qwen-gpu`, serving3)에서 표 오버헤드 6.0 → 관측 ≈1.9–2.1 GiB, 8192 컨텍스트 동시성 예측 17 → 59(vLLM 보고 56, `estimate_ratio` 1.05). `observed.available_kv_gib` 추가, `estimate_ratio`는 보정 후 기준으로 계산.
+
+### Removed
+- 참조가 없는 코드 정리(vulture/knip 근거): `AutoTuner._params_to_args/_update_pareto_front/_handle_trial_result`, `CRAdapter.snapshot_args/build_rollback_patch`(+테스트; `restore_cr_from_snapshot`으로 대체됨), `RuntimeConfig.apply_default_llmisvc`, `Storage.count_trials`, `K8sOperator.get_pod_logs/get_model_name`, 미사용 e2e `MockFactory.ts`, 미사용 devDependency `@vitest/coverage-v8`·`eslint-config-prettier`.
 
 ### Tooling
 - `scripts/smoke-ui.sh [dev|prod]`: `oc port-forward`로 oauth-proxy를 우회해 배포된 프론트엔드에 Playwright 스모크(`frontend/tests/e2e-live/`, `playwright.live.config.ts`)를 실행하고 종료 시 포워딩 정리. 기동 진단 카드(실제 API)와 실패/건너뜀 트라이얼 표(모킹된 `/api/tuner/trials`) 및 콘솔 에러를 확인.

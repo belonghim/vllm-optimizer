@@ -16,9 +16,7 @@ from services.tuner_logic import (
     classify_failure_from_logs,
     execute_trial_for_tuner,
     finalize_tuning_for_tuner,
-    handle_trial_result_for_tuner,
     save_auto_benchmark_for_tuner,
-    update_pareto_front_for_tuner,
 )
 
 from .model_resolver import resolve_model_name
@@ -111,9 +109,6 @@ class AutoTuner:
 
     async def _broadcast_persistence_warning_once(self) -> None:
         await self._event_broadcaster.broadcast_persistence_warning_once()
-
-    def _params_to_args(self, params: dict[str, Any]) -> list[str]:
-        return self._k8s_operator.params_to_args(params)
 
     async def _apply_params(self, params: dict[str, Any]) -> dict[str, Any]:
         return await self._k8s_operator.apply_params(params, self._k8s_lock)
@@ -258,22 +253,6 @@ class AutoTuner:
     async def _run_trial_evaluation(self, trial, trial_num: int) -> tuple[Any, ...]:
         assert self._config is not None
         return await self._objective(self._vllm_endpoint, self._config, trial=trial, trial_num=trial_num)
-
-    async def _update_pareto_front(self) -> None:
-        await update_pareto_front_for_tuner(self)
-
-    async def _handle_trial_result(self, trial, trial_num: int, score, tps, p99_lat, trial_start, params) -> bool:
-        return await handle_trial_result_for_tuner(
-            self,
-            trial,
-            trial_num,
-            score,
-            tps,
-            p99_lat,
-            trial_start,
-            params,
-            save_trial_fn=self._save_trial_fn(),
-        )
 
     async def _execute_trial(self, trial_num: int, config: TuningConfig) -> None:
         await execute_trial_for_tuner(self, trial_num, config)

@@ -279,10 +279,6 @@ class K8sOperator:
             namespace, self._cr_adapter.pod_label_selector(is_name), self._cr_adapter.model_container_name(), tail_lines
         )
 
-    async def get_pod_logs(self, tail_lines: int = 200) -> str | None:
-        report = await self.get_boot_report(tail_lines)
-        return report["logs"] if report else None
-
     async def preflight_check(self) -> dict[str, Any]:
         if not self._k8s_available:
             return {
@@ -321,28 +317,6 @@ class K8sOperator:
                 "error": f"K8s API 오류: {e}",
                 "error_type": "k8s_error",
             }
-
-    async def get_model_name(self) -> str:
-        """Resolve the model name from the InferenceService spec."""
-        if not self._k8s_available or self._k8s_custom is None:
-            return self.target[1]
-        namespace = self.target[0]
-        is_name = self.target[1]
-        custom_api = cast(Any, self._k8s_custom)
-        try:
-            cr_obj = await asyncio.to_thread(
-                custom_api.get_namespaced_custom_object,
-                group=self._cr_adapter.api_group(),
-                version=self._cr_adapter.api_version(),
-                name=is_name,
-                namespace=namespace,
-                plural=self._cr_adapter.api_plural(),
-            )
-            spec = cast(dict[str, Any], cr_obj).get("spec", {}) if cr_obj else {}
-            return self._cr_adapter.resolve_model_name(spec, is_name)
-        except ApiException:
-            logger.warning("Failed to resolve model name from CR, using IS name as fallback: %s", is_name)
-            return is_name
 
     def params_to_args(self, params: dict[str, Any]) -> list[str]:
         args: list[str] = []

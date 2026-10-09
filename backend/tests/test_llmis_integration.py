@@ -150,20 +150,6 @@ def test_patch_vllm_config_llmis_model_uri(isolated_client: TestClient, monkeypa
         assert body["spec"]["model"]["uri"] == "oci://new/model"
 
 
-def test_auto_tuner_snapshot_llmis():
-    adapter = LLMInferenceServiceAdapter()
-    result = adapter.snapshot_args(_MOCK_LLMIS["spec"])
-    assert result == "--max-num-seqs=128 --gpu-memory-utilization=0.85"
-
-
-def test_auto_tuner_rollback_llmis():
-    adapter = LLMInferenceServiceAdapter()
-    patch_body = adapter.build_rollback_patch("--max-num-seqs=128")
-    containers = patch_body["spec"]["template"]["containers"]
-    assert containers[0]["env"][0]["name"] == "VLLM_ADDITIONAL_ARGS"
-    assert containers[0]["env"][0]["value"] == "--max-num-seqs=128"
-
-
 def test_collector_pod_selector_llmis():
     adapter = LLMInferenceServiceAdapter()
     assert (

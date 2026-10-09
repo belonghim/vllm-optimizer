@@ -623,18 +623,6 @@ class Storage:
             logger.error("[Storage] Failed to clear learned limits: %s", e)
             return 0
 
-    async def count_trials(self) -> int:
-        """Return total number of tuner trial records."""
-        if self._conn is None:
-            return 0
-        try:
-            cursor = await self._conn.execute("SELECT COUNT(*) FROM tuner_trials")
-            row = await cursor.fetchone()
-            return int(row[0]) if row else 0
-        except sqlite3.Error as e:  # intentional: fail-open, returns 0 so callers can continue without crashing
-            logger.error("[Storage] Failed to count trials: %s", e)
-            return 0
-
     async def clear_trials(self) -> None:
         """Clear all tuner trials from the database."""
         if self._conn is None:

@@ -239,19 +239,6 @@ class TestInferenceServiceAdapter:
             "spec": {"predictor": {"model": {"storageUri": "oci://new-uri"}}}
         }
 
-    def test_snapshot_args(self):
-        adapter = InferenceServiceAdapter()
-        snapshot = adapter.snapshot_args(SAMPLE_IS_SPEC)
-        assert snapshot == SAMPLE_IS_SPEC["predictor"]["model"]["args"]
-        assert snapshot is not SAMPLE_IS_SPEC["predictor"]["model"]["args"]
-
-    def test_build_rollback_patch(self):
-        adapter = InferenceServiceAdapter()
-        snapshot = ["--max-num-seqs=64"]
-        assert adapter.build_rollback_patch(snapshot) == {
-            "spec": {"predictor": {"model": {"args": ["--max-num-seqs=64"]}}}
-        }
-
     def test_pod_label_selector(self):
         adapter = InferenceServiceAdapter()
         assert adapter.pod_label_selector("llm-ov") == "serving.kserve.io/inferenceservice=llm-ov"
@@ -460,31 +447,6 @@ class TestLLMInferenceServiceAdapter:
     def test_build_model_uri_patch(self):
         adapter = LLMInferenceServiceAdapter()
         assert adapter.build_model_uri_patch("oci://new-uri") == {"spec": {"model": {"uri": "oci://new-uri"}}}
-
-    def test_snapshot_args(self):
-        adapter = LLMInferenceServiceAdapter()
-        snapshot = adapter.snapshot_args(SAMPLE_LLMIS_SPEC)
-        assert snapshot == "--gpu-memory-utilization=0.80 --max-model-len=8192 --tensor-parallel-size=1"
-
-    def test_snapshot_args_missing_env(self):
-        adapter = LLMInferenceServiceAdapter()
-        spec = {"template": {"containers": [{"name": "main", "env": []}]}}
-        assert adapter.snapshot_args(spec) == ""
-
-    def test_build_rollback_patch(self):
-        adapter = LLMInferenceServiceAdapter()
-        assert adapter.build_rollback_patch("--max-model-len=4096") == {
-            "spec": {
-                "template": {
-                    "containers": [
-                        {
-                            "name": "main",
-                            "env": [{"name": "VLLM_ADDITIONAL_ARGS", "value": "--max-model-len=4096"}],
-                        }
-                    ]
-                }
-            }
-        }
 
     def test_pod_label_selector(self):
         adapter = LLMInferenceServiceAdapter()
