@@ -1963,3 +1963,28 @@ async def test_startup_failure_records_trial_learns_limit_and_reads_logs_before_
     assert failed.status == "failed"
     assert failed.failure["diagnoses"][0]["code"] == "mamba_blocks_exceeded"
     assert config.learned_limits[0]["param"] == "max_num_seqs" and config.learned_limits[0]["max"] == 96
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("cr_type", "expected"),
+    [
+        ("inferenceservice", "http://qwen-gpu-predictor.serving3.svc.cluster.local"),
+        ("llminferenceservice", "https://qwen-gpu-kserve-workload-svc.serving3.svc.cluster.local:8000"),
+    ],
+)
+async def test_tuning_load_endpoint_follows_target_when_not_given(cr_type: str, expected: str) -> None:
+    from ..routers.tuner import TuningStartRequest, _build_tuning_config
+
+    body = TuningStartRequest(n_trials=1)
+    body.vllm_namespace, body.vllm_is_name = "serving3", "qwen-gpu"
+    seen: list[str] = []
+
+    async def fake_analyze(endpoint, *args, **kwargs):
+        seen.append(endpoint)
+        raise RuntimeError("skip analysis")
+
+    with patch.dict(_build_tuning_config.__globals__, {"_analyze_target": fake_analyze}):
+        _, endpoint, _ = await _build_tuning_config(body, ("serving3", "qwen-gpu", cr_type))
+    assert endpoint == expected
+    assert seen == [expected]

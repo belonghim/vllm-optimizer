@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 
 - **소스 대조로 부팅 진단 규칙 검증**: RHAI vLLM 0.24 이미지의 vLLM/transformers 소스에서 실제 메시지를 확인. `tp_not_divisible`·`quantization_mismatch`·`bf16_unsupported`·`unsupported_architecture`는 정규식이 소스와 일치. `trust_remote_code_required`는 transformers가 실제로는 "contains custom code which must be executed"를 출력해 기존 규칙이 놓치던 것을 수정(vLLM의 "Failed to load the model config"도 인식). `chat_template_missing`은 소스에 없는 문구를 제거하고 실제 문구만 사용(요청 시점 400 오류이며 부팅 로그에는 나오지 않음). 소스 원문을 테스트로 고정.
 
+- **튜너 부하가 튜닝 대상이 아닌 기본 엔드포인트로 가던 문제**: `/api/tuner/start`에 `vllm_namespace`/`vllm_is_name`만 주고 `vllm_endpoint`를 생략하면 `VLLM_ENDPOINT`(llm-ov, CPU)로 워밍업·평가 부하와 모델 분석이 향했다(트라이얼은 qwen-gpu를 패치). GPU 튜닝에서 보이던 p99 22~46s·tps 36~90이 이 때문이었다(qwen-gpu 직접 부하는 p99 2~5s). 대상이 지정되고 엔드포인트가 없으면 `CRAdapter.default_endpoint()`로 대상에서 도출(UI는 이미 같은 값을 전달). 수정 후 동일 2-trial 재실행: tps 640~680, p99 4.7s.
 ### Changed
 - **예측/학습 스킵은 trial 예산을 소모하지 않음**: 파드 재시작 없이 건너뛴 trial은 `n_trials`에 포함하지 않고 계속 샘플링(상한 `n_trials × 5`회, 초과 시 경고). `trials_completed`도 스킵 제외. 이전에는 6회 요청 중 5회가 스킵되어 실질 1회만 평가됨.
 - `llm-ov`: cpu 4 / memory 8Gi 고정(requests=limits), `--max-num-batched-tokens=512` 추가. serving1/2의 InferenceService·LLMInferenceService는 `serving.kserve.io/stop` 어노테이션으로 중지.

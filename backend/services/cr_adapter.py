@@ -215,6 +215,10 @@ class CRAdapter(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    def default_endpoint(self, name: str, namespace: str) -> str:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     def prometheus_job(self, name: str, namespace: str = "") -> str:
         raise NotImplementedError
 
@@ -316,6 +320,9 @@ class InferenceServiceAdapter(CRAdapter):
 
     def deployment_name(self, name: str) -> str:
         return f"{name}-predictor"
+
+    def default_endpoint(self, name: str, namespace: str) -> str:
+        return f"http://{name}-predictor.{namespace}.svc.cluster.local"
 
     def prometheus_job(self, name: str, namespace: str = "") -> str:
         return f"{name}-metrics"
@@ -478,6 +485,9 @@ class LLMInferenceServiceAdapter(CRAdapter):
 
     def deployment_name(self, name: str) -> str:
         return f"{name}-kserve"
+
+    def default_endpoint(self, name: str, namespace: str) -> str:
+        return f"https://{name}-kserve-workload-svc.{namespace}.svc.cluster.local:8000"
 
     def prometheus_job(self, name: str, namespace: str = "") -> str:
         # LLMIS job label includes namespace prefix: "{namespace}/kserve-llm-isvc-vllm-engine"

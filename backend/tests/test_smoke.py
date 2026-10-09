@@ -150,6 +150,8 @@ def test_dual_cr_adapter_contract() -> None:
     assert isvc.metric_prefix() == "vllm:"
     assert llmis.metric_prefix() == "kserve_vllm:"
     assert isvc.prometheus_job("m") != llmis.prometheus_job("m", "ns")
+    assert isvc.default_endpoint("m", "ns") == "http://m-predictor.ns.svc.cluster.local"
+    assert llmis.default_endpoint("m", "ns") == "https://m-kserve-workload-svc.ns.svc.cluster.local:8000"
 
     # KServe: args live in spec.predictor.model.args
     isvc_spec = {

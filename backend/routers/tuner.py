@@ -484,7 +484,13 @@ async def _build_tuning_config(
 ) -> tuple[TuningConfig, str, SweepConfig | None]:
     import os
 
-    vllm_endpoint = body.vllm_endpoint or os.getenv("VLLM_ENDPOINT", "http://localhost:8000")
+    if body.vllm_endpoint:
+        vllm_endpoint = body.vllm_endpoint
+    elif body.vllm_namespace and body.vllm_is_name:
+        # Load must hit the CR the trials patch, not the process-wide default endpoint.
+        vllm_endpoint = get_cr_adapter(target[2]).default_endpoint(target[1], target[0])
+    else:
+        vllm_endpoint = os.getenv("VLLM_ENDPOINT", "http://localhost:8000")
     sweep_config = body.sweep_config
     if body.evaluation_mode == "sweep" and sweep_config is not None and not sweep_config.endpoint:
         sweep_config = sweep_config.model_copy(update={"endpoint": vllm_endpoint})
