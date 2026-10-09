@@ -111,6 +111,13 @@ def format_analysis_facts(analysis: dict[str, Any]) -> str:
             f"- 제안 탐색 범위: max_num_seqs {space['max_num_seqs_min']}~{space['max_num_seqs_max']}, "
             f"max_model_len {space['max_model_len_min']}~{space['max_model_len_max']}"
         )
+    recs = (analysis.get("advice") or {}).get("recommendations") or []
+    gaps = [r for r in recs if r.get("kind") == "required" and r.get("status") in ("missing", "mismatch")]
+    if gaps:
+        lines.append(
+            "- 필수 기능 인자 누락/불일치(현재 설정 기준): "
+            + ", ".join(f"{r['flag']}={r['value']}" if r.get("value") else str(r["flag"]) for r in gaps)
+        )
     warnings = [w for w in analysis.get("warnings") or [] if "ANALYST_ENDPOINT" not in w]
     lines += [f"- 주의: {w}" for w in warnings]
     return "\n".join(lines)

@@ -8,6 +8,7 @@ import json
 import logging
 import time
 import uuid
+from dataclasses import replace
 from datetime import datetime
 from typing import Any, Literal
 
@@ -24,16 +25,20 @@ from models.load_test import (
 )
 from pydantic import BaseModel, Field, model_validator
 from services.auto_tuner import AutoTuner
-from services.cr_adapter import CRAdapter, extract_arg_value, get_cr_adapter
+from services.cr_adapter import CRAdapter, config_dict_to_args_list, extract_arg_value, get_cr_adapter
 from services.llm_assistant import get_llm_assistant
 from services.model_analysis import (
+    DEFAULT_MAX_NUM_BATCHED_TOKENS,
+    DEFAULT_UTILIZATION,
     ModelAnalysis,
     capacity_table,
+    gpu_overhead_gib,
     memory_budget,
     observed_capacity,
     suggest_search_space,
 )
 from services.model_config_reader import get_model_config_reader
+from services.serving_advisor import recommend_serving_args
 from services.shared import load_engine, multi_target_collector, runtime_config, storage
 
 logger = logging.getLogger(__name__)
@@ -215,8 +220,17 @@ class ModelAnalysisResponse(BaseModel):
     capacity: list[dict[str, Any]] = Field(default_factory=list)
     observed: dict[str, Any] | None = None
     suggested_search_space: dict[str, int] | None = None
+    advice: dict[str, Any] | None = None
     analyst_available: bool = False
     warnings: list[str] = Field(default_factory=list)
+
+
+def _positive_number(value: Any, cast: type[int] | type[float]) -> float | int | None:
+    try:
+        number = cast(float(value)) if value not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+    return number if number and number > 0 else None
 
 
 class ModelAnalysisExplainResponse(BaseModel):
@@ -246,11 +260,14 @@ async def _read_target_spec(namespace: str, is_name: str, adapter: CRAdapter) ->
 async def _analyze_target(
     vllm_endpoint: str,
     accelerator_memory_gib: float | None,
-    utilization: float,
+    utilization: float | None,
     refresh: bool = False,
     target: tuple[str, str, str] | None = None,
 ) -> tuple[ModelAnalysisResponse, ModelAnalysis | None, dict[str, Any] | None, CRAdapter]:
-    """Analyze ``target`` (namespace, name, cr_type) or, when None, the runtime-config target."""
+    """Analyze ``target`` (namespace, name, cr_type) or, when None, the runtime-config target.
+
+    ``utilization`` None → the target's own ``--gpu-memory-utilization``, else DEFAULT_UTILIZATION.
+    """
     if target is not None:
         namespace, is_name, cr_type = target
         adapter = get_cr_adapter(cr_type)
@@ -305,19 +322,35 @@ async def _analyze_target(
     resp.warnings.extend(analysis.warnings)
 
     budget = memory_budget(resources, accelerator_memory_gib, _parse_memory_gib, openvino=analysis.openvino)
+    if budget.source == "accelerator":
+        budget = replace(budget, overhead_gib=gpu_overhead_gib(budget.gpu_count))
     tp = extract_arg_value(static_args, "--tensor-parallel-size") or extract_arg_value(static_args, "-tp")
+    tp_size = int(tp) if tp and tp.isdigit() else None
+    current_args = adapter.read_args(cr_spec) if cr_spec is not None else {}
+    utilization = (
+        utilization or _positive_number(current_args.get("gpu_memory_utilization"), float) or DEFAULT_UTILIZATION
+    )
+    batched = _positive_number(current_args.get("max_num_batched_tokens"), int) or (
+        DEFAULT_MAX_NUM_BATCHED_TOKENS if budget.gpu_count > 0 else None
+    )
     resp.runtime = {
         "gpu_count": budget.gpu_count,
-        "tensor_parallel_size": int(tp) if tp and tp.isdigit() else None,
+        "tensor_parallel_size": tp_size,
         "kv_cache_dtype": analysis.kv_cache_dtype,
-        "current_args": adapter.read_args(cr_spec) if cr_spec is not None else {},
+        "max_num_batched_tokens": batched,
+        "current_args": current_args,
     }
     resp.memory_budget = {
         "gib": budget.gib,
         "source": budget.source,
         "utilization": None if budget.dedicated_kv else utilization,
         "dedicated_kv": budget.dedicated_kv,
+        "overhead_gib": budget.overhead_gib,
     }
+    if cr_spec is not None:
+        resp.advice = recommend_serving_args(
+            analysis, static_args + config_dict_to_args_list(current_args), budget.gpu_count, tp_size
+        )
     observed = resp.observed
     if budget.source == "unknown_accelerator_memory" and observed is None:
         resp.warnings.append("GPU 장당 메모리(GiB)를 입력하면 동시 시퀀스 상한과 탐색 범위를 계산합니다")
@@ -327,8 +360,8 @@ async def _analyze_target(
         )
     served_len = analysis.served_max_model_len
     if budget.gib:
-        max_context = analysis.max_position_embeddings or served_len
-        resp.capacity = capacity_table(analysis, budget, utilization, max_context)
+        max_context = analysis.context_limit or analysis.max_position_embeddings or served_len
+        resp.capacity = capacity_table(analysis, budget, utilization, max_context, batched)
         resp.suggested_search_space = suggest_search_space(resp.capacity, served_len)
     if observed is not None:
         estimated = next(
@@ -336,7 +369,9 @@ async def _analyze_target(
         )
         reported = observed.get("max_concurrency")
         observed["estimate_ratio"] = round(estimated / reported, 3) if estimated and reported else None
-        resp.capacity = observed_capacity(resp.capacity, observed["kv_cache_size_tokens"], served_len, analysis)
+        resp.capacity = observed_capacity(
+            resp.capacity, observed["kv_cache_size_tokens"], served_len, analysis, batched
+        )
         resp.suggested_search_space = (
             suggest_search_space(resp.capacity, served_len, key="observed_max_seqs") or resp.suggested_search_space
         )
@@ -346,14 +381,14 @@ async def _analyze_target(
 @router.get("/model-analysis", response_model=ModelAnalysisResponse)
 async def get_model_analysis(
     accelerator_memory_gib: float | None = Query(default=None, gt=0, le=1024),
-    utilization: float = Query(default=0.9, gt=0, le=1.0),
+    utilization: float | None = Query(default=None, gt=0, le=1.0),
     refresh: bool = False,
     namespace: str | None = Query(default=None),
     is_name: str | None = Query(default=None),
     cr_type: Literal["inferenceservice", "llminferenceservice"] | None = Query(default=None),
     endpoint: str | None = Query(default=None),
 ) -> ModelAnalysisResponse:
-    """Analyze a target model from its config.json — KV per token, capacity, search ranges.
+    """Analyze a target model from its config.json — KV per token, capacity, search ranges, serving-arg advice.
 
     Without namespace/is_name the runtime-config target is used.
     """
@@ -391,7 +426,7 @@ async def _build_tuning_config(
     served_model_name_warning: str | None = None
     try:
         analysis_resp, analysis, cr_spec, adapter = await _analyze_target(
-            vllm_endpoint, body.accelerator_memory_gib, 0.9, target=target
+            vllm_endpoint, body.accelerator_memory_gib, DEFAULT_UTILIZATION, target=target
         )
         if analysis and analysis.served_model_name and cr_spec is not None:
             cr_served_name = adapter.resolve_model_name(cr_spec, target[1])

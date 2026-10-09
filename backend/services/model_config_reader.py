@@ -6,17 +6,24 @@ import time
 from typing import Any
 
 import httpx
-from services.model_analysis import ModelAnalysis, analyze_config
+from services.model_analysis import ModelAnalysis, ModelArtifacts, analyze_config
 
 logger = logging.getLogger(__name__)
 
 _MODEL_DIR = "/mnt/models"
 _SECTION = "__VLLM_OPTIMIZER_SECTION__"
-# One exec round-trip: config.json, optional openvino_config.json, total weight file bytes.
+# Upper bound per auxiliary file so a pathological tokenizer_config cannot flood the exec stream.
+_MAX_AUX_BYTES = 4 * 1024 * 1024
+# One exec round-trip. Sections: config.json, openvino_config.json, weight bytes, generation_config.json,
+# tokenizer_config.json, chat_template.jinja, custom-code *.py names.
 _READ_SCRIPT = (
     f"cat {_MODEL_DIR}/config.json; echo; echo {_SECTION}; "
     f"cat {_MODEL_DIR}/openvino_config.json 2>/dev/null; echo; echo {_SECTION}; "
-    f"du -cbL {_MODEL_DIR}/*.safetensors {_MODEL_DIR}/*.bin {_MODEL_DIR}/*.gguf 2>/dev/null | tail -1"
+    f"du -cbL {_MODEL_DIR}/*.safetensors {_MODEL_DIR}/*.bin {_MODEL_DIR}/*.gguf 2>/dev/null | tail -1; "
+    f"echo {_SECTION}; head -c {_MAX_AUX_BYTES} {_MODEL_DIR}/generation_config.json 2>/dev/null; echo; echo {_SECTION}; "
+    f"head -c {_MAX_AUX_BYTES} {_MODEL_DIR}/tokenizer_config.json 2>/dev/null; echo; echo {_SECTION}; "
+    f"head -c {_MAX_AUX_BYTES} {_MODEL_DIR}/chat_template.jinja 2>/dev/null; echo; echo {_SECTION}; "
+    f"ls {_MODEL_DIR}/*.py 2>/dev/null"
 )
 
 
@@ -90,6 +97,20 @@ def parse_read_output(raw: str) -> tuple[dict | None, dict | None, int | None]:
     return cfg, ov_cfg, weight_bytes
 
 
+def parse_read_artifacts(raw: str) -> ModelArtifacts | None:
+    """Auxiliary files from the sections after the weight bytes; None when the exec output predates them."""
+    parts = raw.split(_SECTION)
+    if len(parts) < 7:
+        return None
+    template = parts[5].strip("\n")
+    return ModelArtifacts(
+        generation_config=_parse_json(parts[3]),
+        tokenizer_config=_parse_json(parts[4]),
+        chat_template=template if template.strip() else None,
+        custom_code_files=sorted(p.rsplit("/", 1)[-1] for p in parts[6].split() if p.endswith(".py")),
+    )
+
+
 class ModelConfigReader:
     """Reads the target model's config.json via pod exec and analyzes it deterministically.
 
@@ -128,6 +149,7 @@ class ModelConfigReader:
         served_name, served_max_len = await self._read_served_model(vllm_endpoint)
 
         cfg = ov_cfg = None
+        artifacts: ModelArtifacts | None = None
         weight_bytes: int | None = None
         if namespace and pod_label_selector:
             pod_name, _pod_ip = await self._find_running_pod(namespace, pod_label_selector)
@@ -135,11 +157,12 @@ class ModelConfigReader:
                 raw = await self._exec(namespace, pod_name, container, ["sh", "-c", _READ_SCRIPT])
                 if raw:
                     cfg, ov_cfg, weight_bytes = parse_read_output(raw)
+                    artifacts = parse_read_artifacts(raw) if cfg is not None else None
 
         if cfg is None and served_name is None:
             return None
 
-        analysis = analyze_config(cfg or {}, kv_cache_dtype=kv_cache_dtype, openvino_cfg=ov_cfg)
+        analysis = analyze_config(cfg or {}, kv_cache_dtype=kv_cache_dtype, openvino_cfg=ov_cfg, artifacts=artifacts)
         if cfg is None:
             analysis.warnings.insert(0, "config.json을 읽지 못함 — pods/exec 권한 또는 파드 상태 확인")
         analysis.served_model_name = served_name

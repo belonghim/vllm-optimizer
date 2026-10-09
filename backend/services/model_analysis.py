@@ -5,11 +5,12 @@ Derives the KV cache footprint and serving capacity of the target model with pla
 no LLM involved. Handles nested ``text_config`` (multimodal), explicit ``head_dim``, hybrid
 ``layer_types`` (full / sliding / linear attention), KV-shared layers, MLA and MoE metadata.
 
-Capacity numbers are theoretical upper bounds: activation, CUDA graph and runtime overhead are not
-subtracted, so the real limit is lower.
+Capacity numbers are estimates: GPU budgets subtract a conservative TP-based overhead, but the real
+limit is whatever vLLM measured at startup (see ``observed_capacity``).
 """
 
 import math
+import re
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
@@ -34,6 +35,22 @@ _DTYPE_BYTES = {
 
 CAPACITY_CONTEXT_LENS = (1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144)
 
+# Fallback --gpu-memory-utilization when the target sets none (conservative vs vLLM v0.24.0's 0.92).
+DEFAULT_UTILIZATION = 0.9
+
+# vLLM v1 default on H100/H200-class GPUs; sliding-window layers reserve window - 1 + this many tokens.
+DEFAULT_MAX_NUM_BATCHED_TOKENS = 8192
+
+_CONTEXT_KEYS = (
+    "max_position_embeddings",
+    "n_positions",
+    "max_seq_len",
+    "seq_length",
+    "model_max_length",
+    "max_sequence_length",
+)
+_NO_FACTOR_ROPE_TYPES = frozenset({"llama3", "longrope", "su", "default"})
+
 
 def _pos_int(d: dict[str, Any], key: str) -> int | None:
     val = d.get(key)
@@ -44,6 +61,16 @@ def _dtype_bytes(dtype: Any, default: int = 2) -> int:
     if isinstance(dtype, str):
         return _DTYPE_BYTES.get(dtype.lower().removeprefix("torch."), default)
     return default
+
+
+@dataclass
+class ModelArtifacts:
+    """Auxiliary model files read next to config.json (all optional)."""
+
+    generation_config: dict[str, Any] | None = None
+    tokenizer_config: dict[str, Any] | None = None
+    chat_template: str | None = None
+    custom_code_files: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -80,12 +107,36 @@ class ModelAnalysis:
     # Runtime facts from the serving endpoint (/v1/models), not from config.json.
     served_model_name: str | None = None
     served_max_model_len: int | None = None
+    # Context ceiling vLLM derives from config/tokenizer/rope when --max-model-len is unset.
+    context_limit: int | None = None
+    rope_type: str | None = None
+    mtp_layers: int = 0
+    auto_map: bool = False
+    # auto_map points at another Hub repo ("org/repo--module.Class") — unreachable offline.
+    auto_map_remote: bool = False
+    custom_code_files: list[str] = field(default_factory=list)
+    # False when only config.json was readable (artifacts below are then unknown, not absent).
+    artifacts_read: bool = False
+    chat_template_source: str | None = None
+    template_signatures: list[str] = field(default_factory=list)
+    thinking_default: str | None = None
+    generation_defaults: dict[str, Any] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
 
-    def kv_bytes_per_seq(self, context_len: int) -> int | None:
+    def kv_bytes_per_seq(self, context_len: int, max_num_batched_tokens: int | None = None) -> int | None:
+        """KV bytes one sequence of ``context_len`` tokens occupies.
+
+        With ``max_num_batched_tokens`` sliding-window layers reserve ``window - 1 + max_num_batched_tokens``
+        tokens (vLLM admits a request against that, not the bare window).
+        """
         if self.kv_bytes_per_token is None:
             return None
-        window_tokens = min(context_len, self.sliding_window) if self.sliding_window else context_len
+        window_tokens = context_len
+        if self.sliding_window:
+            reserved = (
+                self.sliding_window - 1 + max_num_batched_tokens if max_num_batched_tokens else self.sliding_window
+            )
+            window_tokens = min(context_len, reserved)
         return (
             self.kv_bytes_per_token * context_len
             + self.sliding_kv_bytes_per_token * window_tokens
@@ -138,10 +189,82 @@ def _quantization(cfg: dict[str, Any], text: dict[str, Any], openvino_cfg: dict[
     return None
 
 
+def _derive_context_limit(
+    cfg: dict[str, Any], text: dict[str, Any], tokenizer_cfg: dict[str, Any] | None
+) -> tuple[int | None, str | None]:
+    """vLLM's max-model-len ceiling (config keys, tokenizer model_max_length, rope scaling) and the rope type."""
+    candidates = [v for k in _CONTEXT_KEYS if (v := _pos_int(text, k) or _pos_int(cfg, k))]
+    if tokenizer_cfg:
+        tok_len = tokenizer_cfg.get("model_max_length")
+        if isinstance(tok_len, (int, float)) and not isinstance(tok_len, bool) and 0 < tok_len < 10**15:
+            candidates.append(int(tok_len))
+    derived = min(candidates) if candidates else None
+    rope = text.get("rope_scaling") or text.get("rope_parameters") or cfg.get("rope_scaling")
+    if not isinstance(rope, dict):
+        return derived, None
+    rope_type = rope.get("rope_type") or rope.get("type")
+    rope_type = rope_type if isinstance(rope_type, str) else None
+    factor = rope.get("factor")
+    if rope_type and isinstance(factor, (int, float)) and not isinstance(factor, bool) and factor > 0:
+        if rope_type == "yarn":
+            original = _pos_int(rope, "original_max_position_embeddings") or derived
+            derived = int(original * factor) if original else derived
+        elif rope_type not in _NO_FACTOR_ROPE_TYPES and derived:
+            derived = int(derived * factor)
+    return derived, rope_type
+
+
+_TEMPLATE_SIGNATURES = (
+    ("tool_xml", lambda t: "<function=" in t),
+    ("tool_json", lambda t: "<tool_call>" in t and "<function=" not in t),
+    ("harmony", lambda t: "<|channel|>" in t),
+    ("gemma4_tool", lambda t: "<|tool_call>" in t),
+    ("enable_thinking", lambda t: "enable_thinking" in t),
+    ("think", lambda t: "<think>" in t),
+    ("reasoning_effort", lambda t: "reasoning_effort" in t),
+)
+
+
+def analyze_chat_template(template: str) -> tuple[list[str], str | None]:
+    """Template signatures (tool-call / reasoning dialect) and whether thinking is on by default."""
+    signatures = [name for name, test in _TEMPLATE_SIGNATURES if test(template)]
+    thinking_default: str | None = None
+    if re.search(r"enable_thinking is defined and enable_thinking is false", template):
+        thinking_default = "enabled"
+    elif re.search(r"enable_thinking is defined and enable_thinking|enable_thinking\s*\|\s*default\(false\)", template):
+        thinking_default = "disabled"
+    return signatures, thinking_default
+
+
+def _resolve_chat_template(artifacts: ModelArtifacts) -> tuple[str, str | None]:
+    if artifacts.chat_template and artifacts.chat_template.strip():
+        return artifacts.chat_template, "chat_template.jinja"
+    tpl = (artifacts.tokenizer_config or {}).get("chat_template")
+    if isinstance(tpl, list):
+        tpl = " ".join(t.get("template", "") for t in tpl if isinstance(t, dict))
+    if isinstance(tpl, str) and tpl.strip():
+        return tpl, "tokenizer_config.json"
+    return "", None
+
+
+_SAMPLING_KEYS = ("temperature", "top_p", "top_k", "min_p", "repetition_penalty", "max_new_tokens")
+
+
+def _apply_artifacts(a: ModelAnalysis, artifacts: ModelArtifacts) -> None:
+    a.artifacts_read = True
+    a.custom_code_files = list(artifacts.custom_code_files)
+    template, a.chat_template_source = _resolve_chat_template(artifacts)
+    if template:
+        a.template_signatures, a.thinking_default = analyze_chat_template(template)
+    gen = artifacts.generation_config or {}
+    a.generation_defaults = {k: gen[k] for k in _SAMPLING_KEYS if k in gen}
+
+
 def analyze_config(
     cfg: dict[str, Any],
     kv_cache_dtype: str | None = None,
     openvino_cfg: dict[str, Any] | None = None,
+    artifacts: ModelArtifacts | None = None,
 ) -> ModelAnalysis:
     """Analyze an HF config.json dict. ``kv_cache_dtype`` is the vLLM --kv-cache-dtype value (None/"auto")."""
     text_cfg = cfg.get("text_config")
@@ -167,6 +290,15 @@ def analyze_config(
         a.kv_dtype_bytes = 1
 
     a.max_position_embeddings = _pos_int(text, "max_position_embeddings")
+    a.context_limit, a.rope_type = _derive_context_limit(cfg, text, artifacts.tokenizer_config if artifacts else None)
+    a.mtp_layers = _pos_int(text, "mtp_num_hidden_layers") or _pos_int(text, "num_nextn_predict_layers") or 0
+    auto_map = cfg.get("auto_map")
+    if isinstance(auto_map, dict) and auto_map:
+        a.auto_map = True
+        values = [v for val in auto_map.values() for v in (val if isinstance(val, list) else [val])]
+        a.auto_map_remote = any(isinstance(v, str) and "--" in v for v in values)
+    if artifacts is not None:
+        _apply_artifacts(a, artifacts)
     a.num_experts = (
         _pos_int(text, "num_experts") or _pos_int(text, "n_routed_experts") or _pos_int(text, "num_local_experts")
     )
@@ -232,13 +364,26 @@ class MemoryBudget:
     # True when the budget is a dedicated KV pool (OpenVINO VLLM_OPENVINO_KVCACHE_SPACE): no utilization
     # factor and no weight subtraction apply.
     dedicated_kv: bool = False
+    # CUDA graph / activation / NCCL reserve across all devices (see gpu_overhead_gib).
+    overhead_gib: float = 0.0
 
     def kv_bytes(self, utilization: float, weight_gib: float | None) -> float:
         if self.gib is None:
             return 0.0
         if self.dedicated_kv:
             return self.gib * GIB
-        return self.gib * utilization * GIB - (weight_gib or 0.0) * GIB
+        return self.gib * utilization * GIB - ((weight_gib or 0.0) + self.overhead_gib) * GIB
+
+
+_OVERHEAD_GIB_PER_GPU_BY_TP = ((1, 6.0), (2, 10.0), (4, 16.0), (8, 24.0))
+
+
+def gpu_overhead_gib(device_count: int) -> float:
+    """Conservative non-KV, non-weight GPU reserve (CUDA graph, activations, NCCL) before a first boot measurement."""
+    if device_count <= 0:
+        return 0.0
+    per_gpu = next((gib for tp, gib in _OVERHEAD_GIB_PER_GPU_BY_TP if device_count <= tp), 24.0)
+    return per_gpu * device_count
 
 
 def memory_budget(
@@ -277,13 +422,14 @@ def capacity_table(
     budget: MemoryBudget,
     utilization: float,
     max_context: int | None,
+    max_num_batched_tokens: int | None = None,
 ) -> list[dict[str, Any]]:
     kv_budget = budget.kv_bytes(utilization, analysis.model_weight_gib)
     rows: list[dict[str, Any]] = []
     for ctx in CAPACITY_CONTEXT_LENS:
         if max_context and ctx > max_context:
             break
-        per_seq = analysis.kv_bytes_per_seq(ctx)
+        per_seq = analysis.kv_bytes_per_seq(ctx, max_num_batched_tokens)
         if not per_seq:
             break
         rows.append(
@@ -301,6 +447,7 @@ def observed_capacity(
     kv_cache_size_tokens: int,
     served_max_model_len: int | None,
     analysis: ModelAnalysis | None = None,
+    max_num_batched_tokens: int | None = None,
 ) -> list[dict[str, Any]]:
     """Add vLLM's measured capacity (``observed_max_seqs``) to the estimated rows.
 
@@ -317,7 +464,7 @@ def observed_capacity(
             ctx,
             {
                 "context_len": ctx,
-                "kv_bytes_per_seq": analysis.kv_bytes_per_seq(ctx) if analysis else None,
+                "kv_bytes_per_seq": analysis.kv_bytes_per_seq(ctx, max_num_batched_tokens) if analysis else None,
                 "max_concurrent_seqs": None,
             },
         )

@@ -35,8 +35,9 @@ Deterministic analysis of the selected target's `/mnt/models/config.json` (read 
 | Element | Description |
 |---------|-------------|
 | GPU memory per device (GiB) | Needed for GPU targets (not discoverable from the CR). CPU/OpenVINO targets use the pod memory limit. Also sent with tuner start as `accelerator_memory_gib` |
-| Facts | Architecture, layer mix (full / sliding / linear, KV-shared), heads/head_dim, KV bytes per token, sliding-window and linear-state memory, KV cache dtype, weight size, quantization, MoE, context limits |
-| Capacity table | Max concurrent sequences per context length = (budget × 0.9 − weights) / KV per sequence. Theoretical upper bound |
+| Facts | Architecture, layer mix (full / sliding / linear, KV-shared), heads/head_dim, KV bytes per token, sliding-window and linear-state memory, KV cache dtype, weight size, quantization, MoE, context limits, derived context limit (rope/tokenizer), chat-template signatures, default sampling, MTP layers |
+| Capacity table | Max concurrent sequences per context length = (budget × utilization − per-GPU overhead reserve − weights) / KV per sequence. `utilization` follows the target's `--gpu-memory-utilization` (default 0.9). Planning estimate; measured values win |
+| Serving arguments | Rule-based feature-flag advice (tool/reasoning parsers, chat template, fp8 KV, prefix caching, MTP, multimodal, trust-remote-code, avoid `--quantization`/`--dtype`) derived from chat-template signatures and config.json, compared with the target's current args, plus a copyable `add_args` line and notes (context limit exceeded, Mamba/sliding reservations) |
 | Measured (vLLM) | When the target pod's `/metrics` is reachable (`vllm:cache_config_info`, pod `list` only), the table shows vLLM's measured `observed_max_seqs` next to the estimate, with the pool size and `estimate/measured` ratio above it; the suggested search space then prefers the measured capacity |
 | Apply to search space | Copies the suggested `max_num_seqs` / `max_model_len` ranges into the tuner form |
 | Explain with analyst LLM | Shown only when `ANALYST_ENDPOINT` is set. Sends the computed analysis to the analyst model (e.g. llm-ov) for a short Korean narrative; it must not invent numbers |

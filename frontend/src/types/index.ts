@@ -285,6 +285,17 @@ export interface ModelAnalysisModel {
   model_weight_gib: number | null;
   served_model_name: string | null;
   served_max_model_len: number | null;
+  context_limit: number | null;
+  rope_type: string | null;
+  mtp_layers: number;
+  auto_map: boolean;
+  auto_map_remote: boolean;
+  custom_code_files: string[];
+  artifacts_read: boolean;
+  chat_template_source: string | null;
+  template_signatures: string[];
+  thinking_default: 'enabled' | 'disabled' | null;
+  generation_defaults: Record<string, number>;
   warnings: string[];
 }
 
@@ -313,6 +324,31 @@ export interface SuggestedSearchSpace {
   max_model_len_max: number;
 }
 
+export type ServingRecommendationKind = 'required' | 'workload' | 'avoid';
+export type ServingRecommendationStatus = 'present' | 'missing' | 'mismatch';
+
+export interface ServingRecommendation {
+  flag: string;
+  kind: ServingRecommendationKind;
+  status: ServingRecommendationStatus;
+  reason: string;
+  value: string | null;
+  current: string | null;
+  arg: string | null;
+  evidence: string;
+}
+
+export interface ServingAdviceNote {
+  level: 'info' | 'warning';
+  text: string;
+}
+
+export interface ServingAdvice {
+  recommendations: ServingRecommendation[];
+  notes: ServingAdviceNote[];
+  add_args: string;
+}
+
 export interface ModelAnalysis {
   target: { namespace: string; name: string; cr_type: string };
   available: boolean;
@@ -321,6 +357,7 @@ export interface ModelAnalysis {
     gpu_count?: number;
     tensor_parallel_size?: number | null;
     kv_cache_dtype?: string;
+    max_num_batched_tokens?: number | null;
     current_args?: Record<string, unknown>;
   };
   memory_budget: {
@@ -328,10 +365,12 @@ export interface ModelAnalysis {
     source?: string;
     utilization?: number | null;
     dedicated_kv?: boolean;
+    overhead_gib?: number;
   };
   capacity: ModelCapacityRow[];
   observed?: ObservedKvCache | null;
   suggested_search_space: SuggestedSearchSpace | null;
+  advice?: ServingAdvice | null;
   analyst_available: boolean;
   warnings: string[];
 }

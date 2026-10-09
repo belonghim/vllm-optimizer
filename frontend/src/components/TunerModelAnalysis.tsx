@@ -5,6 +5,7 @@ import { buildDefaultEndpoint } from '../utils/endpointUtils';
 import { renderMarkdown } from '../utils/renderMarkdown';
 import { useClusterConfig } from '../contexts/ClusterConfigContext';
 import ErrorAlert from './ErrorAlert';
+import TunerServingAdvice from './TunerServingAdvice';
 import type { ClusterTarget, ModelAnalysis, SuggestedSearchSpace } from '../types';
 
 interface TunerModelAnalysisProps {
@@ -30,6 +31,20 @@ function layerSummary(m: NonNullable<ModelAnalysis['model']>): string {
   if (m.linear_attention_layers) parts.push(`linear ${m.linear_attention_layers}`);
   if (m.kv_shared_layers) parts.push(`KV-shared ${m.kv_shared_layers}`);
   return `${m.num_hidden_layers ?? '—'} (${parts.join(' · ')})`;
+}
+
+function chatTemplateSummary(m: NonNullable<ModelAnalysis['model']>): string {
+  const parts: string[] = [];
+  if (m.chat_template_source) parts.push(m.chat_template_source);
+  if (m.template_signatures.length > 0) parts.push(m.template_signatures.join(', '));
+  if (m.thinking_default) parts.push(`thinking ${m.thinking_default}`);
+  return parts.join(' · ');
+}
+
+function samplingSummary(defaults: Record<string, number>): string {
+  return Object.entries(defaults)
+    .map(([key, value]) => `${key}=${value}`)
+    .join(' · ');
 }
 
 export default function TunerModelAnalysis({
@@ -123,6 +138,7 @@ export default function TunerModelAnalysis({
   const m = analysis?.model;
   const observed = analysis?.observed;
   const space = analysis?.suggested_search_space;
+  const overheadGib = analysis?.memory_budget.overhead_gib ?? 0;
   const facts: [string, string][] = m
     ? [
         ['Architecture', `${m.architecture ?? '—'}${m.multimodal ? ' (multimodal)' : ''}`],
@@ -165,6 +181,21 @@ export default function TunerModelAnalysis({
           'Context',
           `max_position ${m.max_position_embeddings ?? '—'} · serving ${m.served_max_model_len ?? '—'}`,
         ],
+        ...(m.context_limit != null
+          ? ([
+              [
+                'Context limit',
+                `${m.context_limit.toLocaleString()}${m.rope_type ? ` · rope ${m.rope_type}` : ''}`,
+              ],
+            ] as [string, string][])
+          : []),
+        ...(m.chat_template_source || m.template_signatures.length > 0 || m.thinking_default
+          ? ([['Chat template', chatTemplateSummary(m)]] as [string, string][])
+          : []),
+        ...(Object.keys(m.generation_defaults).length > 0
+          ? ([['Default sampling', samplingSummary(m.generation_defaults)]] as [string, string][])
+          : []),
+        ...(m.mtp_layers > 0 ? ([['MTP layers', String(m.mtp_layers)]] as [string, string][]) : []),
       ]
     : [];
 
@@ -223,6 +254,9 @@ export default function TunerModelAnalysis({
             {analysis?.runtime.gpu_count ? ` · GPU ×${analysis.runtime.gpu_count}` : ''}
             {analysis?.runtime.tensor_parallel_size
               ? ` · TP ${analysis.runtime.tensor_parallel_size}`
+              : ''}
+            {analysis?.runtime.max_num_batched_tokens != null
+              ? ` · max_num_batched_tokens not required (using ${analysis.runtime.max_num_batched_tokens.toLocaleString()})`
               : ''}
           </div>
         </div>
@@ -288,13 +322,16 @@ export default function TunerModelAnalysis({
         </table>
       )}
       {analysis && analysis.capacity.length > 0 && (
-        <div style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '4px 0 0.75rem' }}>
-          Estimate is a theoretical upper bound — activation, CUDA graph and runtime overhead are
-          not subtracted.
+        <div style={{ fontSize: '11px', color: 'var(--muted-color)', margin: '4px 0 0.75rem' }}>
+          {overheadGib > 0
+            ? `Estimate includes ${overheadGib} GiB reserve for CUDA graph/activations.`
+            : 'Estimate is a theoretical upper bound — runtime overhead is not subtracted.'}
           {observed &&
             ' Measured = KV pool vLLM actually allocated with the current args (shown up to the served max_model_len); suggestions use it.'}
         </div>
       )}
+
+      <TunerServingAdvice advice={analysis?.advice} />
 
       <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
         {space && (

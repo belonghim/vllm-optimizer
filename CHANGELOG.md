@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-09] - 모델 분석 확장: 기능 인자 추천·컨텍스트 상한 유도·오버헤드 반영
+
+### Added
+- **서빙 인자 추천(`services/serving_advisor.py`)**: 가이드(config.json → vLLM 인자 도출)의 규칙을 결정론적으로 구현. chat template 시그니처(`tool_xml`/`tool_json`/`harmony`/`gemma4_tool`/`think`)로 `--tool-call-parser`·`--reasoning-parser`·`--enable-auto-tool-choice`, 템플릿 부재 시 `--chat-template`, `--kv-cache-dtype=fp8`, hybrid `--enable-prefix-caching`, MTP `--speculative-config`, 멀티모달(`--language-model-only`·`--limit-mm-per-prompt`·`--mm-encoder-tp-mode=data`·Gemma4 `--attention-backend`), `auto_map` 시 `--trust-remote-code`, 양자화 체크포인트의 `--quantization`/`--dtype` 지정 경고. 대상 CR의 현재 args(`static + tuning`)와 비교해 present/missing/mismatch 상태와 붙여넣기용 `add_args` 제공. InferenceService·LLMIS 모두 동일 경로(`CRAdapter`).
+- **모델 산출물 읽기**: pod exec로 `generation_config.json`·`tokenizer_config.json`·`chat_template.jinja`·`*.py` 목록 추가 수집(파일당 4 MiB 상한). 기본 샘플링, 사용자 정의 코드 누락 등 노트에 사용.
+- **컨텍스트 상한 유도**: config 컨텍스트 키 최솟값, tokenizer `model_max_length`, YaRN `original×factor`(llama3/longrope/su/default는 제외)로 `context_limit` 계산. `--max-model-len` 초과 시 경고 노트.
+- **`GET /api/tuner/model-analysis`**: 응답에 `advice`, `model.context_limit` 등 신규 필드, `runtime.max_num_batched_tokens`, `memory_budget.overhead_gib` 추가.
+- **프런트엔드**: 모델 분석 패널에 "Serving arguments" 섹션(추천 표·노트·복사 가능한 `add_args`)과 신규 팩트 행.
+- 분석가 LLM 팩트에 필수 기능 인자 누락/불일치 요약 추가(숫자는 계산값만 서술).
+
+### Changed
+- **용량 추정**: sliding-window 예약을 `window-1+max_num_batched_tokens`로, GPU 타깃에 TP별 보수적 오버헤드(GPU당 6/10/16/24 GiB)를 차감. 더 이상 "이론적 상한"이 아니라 계획용 추정치(실측 `observed` 우선).
+- **`utilization` 기본값**: 쿼리 미지정 시 대상 CR의 `--gpu-memory-utilization`, 없으면 0.9.
+
+### Verification
+- `backend/tests/test_serving_advisor.py`(신규) + `test_model_analysis.py`: 아티팩트 파싱, 템플릿 시그니처, 컨텍스트 상한, 오버헤드, 규칙별 추천, 두 CR 타입의 엔드포인트 `advice`/`utilization` 폴백 검증.
+
+### Not implemented
+- GDN 페이지 크기·KV 그룹 패딩의 정확한 계산, Mamba 블록 기반 `--max-num-seqs` 상한의 수치 계산, 기동 로그 진단, 튜너의 오버헤드 기반 OOM 예측.
+
 ## [2026-10-04] - 군더더기 제거·튜너 수정·RBAC 환경 분리 및 검증 라운드
 
 ### Removed

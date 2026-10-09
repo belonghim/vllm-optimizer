@@ -36,10 +36,26 @@ const ANALYSIS = {
     model_weight_gib: 0.82,
     served_model_name: 'qwen',
     served_max_model_len: 8192,
+    context_limit: 262144,
+    rope_type: 'yarn',
+    mtp_layers: 1,
+    auto_map: false,
+    auto_map_remote: false,
+    custom_code_files: [],
+    artifacts_read: true,
+    chat_template_source: 'chat_template.jinja',
+    template_signatures: ['tool_xml', 'think'],
+    thinking_default: 'enabled',
+    generation_defaults: { temperature: 0.7, top_p: 0.8 },
     warnings: [],
   },
-  runtime: { gpu_count: 0, tensor_parallel_size: null, kv_cache_dtype: 'auto' },
-  memory_budget: { gib: 8, source: 'pod_memory', utilization: 0.9 },
+  runtime: {
+    gpu_count: 0,
+    tensor_parallel_size: null,
+    kv_cache_dtype: 'auto',
+    max_num_batched_tokens: 8192,
+  },
+  memory_budget: { gib: 8, source: 'pod_memory', utilization: 0.9, overhead_gib: 6 },
   capacity: [
     { context_len: 2048, kv_bytes_per_seq: 44708864, max_concurrent_seqs: 154 },
     { context_len: 8192, kv_bytes_per_seq: 120206336, max_concurrent_seqs: 57 },
@@ -49,6 +65,42 @@ const ANALYSIS = {
     max_num_seqs_max: 128,
     max_model_len_min: 2048,
     max_model_len_max: 8192,
+  },
+  advice: {
+    recommendations: [
+      {
+        flag: '--tool-call-parser',
+        kind: 'required',
+        status: 'missing',
+        reason: 'template tool_xml — 툴 호출이 텍스트로 반환됨',
+        value: 'qwen3_coder',
+        current: null,
+        arg: '--tool-call-parser=qwen3_coder',
+        evidence: 'chat template tool_xml',
+      },
+      {
+        flag: '--reasoning-parser',
+        kind: 'required',
+        status: 'mismatch',
+        reason: '추론 파서 값이 템플릿과 불일치',
+        value: 'qwen3',
+        current: 'deepseek_r1',
+        arg: null,
+        evidence: 'template think',
+      },
+      {
+        flag: '--quantization',
+        kind: 'avoid',
+        status: 'present',
+        reason: 'config가 양자화(openvino-int4)를 자동 감지 — 제거 권장',
+        value: null,
+        current: 'openvino-int4',
+        arg: null,
+        evidence: 'quantization_config',
+      },
+    ],
+    notes: [{ level: 'warning', text: 'MTP와 prefix caching 동시 사용 주의' }],
+    add_args: '--tool-call-parser=qwen3_coder',
   },
   analyst_available: true,
   warnings: [],
@@ -176,5 +228,94 @@ describe('TunerModelAnalysis', () => {
     fireEvent.change(input, { target: { value: '141' } });
     fireEvent.blur(input);
     await waitFor(() => expect(onMemory).toHaveBeenCalledWith(141));
+  });
+
+  it('renders the new model facts, overhead reserve and max_num_batched_tokens hint', async () => {
+    server.use(http.get(`${API}/tuner/model-analysis`, () => HttpResponse.json(ANALYSIS)));
+    render(
+      <TunerModelAnalysis
+        isActive={true}
+        acceleratorMemoryGib={null}
+        onAcceleratorMemoryChange={vi.fn()}
+        onApplySearchSpace={vi.fn()}
+      />
+    );
+
+    await screen.findByText('24 (full 6 · linear 18)');
+    expect(screen.getByText('Context limit').parentElement).toHaveTextContent(
+      '262,144 · rope yarn'
+    );
+    expect(screen.getByText('Chat template').parentElement).toHaveTextContent(
+      'chat_template.jinja · tool_xml, think · thinking enabled'
+    );
+    expect(screen.getByText('Default sampling').parentElement).toHaveTextContent(
+      'temperature=0.7 · top_p=0.8'
+    );
+    expect(screen.getByText('MTP layers').parentElement).toHaveTextContent('1');
+    expect(
+      screen.getByText(/Estimate includes 6 GiB reserve for CUDA graph\/activations/)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/max_num_batched_tokens not required \(using 8,192\)/)
+    ).toBeInTheDocument();
+  });
+
+  it('renders serving arguments from the API with ready-to-paste args and notes', async () => {
+    server.use(http.get(`${API}/tuner/model-analysis`, () => HttpResponse.json(ANALYSIS)));
+    render(
+      <TunerModelAnalysis
+        isActive={true}
+        acceleratorMemoryGib={null}
+        onAcceleratorMemoryChange={vi.fn()}
+        onApplySearchSpace={vi.fn()}
+      />
+    );
+
+    const advice = await screen.findByTestId('tma-serving-advice');
+    expect(advice).toHaveTextContent('Serving arguments');
+    expect(advice).toHaveTextContent('required');
+    expect(advice).toHaveTextContent('mismatch');
+    expect(advice).toHaveTextContent('avoid');
+    expect(advice).toHaveTextContent('current: deepseek_r1');
+    expect(screen.getByTestId('tma-add-args')).toHaveTextContent('--tool-call-parser=qwen3_coder');
+    expect(screen.getByRole('alert')).toHaveTextContent('MTP와 prefix caching 동시 사용 주의');
+  });
+
+  it('hides serving arguments when the API returns advice: null', async () => {
+    server.use(
+      http.get(`${API}/tuner/model-analysis`, () =>
+        HttpResponse.json({ ...ANALYSIS, advice: null })
+      )
+    );
+    render(
+      <TunerModelAnalysis
+        isActive={true}
+        acceleratorMemoryGib={null}
+        onAcceleratorMemoryChange={vi.fn()}
+        onApplySearchSpace={vi.fn()}
+      />
+    );
+
+    await screen.findByText('24 (full 6 · linear 18)');
+    expect(screen.queryByTestId('tma-serving-advice')).not.toBeInTheDocument();
+  });
+
+  it('hides serving arguments when the API omits advice', async () => {
+    server.use(
+      http.get(`${API}/tuner/model-analysis`, () =>
+        HttpResponse.json({ ...ANALYSIS, advice: undefined })
+      )
+    );
+    render(
+      <TunerModelAnalysis
+        isActive={true}
+        acceleratorMemoryGib={null}
+        onAcceleratorMemoryChange={vi.fn()}
+        onApplySearchSpace={vi.fn()}
+      />
+    );
+
+    await screen.findByText('24 (full 6 · linear 18)');
+    expect(screen.queryByTestId('tma-serving-advice')).not.toBeInTheDocument();
   });
 });
