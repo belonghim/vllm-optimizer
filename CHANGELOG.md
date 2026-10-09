@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.
 - **학습 상한 영속화**: 학습한 상한을 `tuner_learned_limits`(target 키별, 7일 TTL)에 저장하고 다음 튜닝 시작 시 자동 적용(시작 시 `tuning_warning`으로 안내). `DELETE /api/tuner/learned-limits`로 현재 타깃의 학습분 초기화.
 - **오버헤드 관측 보정**: 순수 full-attention 모델이 기동 중이면 `overhead = budget×util − weights − 관측 KV 풀`로 역산해 용량표와 튜너 OOM 예측에 사용(`memory_budget.overhead_source`: `table`/`observed`). hybrid/sliding 모델은 풀 토큰 수가 단일 토큰 크기의 배수가 아니라 보정하지 않음.
 
+### Tooling
+- `scripts/smoke-ui.sh [dev|prod]`: `oc port-forward`로 oauth-proxy를 우회해 배포된 프론트엔드에 Playwright 스모크(`frontend/tests/e2e-live/`, `playwright.live.config.ts`)를 실행하고 종료 시 포워딩 정리. 기동 진단 카드(실제 API)와 실패/건너뜀 트라이얼 표(모킹된 `/api/tuner/trials`) 및 콘솔 에러를 확인.
+
 ### Changed
 - 기동 실패 시 롤백 전에 로그를 먼저 읽음(롤백이 실패한 파드를 건강한 파드로 교체하기 때문). `AutoTuner._explain_failure` → `_on_trial_failure`(진단·학습·기록·UI 이벤트).
 - 평가 실패 트라이얼이 이제 trials 목록에 `failed`로 포함됨(이전엔 누락).

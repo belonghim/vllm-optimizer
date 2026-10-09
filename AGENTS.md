@@ -12,6 +12,9 @@ python3 -m venv .venv && .venv/bin/pip install -r backend/requirements.txt ruff
 ./scripts/check.sh          # full: tests (incl. slow) + lint + type + build
 ./scripts/check.sh --smoke  # fast core-feature contracts (~4s)
 
+# Live UI smoke on the deployed frontend (oc port-forward bypasses oauth-proxy; ~10s)
+./scripts/smoke-ui.sh dev
+
 # Deploy
 ./deploy.sh dev             # build + deploy to vllm-optimizer-dev
 ```
