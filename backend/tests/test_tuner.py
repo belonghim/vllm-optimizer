@@ -11,7 +11,7 @@ from pydantic import ValidationError
 
 from ..main import app
 from ..models.load_test import LoadTestConfig, SweepConfig, SweepResult, TuningConfig, TuningTrial
-from ..services.auto_tuner import AutoTuner
+from ..services.auto_tuner import MAX_ATTEMPTS_PER_TRIAL, AutoTuner
 from ..services.k8s_operator import get_k8s_namespace, get_vllm_is_name
 from ..services.load_engine import LoadTestEngine
 from ..services.multi_target_collector import MultiTargetMetricsCollector
@@ -1883,7 +1883,7 @@ async def test_oom_skipped_trial_recorded_with_skipped_status(auto_tuner_instanc
     tuner._wait_for_ready = AsyncMock(return_value=True)
     tuner._apply_params = AsyncMock(return_value={"success": True})
 
-    config = TuningConfig(n_trials=2, eval_requests=10, warmup_requests=0, objective="tps")
+    config = TuningConfig(n_trials=1, eval_requests=10, warmup_requests=0, objective="tps")
     with patch("services.tuner_logic.kv_cache_oom_risk", side_effect=[True, False]):
         await tuner.start(config, "http://mock:8080")
 
@@ -1908,9 +1908,29 @@ async def test_learned_limit_skips_trials_without_restarting(auto_tuner_instance
     config = TuningConfig(n_trials=2, eval_requests=10, warmup_requests=0, objective="tps", learned_limits=[limit])
     await tuner.start(config, "http://mock:8080")
 
-    assert [t.status for t in tuner.trials] == ["skipped", "skipped"]
+    # Skips are free, so the tuner keeps sampling up to MAX_ATTEMPTS_PER_TRIAL × n_trials before giving up.
+    assert [t.status for t in tuner.trials] == ["skipped"] * (2 * MAX_ATTEMPTS_PER_TRIAL)
     assert tuner.trials[0].failure["reason"] == "learned_limit"
     tuner._apply_params.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_skipped_trials_do_not_consume_trial_budget(auto_tuner_instance, mock_k8s_clients):
+    tuner = auto_tuner_instance
+
+    async def mock_evaluate(endpoint, config, trial=None, trial_num=0, broadcaster=None):
+        if trial:
+            trial.report(100.0, step=0)
+        return 100.0, 100.0, 0.1
+
+    tuner._evaluate = mock_evaluate
+    tuner._wait_for_ready = AsyncMock(return_value=True)
+    tuner._apply_params = AsyncMock(return_value={"success": True})
+    config = TuningConfig(n_trials=2, eval_requests=10, warmup_requests=0, objective="tps")
+    with patch("services.tuner_logic.kv_cache_oom_risk", side_effect=[True, True, False, True, False]):
+        await tuner.start(config, "http://mock:8080")
+
+    assert [t.status for t in tuner.trials] == ["skipped", "skipped", "completed", "skipped", "completed"]
 
 
 @pytest.mark.asyncio

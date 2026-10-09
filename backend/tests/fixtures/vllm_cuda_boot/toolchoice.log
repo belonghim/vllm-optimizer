@@ -1,0 +1,10 @@
+2026-10-09 14:53:05,205 - INFO - Successfully registered TerratorchFix model with vLLM, this is only required to support vLLM >0.21.0 <=0.24.0 due to a known bug
+2026-10-09 14:53:05,205 - INFO - Successfully registered BART model with vLLM
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/opt/app-root/lib64/python3.12/site-packages/vllm/entrypoints/openai/api_server.py", line 701, in <module>
+    validate_parsed_serve_args(args)
+  File "/opt/app-root/lib64/python3.12/site-packages/vllm/entrypoints/openai/cli_args.py", line 397, in validate_parsed_serve_args
+    raise TypeError("Error: --enable-auto-tool-choice requires --tool-call-parser")
+TypeError: Error: --enable-auto-tool-choice requires --tool-call-parser

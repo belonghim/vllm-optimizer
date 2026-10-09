@@ -70,9 +70,10 @@ def study_name_for(config: TuningConfig) -> str:
 def kv_cache_oom_risk(params: dict[str, Any], config: TuningConfig) -> bool:
     """Return True when vLLM would refuse to start for lack of KV memory.
 
-    Startup needs one max_model_len sequence of attention KV plus the linear-attention (GDN/Mamba)
-    state reserved for every max_num_seqs slot. Attention KV beyond one sequence only causes
-    preemption, so max_num_seqs scales only the fixed state. Returns False when unknown.
+    Startup needs one max_model_len sequence of attention KV and, separately, the linear-attention
+    (GDN/Mamba) state block for every max_num_seqs slot; both are checked against the same pool, not summed
+    (verified on CUDA: 262144-token KV + 500 slots boots in a pool smaller than their sum). Attention KV beyond
+    one sequence only causes preemption. Returns False when unknown.
     """
     if not (config.model_kv_bytes_per_token and config.memory_budget_gib):
         return False
@@ -84,10 +85,9 @@ def kv_cache_oom_risk(params: dict[str, Any], config: TuningConfig) -> bool:
         # Sliding layers hold window-1 tokens plus the tokens of the step being scheduled.
         batched = params.get("max_num_batched_tokens") or config.max_num_batched_tokens_range[0]
         window = min(max_model_len, config.model_sliding_window - 1 + batched)
-    required = (
-        config.model_kv_bytes_per_token * max_model_len
-        + config.model_sliding_kv_bytes_per_token * window
-        + config.model_linear_state_bytes_per_seq * max_num_seqs
+    required = max(
+        config.model_kv_bytes_per_token * max_model_len + config.model_sliding_kv_bytes_per_token * window,
+        config.model_linear_state_bytes_per_seq * max_num_seqs,
     )
     if config.memory_budget_dedicated_kv:
         available = config.memory_budget_gib * (1024**3)
@@ -533,7 +533,7 @@ async def handle_trial_result_for_tuner(
 
 async def execute_trial_for_tuner(
     tuner: Any, trial_num: int, config: TuningConfig
-) -> None:  # AutoTuner — avoid circular import
+) -> bool:  # AutoTuner — avoid circular import
     async with tuner._study_lock:
         assert tuner._study is not None
         trial = tuner._study.ask()
@@ -584,14 +584,14 @@ async def execute_trial_for_tuner(
                 "data": {"trial_id": trial_num, "score": 0.0, "tps": 0.0, "p99_latency": 0.0, "pruned": True},
             }
         )
-        return
+        return False
     await tuner._broadcast({"type": "trial_start", "data": {"trial_id": trial_num, "params": params}})
     if not await tuner._apply_trial_params(trial, trial_num, params):
-        return
+        return True
     await tuner._broadcast({"type": "phase", "data": {"trial_id": trial_num, "phase": "restarting"}})
     await tuner._broadcast({"type": "phase", "data": {"trial_id": trial_num, "phase": "waiting_ready"}})
     if not await tuner._wait_for_isvc_ready(trial, trial_num):
-        return
+        return True
     try:
         score, tps, p99_lat = await tuner._run_trial_evaluation(trial, trial_num)
     except Exception as e:  # intentional: trial evaluation recovery (specific errors caught earlier)
@@ -630,10 +630,11 @@ async def execute_trial_for_tuner(
         async with tuner._study_lock:
             assert tuner._study is not None
             tuner._study.tell(trial, state=optuna.trial.TrialState.FAIL)
-        return
+        return True
     await handle_trial_result_for_tuner(
         tuner, trial, trial_num, score, tps, p99_lat, trial_start, params, save_trial_fn=tuner._save_trial_fn()
     )
+    return True
 
 
 async def save_auto_benchmark_for_tuner(

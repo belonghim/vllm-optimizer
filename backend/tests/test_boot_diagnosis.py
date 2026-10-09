@@ -221,3 +221,28 @@ def test_real_vllm_030_openvino_kv_too_small_log() -> None:
     assert kv["suggested_value"] == 257504
     assert "larger than the available KV cache memory" in kv["evidence"]
     assert diagnoses["max_model_len_exceeds_model"]["suggested_value"] == 262144
+
+
+_CUDA_BOOT_CASES = [
+    ("busy", "gpu_memory_busy", None),
+    ("maxlen", "max_model_len_exceeds_model", 262144),
+    ("batched", "batched_tokens_below_model_len", 8192),
+    ("quant", "quantization_not_applicable", None),
+    ("toolchoice", "tool_choice_flags_missing", None),
+    ("toolparser", "tool_parser_unknown", None),
+    ("tp", "world_size_exceeds_gpus", 1),
+    ("kvsmall", "kv_cache_too_small", 54944),
+    ("nomem", "no_kv_memory", None),
+    ("mamba", "mamba_blocks_exceeded", 578),
+    ("oom", "cuda_oom", None),
+    ("chat", "chat_template_path_missing", None),
+]
+
+
+@pytest.mark.parametrize(("name", "code", "suggested"), _CUDA_BOOT_CASES)
+def test_real_cuda_boot_failure_logs(name: str, code: str, suggested: int | None) -> None:
+    """Captured from probe InferenceServices on the RTX 3060 node (RHAI vLLM 0.24 CUDA runtime, Qwen3.5-0.8B)."""
+    diagnoses = {d["code"]: d for d in diagnose_boot(_fixture(f"vllm_cuda_boot/{name}.log")) if d}
+    assert code in diagnoses, list(diagnoses)
+    assert diagnoses[code]["suggested_value"] == suggested
+    assert diagnoses[code]["evidence"] and "Traceback" not in diagnoses[code]["evidence"]

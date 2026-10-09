@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-10] - GPU 실측 검증·튜너 낭비 제거
+
+### Fixed
+- **hybrid 모델 OOM 예측이 과도하게 보수적**: 실제 RTX 3060에서 건너뛴 trial 5건 중 3건이 정상 기동했음(`max_num_seqs`×전체 GDN 상태를 KV와 합산한 탓). CUDA 백엔드는 레이어 그룹(`min(full, linear)`층) 단위 블록으로 슬롯당 1블록(Qwen3.5-0.8B: 19.5MB가 아니라 6.5MB)만 필요하고, KV 1시퀀스와 슬롯 블록은 합산이 아니라 각각 풀과 비교됨(262144 토큰 KV + 500 슬롯이 합보다 작은 풀에서 기동 확인). `ModelAnalysis.boot_state_bytes_per_seq`(OpenVINO는 전체 상태 유지)·`kv_cache_oom_risk`가 `max()` 사용. 실측 기동 결과 5건을 회귀 테스트로 고정.
+- 튜너 시작 직후(파드 기동 미완료)에는 관측 보정이 없어 표 오버헤드 6.0 GiB로 대부분 건너뛰던 문제는 위 수정 + 준비 후 시작으로 해소 확인.
+
+### Changed
+- **예측/학습 스킵은 trial 예산을 소모하지 않음**: 파드 재시작 없이 건너뛴 trial은 `n_trials`에 포함하지 않고 계속 샘플링(상한 `n_trials × 5`회, 초과 시 경고). `trials_completed`도 스킵 제외. 이전에는 6회 요청 중 5회가 스킵되어 실질 1회만 평가됨.
+- `llm-ov`: cpu 4 / memory 8Gi 고정(requests=limits), `--max-num-batched-tokens=512` 추가. serving1/2의 InferenceService·LLMInferenceService는 `serving.kserve.io/stop` 어노테이션으로 중지.
+
+### Added
+- 진단 규칙: `quantization_not_applicable`(`Cannot find the config file for awq`), `world_size_exceeds_gpus`, `chat_template_path_missing`; `--enable-auto-tool-choice requires --tool-call-parser`를 `tool_choice_flags_missing`으로 인식.
+
+### Verification
+- 실제 GPU(RHAI vLLM 0.24 CUDA, Qwen3.5-0.8B, serving3) 기동 실패 로그 12종으로 진단 규칙 검증 — `gpu_memory_busy`, `max_model_len_exceeds_model`, `batched_tokens_below_model_len`, `kv_cache_too_small`(추정값 54944 일치), `no_kv_memory`, `mamba_blocks_exceeded`, `cuda_oom`, 위 신규 3종 등(픽스처 `tests/fixtures/vllm_cuda_boot/`). 1 GPU 환경이라 `tp_not_divisible`, 그리고 `trust_remote_code`·`unsupported_architecture`·`chat_template_missing`·`bf16_unsupported`는 재현하지 못해 미검증.
+- GPU 타깃(serving3/qwen-gpu)에서 튜너 end-to-end 실행: 6 trial 중 4건 정상 평가, 예측 스킵 2건(`max_num_seqs` 576@util 0.57은 실제로도 `Mamba cache blocks (382)`로 기동 실패).
+
 ## [2026-10-09] - 진단 피드백·실패 트라이얼 기록·오버헤드 보정
 
 ### Added

@@ -24,6 +24,7 @@ from .model_resolver import resolve_model_name
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 OPTUNA_AVAILABLE = True
 logger = logging.getLogger(__name__)
+MAX_ATTEMPTS_PER_TRIAL = 5
 
 
 class AutoTuner:
@@ -254,8 +255,8 @@ class AutoTuner:
         assert self._config is not None
         return await self._objective(self._vllm_endpoint, self._config, trial=trial, trial_num=trial_num)
 
-    async def _execute_trial(self, trial_num: int, config: TuningConfig) -> None:
-        await execute_trial_for_tuner(self, trial_num, config)
+    async def _execute_trial(self, trial_num: int, config: TuningConfig) -> bool:
+        return await execute_trial_for_tuner(self, trial_num, config)
 
     async def _save_auto_benchmark(self) -> int | None:
         return await save_auto_benchmark_for_tuner(
@@ -553,10 +554,22 @@ class AutoTuner:
             if readiness_error is not None:
                 return readiness_error
             await self._run_warmup_suggestions(config)
-            for trial_num in range(config.n_trials):
-                if self._cancel_event.is_set() or not self._running:
+            # Predicted/learned skips cost no pod restart, so they do not consume the trial budget.
+            evaluated = 0
+            for trial_num in range(config.n_trials * MAX_ATTEMPTS_PER_TRIAL):
+                if evaluated >= config.n_trials or self._cancel_event.is_set() or not self._running:
                     break
-                await self._execute_trial(trial_num=trial_num, config=config)
+                if await self._execute_trial(trial_num=trial_num, config=config) is not False:
+                    evaluated += 1
+            else:
+                await self._broadcast(
+                    {
+                        "type": "tuning_warning",
+                        "data": {
+                            "message": f"탐색 공간 대부분이 기동 불가로 예측되어 {evaluated}회만 평가했습니다. 범위를 조정하세요."
+                        },
+                    }
+                )
             if self._cancel_event.is_set():
                 await self._broadcast({"type": "tuning_stopped", "data": {"total_trials": len(self._trials)}})
                 return {

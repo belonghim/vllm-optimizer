@@ -281,7 +281,8 @@ class TuningConfig(BaseModel):
     )
     model_sliding_window: int | None = Field(default=None, description="Sliding attention window in tokens")
     model_linear_state_bytes_per_seq: int = Field(
-        default=0, description="Fixed linear-attention (GDN/Mamba) state bytes per sequence slot (max_num_seqs)"
+        default=0,
+        description="Linear-attention (GDN/Mamba) state bytes a max_num_seqs slot needs free at boot (backend-specific)",
     )
     model_analysis: dict[str, Any] | None = Field(
         default=None, description="Deterministic model analysis snapshot — context for the analyst LLM"

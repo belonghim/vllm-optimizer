@@ -204,6 +204,31 @@ def test_kv_cache_oom_risk_reserves_linear_state_per_seq_slot() -> None:
     assert kv_cache_oom_risk({"max_model_len": 8192, "max_num_seqs": 32}, cfg) is False
 
 
+def test_cuda_boot_state_uses_layer_group_block_and_matches_measured_boots() -> None:
+    """Boot outcomes measured on an RTX 3060 (RHAI vLLM 0.24, Qwen3.5-0.8B, 12 GiB, calibrated overhead 1.93)."""
+    a = analyze_config(QWEN35_08B)
+    assert a.linear_state_bytes_per_seq == 19537920
+    assert a.boot_state_bytes_per_seq == 19537920 * 6 // 18
+    assert analyze_config(QWEN35_08B, openvino_cfg={"dtype": "int4"}).boot_state_bytes_per_seq == 19537920
+    cfg = TuningConfig(
+        model_kv_bytes_per_token=a.kv_bytes_per_token,
+        model_linear_state_bytes_per_seq=a.boot_state_bytes_per_seq,
+        memory_budget_gib=12.0,
+        model_weight_gib=1.63,
+        memory_overhead_gib=1.93,
+    )
+
+    def risk(seqs: int, util: float, length: int) -> bool:
+        params = {"max_num_seqs": seqs, "gpu_memory_utilization": util, "max_model_len": length}
+        return kv_cache_oom_risk(params, cfg)
+
+    assert risk(320, 0.71, 16384) is False  # booted
+    assert risk(288, 0.717, 32768) is False  # booted
+    assert risk(384, 0.88, 131072) is False  # booted
+    assert risk(500, 0.71, 262144) is False  # booted although KV + slots exceed the pool when summed
+    assert risk(576, 0.574, 4096) is True  # "max_num_seqs (576) exceeds available Mamba cache blocks (382)"
+
+
 def test_extract_arg_value_forms() -> None:
     assert extract_arg_value(["--kv-cache-dtype=fp8"], "--kv-cache-dtype") == "fp8"
     assert extract_arg_value(["--tensor-parallel-size", "4"], "--tensor-parallel-size") == "4"

@@ -155,6 +155,20 @@ def _quantization_mismatch(logs: str) -> Diagnosis | None:
     )
 
 
+def _quantization_unsupported(logs: str) -> Diagnosis | None:
+    m = re.search(r"Cannot find the config file for (\S+)", logs)
+    if not m:
+        return None
+    return Diagnosis(
+        code="quantization_not_applicable",
+        title=f"--quantization={m.group(1)}를 적용할 수 없음",
+        cause="모델이 해당 방식으로 양자화되어 있지 않거나(config.json에 quantization_config 없음) 이 이미지가 지원하지 않음",
+        fix="--quantization 인자를 제거(양자화 모델이면 config 자동 감지). 원본 가중치를 양자화하려면 해당 방식으로 변환된 모델을 사용",
+        evidence=_line_with(logs, "Cannot find the config file"),
+        fix_args=["--quantization"],
+    )
+
+
 def _trust_remote_code(logs: str) -> Diagnosis | None:
     if "trust_remote_code=True" not in logs and "trust-remote-code" not in logs:
         return None
@@ -206,6 +220,7 @@ def _tool_parser(logs: str) -> Diagnosis | None:
     if (
         "tool choice requires --enable-auto-tool-choice" in logs
         or "--enable-auto-tool-choice and --tool-call-parser" in logs
+        or "--enable-auto-tool-choice requires --tool-call-parser" in logs
     ):
         return Diagnosis(
             code="tool_choice_flags_missing",
@@ -244,6 +259,35 @@ def _tp_divisibility(logs: str) -> Diagnosis | None:
     )
 
 
+def _world_size(logs: str) -> Diagnosis | None:
+    m = re.search(r"World size \((\d+)\) is larger than the number of available GPUs \((\d+)\)", logs)
+    if not m:
+        return None
+    return Diagnosis(
+        code="world_size_exceeds_gpus",
+        title="요청한 병렬도가 파드에 할당된 GPU 수보다 큼",
+        cause=f"TP×PP 월드 크기 {m.group(1)}인데 컨테이너에는 GPU {m.group(2)}개만 보임",
+        fix=f"--tensor-parallel-size(×pipeline)를 {m.group(2)} 이하로 낮추거나 nvidia.com/gpu limit을 늘림",
+        evidence=_line_with(logs, "World size"),
+        fix_args=["--tensor-parallel-size", "--pipeline-parallel-size"],
+        suggested_value=int(m.group(2)),
+    )
+
+
+def _chat_template_path(logs: str) -> Diagnosis | None:
+    m = re.search(r"chat template string \((.*?)\) appears path-like, but doesn't exist", logs)
+    if not m:
+        return None
+    return Diagnosis(
+        code="chat_template_path_missing",
+        title="--chat-template 경로의 파일이 없음",
+        cause=f"지정한 템플릿 파일 {m.group(1)}이 컨테이너에 존재하지 않음",
+        fix="템플릿 파일을 볼륨/모델 디렉터리로 마운트해 실제 경로를 지정하거나 인자를 제거(모델 기본 템플릿 사용)",
+        evidence=_line_with(logs, "appears path-like"),
+        fix_args=["--chat-template"],
+    )
+
+
 def _bf16_unsupported(logs: str) -> Diagnosis | None:
     if "Bfloat16 is only supported on GPUs with compute capability" not in logs:
         return None
@@ -265,11 +309,14 @@ _RULES = (
     _max_len_over_derived,
     _batched_tokens_small,
     _quantization_mismatch,
+    _quantization_unsupported,
     _trust_remote_code,
     _unsupported_arch,
+    _chat_template_path,
     _chat_template,
     _tool_parser,
     _tp_divisibility,
+    _world_size,
     _bf16_unsupported,
     _cuda_oom,
 )

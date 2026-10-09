@@ -1,0 +1,56 @@
+2026-10-09 14:49:59,915 - INFO - Successfully registered TerratorchFix model with vLLM, this is only required to support vLLM >0.21.0 <=0.24.0 due to a known bug
+2026-10-09 14:49:59,915 - INFO - Successfully registered BART model with vLLM
+(APIServer pid=4) INFO 10-09 14:49:59 [api_utils.py:339] 
+(APIServer pid=4) INFO 10-09 14:49:59 [api_utils.py:339]        █     █     █▄   ▄█
+(APIServer pid=4) INFO 10-09 14:49:59 [api_utils.py:339]  ▄▄ ▄█ █     █     █ ▀▄▀ █  version 0.24.0+rhaiv.9
+(APIServer pid=4) INFO 10-09 14:49:59 [api_utils.py:339]   █▄█▀ █     █     █     █  model   /mnt/models
+(APIServer pid=4) INFO 10-09 14:49:59 [api_utils.py:339]    ▀▀  ▀▀▀▀▀ ▀▀▀▀▀ ▀     ▀
+(APIServer pid=4) INFO 10-09 14:49:59 [api_utils.py:339] 
+(APIServer pid=4) INFO 10-09 14:49:59 [api_utils.py:273] non-default args: {'port': 8080, 'model': '/mnt/models', 'max_model_len': 1000000, 'served_model_name': ['probe-maxlen']}
+(APIServer pid=4) INFO 10-09 14:50:19 [model.py:598] Resolved architecture: Qwen3_5ForConditionalGeneration
+(APIServer pid=4) Traceback (most recent call last):
+(APIServer pid=4)   File "<frozen runpy>", line 198, in _run_module_as_main
+(APIServer pid=4)   File "<frozen runpy>", line 88, in _run_code
+(APIServer pid=4)   File "/opt/app-root/lib64/python3.12/site-packages/vllm/entrypoints/openai/api_server.py", line 703, in <module>
+(APIServer pid=4)     uvloop.run(run_server(args))
+(APIServer pid=4)   File "/opt/app-root/lib64/python3.12/site-packages/uvloop/__init__.py", line 96, in run
+(APIServer pid=4)     return __asyncio.run(
+(APIServer pid=4)            ^^^^^^^^^^^^^^
+(APIServer pid=4)   File "/usr/lib64/python3.12/asyncio/runners.py", line 195, in run
+(APIServer pid=4)     return runner.run(main)
+(APIServer pid=4)            ^^^^^^^^^^^^^^^^
+(APIServer pid=4)   File "/usr/lib64/python3.12/asyncio/runners.py", line 118, in run
+(APIServer pid=4)     return self._loop.run_until_complete(task)
+(APIServer pid=4)            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(APIServer pid=4)   File "uvloop/loop.pyx", line 1518, in uvloop.loop.Loop.run_until_complete
+(APIServer pid=4)   File "/opt/app-root/lib64/python3.12/site-packages/uvloop/__init__.py", line 48, in wrapper
+(APIServer pid=4)     return await main
+(APIServer pid=4)            ^^^^^^^^^^
+(APIServer pid=4)   File "/opt/app-root/lib64/python3.12/site-packages/vllm/entrypoints/openai/api_server.py", line 663, in run_server
+(APIServer pid=4)     await run_server_worker(listen_address, sock, args, **uvicorn_kwargs)
+(APIServer pid=4)   File "/opt/app-root/lib64/python3.12/site-packages/vllm/entrypoints/openai/api_server.py", line 677, in run_server_worker
+(APIServer pid=4)     async with build_async_engine_client(
+(APIServer pid=4)                ^^^^^^^^^^^^^^^^^^^^^^^^^^
+(APIServer pid=4)   File "/usr/lib64/python3.12/contextlib.py", line 210, in __aenter__
+(APIServer pid=4)     return await anext(self.gen)
+(APIServer pid=4)            ^^^^^^^^^^^^^^^^^^^^^
+(APIServer pid=4)   File "/opt/app-root/lib64/python3.12/site-packages/vllm/entrypoints/openai/api_server.py", line 99, in build_async_engine_client
+(APIServer pid=4)     async with build_async_engine_client_from_engine_args(
+(APIServer pid=4)                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(APIServer pid=4)   File "/usr/lib64/python3.12/contextlib.py", line 210, in __aenter__
+(APIServer pid=4)     return await anext(self.gen)
+(APIServer pid=4)            ^^^^^^^^^^^^^^^^^^^^^
+(APIServer pid=4)   File "/opt/app-root/lib64/python3.12/site-packages/vllm/entrypoints/openai/api_server.py", line 123, in build_async_engine_client_from_engine_args
+(APIServer pid=4)     vllm_config = engine_args.create_engine_config(usage_context=usage_context)
+(APIServer pid=4)                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(APIServer pid=4)   File "/opt/app-root/lib64/python3.12/site-packages/vllm/engine/arg_utils.py", line 1817, in create_engine_config
+(APIServer pid=4)     model_config = self.create_model_config()
+(APIServer pid=4)                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+(APIServer pid=4)   File "/opt/app-root/lib64/python3.12/site-packages/vllm/engine/arg_utils.py", line 1598, in create_model_config
+(APIServer pid=4)     return ModelConfig(
+(APIServer pid=4)            ^^^^^^^^^^^^
+(APIServer pid=4)   File "/opt/app-root/lib64/python3.12/site-packages/pydantic/_internal/_dataclasses.py", line 121, in __init__
+(APIServer pid=4)     s.__pydantic_validator__.validate_python(ArgsKwargs(args, kwargs), self_instance=s)
+(APIServer pid=4) pydantic_core._pydantic_core.ValidationError: 1 validation error for ModelConfig
+(APIServer pid=4)   Value error, User-specified max_model_len (1000000) is greater than the derived max_model_len (max_position_embeddings=262144.0 or model_max_length=None in model's config.json). To allow overriding this maximum, set the env var VLLM_ALLOW_LONG_MAX_MODEL_LEN=1. VLLM_ALLOW_LONG_MAX_MODEL_LEN must be used with extreme caution. If the model uses relative position encoding (RoPE), positions exceeding derived_max_model_len lead to nan. If the model uses absolute position encoding, positions exceeding derived_max_model_len will cause a CUDA array out-of-bounds error. [type=value_error, input_value=ArgsKwargs((), {'model': ...nderer_num_workers': 1}), input_type=ArgsKwargs]
+(APIServer pid=4)     For further information visit https://errors.pydantic.dev/2.13/v/value_error

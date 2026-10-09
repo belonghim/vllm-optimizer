@@ -143,6 +143,19 @@ class ModelAnalysis:
             + self.linear_state_bytes_per_seq
         )
 
+    @property
+    def boot_state_bytes_per_seq(self) -> int:
+        """Bytes one ``max_num_seqs`` slot must find free at boot for the linear-attention state.
+
+        The CUDA backend pools state in blocks shared by layer groups of ``min(full, linear)`` layers, so a slot
+        costs ``group`` layers of state rather than all of them (measured on Qwen3.5-0.8B: 6.7 MB, not 19.5 MB).
+        The OpenVINO backend reserves the full per-sequence state.
+        """
+        if not self.linear_attention_layers or not self.linear_state_bytes_per_seq or self.openvino:
+            return self.linear_state_bytes_per_seq
+        group = min(self.full_attention_layers, self.linear_attention_layers) or self.linear_attention_layers
+        return self.linear_state_bytes_per_seq * group // self.linear_attention_layers
+
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 

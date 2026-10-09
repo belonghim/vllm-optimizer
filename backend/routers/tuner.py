@@ -551,7 +551,7 @@ async def _build_tuning_config(
         model_kv_bytes_per_token=analysis.kv_bytes_per_token if analysis else None,
         model_sliding_kv_bytes_per_token=analysis.sliding_kv_bytes_per_token if analysis else 0,
         model_sliding_window=analysis.sliding_window if analysis else None,
-        model_linear_state_bytes_per_seq=analysis.linear_state_bytes_per_seq if analysis else 0,
+        model_linear_state_bytes_per_seq=analysis.boot_state_bytes_per_seq if analysis else 0,
         model_analysis=analysis_summary,
         p99_latency_sla_ms=body.p99_latency_sla_ms,
         enable_llm_assistant=body.enable_llm_assistant,
@@ -662,7 +662,7 @@ async def get_tuner_status() -> TunerStatusFrontendResponse:
     status_value = "running" if auto_tuner.is_running else "idle"
     return TunerStatusFrontendResponse(
         running=auto_tuner.is_running,
-        trials_completed=len(auto_tuner.trials),
+        trials_completed=sum(1 for t in auto_tuner.trials if t.status != "skipped"),
         best=best_info,
         status=status_value,
         best_score_history=getattr(auto_tuner, "_best_score_history", []),
