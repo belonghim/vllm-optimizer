@@ -363,6 +363,10 @@ class AutoTuner:
             if (limit["param"], limit["max"], limit["util"]) in known:
                 continue
             self._config.learned_limits.append(limit)
+            try:
+                await storage.save_learned_limit(self._config.target_key, limit)
+            except Exception as e:
+                logger.debug("[AutoTuner] Could not persist learned limit: %s", e)
             await self._broadcast(
                 {
                     "type": "tuning_warning",
@@ -555,6 +559,14 @@ class AutoTuner:
             self._vllm_endpoint = vllm_endpoint
             if config.served_model_name_warning:
                 await self._broadcast({"type": "tuning_warning", "data": {"message": config.served_model_name_warning}})
+            if config.learned_limits:
+                summary = ", ".join(f"{x['param']} ≤ {x['max']}" for x in config.learned_limits)
+                await self._broadcast(
+                    {
+                        "type": "tuning_warning",
+                        "data": {"message": f"이전 기동 실패에서 학습한 상한을 적용합니다: {summary}"},
+                    }
+                )
             preflight_error = await self._validate_preflight(skip_preflight)
             if preflight_error is not None:
                 return preflight_error

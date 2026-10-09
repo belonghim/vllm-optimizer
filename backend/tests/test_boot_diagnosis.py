@@ -206,3 +206,18 @@ def test_boot_diagnosis_endpoint_both_cr_types(cr_type: str, selector: str, cont
     assert data["diagnoses"][0]["code"] == "mamba_blocks_exceeded"
     assert "logs" not in data["pod"]
     assert data["log_tail"] and "Mamba" in data["log_tail"]
+
+
+def _fixture(name: str) -> str:
+    from pathlib import Path
+
+    return (Path(__file__).parent / "fixtures" / name).read_text()
+
+
+def test_real_vllm_030_openvino_kv_too_small_log() -> None:
+    """Captured from a crash-looping dev InferenceService (--max-model-len=2000000, vLLM 0.30.0 OpenVINO)."""
+    diagnoses = {d["code"]: d for d in diagnose_boot(_fixture("vllm030_openvino_kv_too_small.log"))}
+    kv = diagnoses["kv_cache_too_small"]
+    assert kv["suggested_value"] == 257504
+    assert "larger than the available KV cache memory" in kv["evidence"]
+    assert diagnoses["max_model_len_exceeds_model"]["suggested_value"] == 262144

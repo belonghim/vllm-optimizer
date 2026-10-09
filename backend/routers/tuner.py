@@ -25,7 +25,7 @@ from models.load_test import (
 )
 from pydantic import BaseModel, Field, model_validator
 from services.auto_tuner import AutoTuner
-from services.boot_diagnosis import diagnose_boot
+from services.boot_diagnosis import LEARNED_LIMIT_TTL_S, diagnose_boot
 from services.cr_adapter import CRAdapter, config_dict_to_args_list, extract_arg_value, get_cr_adapter
 from services.k8s_operator import read_boot_report
 from services.llm_assistant import get_llm_assistant
@@ -514,7 +514,15 @@ async def _build_tuning_config(
             "observed": analysis_resp.observed,
         }
 
+    target_key = "/".join(target)
+    try:
+        learned_limits = await storage.get_learned_limits(target_key, LEARNED_LIMIT_TTL_S)
+    except Exception as e:
+        logger.warning("[Tuner] Could not load learned limits: %s", e)
+        learned_limits = []
+
     config = TuningConfig(
+        learned_limits=learned_limits,
         max_num_seqs_range=(body.max_num_seqs_min, body.max_num_seqs_max),
         gpu_memory_utilization_range=(body.gpu_memory_min, body.gpu_memory_max),
         max_model_len_range=(body.max_model_len_min, body.max_model_len_max),
@@ -533,7 +541,7 @@ async def _build_tuning_config(
         memory_budget_dedicated_kv=bool(analysis_resp and analysis_resp.memory_budget.get("dedicated_kv")),
         memory_overhead_gib=float(analysis_resp.memory_budget.get("overhead_gib") or 0.0) if analysis_resp else 0.0,
         served_model_name_warning=served_model_name_warning,
-        target_key="/".join(target),
+        target_key=target_key,
         model_kv_bytes_per_token=analysis.kv_bytes_per_token if analysis else None,
         model_sliding_kv_bytes_per_token=analysis.sliding_kv_bytes_per_token if analysis else 0,
         model_sliding_window=analysis.sliding_window if analysis else None,
@@ -690,6 +698,12 @@ async def get_tuning_trials(
         )
         for t in trials
     ]
+
+
+@router.delete("/learned-limits")
+async def clear_learned_limits() -> dict[str, int]:
+    """Forget search-space limits learned from earlier boot failures of the current target."""
+    return {"cleared": await storage.clear_learned_limits("/".join(auto_tuner.target))}
 
 
 @router.post("/stop")

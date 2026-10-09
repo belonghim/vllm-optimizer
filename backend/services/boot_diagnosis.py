@@ -64,7 +64,7 @@ def _kv_too_small(logs: str) -> Diagnosis | None:
         cause="가중치와 오버헤드를 뺀 KV 풀이 --max-model-len 길이의 요청 1건보다 작음",
         fix=(f"--max-model-len을 {est:,} 이하로 낮추거나 " if est else "--max-model-len을 낮추거나 ")
         + "--gpu-memory-utilization 상향, --kv-cache-dtype fp8, TP 증가로 KV 풀을 키움",
-        evidence=_line_with(logs, "KV cache"),
+        evidence=_line_with(logs, "larger than the available KV cache memory"),
         fix_args=["--max-model-len", "--gpu-memory-utilization", "--kv-cache-dtype"],
         suggested_value=est,
     )
@@ -333,6 +333,8 @@ def summarize_diagnoses(diagnoses: list[dict[str, Any]], limit: int = 2) -> str 
         return None
     return " / ".join(f"{d['title']} → {d['fix']}" for d in diagnoses[:limit])
 
+
+LEARNED_LIMIT_TTL_S = 7 * 86400
 
 _LEARNABLE = {
     "mamba_blocks_exceeded": "max_num_seqs",

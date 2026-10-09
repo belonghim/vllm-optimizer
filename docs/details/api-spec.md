@@ -42,6 +42,7 @@ status: draft
 | 21 | `DELETE` | `/api/tuner/sessions/{session_id}` | Tuner | Delete tuning session |
 | 22 | `GET` | `/api/tuner/model-analysis` | Tuner | Deterministic model analysis (config.json → KV, capacity, search ranges) |
 | 23 | `POST` | `/api/tuner/model-analysis/explain` | Tuner | Analyst LLM narrative of an analysis |
+| 24a | `DELETE` | `/api/tuner/learned-limits` | Tuner | Clear persisted boot-failure limits (7-day TTL) of the current target; returns `{cleared}` |
 | 24 | `GET` | `/api/tuner/boot-diagnosis` | Tuner | Why a target pod fails to boot: container status + previous/current log matched to known vLLM errors |
 | 25 | `POST` | `/api/load_test/start` | Load Test | Start load test |
 | 26 | `POST` | `/api/load_test/stop` | Load Test | Stop load test |

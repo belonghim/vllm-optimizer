@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - **실패 트라이얼 기록**: 기동 실패/평가 실패/예측 스킵 트라이얼을 `failure`(`reason`, 진단 최대 3건)와 함께 저장·`/api/tuner/trials`로 노출(`tuner_trials.failure_json`, ALTER 마이그레이션).
 - **진단 → 탐색 상한 학습**: `mamba_blocks_exceeded`/`kv_cache_too_small`/`max_model_len_exceeds_model`의 수치를 `TuningConfig.learned_limits`에 누적, 이후 같은 `gpu_memory_utilization` 이하에서 상한을 넘는 trial은 파드 재시작 없이 `learned_limit`으로 건너뜀.
+- **학습 상한 영속화**: 학습한 상한을 `tuner_learned_limits`(target 키별, 7일 TTL)에 저장하고 다음 튜닝 시작 시 자동 적용(시작 시 `tuning_warning`으로 안내). `DELETE /api/tuner/learned-limits`로 현재 타깃의 학습분 초기화.
 - **오버헤드 관측 보정**: 순수 full-attention 모델이 기동 중이면 `overhead = budget×util − weights − 관측 KV 풀`로 역산해 용량표와 튜너 OOM 예측에 사용(`memory_budget.overhead_source`: `table`/`observed`). hybrid/sliding 모델은 풀 토큰 수가 단일 토큰 크기의 배수가 아니라 보정하지 않음.
 
 ### Changed
@@ -15,7 +16,7 @@ All notable changes to this project will be documented in this file.
 
 ### Verification
 - 신규 단위 테스트: 학습 상한 규칙, 학습 상한으로 인한 스킵(재시작 없음), 기동 실패 시 로그→롤백 순서·기록·학습, 오버헤드 보정(두 CR 타입).
-- GPU 경로(보정·TP 오버헤드)는 dev 클러스터에 GPU 타깃이 없어 단위 테스트로만 검증. 진단 규칙은 실제 실패 로그가 아닌 재현 문구 기준.
+- GPU 경로(보정·TP 오버헤드)는 dev 클러스터에 GPU 타깃이 없어 단위 테스트로만 검증. 진단 규칙 중 `kv_cache_too_small`·`max_model_len_exceeds_model`은 dev(vLLM 0.30 OpenVINO) 실제 기동 실패 로그로 검증(픽스처 `tests/fixtures/vllm030_openvino_kv_too_small.log`; 무관한 INFO 줄에 매칭되던 evidence 수정). `batched_tokens_below_model_len`·quantization·tool-parser 규칙은 실제 로그 미검증(재현 불가/이미지 풀 지연).
 
 ## [2026-10-09] - 기동 실패 진단·Mamba 블록 상한
 

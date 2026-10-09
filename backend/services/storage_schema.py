@@ -130,6 +130,17 @@ async def _create_tuner_tables(db: aiosqlite.Connection) -> None:
     except sqlite3.OperationalError:  # intentional: column already exists → migration is a no-op
         pass
     await db.execute("""
+        CREATE TABLE IF NOT EXISTS tuner_learned_limits (
+            target_key TEXT NOT NULL,
+            param TEXT NOT NULL,
+            code TEXT NOT NULL,
+            util REAL NOT NULL,
+            max_value INTEGER NOT NULL,
+            created_at REAL NOT NULL,
+            PRIMARY KEY (target_key, param, code, util)
+        )
+    """)
+    await db.execute("""
         CREATE TABLE IF NOT EXISTS tuning_sessions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             timestamp REAL NOT NULL,

@@ -588,3 +588,22 @@ async def test_delete_tuning_session(storage):
 async def test_delete_nonexistent_tuning_session(storage):
     deleted = await storage.delete_tuning_session(9999)
     assert deleted is False
+
+
+@pytest.mark.asyncio
+async def test_learned_limits_roundtrip_ttl_and_clear(storage):
+    key = "ns/isvc/inferenceservice"
+    limit = {"param": "max_model_len", "max": 8192, "util": 0.8, "code": "kv_cache_too_small"}
+    await storage.save_learned_limit(key, limit)
+    await storage.save_learned_limit(key, limit)  # idempotent
+    await storage.save_learned_limit(key, {"param": "max_num_seqs", "max": 64, "util": None, "code": "oom"})
+    await storage.save_learned_limit("other/x/y", limit)
+
+    got = await storage.get_learned_limits(key, 3600)
+    assert sorted(g["param"] for g in got) == ["max_model_len", "max_num_seqs"]
+    assert {g["param"]: g["util"] for g in got} == {"max_model_len": 0.8, "max_num_seqs": None}
+
+    assert await storage.get_learned_limits(key, -1) == []
+    assert await storage.clear_learned_limits(key) == 2
+    assert await storage.get_learned_limits(key, 3600) == []
+    assert len(await storage.get_learned_limits("other/x/y", 3600)) == 1

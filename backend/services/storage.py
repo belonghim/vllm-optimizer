@@ -14,6 +14,7 @@ import logging
 import os
 import shutil
 import sqlite3
+import time
 from datetime import UTC, datetime
 from typing import Any
 
@@ -573,6 +574,54 @@ class Storage:
         ) as e:  # intentional: fail-open, returns empty list so callers fall back to in-memory state
             logger.error("[Storage] Failed to get trials: %s", e)
             return []
+
+    # util is stored as -1.0 when the limit is utilization-independent (NULL cannot be part of the primary key)
+    async def save_learned_limit(self, target_key: str, limit: dict[str, Any]) -> None:
+        if self._conn is None or not target_key:
+            return
+        try:
+            await self._conn.execute(
+                "INSERT OR REPLACE INTO tuner_learned_limits (target_key, param, code, util, max_value, created_at)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    target_key,
+                    limit["param"],
+                    limit.get("code") or "",
+                    -1.0 if limit.get("util") is None else float(limit["util"]),
+                    int(limit["max"]),
+                    time.time(),
+                ),
+            )
+            await self._conn.commit()
+        except (sqlite3.Error, KeyError, TypeError, ValueError) as e:  # intentional: fail-open, learning is advisory
+            logger.error("[Storage] Failed to save learned limit: %s", e)
+
+    async def get_learned_limits(self, target_key: str, max_age_s: float) -> list[dict[str, Any]]:
+        if self._conn is None or not target_key:
+            return []
+        try:
+            cursor = await self._conn.execute(
+                "SELECT param, code, util, max_value FROM tuner_learned_limits WHERE target_key = ? AND created_at >= ?",
+                (target_key, time.time() - max_age_s),
+            )
+            return [
+                {"param": r[0], "code": r[1], "util": None if r[2] < 0 else r[2], "max": r[3]}
+                for r in await cursor.fetchall()
+            ]
+        except sqlite3.Error as e:  # intentional: fail-open, tuning proceeds without prior knowledge
+            logger.error("[Storage] Failed to get learned limits: %s", e)
+            return []
+
+    async def clear_learned_limits(self, target_key: str) -> int:
+        if self._conn is None or not target_key:
+            return 0
+        try:
+            cursor = await self._conn.execute("DELETE FROM tuner_learned_limits WHERE target_key = ?", (target_key,))
+            await self._conn.commit()
+            return cursor.rowcount
+        except sqlite3.Error as e:  # intentional: fail-open
+            logger.error("[Storage] Failed to clear learned limits: %s", e)
+            return 0
 
     async def count_trials(self) -> int:
         """Return total number of tuner trial records."""
