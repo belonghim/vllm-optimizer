@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-09] - 진단 피드백·실패 트라이얼 기록·오버헤드 보정
+
+### Added
+- **실패 트라이얼 기록**: 기동 실패/평가 실패/예측 스킵 트라이얼을 `failure`(`reason`, 진단 최대 3건)와 함께 저장·`/api/tuner/trials`로 노출(`tuner_trials.failure_json`, ALTER 마이그레이션).
+- **진단 → 탐색 상한 학습**: `mamba_blocks_exceeded`/`kv_cache_too_small`/`max_model_len_exceeds_model`의 수치를 `TuningConfig.learned_limits`에 누적, 이후 같은 `gpu_memory_utilization` 이하에서 상한을 넘는 trial은 파드 재시작 없이 `learned_limit`으로 건너뜀.
+- **오버헤드 관측 보정**: 순수 full-attention 모델이 기동 중이면 `overhead = budget×util − weights − 관측 KV 풀`로 역산해 용량표와 튜너 OOM 예측에 사용(`memory_budget.overhead_source`: `table`/`observed`). hybrid/sliding 모델은 풀 토큰 수가 단일 토큰 크기의 배수가 아니라 보정하지 않음.
+
+### Changed
+- 기동 실패 시 롤백 전에 로그를 먼저 읽음(롤백이 실패한 파드를 건강한 파드로 교체하기 때문). `AutoTuner._explain_failure` → `_on_trial_failure`(진단·학습·기록·UI 이벤트).
+- 평가 실패 트라이얼이 이제 trials 목록에 `failed`로 포함됨(이전엔 누락).
+
+### Verification
+- 신규 단위 테스트: 학습 상한 규칙, 학습 상한으로 인한 스킵(재시작 없음), 기동 실패 시 로그→롤백 순서·기록·학습, 오버헤드 보정(두 CR 타입).
+- GPU 경로(보정·TP 오버헤드)는 dev 클러스터에 GPU 타깃이 없어 단위 테스트로만 검증. 진단 규칙은 실제 실패 로그가 아닌 재현 문구 기준.
+
 ## [2026-10-09] - 기동 실패 진단·Mamba 블록 상한
 
 ### Added

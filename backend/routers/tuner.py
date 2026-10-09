@@ -33,6 +33,7 @@ from services.model_analysis import (
     DEFAULT_MAX_NUM_BATCHED_TOKENS,
     DEFAULT_UTILIZATION,
     ModelAnalysis,
+    calibrated_overhead_gib,
     capacity_table,
     clamp_search_space_to_cap,
     gpu_overhead_gib,
@@ -161,6 +162,7 @@ class TrialFrontendInfo(BaseModel):
     status: str
     is_pareto_optimal: bool = False
     pruned: bool = False
+    failure: dict[str, Any] | None = None
 
 
 class TunerAllResponse(BaseModel):
@@ -350,6 +352,7 @@ async def _analyze_target(
         "utilization": None if budget.dedicated_kv else utilization,
         "dedicated_kv": budget.dedicated_kv,
         "overhead_gib": budget.overhead_gib,
+        "overhead_source": "table" if budget.source == "accelerator" else None,
     }
     if cr_spec is not None:
         resp.advice = recommend_serving_args(
@@ -377,6 +380,17 @@ async def _analyze_target(
         )
         reported = observed.get("max_concurrency")
         observed["estimate_ratio"] = round(estimated / reported, 3) if estimated and reported else None
+        calibrated = calibrated_overhead_gib(
+            analysis,
+            budget,
+            _positive_number(current_args.get("gpu_memory_utilization"), float) or DEFAULT_UTILIZATION,
+            observed["kv_cache_size_tokens"],
+        )
+        if calibrated is not None and budget.source == "accelerator":
+            budget = replace(budget, overhead_gib=calibrated)
+            resp.memory_budget.update({"overhead_gib": calibrated, "overhead_source": "observed"})
+            resp.capacity = capacity_table(analysis, budget, utilization, max_context, batched)
+            resp.suggested_search_space = suggest_search_space(resp.capacity, served_len)
         resp.capacity = observed_capacity(
             resp.capacity, observed["kv_cache_size_tokens"], served_len, analysis, batched
         )
@@ -672,6 +686,7 @@ async def get_tuning_trials(
             status=t.status,
             is_pareto_optimal=getattr(t, "is_pareto_optimal", False),
             pruned=getattr(t, "pruned", False),
+            failure=getattr(t, "failure", None),
         )
         for t in trials
     ]

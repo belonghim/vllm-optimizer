@@ -509,8 +509,8 @@ class Storage:
             await self._conn.execute(
                 """
                 INSERT OR REPLACE INTO tuner_trials 
-                (id, trial_id, params_json, tps, p99_latency, score, status, is_pareto_optimal, pruned)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (id, trial_id, params_json, tps, p99_latency, score, status, is_pareto_optimal, pruned, failure_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     t.trial_id,  # Use trial_id as primary key
@@ -522,6 +522,7 @@ class Storage:
                     t.status,
                     1 if t.is_pareto_optimal else 0,
                     1 if t.pruned else 0,
+                    json.dumps(t.failure) if t.failure else None,
                 ),
             )
             await self._conn.commit()
@@ -542,7 +543,7 @@ class Storage:
         try:
             cursor = await self._conn.execute(
                 """
-                SELECT trial_id, params_json, tps, p99_latency, score, status, is_pareto_optimal, pruned
+                SELECT trial_id, params_json, tps, p99_latency, score, status, is_pareto_optimal, pruned, failure_json
                 FROM tuner_trials
                 ORDER BY trial_id ASC
                 """
@@ -561,6 +562,7 @@ class Storage:
                             status=row[5],
                             is_pareto_optimal=bool(row[6]),
                             pruned=bool(row[7]),
+                            failure=json.loads(row[8]) if row[8] else None,
                         )
                     )
                 except (json.JSONDecodeError, TypeError, ValueError) as e:

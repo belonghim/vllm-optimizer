@@ -263,6 +263,10 @@ class TuningConfig(BaseModel):
         default=0.0,
         description="Conservative CUDA graph / activation / NCCL reserve (GiB) subtracted from the KV budget",
     )
+    learned_limits: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Upper bounds learned from boot failures this session ({param, max, util}); later trials above them are skipped",
+    )
     served_model_name_warning: str | None = Field(
         default=None, description="Non-None when --served-model-name in CR differs from the name vLLM actually reports"
     )
@@ -317,6 +321,9 @@ class TuningTrial(BaseModel):
     status: str = Field(default="pending", description="Trial status: pending, completed, failed")
     is_pareto_optimal: bool = Field(default=False, description="Whether this trial is on the Pareto front")
     pruned: bool = Field(default=False, description="Whether this trial was pruned by MedianPruner")
+    failure: dict[str, Any] | None = Field(
+        default=None, description="For failed/skipped trials: {reason, diagnoses:[{code,title,fix}]}"
+    )
 
 
 class MetricsSnapshot(BaseModel):

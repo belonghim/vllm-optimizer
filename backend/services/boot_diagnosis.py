@@ -332,3 +332,46 @@ def summarize_diagnoses(diagnoses: list[dict[str, Any]], limit: int = 2) -> str 
     if not diagnoses:
         return None
     return " / ".join(f"{d['title']} → {d['fix']}" for d in diagnoses[:limit])
+
+
+_LEARNABLE = {
+    "mamba_blocks_exceeded": "max_num_seqs",
+    "kv_cache_too_small": "max_model_len",
+    "max_model_len_exceeds_model": "max_model_len",
+}
+
+
+def learn_limits(diagnoses: list[dict[str, Any]], params: dict[str, Any]) -> list[dict[str, Any]]:
+    """Upper bounds implied by a failed boot, each valid for trials at the same or a lower GPU memory utilization.
+
+    The Mamba block count and the KV pool only shrink as ``gpu_memory_utilization`` drops, so a bound measured at
+    utilization U also holds for every trial with utilization <= U (``util``). The derived max_model_len bound is
+    utilization-independent (``util`` None).
+    """
+    limits: list[dict[str, Any]] = []
+    for d in diagnoses:
+        param = _LEARNABLE.get(d["code"])
+        value = d.get("suggested_value")
+        if not param or not value or value < 1:
+            continue
+        util = None if d["code"] == "max_model_len_exceeds_model" else params.get("gpu_memory_utilization")
+        limits.append({"param": param, "max": int(value), "util": util, "code": d["code"]})
+    return limits
+
+
+def first_violated_limit(params: dict[str, Any], limits: list[dict[str, Any]]) -> dict[str, Any] | None:
+    for limit in limits:
+        value = params.get(limit["param"])
+        if value is None or value <= limit["max"]:
+            continue
+        util = limit.get("util")
+        if util is None or params.get("gpu_memory_utilization", 1.0) <= util:
+            return limit
+    return None
+
+
+def compact_failure(reason: str, diagnoses: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "reason": reason,
+        "diagnoses": [{"code": d["code"], "title": d["title"], "fix": d["fix"]} for d in diagnoses[:3]],
+    }

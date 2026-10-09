@@ -15,19 +15,10 @@ import {
 } from 'recharts';
 import { useThemeColors } from '../contexts/ThemeContext';
 import { CHART_LABELS } from '../constants';
+import type { TunerTrial } from '../types';
 
 interface TrialParams {
   [key: string]: unknown;
-}
-
-interface Trial {
-  id: number;
-  tps: number;
-  p99_latency: number;
-  score: number;
-  params: TrialParams;
-  status: string;
-  is_pareto_optimal?: boolean;
 }
 
 interface BestParams {
@@ -44,11 +35,17 @@ interface TunerStatus {
 }
 
 interface TunerResultsProps {
-  trials: Trial[];
+  trials: TunerTrial[];
   bestParams: BestParams | undefined;
   status: TunerStatus;
   isRunning: boolean;
   importance: Record<string, number>;
+}
+
+const PROBLEM_STATUSES = new Set(['failed', 'skipped']);
+
+function isProblemTrial(trial: TunerTrial): boolean {
+  return PROBLEM_STATUSES.has(trial.status.toLowerCase());
 }
 
 export default function TunerResults({
@@ -63,7 +60,10 @@ export default function TunerResults({
 
   if (!trials) return null;
 
-  const scatterData = trials.map((t) => ({
+  const problemTrials = trials.filter(isProblemTrial);
+  const chartTrials = trials.filter((trial) => !isProblemTrial(trial));
+
+  const scatterData = chartTrials.map((t) => ({
     x: t.tps,
     y: t.p99_latency,
     name: `Trial ${t.id}`,
@@ -138,6 +138,60 @@ export default function TunerResults({
               </tbody>
             </table>
           )}
+        </div>
+      )}
+
+      {problemTrials.length > 0 && (
+        <div className="panel" style={{ marginBottom: '1rem' }} data-testid="tuner-problem-trials">
+          <div className="section-title">실패/건너뜀 트라이얼 ({problemTrials.length})</div>
+          <table className="table" aria-label="Failed or skipped trials">
+            <thead>
+              <tr>
+                <th>Trial</th>
+                <th>Status</th>
+                <th>Reason</th>
+                <th>Diagnosis</th>
+              </tr>
+            </thead>
+            <tbody>
+              {problemTrials.map((trial) => {
+                const firstFix = trial.failure?.diagnoses[0]?.fix;
+                return (
+                  <tr key={trial.id} data-testid={`problem-trial-${trial.id}`}>
+                    <td>#{trial.id}</td>
+                    <td>
+                      <span
+                        className={
+                          trial.status.toLowerCase() === 'failed'
+                            ? 'tag tag-failed'
+                            : 'tag tag-idle'
+                        }
+                      >
+                        {trial.status}
+                      </span>
+                    </td>
+                    <td className="td-muted">{trial.failure?.reason ?? '—'}</td>
+                    <td>
+                      {trial.failure && trial.failure.diagnoses.length > 0 ? (
+                        <div title={firstFix || undefined}>
+                          {trial.failure.diagnoses.map((diagnosis) => (
+                            <div key={diagnosis.code}>{diagnosis.title}</div>
+                          ))}
+                          {firstFix && (
+                            <div style={{ color: 'var(--muted-color)', fontSize: '10px' }}>
+                              {firstFix}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="td-muted">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 

@@ -5,7 +5,7 @@ from typing import Any, Literal
 
 import optuna
 from models.load_test import SweepConfig, TuningConfig, TuningTrial
-from services.boot_diagnosis import diagnose_boot, summarize_diagnoses
+from services.boot_diagnosis import compact_failure, diagnose_boot, learn_limits, summarize_diagnoses
 from services.event_broadcaster import EventBroadcaster
 from services.k8s_operator import K8sOperator
 from services.llm_assistant import get_llm_assistant
@@ -235,7 +235,7 @@ class AutoTuner:
         await self._broadcast(
             {"type": "tuning_warning", "data": {"message": "IS가 준비되지 않아 롤백합니다", "trial": trial_num}}
         )
-        await self._rollback_to_snapshot(trial_num)
+        # Logs must be read before the rollback: it replaces the failing pod with a healthy one.
         startup_logs: str | None = None
         failure_reason = "startup_timeout"
         try:
@@ -245,10 +245,11 @@ class AutoTuner:
             logger.debug("[AutoTuner] Trial %d startup failure classified as: %s", trial_num, failure_reason)
         except Exception:
             pass
+        await self._rollback_to_snapshot(trial_num)
         try:
-            await self._explain_failure(trial_num, trial.params, failure_reason, startup_logs)
+            await self._on_trial_failure(trial_num, trial.params, failure_reason, startup_logs)
         except Exception as e:
-            logger.debug("[AutoTuner] Startup failure explanation call failed: %s", e)
+            logger.debug("[AutoTuner] Startup failure handling failed: %s", e)
         async with self._study_lock:
             assert self._study is not None
             self._study.tell(trial, state=optuna.trial.TrialState.FAIL)
@@ -344,11 +345,60 @@ class AutoTuner:
         if report:
             await self._broadcast({"type": "tuning_report", "data": {"markdown": report, "summary": summary}})
 
-    async def _explain_failure(
+    async def _on_trial_failure(
         self, trial_num: int, params: dict[str, Any], failure_reason: str, logs: str | None
     ) -> None:
+        """Diagnose a failed trial, learn search-space limits from it, record it and tell the UI."""
         report, self._last_boot_report = self._last_boot_report, None
         diagnoses = diagnose_boot(logs, report)
+        await self._learn_limits(diagnoses, params)
+        await self._record_failed_trial(trial_num, params, failure_reason, diagnoses)
+        await self._explain_failure(trial_num, params, failure_reason, logs, diagnoses)
+
+    async def _learn_limits(self, diagnoses: list[dict[str, Any]], params: dict[str, Any]) -> None:
+        if self._config is None:
+            return
+        known = {(x["param"], x["max"], x.get("util")) for x in self._config.learned_limits}
+        for limit in learn_limits(diagnoses, params):
+            if (limit["param"], limit["max"], limit["util"]) in known:
+                continue
+            self._config.learned_limits.append(limit)
+            await self._broadcast(
+                {
+                    "type": "tuning_warning",
+                    "data": {"message": f"기동 실패에서 {limit['param']} ≤ {limit['max']} 상한을 학습했습니다"},
+                }
+            )
+
+    async def _record_failed_trial(
+        self, trial_num: int, params: dict[str, Any], failure_reason: str, diagnoses: list[dict[str, Any]]
+    ) -> None:
+        t = TuningTrial(
+            trial_id=trial_num,
+            params=params,
+            tps=0.0,
+            p99_latency=0.0,
+            score=0.0,
+            status="failed",
+            failure=compact_failure(failure_reason, diagnoses),
+        )
+        async with self._lock:
+            self._trials.append(t)
+            self._best_score_history.append(self._best_trial.score if self._best_trial else 0)
+        try:
+            await self._save_trial_fn()(t)
+        except (OSError, RuntimeError, ValueError) as e:
+            logger.warning("[AutoTuner] Failed to persist failed trial %d: %s", trial_num, e)
+            await self._broadcast_persistence_warning_once()
+
+    async def _explain_failure(
+        self,
+        trial_num: int,
+        params: dict[str, Any],
+        failure_reason: str,
+        logs: str | None,
+        diagnoses: list[dict[str, Any]],
+    ) -> None:
         explanation: str | None = None
         if self._assistant_enabled():
             try:

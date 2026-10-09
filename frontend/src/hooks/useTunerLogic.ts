@@ -12,6 +12,8 @@ import type {
   TunerPhase,
   TunerStatus,
   TunerTrial,
+  TunerTrialFailure,
+  TunerTrialFailureDiagnosis,
   TunerConfig,
   ClusterTarget,
   TuningWarmupSuggestionsPayload,
@@ -99,6 +101,49 @@ function toTunerConfig(draft: Record<string, unknown>, prev: TunerConfig): Tuner
   };
 }
 
+function toFailureDiagnosis(value: unknown): TunerTrialFailureDiagnosis | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const diagnosis = value as Record<string, unknown>;
+  if (typeof diagnosis.code !== 'string') return null;
+  return {
+    code: diagnosis.code,
+    title: asString(diagnosis.title, diagnosis.code),
+    fix: asString(diagnosis.fix, ''),
+  };
+}
+
+function toTunerTrialFailure(value: unknown): TunerTrialFailure | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const failure = value as Record<string, unknown>;
+  const diagnoses = Array.isArray(failure.diagnoses)
+    ? failure.diagnoses
+        .map(toFailureDiagnosis)
+        .filter((diagnosis): diagnosis is TunerTrialFailureDiagnosis => diagnosis !== null)
+    : [];
+  return { reason: asString(failure.reason, ''), diagnoses };
+}
+
+function toTunerTrial(value: unknown): TunerTrial | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const trial = value as Partial<TunerTrial>;
+  if (typeof trial.id !== 'number') return null;
+  return {
+    ...trial,
+    id: trial.id,
+    tps: asNumber(trial.tps, 0),
+    p99_latency: asNumber(trial.p99_latency, 0),
+    score: asNumber(trial.score, 0),
+    params: typeof trial.params === 'object' && trial.params !== null ? trial.params : {},
+    status: asString(trial.status, 'unknown'),
+    failure: toTunerTrialFailure(trial.failure),
+  };
+}
+
+function toTunerTrials(value: unknown): TunerTrial[] {
+  if (!Array.isArray(value)) return [];
+  return value.map(toTunerTrial).filter((trial): trial is TunerTrial => trial !== null);
+}
+
 export function useTunerLogic({
   isActive,
   onRunningChange,
@@ -150,7 +195,7 @@ export function useTunerLogic({
     const t = results[1].status === 'fulfilled' ? results[1].value : null;
     const imp = results[2].status === 'fulfilled' ? results[2].value : null;
     if (s) setStatus(s);
-    if (t) setTrials(t);
+    if (t) setTrials(toTunerTrials(t));
     if (imp) setImportance(imp);
     if (!s && !t && !imp) {
       setError(ERROR_MESSAGES.TUNER.ALL_API_FAILED);

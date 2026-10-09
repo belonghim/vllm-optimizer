@@ -386,6 +386,26 @@ def gpu_overhead_gib(device_count: int) -> float:
     return per_gpu * device_count
 
 
+def calibrated_overhead_gib(
+    analysis: ModelAnalysis, budget: MemoryBudget, running_utilization: float, kv_cache_size_tokens: int | None
+) -> float | None:
+    """Back-solve the non-weight, non-KV GPU reserve from the KV pool vLLM actually allocated.
+
+    ``overhead = budget * util - weights - pool_tokens * kv_bytes_per_token`` at the utilization the pod runs with.
+    Only exact for pure full-attention models (the pool token count of hybrid/sliding-window models is not
+    a plain multiple of one per-token size), and only trusted when the result is non-negative.
+    """
+    if budget.dedicated_kv or not budget.gib or not kv_cache_size_tokens or running_utilization <= 0:
+        return None
+    if analysis.sliding_kv_bytes_per_token or analysis.linear_state_bytes_per_seq:
+        return None
+    if not analysis.kv_bytes_per_token or analysis.model_weight_gib is None:
+        return None
+    pool_gib = kv_cache_size_tokens * analysis.kv_bytes_per_token / GIB
+    overhead = budget.gib * running_utilization - analysis.model_weight_gib - pool_gib
+    return round(overhead, 2) if overhead >= 0 else None
+
+
 def memory_budget(
     resources: dict[str, Any],
     accelerator_memory_gib: float | None,

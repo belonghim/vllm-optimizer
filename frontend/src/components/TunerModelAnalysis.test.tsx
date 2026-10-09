@@ -55,7 +55,13 @@ const ANALYSIS = {
     kv_cache_dtype: 'auto',
     max_num_batched_tokens: 8192,
   },
-  memory_budget: { gib: 8, source: 'pod_memory', utilization: 0.9, overhead_gib: 6 },
+  memory_budget: {
+    gib: 8,
+    source: 'pod_memory',
+    utilization: 0.9,
+    overhead_gib: 6,
+    overhead_source: 'table',
+  },
   capacity: [
     { context_len: 2048, kv_bytes_per_seq: 44708864, max_concurrent_seqs: 154 },
     { context_len: 8192, kv_bytes_per_seq: 120206336, max_concurrent_seqs: 57 },
@@ -253,7 +259,9 @@ describe('TunerModelAnalysis', () => {
     );
     expect(screen.getByText('MTP layers').parentElement).toHaveTextContent('1');
     expect(
-      screen.getByText(/Estimate includes 6 GiB reserve for CUDA graph\/activations/)
+      screen.getByText(
+        /Estimate includes 6 GiB reserve for CUDA graph\/activations \(추정 테이블\)/
+      )
     ).toBeInTheDocument();
     expect(
       screen.getByText(/max_num_batched_tokens not required \(using 8,192\)/)
@@ -317,5 +325,30 @@ describe('TunerModelAnalysis', () => {
 
     await screen.findByText('24 (full 6 · linear 18)');
     expect(screen.queryByTestId('tma-serving-advice')).not.toBeInTheDocument();
+  });
+
+  it('labels an observed KV-pool overhead source', async () => {
+    server.use(
+      http.get(`${API}/tuner/model-analysis`, () =>
+        HttpResponse.json({
+          ...ANALYSIS,
+          memory_budget: { ...ANALYSIS.memory_budget, overhead_source: 'observed' },
+        })
+      )
+    );
+    render(
+      <TunerModelAnalysis
+        isActive={true}
+        acceleratorMemoryGib={null}
+        onAcceleratorMemoryChange={vi.fn()}
+        onApplySearchSpace={vi.fn()}
+      />
+    );
+
+    expect(
+      await screen.findByText(
+        /Estimate includes 6 GiB reserve for CUDA graph\/activations \(관측 KV 풀로 보정\)/
+      )
+    ).toBeInTheDocument();
   });
 });

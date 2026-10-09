@@ -139,6 +139,12 @@ export default function TunerModelAnalysis({
   const observed = analysis?.observed;
   const space = analysis?.suggested_search_space;
   const overheadGib = analysis?.memory_budget.overhead_gib ?? 0;
+  const overheadSourceLabel =
+    analysis?.memory_budget.overhead_source === 'table'
+      ? '추정 테이블'
+      : analysis?.memory_budget.overhead_source === 'observed'
+        ? '관측 KV 풀로 보정'
+        : null;
   const facts: [string, string][] = m
     ? [
         ['Architecture', `${m.architecture ?? '—'}${m.multimodal ? ' (multimodal)' : ''}`],
@@ -324,7 +330,9 @@ export default function TunerModelAnalysis({
       {analysis && analysis.capacity.length > 0 && (
         <div style={{ fontSize: '11px', color: 'var(--muted-color)', margin: '4px 0 0.75rem' }}>
           {overheadGib > 0
-            ? `Estimate includes ${overheadGib} GiB reserve for CUDA graph/activations.`
+            ? `Estimate includes ${overheadGib} GiB reserve for CUDA graph/activations${
+                overheadSourceLabel ? ` (${overheadSourceLabel})` : ''
+              }.`
             : 'Estimate is a theoretical upper bound — runtime overhead is not subtracted.'}
           {observed &&
             ' Measured = KV pool vLLM actually allocated with the current args (shown up to the served max_model_len); suggestions use it.'}

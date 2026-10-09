@@ -39,9 +39,18 @@ Deterministic analysis of the selected target's `/mnt/models/config.json` (read 
 | Capacity table | Max concurrent sequences per context length = (budget × utilization − per-GPU overhead reserve − weights) / KV per sequence. `utilization` follows the target's `--gpu-memory-utilization` (default 0.9). Planning estimate; measured values win |
 | Serving arguments | Rule-based feature-flag advice (tool/reasoning parsers, chat template, fp8 KV, prefix caching, MTP, multimodal, trust-remote-code, avoid `--quantization`/`--dtype`) derived from chat-template signatures and config.json, compared with the target's current args, plus a copyable `add_args` line and notes (context limit exceeded, Mamba/sliding reservations) |
 | Measured (vLLM) | When the target pod's `/metrics` is reachable (`vllm:cache_config_info`, pod `list` only), the table shows vLLM's measured `observed_max_seqs` next to the estimate, with the pool size and `estimate/measured` ratio above it; the suggested search space then prefers the measured capacity |
+| GPU overhead source | The overhead reserve is shown with its origin: `추정 테이블` (6/10/16/24 GiB per GPU) or `관측 KV 풀로 보정` (back-solved from the running pod's pool; pure full-attention models only) |
 | Hybrid Mamba cap | For GDN/Mamba models with a known vLLM block count, the suggested `max_num_seqs` range is clamped to it and a warning appears when the current `--max-num-seqs` exceeds it |
 | Apply to search space | Copies the suggested `max_num_seqs` / `max_model_len` ranges into the tuner form |
 | Explain with analyst LLM | Shown only when `ANALYST_ENDPOINT` is set. Sends the computed analysis to the analyst model (e.g. llm-ov) for a short Korean narrative; it must not invent numbers |
+
+---
+
+### 2b. TunerBootDiagnosis Component
+
+**Source**: `frontend/src/components/TunerBootDiagnosis.tsx` · API `GET /api/tuner/boot-diagnosis`
+
+On-demand ("진단" button, no polling) check of why the target's vLLM pod is not booting: pod/container state chips (phase, state, restarts, last termination, exit code), matched causes with the fix and copyable `fix_args`, and the log tail. Failed/skipped trials in the results list also show their diagnosis titles (`failure` field of `/api/tuner/trials`).
 
 ---
 

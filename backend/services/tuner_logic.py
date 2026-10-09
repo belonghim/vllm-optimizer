@@ -20,6 +20,7 @@ from models.load_test import (  # pyright: ignore[reportImplicitRelativeImport] 
     TuningConfig,
     TuningTrial,
 )
+from services.boot_diagnosis import first_violated_limit
 from services.load_engine import (
     LoadTestEngine,  # pyright: ignore[reportImplicitRelativeImport]  # backend/ added to sys.path at runtime
 )
@@ -538,13 +539,20 @@ async def execute_trial_for_tuner(
         trial = tuner._study.ask()
     params = tuner._suggest_params(trial, config)
     trial_start = time.monotonic()
+    skip_reason: str | None = None
+    skip_message = ""
     if kv_cache_oom_risk(params, config):
-        trial.set_user_attr("failure_reason", "OOM_predicted")
-        logger.info("[AutoTuner] Trial %d skipped: predicted KV cache OOM (params=%s)", trial_num, params)
+        skip_reason, skip_message = "OOM_predicted", "KV cache OOM 예측으로 건너뜁니다"
+    elif (limit := first_violated_limit(params, config.learned_limits)) is not None:
+        skip_reason = "learned_limit"
+        skip_message = f"이전 기동 실패에서 학습한 상한({limit['param']} ≤ {limit['max']})을 넘어 건너뜁니다"
+    if skip_reason:
+        trial.set_user_attr("failure_reason", skip_reason)
+        logger.info("[AutoTuner] Trial %d skipped: %s (params=%s)", trial_num, skip_reason, params)
         await tuner._broadcast(
             {
                 "type": "tuning_warning",
-                "data": {"message": f"Trial {trial_num}: KV cache OOM 예측으로 건너뜁니다", "trial": trial_num},
+                "data": {"message": f"Trial {trial_num}: {skip_message}", "trial": trial_num},
             }
         )
         async with tuner._study_lock:
@@ -552,7 +560,14 @@ async def execute_trial_for_tuner(
             tuner._study.tell(trial, state=optuna.trial.TrialState.PRUNED)
         # Record the skip so the trials list reflects every trial the session asked for.
         t = TuningTrial(
-            trial_id=trial_num, params=params, tps=0.0, p99_latency=0.0, score=0.0, status="skipped", pruned=True
+            trial_id=trial_num,
+            params=params,
+            tps=0.0,
+            p99_latency=0.0,
+            score=0.0,
+            status="skipped",
+            pruned=True,
+            failure={"reason": skip_reason, "diagnoses": [{"code": skip_reason, "title": skip_message, "fix": ""}]},
         )
         async with tuner._lock:
             tuner._trials.append(t)
@@ -591,8 +606,11 @@ async def execute_trial_for_tuner(
             except Exception:
                 pass
         trial.set_user_attr("failure_reason", failure_reason)
-        if hasattr(tuner, "_explain_failure"):
-            await tuner._explain_failure(trial_num, params, failure_reason, failure_logs)
+        if hasattr(tuner, "_on_trial_failure"):
+            try:
+                await tuner._on_trial_failure(trial_num, params, failure_reason, failure_logs)
+            except Exception as diag_err:
+                logger.warning("[AutoTuner] Trial %d failure handling failed: %s", trial_num, diag_err)
         await tuner._broadcast(
             {
                 "type": "error",

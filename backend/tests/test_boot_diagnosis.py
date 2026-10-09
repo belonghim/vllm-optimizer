@@ -8,7 +8,13 @@ from fastapi.testclient import TestClient
 
 from ..services import k8s_operator
 from ..services.auto_tuner import AutoTuner
-from ..services.boot_diagnosis import diagnose_boot, summarize_diagnoses
+from ..services.boot_diagnosis import (
+    compact_failure,
+    diagnose_boot,
+    first_violated_limit,
+    learn_limits,
+    summarize_diagnoses,
+)
 from ..services.cr_adapter import get_cr_adapter
 from .conftest import get_route_handler_globals
 
@@ -130,16 +136,45 @@ async def test_read_boot_report_picks_newest_pod_and_previous_logs(monkeypatch: 
 
 
 @pytest.mark.asyncio
-async def test_explain_failure_broadcasts_diagnosis_without_analyst() -> None:
+async def test_on_trial_failure_broadcasts_diagnosis_without_analyst() -> None:
     tuner = AutoTuner(MagicMock(), MagicMock())
     tuner._assistant_enabled = lambda: False  # type: ignore[method-assign]
     tuner._broadcast = AsyncMock()  # type: ignore[method-assign]
-    await tuner._explain_failure(4, {"max_num_seqs": 256}, "crash", MAMBA_LOG)
-    event = tuner._broadcast.await_args.args[0]
+    tuner._save_trial_fn = lambda: AsyncMock()  # type: ignore[method-assign]
+    await tuner._on_trial_failure(4, {"max_num_seqs": 256}, "crash", MAMBA_LOG)
+    event = tuner._broadcast.await_args_list[-1].args[0]
     assert event["type"] == "tuning_failure_explanation"
     assert event["data"]["trial_id"] == 4
     assert event["data"]["diagnoses"][0]["code"] == "mamba_blocks_exceeded"
     assert "96" in event["data"]["explanation"]
+    assert tuner._trials[0].status == "failed"
+
+
+def test_learn_limits_and_violation_rules() -> None:
+    params = {"max_num_seqs": 256, "gpu_memory_utilization": 0.85, "max_model_len": 8192}
+    limits = learn_limits(diagnose_boot(MAMBA_LOG), params)
+    assert limits == [{"param": "max_num_seqs", "max": 96, "util": 0.85, "code": "mamba_blocks_exceeded"}]
+    assert first_violated_limit({"max_num_seqs": 128, "gpu_memory_utilization": 0.8}, limits) == limits[0]
+    assert first_violated_limit({"max_num_seqs": 96, "gpu_memory_utilization": 0.8}, limits) is None
+    assert first_violated_limit({"max_num_seqs": 128, "gpu_memory_utilization": 0.9}, limits) is None
+    kv = learn_limits(diagnose_boot(KV_LOG), params)
+    assert kv[0]["param"] == "max_model_len" and kv[0]["max"] == 52416
+    derived = learn_limits(
+        diagnose_boot(
+            "User-specified max_model_len (200000) is greater than the derived max_model_len (max_position_embeddings=131072)"
+        ),
+        params,
+    )
+    assert derived[0]["util"] is None
+    assert first_violated_limit({"max_model_len": 262144, "gpu_memory_utilization": 0.99}, derived) == derived[0]
+    assert learn_limits(diagnose_boot("loading"), params) == []
+
+
+def test_compact_failure_trims_to_three() -> None:
+    diagnoses = [{"code": str(i), "title": "t", "fix": "f", "cause": "c"} for i in range(5)]
+    out = compact_failure("crash", diagnoses)
+    assert out["reason"] == "crash" and len(out["diagnoses"]) == 3
+    assert set(out["diagnoses"][0]) == {"code", "title", "fix"}
 
 
 @pytest.mark.parametrize(

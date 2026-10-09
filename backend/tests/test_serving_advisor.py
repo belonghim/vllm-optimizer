@@ -8,6 +8,7 @@ from ..services.model_analysis import (
     ModelArtifacts,
     analyze_chat_template,
     analyze_config,
+    calibrated_overhead_gib,
     capacity_table,
     clamp_search_space_to_cap,
     gpu_overhead_gib,
@@ -257,3 +258,49 @@ def test_advisor_warns_when_max_num_seqs_exceeds_mamba_blocks() -> None:
     assert any(n["level"] == "warning" and "Mamba" in n["text"] for n in over["notes"])
     ok = recommend_serving_args(a, ["--max-num-seqs=64"], gpu_count=1, mamba_cap=96)
     assert not any(n["level"] == "warning" and "Mamba" in n["text"] for n in ok["notes"])
+
+
+def test_calibrated_overhead_back_solves_from_observed_pool() -> None:
+    a = analyze_config(LLAMA_8B)
+    a.model_weight_gib = 15.0
+    budget = MemoryBudget(80.0, "accelerator", 1, overhead_gib=6.0)
+    pool_tokens = int((80 * 0.9 - 15.0 - 8.0) * 2**30 / a.kv_bytes_per_token)
+    assert calibrated_overhead_gib(a, budget, 0.9, pool_tokens) == 8.0
+    assert calibrated_overhead_gib(a, budget, 0.9, None) is None
+    assert calibrated_overhead_gib(a, budget, 0.9, 10**12) is None  # pool larger than budget → distrust
+    assert calibrated_overhead_gib(a, replace(budget, dedicated_kv=True), 0.9, pool_tokens) is None
+    a.sliding_kv_bytes_per_token = 1024
+    assert calibrated_overhead_gib(a, budget, 0.9, pool_tokens) is None
+
+
+def test_model_analysis_calibrates_overhead_from_observed_pool_for_both_cr_types() -> None:
+    kv_per_token = 32 * 2 * 8 * 128 * 2
+    tokens = int((80 * 0.9 - 1.0 - 8.0) * 2**30 / kv_per_token)
+    observed = {"kv_cache_size_tokens": tokens, "max_concurrency": 10.0}
+    isvc = {
+        "predictor": {
+            "model": {
+                "storageUri": "oci://example/llama",
+                "args": ["--gpu-memory-utilization=0.9"],
+                "resources": {"limits": {"nvidia.com/gpu": "1"}},
+            }
+        }
+    }
+    llmis = {
+        "model": {"uri": "oci://example/llama", "name": "llama"},
+        "template": {
+            "containers": [
+                {
+                    "name": "main",
+                    "env": [{"name": "VLLM_ADDITIONAL_ARGS", "value": "--gpu-memory-utilization=0.9"}],
+                    "resources": {"limits": {"nvidia.com/gpu": "1"}},
+                }
+            ]
+        },
+    }
+    for cr_type, spec in (("inferenceservice", isvc), ("llminferenceservice", llmis)):
+        data, _ = _call_analysis(cr_type, spec, "?accelerator_memory_gib=80", observed)
+        assert data["memory_budget"]["overhead_gib"] == 8.0, cr_type
+        assert data["memory_budget"]["overhead_source"] == "observed", cr_type
+        table_data, _ = _call_analysis(cr_type, spec, "?accelerator_memory_gib=80")
+        assert table_data["memory_budget"]["overhead_source"] == "table", cr_type

@@ -124,6 +124,11 @@ async def _create_tuner_tables(db: aiosqlite.Connection) -> None:
             pruned INTEGER NOT NULL DEFAULT 0
         )
     """)
+    try:
+        await db.execute("ALTER TABLE tuner_trials ADD COLUMN failure_json TEXT DEFAULT NULL")
+        await db.commit()
+    except sqlite3.OperationalError:  # intentional: column already exists → migration is a no-op
+        pass
     await db.execute("""
         CREATE TABLE IF NOT EXISTS tuning_sessions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

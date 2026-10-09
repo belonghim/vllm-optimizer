@@ -148,6 +148,17 @@ export interface TunerStatus {
   best_score_history?: number[];
 }
 
+export interface TunerTrialFailureDiagnosis {
+  code: string;
+  title: string;
+  fix: string;
+}
+
+export interface TunerTrialFailure {
+  reason: string;
+  diagnoses: TunerTrialFailureDiagnosis[];
+}
+
 export interface TunerTrial {
   id: number;
   tps: number;
@@ -156,6 +167,7 @@ export interface TunerTrial {
   params: Record<string, unknown>;
   status: string;
   is_pareto_optimal?: boolean;
+  failure?: TunerTrialFailure | null;
 }
 
 export interface BenchmarkMetadata {
@@ -261,6 +273,24 @@ export interface BootDiagnosis {
   evidence: string;
   fix_args: string[];
   suggested_value: number | null;
+}
+
+export interface BootDiagnosisPod {
+  pod: string;
+  container: string;
+  phase: string | null;
+  restarts: number;
+  state: string | null;
+  last_terminated_reason: string | null;
+  exit_code: number | null;
+}
+
+export interface BootDiagnosisResponse {
+  target: { namespace: string; name: string; cr_type: string };
+  available: boolean;
+  pod: BootDiagnosisPod | null;
+  diagnoses: BootDiagnosis[];
+  log_tail: string | null;
 }
 
 export interface TuningReportPayload {
@@ -377,6 +407,7 @@ export interface ModelAnalysis {
     utilization?: number | null;
     dedicated_kv?: boolean;
     overhead_gib?: number;
+    overhead_source?: 'table' | 'observed' | null;
   };
   capacity: ModelCapacityRow[];
   observed?: ObservedKvCache | null;

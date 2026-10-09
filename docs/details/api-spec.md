@@ -749,13 +749,13 @@ Deterministic analysis of a target model. Reads `/mnt/models/config.json`, `open
 | `utilization` | number | target's `--gpu-memory-utilization`, else 0.9 | Fraction of the memory budget usable for weights + KV |
 | `refresh` | boolean | false | Bypass the per-storageUri cache |
 
-**Response (200 OK):** `target`, `available`, `model` (layer mix, `kv_bytes_per_token`, `sliding_kv_bytes_per_token`, `linear_state_bytes_per_seq`, `model_weight_gib`, quantization, MoE, context limits, `warnings`), `runtime` (`gpu_count`, `tensor_parallel_size`, `kv_cache_dtype`, `max_num_batched_tokens`, `current_args`), `memory_budget` (`gib`, `overhead_gib`, `source`: `accelerator` | `pod_memory` | `unknown_accelerator_memory` | `unknown`), `capacity` (`context_len`, `kv_bytes_per_seq`, `max_concurrent_seqs` | null, `observed_max_seqs`), `observed` (vLLM's allocated pool from the pod's `/metrics` `cache_config_info`: `kv_cache_size_tokens`, `max_concurrency`, `block_size`, `gpu_memory_utilization`, `prefix_caching`, `cache_dtype`, `pod`, `estimate_ratio`), `suggested_search_space`, `advice`, `analyst_available`, `warnings`.
+**Response (200 OK):** `target`, `available`, `model` (layer mix, `kv_bytes_per_token`, `sliding_kv_bytes_per_token`, `linear_state_bytes_per_seq`, `model_weight_gib`, quantization, MoE, context limits, `warnings`), `runtime` (`gpu_count`, `tensor_parallel_size`, `kv_cache_dtype`, `max_num_batched_tokens`, `current_args`), `memory_budget` (`gib`, `overhead_gib`, `overhead_source`: `table` | `observed` | null, `source`: `accelerator` | `pod_memory` | `unknown_accelerator_memory` | `unknown`), `capacity` (`context_len`, `kv_bytes_per_seq`, `max_concurrent_seqs` | null, `observed_max_seqs`), `observed` (vLLM's allocated pool from the pod's `/metrics` `cache_config_info`: `kv_cache_size_tokens`, `max_concurrency`, `block_size`, `gpu_memory_utilization`, `prefix_caching`, `cache_dtype`, `pod`, `estimate_ratio`), `suggested_search_space`, `advice`, `analyst_available`, `warnings`.
 
 `model` additionally carries `context_limit` (min of config context keys, tokenizer `model_max_length`, YaRN/rope-scaled length; rope types llama3/longrope/su/default are not multiplied), `rope_type`, `mtp_layers`, `auto_map`/`auto_map_remote`/`custom_code_files`, `artifacts_read`, `chat_template_source`, `template_signatures` (`tool_xml`, `tool_json`, `harmony`, `gemma4_tool`, `enable_thinking`, `think`, `reasoning_effort`), `thinking_default` and `generation_defaults`.
 
 `advice` (null when no CR spec is available) = `{recommendations, notes, add_args}`. Each recommendation: `flag`, `kind` (`required` | `workload` | `avoid`), `status` (`present` | `missing` | `mismatch`), `reason`, `value`, `current`, `arg` (paste-ready token or null when a value cannot be derived), `evidence`. It is evaluated against the target's current args (`static + tuning`), so it works for both InferenceService and LLMInferenceService. Rules: tool/reasoning parsers from chat-template signatures, `--chat-template` when none ships, `--kv-cache-dtype=fp8`, `--enable-prefix-caching` (hybrid), MTP `--speculative-config`, multimodal flags (`--language-model-only`, `--limit-mm-per-prompt`, `--mm-encoder-tp-mode=data`, Gemma4 `--attention-backend=TRITON_ATTN`), `--trust-remote-code` for `auto_map`, and `avoid` for `--quantization`/`--dtype` when the checkpoint carries a quantization config. `notes` flag `--max-model-len` above `context_limit`, remote/missing custom code, prefix-caching + MTP conflicts on hybrid models, Mamba block `--max-num-seqs` limits and the sliding-window reservation. `add_args` = space-joined `arg` of required + missing recommendations.
 
-KV per sequence = `kv_bytes_per_token × len + sliding_kv_bytes_per_token × min(len, sliding_window - 1 + max_num_batched_tokens) + linear_state_bytes_per_seq`. On accelerator targets a conservative per-GPU reserve for CUDA graph / activation / vision-encoder overhead (`memory_budget.overhead_gib`: 6/10/16/24 GiB per GPU for TP 1/2/4/8+) is subtracted, so the estimate is a planning figure — measured `observed` values take precedence. `observed` needs only pod `list` (no exec); measured rows stop at the served `max_model_len` (`observed_max_seqs = kv_cache_size_tokens // context_len`) and the suggested search space prefers measured capacity when present.
+KV per sequence = `kv_bytes_per_token × len + sliding_kv_bytes_per_token × min(len, sliding_window - 1 + max_num_batched_tokens) + linear_state_bytes_per_seq`. On accelerator targets a conservative per-GPU reserve for CUDA graph / activation / vision-encoder overhead (`memory_budget.overhead_gib`: 6/10/16/24 GiB per GPU for TP 1/2/4/8+) is subtracted, so the estimate is a planning figure — measured `observed` values take precedence. When the pod is running and the model is pure full-attention (no sliding/linear layers), the reserve is back-solved from the allocated pool (`overhead = budget × running utilization − weights − pool_tokens × kv_bytes_per_token`, `overhead_source: observed`) and used for both the capacity table and the tuner's OOM prediction. `observed` needs only pod `list` (no exec); measured rows stop at the served `max_model_len` (`observed_max_seqs = kv_cache_size_tokens // context_len`) and the suggested search space prefers measured capacity when present.
 
 `observed` also carries `num_gpu_blocks` and `mamba_cache_mode` when vLLM exposes them. For hybrid (GDN/Mamba) models with a known block count, `observed.mamba_seq_cap` equals `num_gpu_blocks` (vLLM refuses full-CUDA-graph start when `max_num_seqs` exceeds it); `suggested_search_space.max_num_seqs_max` is clamped to it and `advice.notes` warns when the current `--max-num-seqs` is above it.
 
@@ -850,7 +850,8 @@ Get tuning trials with pagination support. Returns details of each trial includi
     "score": "number",
     "status": "string",
     "is_pareto_optimal": "boolean",
-    "pruned": "boolean"
+    "pruned": "boolean",
+    "failure": "object | null"
   }
 ]
 ```
@@ -870,9 +871,12 @@ Get tuning trials with pagination support. Returns details of each trial includi
 | `p99_latency` | number | P99 latency achieved |
 | `params` | object | Parameters used in this trial |
 | `score` | number | Computed score for this trial |
-| `status` | string | Trial status (complete, running, failed) |
+| `status` | string | Trial status (completed, running, failed, skipped) |
 | `is_pareto_optimal` | boolean | Whether this trial is on the Pareto front |
 | `pruned` | boolean | Whether this trial was pruned early |
+| `failure` | object \| null | For `failed`/`skipped` trials: `{reason, diagnoses:[{code,title,fix}]}` (max 3 diagnoses). `reason` is the classified failure (`OOM_predicted`, `learned_limit`, `startup_timeout`, ...) |
+
+Failed trials are persisted (`tuner_trials.failure_json`). A boot failure that matches `mamba_blocks_exceeded` / `kv_cache_too_small` / `max_model_len_exceeds_model` yields an upper bound (`max_num_seqs` / `max_model_len`, valid at the failing `gpu_memory_utilization` and below) that is kept for the rest of the session; later trials above it are skipped (`reason: learned_limit`) without restarting the pod.
 
 **Error Responses:**
 

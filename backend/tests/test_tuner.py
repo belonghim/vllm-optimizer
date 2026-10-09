@@ -1555,7 +1555,7 @@ async def test_trial_evaluation_failure_broadcasts_warning(auto_tuner_instance, 
     warning_events = [e for e in events if e.get("type") == "tuning_warning"]
     assert len(warning_events) >= 1
     assert any("평가 실패" in e["data"].get("message", "") for e in warning_events)
-    assert len(tuner.trials) == 0
+    assert [t.status for t in tuner.trials] == ["failed"]
 
 
 @pytest.mark.asyncio
@@ -1897,3 +1897,49 @@ async def test_oom_skipped_trial_recorded_with_skipped_status(auto_tuner_instanc
     assert tuner._best_trial.trial_id == 1
     assert tuner._best_trial.status == "completed"
     assert tuner._best_score_history == [0, 100.0]
+
+
+@pytest.mark.asyncio
+async def test_learned_limit_skips_trials_without_restarting(auto_tuner_instance, mock_k8s_clients):
+    tuner = auto_tuner_instance
+    tuner._wait_for_ready = AsyncMock(return_value=True)
+    tuner._apply_params = AsyncMock(return_value={"success": True})
+    limit = {"param": "max_num_seqs", "max": 1, "util": None, "code": "mamba_blocks_exceeded"}
+    config = TuningConfig(n_trials=2, eval_requests=10, warmup_requests=0, objective="tps", learned_limits=[limit])
+    await tuner.start(config, "http://mock:8080")
+
+    assert [t.status for t in tuner.trials] == ["skipped", "skipped"]
+    assert tuner.trials[0].failure["reason"] == "learned_limit"
+    tuner._apply_params.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_startup_failure_records_trial_learns_limit_and_reads_logs_before_rollback(
+    auto_tuner_instance, mock_k8s_clients
+):
+    tuner = auto_tuner_instance
+    order: list[str] = []
+    mamba_log = "ValueError: max_num_seqs (256) exceeds available Mamba cache blocks (96). Please lower max_num_seqs to at most 96"
+
+    async def read_logs():
+        order.append("logs")
+        return mamba_log
+
+    async def rollback(trial_num):
+        order.append("rollback")
+        return True
+
+    tuner._wait_for_ready = AsyncMock(side_effect=[True, False])
+    tuner._apply_params = AsyncMock(return_value={"success": True})
+    tuner._read_failure_logs = read_logs
+    tuner._rollback_to_snapshot = rollback
+    tuner._assistant_enabled = lambda: False
+
+    config = TuningConfig(n_trials=1, eval_requests=10, warmup_requests=0, objective="tps")
+    await tuner.start(config, "http://mock:8080")
+
+    assert order == ["logs", "rollback"]
+    (failed,) = tuner.trials
+    assert failed.status == "failed"
+    assert failed.failure["diagnoses"][0]["code"] == "mamba_blocks_exceeded"
+    assert config.learned_limits[0]["param"] == "max_num_seqs" and config.learned_limits[0]["max"] == 96

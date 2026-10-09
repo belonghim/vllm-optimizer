@@ -5,6 +5,7 @@ import TunerHistoryPanel from '../components/TunerHistoryPanel';
 import TunerWarmupSuggestions from '../components/TunerWarmupSuggestions';
 import TunerReport from '../components/TunerReport';
 import TunerModelAnalysis from '../components/TunerModelAnalysis';
+import TunerBootDiagnosis from '../components/TunerBootDiagnosis';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TargetSelector from '../components/TargetSelector';
 import type { ClusterTarget, SuggestedSearchSpace } from '../types';
@@ -71,6 +72,7 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
         onApplySearchSpace={applySearchSpace}
         disabled={status.running}
       />
+      <TunerBootDiagnosis isActive={isActive} targetOverride={selectedTarget} />
       <TunerConfigSection
         key={
           selectedTarget

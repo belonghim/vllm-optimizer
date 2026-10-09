@@ -222,7 +222,8 @@ async def test_start_handles_vllm_connect_error_gracefully(auto_tuner_instance):
         )
 
     assert result["completed"] is True
-    assert result["trials"] == 0
+    assert result["trials"] == 1
+    assert tuner.trials[0].status == "failed"
     assert result["best_score"] == 0
     assert len(mock_study.tell_calls) == 1
     assert mock_study.tell_calls[0]["state"] == auto_tuner_module.optuna.trial.TrialState.FAIL
