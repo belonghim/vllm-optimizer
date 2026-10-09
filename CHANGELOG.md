@@ -16,11 +16,14 @@ All notable changes to this project will be documented in this file.
 - **용량 추정**: sliding-window 예약을 `window-1+max_num_batched_tokens`로, GPU 타깃에 TP별 보수적 오버헤드(GPU당 6/10/16/24 GiB)를 차감. 더 이상 "이론적 상한"이 아니라 계획용 추정치(실측 `observed` 우선).
 - **`utilization` 기본값**: 쿼리 미지정 시 대상 CR의 `--gpu-memory-utilization`, 없으면 0.9.
 
+### Changed (tuner)
+- **튜너 OOM 예측/탐색 범위에 오버헤드 반영**: `TuningConfig.memory_overhead_gib`(= 분석의 `memory_budget.overhead_gib`)를 `kv_cache_oom_risk`의 가용 KV에서 차감하고, sliding window 예약을 trial의 `max_num_batched_tokens`로 계산(`window-1+batched`). `gpu_memory_utilization` 하한도 `(weights×1.1 + overhead)/budget`로 상향해 부팅 불가능한 trial을 사전에 건너뜀.
+
 ### Verification
 - `backend/tests/test_serving_advisor.py`(신규) + `test_model_analysis.py`: 아티팩트 파싱, 템플릿 시그니처, 컨텍스트 상한, 오버헤드, 규칙별 추천, 두 CR 타입의 엔드포인트 `advice`/`utilization` 폴백 검증.
 
 ### Not implemented
-- GDN 페이지 크기·KV 그룹 패딩의 정확한 계산, Mamba 블록 기반 `--max-num-seqs` 상한의 수치 계산, 기동 로그 진단, 튜너의 오버헤드 기반 OOM 예측.
+- GDN 페이지 크기·KV 그룹 패딩의 정확한 계산, Mamba 블록 기반 `--max-num-seqs` 상한의 수치 계산(vLLM 내부 값 필요), 기동 로그 진단.
 
 ## [2026-10-04] - 군더더기 제거·튜너 수정·RBAC 환경 분리 및 검증 라운드
 

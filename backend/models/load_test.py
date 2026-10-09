@@ -259,6 +259,10 @@ class TuningConfig(BaseModel):
         default=False,
         description="Budget is a dedicated KV pool (OpenVINO KV space): no utilization factor, no weight subtraction",
     )
+    memory_overhead_gib: float = Field(
+        default=0.0,
+        description="Conservative CUDA graph / activation / NCCL reserve (GiB) subtracted from the KV budget",
+    )
     served_model_name_warning: str | None = Field(
         default=None, description="Non-None when --served-model-name in CR differs from the name vLLM actually reports"
     )

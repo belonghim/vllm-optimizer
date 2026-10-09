@@ -469,6 +469,7 @@ async def _build_tuning_config(
         model_weight_gib=analysis.model_weight_gib if analysis else None,
         memory_budget_gib=memory_budget_gib,
         memory_budget_dedicated_kv=bool(analysis_resp and analysis_resp.memory_budget.get("dedicated_kv")),
+        memory_overhead_gib=float(analysis_resp.memory_budget.get("overhead_gib") or 0.0) if analysis_resp else 0.0,
         served_model_name_warning=served_model_name_warning,
         target_key="/".join(target),
         model_kv_bytes_per_token=analysis.kv_bytes_per_token if analysis else None,

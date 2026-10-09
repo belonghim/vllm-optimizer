@@ -2,6 +2,7 @@ import copy
 from dataclasses import replace
 from typing import Any
 
+from ..models.load_test import TuningConfig
 from ..services.model_analysis import (
     MemoryBudget,
     ModelArtifacts,
@@ -12,6 +13,7 @@ from ..services.model_analysis import (
 )
 from ..services.model_config_reader import parse_read_artifacts
 from ..services.serving_advisor import recommend_serving_args
+from ..services.tuner_logic import kv_cache_oom_risk
 from .test_model_analysis import GEMMA4_E2B, LLAMA_8B, QWEN35_08B, _call_analysis
 
 _SEC = "__VLLM_OPTIMIZER_SECTION__"
@@ -192,3 +194,35 @@ def test_advisor_skips_mtp_on_openvino() -> None:
     a = analyze_config(LLAMA_8B, openvino_cfg={"dtype": "int4"})
     a.mtp_layers = 1
     assert "--speculative-config" not in _by_flag(recommend_serving_args(a, [], gpu_count=0, tensor_parallel_size=None))
+
+
+def test_tuner_oom_risk_subtracts_overhead_reserve() -> None:
+    a = analyze_config(LLAMA_8B)
+    base: dict[str, Any] = {
+        "model_kv_bytes_per_token": a.kv_bytes_per_token,
+        "model_weight_gib": 16.0,
+        "memory_budget_gib": 24.0,
+    }
+    params = {"max_model_len": 32768, "max_num_seqs": 8, "gpu_memory_utilization": 0.9}
+    # 24*0.9-16 = 5.6 GiB; 4 GiB sequence fits (<= 5.04), but not once a 6 GiB overhead is reserved.
+    assert kv_cache_oom_risk(params, TuningConfig(**base)) is False
+    assert kv_cache_oom_risk(params, TuningConfig(**base, memory_overhead_gib=6.0)) is True
+
+
+def test_tuner_oom_risk_sliding_window_grows_with_batched_tokens() -> None:
+    a = analyze_config(GEMMA4_E2B)
+    small = {"max_model_len": 131072, "max_num_batched_tokens": 256, "gpu_memory_utilization": 1.0}
+    big = {**small, "max_num_batched_tokens": 65536}
+    need_small = a.kv_bytes_per_seq(131072, 256)
+    need_big = a.kv_bytes_per_seq(131072, 65536)
+    assert need_big > need_small
+    # Budget sized so the 256-token reservation fits (with the 0.9 safety factor) but 65536 does not.
+    budget_gib = (need_small / 0.9 * 1.01) / 1024**3
+    cfg = TuningConfig(
+        model_kv_bytes_per_token=a.kv_bytes_per_token,
+        model_sliding_kv_bytes_per_token=a.sliding_kv_bytes_per_token,
+        model_sliding_window=a.sliding_window,
+        memory_budget_gib=budget_gib,
+    )
+    assert kv_cache_oom_risk(small, cfg) is False
+    assert kv_cache_oom_risk(big, cfg) is True

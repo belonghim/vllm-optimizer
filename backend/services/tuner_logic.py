@@ -78,7 +78,11 @@ def kv_cache_oom_risk(params: dict[str, Any], config: TuningConfig) -> bool:
     max_model_len = params.get("max_model_len", 4096)
     max_num_seqs = params.get("max_num_seqs", 256)
     gpu_util = params.get("gpu_memory_utilization", 0.9)
-    window = min(max_model_len, config.model_sliding_window) if config.model_sliding_window else max_model_len
+    window = max_model_len
+    if config.model_sliding_window:
+        # Sliding layers hold window-1 tokens plus the tokens of the step being scheduled.
+        batched = params.get("max_num_batched_tokens") or config.max_num_batched_tokens_range[0]
+        window = min(max_model_len, config.model_sliding_window - 1 + batched)
     required = (
         config.model_kv_bytes_per_token * max_model_len
         + config.model_sliding_kv_bytes_per_token * window
@@ -87,7 +91,8 @@ def kv_cache_oom_risk(params: dict[str, Any], config: TuningConfig) -> bool:
     if config.memory_budget_dedicated_kv:
         available = config.memory_budget_gib * (1024**3)
     else:
-        available = (config.memory_budget_gib * gpu_util - (config.model_weight_gib or 0.0)) * (1024**3)
+        reserved = (config.model_weight_gib or 0.0) + config.memory_overhead_gib
+        available = (config.memory_budget_gib * gpu_util - reserved) * (1024**3)
     return required > available * 0.9
 
 
@@ -199,8 +204,8 @@ class TunerLogic:
             and config.memory_budget_gib > 0
             and not config.memory_budget_dedicated_kv
         ):
-            _weight_fraction = config.model_weight_gib / config.memory_budget_gib
-            _floor = math.ceil(_weight_fraction * 1.1 * 100) / 100
+            _weight_fraction = (config.model_weight_gib * 1.1 + config.memory_overhead_gib) / config.memory_budget_gib
+            _floor = math.ceil(_weight_fraction * 100) / 100
             _floor = min(_floor, config.gpu_memory_utilization_range[1] - 0.05)
             _gpu_util_low = max(_gpu_util_low, _floor)
 
