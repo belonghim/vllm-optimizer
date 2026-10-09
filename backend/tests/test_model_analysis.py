@@ -238,7 +238,10 @@ def test_explain_endpoint_returns_none_when_analyst_unset(monkeypatch) -> None:
 
 
 class _FakeReader:
-    def __init__(self, cfg: dict[str, Any], observed: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self, cfg: dict[str, Any], observed: dict[str, Any] | None = None, available_kv_gib: float | None = None
+    ) -> None:
+        self.available_kv_gib = available_kv_gib
         self.calls: list[dict[str, Any]] = []
         self.observed_calls: list[tuple[str, str, int, str]] = []
         self._cfg = cfg
@@ -251,6 +254,9 @@ class _FakeReader:
         self.observed_calls.append((namespace, pod_label_selector, port, scheme))
         return dict(self._observed) if self._observed else None
 
+    async def read_available_kv_gib(self, namespace: str, label_selector: str, container: str | None):
+        return self.available_kv_gib
+
     async def read(self, **kwargs: Any):
         self.calls.append(kwargs)
         analysis = analyze_config(self._cfg, kv_cache_dtype=kwargs.get("kv_cache_dtype"))
@@ -261,13 +267,18 @@ class _FakeReader:
 
 
 def _call_analysis(
-    cr_type: str, spec: dict[str, Any], query: str, observed: dict[str, Any] | None = None
+    cr_type: str,
+    spec: dict[str, Any],
+    query: str,
+    observed: dict[str, Any] | None = None,
+    cfg: dict[str, Any] | None = None,
+    available_kv_gib: float | None = None,
 ) -> tuple[dict[str, Any], _FakeReader]:
     from ..main import app
 
     handler_globals = get_route_handler_globals(app, "/api/tuner/model-analysis", "GET")
     assert handler_globals is not None
-    reader = _FakeReader(LLAMA_8B, observed)
+    reader = _FakeReader(cfg or LLAMA_8B, observed, available_kv_gib)
     auto_tuner = handler_globals["auto_tuner"]
     original_ctx = auto_tuner.get_cr_context
     original_reader = handler_globals["get_model_config_reader"]

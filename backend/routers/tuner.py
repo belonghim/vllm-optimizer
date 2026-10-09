@@ -375,22 +375,28 @@ async def _analyze_target(
         resp.capacity = capacity_table(analysis, budget, utilization, max_context, batched)
         resp.suggested_search_space = suggest_search_space(resp.capacity, served_len)
     if observed is not None:
-        estimated = next(
-            (r["max_concurrent_seqs"] for r in resp.capacity if served_len and r["context_len"] == served_len), None
-        )
-        reported = observed.get("max_concurrency")
-        observed["estimate_ratio"] = round(estimated / reported, 3) if estimated and reported else None
+        available_kv_gib = None
+        if budget.source == "accelerator" and pod_selector:
+            available_kv_gib = await reader.read_available_kv_gib(namespace, pod_selector, container)
+            if available_kv_gib is not None:
+                observed["available_kv_gib"] = available_kv_gib
         calibrated = calibrated_overhead_gib(
             analysis,
             budget,
             _positive_number(current_args.get("gpu_memory_utilization"), float) or DEFAULT_UTILIZATION,
             observed["kv_cache_size_tokens"],
+            available_kv_gib,
         )
         if calibrated is not None and budget.source == "accelerator":
             budget = replace(budget, overhead_gib=calibrated)
             resp.memory_budget.update({"overhead_gib": calibrated, "overhead_source": "observed"})
             resp.capacity = capacity_table(analysis, budget, utilization, max_context, batched)
             resp.suggested_search_space = suggest_search_space(resp.capacity, served_len)
+        estimated = next(
+            (r["max_concurrent_seqs"] for r in resp.capacity if served_len and r["context_len"] == served_len), None
+        )
+        reported = observed.get("max_concurrency")
+        observed["estimate_ratio"] = round(estimated / reported, 3) if estimated and reported else None
         resp.capacity = observed_capacity(
             resp.capacity, observed["kv_cache_size_tokens"], served_len, analysis, batched
         )

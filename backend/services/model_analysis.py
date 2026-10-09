@@ -387,22 +387,33 @@ def gpu_overhead_gib(device_count: int) -> float:
 
 
 def calibrated_overhead_gib(
-    analysis: ModelAnalysis, budget: MemoryBudget, running_utilization: float, kv_cache_size_tokens: int | None
+    analysis: ModelAnalysis,
+    budget: MemoryBudget,
+    running_utilization: float,
+    kv_cache_size_tokens: int | None,
+    available_kv_gib: float | None = None,
 ) -> float | None:
-    """Back-solve the non-weight, non-KV GPU reserve from the KV pool vLLM actually allocated.
+    """Back-solve the non-weight, non-KV GPU reserve from the KV memory vLLM actually allocated.
 
-    ``overhead = budget * util - weights - pool_tokens * kv_bytes_per_token`` at the utilization the pod runs with.
-    Only exact for pure full-attention models (the pool token count of hybrid/sliding-window models is not
-    a plain multiple of one per-token size), and only trusted when the result is non-negative.
+    ``overhead = budget * util - weights - KV memory`` at the utilization the pod runs with. The KV memory is
+    vLLM's logged ``Available KV cache memory`` (per GPU; valid for every architecture, including hybrid and
+    sliding-window models) or, without it, ``pool_tokens * kv_bytes_per_token`` (pure full-attention models only,
+    since the pool token count of other models is not a plain multiple of one per-token size).
+    Only trusted when the result is non-negative.
     """
-    if budget.dedicated_kv or not budget.gib or not kv_cache_size_tokens or running_utilization <= 0:
+    if budget.dedicated_kv or not budget.gib or running_utilization <= 0 or analysis.model_weight_gib is None:
         return None
-    if analysis.sliding_kv_bytes_per_token or analysis.linear_state_bytes_per_seq:
+    if available_kv_gib:
+        kv_gib = available_kv_gib * max(budget.gpu_count, 1)
+    elif (
+        kv_cache_size_tokens
+        and analysis.kv_bytes_per_token
+        and not (analysis.sliding_kv_bytes_per_token or analysis.linear_state_bytes_per_seq)
+    ):
+        kv_gib = kv_cache_size_tokens * analysis.kv_bytes_per_token / GIB
+    else:
         return None
-    if not analysis.kv_bytes_per_token or analysis.model_weight_gib is None:
-        return None
-    pool_gib = kv_cache_size_tokens * analysis.kv_bytes_per_token / GIB
-    overhead = budget.gib * running_utilization - analysis.model_weight_gib - pool_gib
+    overhead = budget.gib * running_utilization - analysis.model_weight_gib - kv_gib
     return round(overhead, 2) if overhead >= 0 else None
 
 

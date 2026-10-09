@@ -14,7 +14,7 @@ from ..services.model_analysis import (
     gpu_overhead_gib,
     mamba_seq_cap,
 )
-from ..services.model_config_reader import parse_read_artifacts
+from ..services.model_config_reader import parse_available_kv_gib, parse_read_artifacts
 from ..services.serving_advisor import recommend_serving_args
 from ..services.tuner_logic import kv_cache_oom_risk
 from .test_model_analysis import GEMMA4_E2B, LLAMA_8B, QWEN35_08B, _call_analysis
@@ -304,3 +304,60 @@ def test_model_analysis_calibrates_overhead_from_observed_pool_for_both_cr_types
         assert data["memory_budget"]["overhead_source"] == "observed", cr_type
         table_data, _ = _call_analysis(cr_type, spec, "?accelerator_memory_gib=80")
         assert table_data["memory_budget"]["overhead_source"] == "table", cr_type
+
+
+def test_calibrated_overhead_uses_logged_kv_memory_for_hybrid_models() -> None:
+    a = analyze_config(QWEN35_08B)
+    assert a.linear_state_bytes_per_seq  # hybrid: the token-based path refuses it
+    a.model_weight_gib = 1.72
+    budget = MemoryBudget(12.0, "accelerator", 1, overhead_gib=6.0)
+    assert calibrated_overhead_gib(a, budget, 0.8, 407013) is None
+    assert calibrated_overhead_gib(a, budget, 0.8, 407013, available_kv_gib=5.88) == 2.0
+    # per-GPU log value scales with the device count
+    two = MemoryBudget(24.0, "accelerator", 2, overhead_gib=10.0)
+    assert calibrated_overhead_gib(a, two, 0.8, None, available_kv_gib=5.88) == 5.72
+    assert calibrated_overhead_gib(a, budget, 0.8, None, available_kv_gib=50.0) is None
+
+
+def test_parse_available_kv_gib_from_boot_log() -> None:
+    log = (
+        "(EngineCore pid=121) INFO 10-09 14:07:28 [gpu_worker.py:508] Available KV cache memory: 5.88 GiB\n"
+        "(EngineCore pid=121) INFO 10-09 14:07:28 [kv_cache_utils.py:2146] GPU KV cache size: 407,013 tokens\n"
+    )
+    assert parse_available_kv_gib(log) == 5.88
+    assert parse_available_kv_gib("INFO nothing here") is None
+    assert parse_available_kv_gib(None) is None
+
+
+def test_model_analysis_calibrates_hybrid_overhead_from_logged_kv_for_both_cr_types() -> None:
+    observed = {"kv_cache_size_tokens": 407013, "max_concurrency": 49.68}
+    isvc = {
+        "predictor": {
+            "model": {
+                "storageUri": "oci://example/qwen",
+                "args": ["--gpu-memory-utilization=0.8"],
+                "resources": {"limits": {"nvidia.com/gpu": "1"}},
+            }
+        }
+    }
+    llmis = {
+        "model": {"uri": "oci://example/qwen", "name": "qwen"},
+        "template": {
+            "containers": [
+                {
+                    "name": "main",
+                    "env": [{"name": "VLLM_ADDITIONAL_ARGS", "value": "--gpu-memory-utilization=0.8"}],
+                    "resources": {"limits": {"nvidia.com/gpu": "1"}},
+                }
+            ]
+        },
+    }
+    for cr_type, spec in (("inferenceservice", isvc), ("llminferenceservice", llmis)):
+        data, _ = _call_analysis(
+            cr_type, spec, "?accelerator_memory_gib=12", observed, cfg=QWEN35_08B, available_kv_gib=5.88
+        )
+        assert data["memory_budget"]["overhead_source"] == "observed", cr_type
+        assert data["memory_budget"]["overhead_gib"] == 2.72, cr_type  # fake reader reports 1.0 GiB of weights
+        assert data["observed"]["available_kv_gib"] == 5.88, cr_type
+        no_log, _ = _call_analysis(cr_type, spec, "?accelerator_memory_gib=12", observed, cfg=QWEN35_08B)
+        assert no_log["memory_budget"]["overhead_source"] == "table", cr_type

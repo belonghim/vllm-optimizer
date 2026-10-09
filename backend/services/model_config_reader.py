@@ -87,6 +87,18 @@ def parse_cache_config_info(text: str) -> dict[str, Any] | None:
     return None
 
 
+_AVAILABLE_KV_RE = re.compile(r"Available KV cache memory:\s*([0-9]+(?:\.[0-9]+)?)\s*GiB")
+BOOT_LOG_HEAD_BYTES = 262144
+
+
+def parse_available_kv_gib(logs: str | None) -> float | None:
+    """vLLM's per-GPU ``Available KV cache memory: X GiB`` boot line (the last one when several are present)."""
+    if not logs:
+        return None
+    matches = _AVAILABLE_KV_RE.findall(logs)
+    return float(matches[-1]) if matches else None
+
+
 def parse_read_output(raw: str) -> tuple[dict | None, dict | None, int | None]:
     parts = raw.split(_SECTION)
     cfg = _parse_json(parts[0]) if parts else None
@@ -215,6 +227,24 @@ class ModelConfigReader:
         if observed is not None:
             observed["pod"] = pod_name
         return observed
+
+    async def read_available_kv_gib(self, namespace: str, label_selector: str, container: str | None) -> float | None:
+        """Per-GPU KV memory from the start of the running pod's log (boot lines scroll out of a tail read)."""
+        pod_name, _ = await self._find_running_pod(namespace, label_selector)
+        if not pod_name:
+            return None
+        try:
+            from kubernetes import client as k8s_client
+
+            core = k8s_client.CoreV1Api()
+            kwargs = {"container": container} if container else {}
+            logs = await asyncio.to_thread(
+                core.read_namespaced_pod_log, pod_name, namespace, limit_bytes=BOOT_LOG_HEAD_BYTES, **kwargs
+            )
+        except Exception as e:
+            logger.debug("[ModelConfigReader] boot log read of %s failed: %s", pod_name, e)
+            return None
+        return parse_available_kv_gib(logs if isinstance(logs, str) else None)
 
     async def _find_running_pod(self, namespace: str, label_selector: str) -> tuple[str | None, str | None]:
         try:

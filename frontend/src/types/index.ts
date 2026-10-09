@@ -356,6 +356,7 @@ export interface ObservedKvCache {
   cache_dtype: string | null;
   pod: string;
   estimate_ratio: number | null;
+  available_kv_gib?: number;
 }
 
 export interface SuggestedSearchSpace {
