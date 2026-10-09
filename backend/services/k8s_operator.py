@@ -30,6 +30,80 @@ def get_vllm_is_name() -> str:
     return runtime_config.vllm_is_name or "llm-ov"
 
 
+def _summarize_container_status(pod: Any, container: str) -> dict[str, Any]:
+    statuses = pod.status.container_statuses or [] if pod.status else []
+    cs = next((c for c in statuses if c.name == container), None)
+    info: dict[str, Any] = {
+        "pod": pod.metadata.name,
+        "container": container,
+        "phase": pod.status.phase if pod.status else None,
+        "restarts": 0,
+        "state": None,
+        "last_terminated_reason": None,
+        "exit_code": None,
+    }
+    if cs is None:
+        return info
+    info["restarts"] = cs.restart_count or 0
+    state = cs.state
+    if state is not None:
+        if state.waiting is not None:
+            info["state"] = state.waiting.reason
+        elif state.terminated is not None:
+            info["state"] = state.terminated.reason
+            info["exit_code"] = state.terminated.exit_code
+        elif state.running is not None:
+            info["state"] = "Running"
+    last = cs.last_state.terminated if cs.last_state is not None else None
+    if last is not None:
+        info["last_terminated_reason"] = last.reason
+        info["exit_code"] = info["exit_code"] if info["exit_code"] is not None else last.exit_code
+    return info
+
+
+async def read_boot_report(
+    namespace: str, label_selector: str, container: str, tail_lines: int = 200
+) -> dict[str, Any] | None:
+    """Newest matching pod's container status plus its logs (previous container's when it has restarted)."""
+    try:
+        core = k8s_client.CoreV1Api()
+        pods = await asyncio.to_thread(core.list_namespaced_pod, namespace=namespace, label_selector=label_selector)
+        if not pods.items:
+            return None
+        pod = max(
+            pods.items, key=lambda p: p.metadata.creation_timestamp.timestamp() if p.metadata.creation_timestamp else 0
+        )
+        report = _summarize_container_status(pod, container)
+
+        async def read(previous: bool) -> str | None:
+            try:
+                return await asyncio.to_thread(
+                    core.read_namespaced_pod_log,
+                    name=report["pod"],
+                    namespace=namespace,
+                    container=container,
+                    tail_lines=tail_lines,
+                    previous=previous,
+                )
+            except ApiException:
+                return None
+
+        # A container that restarted or is waiting has no useful current log; the previous run holds the crash.
+        prefer_previous = report["restarts"] > 0 or report["state"] in ("CrashLoopBackOff", "Error", "OOMKilled")
+        logs: str | None = None
+        source = "current"
+        if prefer_previous:
+            logs, source = await read(True), "previous"
+        if not logs:
+            logs, source = await read(False), "current"
+        report["logs"] = logs
+        report["logs_source"] = source if logs else None
+        return report
+    except Exception as e:
+        logger.debug("[K8sOperator] Failed to read boot report: %s", e)
+        return None
+
+
 class K8sOperator:
     def __init__(self) -> None:
         self._k8s_available = False
@@ -197,31 +271,17 @@ class K8sOperator:
         except ApiException:
             return None
 
-    async def get_pod_logs(self, tail_lines: int = 100) -> str | None:
+    async def get_boot_report(self, tail_lines: int = 200) -> dict[str, Any] | None:
         if not self._k8s_available:
             return None
-        namespace = self.target[0]
-        is_name = self.target[1]
-        label_selector = self._cr_adapter.pod_label_selector(is_name)
-        try:
-            core = k8s_client.CoreV1Api()
-            pods = await asyncio.to_thread(
-                core.list_namespaced_pod,
-                namespace=namespace,
-                label_selector=label_selector,
-            )
-            if not pods.items:
-                return None
-            pod_name: str = pods.items[0].metadata.name
-            return await asyncio.to_thread(
-                core.read_namespaced_pod_log,
-                name=pod_name,
-                namespace=namespace,
-                tail_lines=tail_lines,
-            )
-        except Exception as e:
-            logger.debug("[K8sOperator] Failed to read pod logs: %s", e)
-            return None
+        namespace, is_name, _ = self.target
+        return await read_boot_report(
+            namespace, self._cr_adapter.pod_label_selector(is_name), self._cr_adapter.model_container_name(), tail_lines
+        )
+
+    async def get_pod_logs(self, tail_lines: int = 200) -> str | None:
+        report = await self.get_boot_report(tail_lines)
+        return report["logs"] if report else None
 
     async def preflight_check(self) -> dict[str, Any]:
         if not self._k8s_available:

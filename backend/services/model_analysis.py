@@ -507,3 +507,22 @@ def suggest_search_space(
         "max_model_len_min": max_len_min,
         "max_model_len_max": max_len_max,
     }
+
+
+def mamba_seq_cap(analysis: ModelAnalysis, observed: dict[str, Any] | None) -> int | None:
+    """Hard ``--max-num-seqs`` ceiling for hybrid (GDN/Mamba) models, from vLLM's allocated block count.
+
+    Every decode sequence needs one Mamba cache block, and with full CUDA graphs vLLM refuses to start when
+    ``max_num_seqs > kv_cache_config.num_blocks``. ``num_gpu_blocks`` is only exposed by some vLLM releases.
+    """
+    if not analysis.linear_attention_layers or not observed:
+        return None
+    blocks = observed.get("num_gpu_blocks")
+    return blocks if isinstance(blocks, int) and blocks > 0 else None
+
+
+def clamp_search_space_to_cap(space: dict[str, int] | None, cap: int | None) -> dict[str, int] | None:
+    if not space or not cap or space["max_num_seqs_max"] <= cap:
+        return space
+    seqs_max = cap
+    return {**space, "max_num_seqs_max": seqs_max, "max_num_seqs_min": min(space["max_num_seqs_min"], seqs_max)}

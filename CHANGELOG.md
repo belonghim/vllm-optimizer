@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-09] - 기동 실패 진단·Mamba 블록 상한
+
+### Added
+- **부트 로그 진단(`services/boot_diagnosis.py`)**: vLLM/transformers 에러 문구를 결정론적으로 매칭해 원인·조치·로그 속 수치(Mamba 블록 수, 추정 최대 길이, 유도 max_model_len)를 반환. Mamba 블록 초과, KV 부족, 메모리 없음, GPU 점유, CUDA OOM, max_model_len/batched_tokens 충돌, 양자화 불일치, trust-remote-code, 미지원 아키텍처, chat template, tool parser, TP 분할, bf16 미지원, OOMKilled/CrashLoopBackOff/ImagePull 포함.
+- **`GET /api/tuner/boot-diagnosis`**: 대상 CR(두 타입 모두)의 최신 파드 컨테이너 상태 + 로그(재시작 시 previous) + 진단 목록.
+- **Mamba 블록 상한**: 관측된 `num_gpu_blocks`가 있으면 hybrid 모델의 `suggested_search_space.max_num_seqs_max`를 이 값으로 제한하고 `--max-num-seqs` 초과 시 경고 노트(근거: vLLM `max_num_seqs > kv_cache_config.num_blocks`이면 full CUDA graph 기동 실패).
+
+### Changed
+- `K8sOperator`의 파드 로그 읽기: 모델 컨테이너 명시, 최신 파드 선택, 재시작 시 previous 로그 사용, 컨테이너 상태 요약(`read_boot_report`). 트라이얼 기동 실패 시 분석가 LLM이 꺼져 있어도 `tuning_failure_explanation`에 `diagnoses`와 진단 요약을 전송.
+
+### Not implemented
+- GDN 페이지 크기·KV 그룹 패딩의 정확한 수치 계산: 상류 소스에서 `MambaStateShapeCalculator`/`verify_and_update_config` 본문과 `SlidingWindowSpec.max_memory_usage_bytes`를 검증하지 못해 추정 공식은 넣지 않음(측정값 우선 정책 유지).
+
 ## [2026-10-09] - 모델 분석 확장: 기능 인자 추천·컨텍스트 상한 유도·오버헤드 반영
 
 ### Added

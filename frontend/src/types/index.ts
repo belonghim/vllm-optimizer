@@ -250,6 +250,17 @@ export interface TuningFailureExplanationPayload {
   trial_id: number;
   reason: string;
   explanation: string;
+  diagnoses?: BootDiagnosis[];
+}
+
+export interface BootDiagnosis {
+  code: string;
+  title: string;
+  cause: string;
+  fix: string;
+  evidence: string;
+  fix_args: string[];
+  suggested_value: number | null;
 }
 
 export interface TuningReportPayload {

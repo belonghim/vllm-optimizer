@@ -5,6 +5,7 @@ from typing import Any, Literal
 
 import optuna
 from models.load_test import SweepConfig, TuningConfig, TuningTrial
+from services.boot_diagnosis import diagnose_boot, summarize_diagnoses
 from services.event_broadcaster import EventBroadcaster
 from services.k8s_operator import K8sOperator
 from services.llm_assistant import get_llm_assistant
@@ -55,6 +56,7 @@ class AutoTuner:
         self._metrics = metrics_collector
         self._load_engine = load_engine
         self._k8s_operator = K8sOperator()
+        self._last_boot_report: dict[str, Any] | None = None
         self._event_broadcaster = EventBroadcaster()
         self._tuner_logic = TunerLogic(load_engine)
         self._trials: list[TuningTrial] = []
@@ -286,7 +288,8 @@ class AutoTuner:
         return await finalize_tuning_for_tuner(self, auto_benchmark=auto_benchmark)
 
     async def _read_failure_logs(self) -> str | None:
-        return await self._k8s_operator.get_pod_logs()
+        self._last_boot_report = await self._k8s_operator.get_boot_report()
+        return self._last_boot_report["logs"] if self._last_boot_report else None
 
     def _assistant_enabled(self) -> bool:
         if self._config is None or not self._config.enable_llm_assistant:
@@ -344,22 +347,29 @@ class AutoTuner:
     async def _explain_failure(
         self, trial_num: int, params: dict[str, Any], failure_reason: str, logs: str | None
     ) -> None:
-        if not self._assistant_enabled():
-            return
-        try:
-            explanation = await get_llm_assistant().summarize_failure(
-                params=params,
-                failure_reason=failure_reason,
-                logs=logs,
-            )
-        except Exception as e:
-            logger.debug("[AutoTuner] Failure explanation call failed: %s", e)
-            return
+        report, self._last_boot_report = self._last_boot_report, None
+        diagnoses = diagnose_boot(logs, report)
+        explanation: str | None = None
+        if self._assistant_enabled():
+            try:
+                explanation = await get_llm_assistant().summarize_failure(
+                    params=params,
+                    failure_reason=failure_reason,
+                    logs=logs,
+                )
+            except Exception as e:
+                logger.debug("[AutoTuner] Failure explanation call failed: %s", e)
+        explanation = explanation or summarize_diagnoses(diagnoses)
         if explanation:
             await self._broadcast(
                 {
                     "type": "tuning_failure_explanation",
-                    "data": {"trial_id": trial_num, "reason": failure_reason, "explanation": explanation},
+                    "data": {
+                        "trial_id": trial_num,
+                        "reason": failure_reason,
+                        "explanation": explanation,
+                        "diagnoses": diagnoses,
+                    },
                 }
             )
 

@@ -81,6 +81,8 @@ def parse_cache_config_info(text: str) -> dict[str, Any] | None:
             "gpu_memory_utilization": _label_float(labels.get("gpu_memory_utilization")),
             "prefix_caching": labels.get("enable_prefix_caching") == "True",
             "cache_dtype": labels.get("cache_dtype"),
+            "num_gpu_blocks": _label_int(labels.get("num_gpu_blocks")),
+            "mamba_cache_mode": labels.get("mamba_cache_mode"),
         }
     return None
 

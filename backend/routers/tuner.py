@@ -25,14 +25,18 @@ from models.load_test import (
 )
 from pydantic import BaseModel, Field, model_validator
 from services.auto_tuner import AutoTuner
+from services.boot_diagnosis import diagnose_boot
 from services.cr_adapter import CRAdapter, config_dict_to_args_list, extract_arg_value, get_cr_adapter
+from services.k8s_operator import read_boot_report
 from services.llm_assistant import get_llm_assistant
 from services.model_analysis import (
     DEFAULT_MAX_NUM_BATCHED_TOKENS,
     DEFAULT_UTILIZATION,
     ModelAnalysis,
     capacity_table,
+    clamp_search_space_to_cap,
     gpu_overhead_gib,
+    mamba_seq_cap,
     memory_budget,
     observed_capacity,
     suggest_search_space,
@@ -349,7 +353,11 @@ async def _analyze_target(
     }
     if cr_spec is not None:
         resp.advice = recommend_serving_args(
-            analysis, static_args + config_dict_to_args_list(current_args), budget.gpu_count, tp_size
+            analysis,
+            static_args + config_dict_to_args_list(current_args),
+            budget.gpu_count,
+            tp_size,
+            mamba_seq_cap(analysis, resp.observed),
         )
     observed = resp.observed
     if budget.source == "unknown_accelerator_memory" and observed is None:
@@ -375,6 +383,10 @@ async def _analyze_target(
         resp.suggested_search_space = (
             suggest_search_space(resp.capacity, served_len, key="observed_max_seqs") or resp.suggested_search_space
         )
+        seq_cap = mamba_seq_cap(analysis, observed)
+        if seq_cap is not None:
+            observed["mamba_seq_cap"] = seq_cap
+            resp.suggested_search_space = clamp_search_space_to_cap(resp.suggested_search_space, seq_cap)
     return resp, analysis, cr_spec, adapter
 
 
@@ -396,6 +408,42 @@ async def get_model_analysis(
     resp, *_ = await _analyze_target(
         endpoint or runtime_config.vllm_endpoint, accelerator_memory_gib, utilization, refresh=refresh, target=target
     )
+    return resp
+
+
+class BootDiagnosisResponse(BaseModel):
+    target: dict[str, str]
+    available: bool = False
+    pod: dict[str, Any] | None = None
+    diagnoses: list[dict[str, Any]] = Field(default_factory=list)
+    log_tail: str | None = None
+
+
+@router.get("/boot-diagnosis", response_model=BootDiagnosisResponse)
+async def get_boot_diagnosis(
+    namespace: str | None = Query(default=None),
+    is_name: str | None = Query(default=None),
+    cr_type: Literal["inferenceservice", "llminferenceservice"] | None = Query(default=None),
+    tail_lines: int = Query(default=300, ge=20, le=2000),
+) -> BootDiagnosisResponse:
+    """Why a target's vLLM pod is failing to boot: container status + previous/current log, matched to known causes.
+
+    Without namespace/is_name the runtime-config target is used.
+    """
+    if namespace and is_name:
+        ns, name, resolved_cr = namespace, is_name, cr_type or runtime_config.cr_type
+    else:
+        ns, name, resolved_cr = auto_tuner.target
+    adapter = get_cr_adapter(resolved_cr)
+    resp = BootDiagnosisResponse(target={"namespace": ns, "name": name, "cr_type": resolved_cr})
+    report = await read_boot_report(ns, adapter.pod_label_selector(name), adapter.model_container_name(), tail_lines)
+    if report is None:
+        return resp
+    logs = report.pop("logs", None)
+    resp.available = True
+    resp.pod = report
+    resp.diagnoses = diagnose_boot(logs, report)
+    resp.log_tail = "\n".join(logs.splitlines()[-40:]) if logs else None
     return resp
 
 

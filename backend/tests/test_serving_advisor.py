@@ -9,7 +9,9 @@ from ..services.model_analysis import (
     analyze_chat_template,
     analyze_config,
     capacity_table,
+    clamp_search_space_to_cap,
     gpu_overhead_gib,
+    mamba_seq_cap,
 )
 from ..services.model_config_reader import parse_read_artifacts
 from ..services.serving_advisor import recommend_serving_args
@@ -226,3 +228,32 @@ def test_tuner_oom_risk_sliding_window_grows_with_batched_tokens() -> None:
     )
     assert kv_cache_oom_risk(small, cfg) is False
     assert kv_cache_oom_risk(big, cfg) is True
+
+
+def test_mamba_seq_cap_requires_hybrid_and_block_count() -> None:
+    hybrid = analyze_config(QWEN35_08B)
+    dense = analyze_config(LLAMA_8B)
+    assert mamba_seq_cap(hybrid, {"num_gpu_blocks": 96}) == 96
+    assert mamba_seq_cap(hybrid, {"num_gpu_blocks": None}) is None
+    assert mamba_seq_cap(hybrid, None) is None
+    assert mamba_seq_cap(dense, {"num_gpu_blocks": 96}) is None
+
+
+def test_clamp_search_space_to_cap() -> None:
+    space = {"max_num_seqs_min": 64, "max_num_seqs_max": 256, "max_model_len_min": 4096, "max_model_len_max": 8192}
+    clamped = clamp_search_space_to_cap(space, 48)
+    assert clamped is not None
+    assert (clamped["max_num_seqs_min"], clamped["max_num_seqs_max"]) == (48, 48)
+    assert clamped["max_model_len_max"] == 8192
+    assert clamp_search_space_to_cap(space, 512) == space
+    assert clamp_search_space_to_cap(space, None) == space
+    assert clamp_search_space_to_cap(None, 48) is None
+
+
+def test_advisor_warns_when_max_num_seqs_exceeds_mamba_blocks() -> None:
+    a = analyze_config(QWEN35_08B)
+    over = recommend_serving_args(a, ["--max-num-seqs=256"], gpu_count=1, mamba_cap=96)
+    assert any("96" in t and "exceeds available Mamba cache blocks" in t for t in _notes(over))
+    assert any(n["level"] == "warning" and "Mamba" in n["text"] for n in over["notes"])
+    ok = recommend_serving_args(a, ["--max-num-seqs=64"], gpu_count=1, mamba_cap=96)
+    assert not any(n["level"] == "warning" and "Mamba" in n["text"] for n in ok["notes"])

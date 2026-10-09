@@ -305,7 +305,7 @@ def _avoid(a: ModelAnalysis, args: list[str]) -> list[Recommendation]:
     return recs
 
 
-def _notes(a: ModelAnalysis, args: list[str]) -> list[dict[str, str]]:
+def _notes(a: ModelAnalysis, args: list[str], mamba_cap: int | None = None) -> list[dict[str, str]]:
     notes: list[dict[str, str]] = []
 
     def add(level: str, text: str) -> None:
@@ -335,10 +335,21 @@ def _notes(a: ModelAnalysis, args: list[str]) -> list[dict[str, str]]:
             "hybrid 모델에서 prefix caching과 MTP를 함께 켜면 정확도가 떨어지고 장기 대화 출력이 깨질 수 있음 — 하나만 선택",
         )
     if a.linear_attention_layers:
-        add(
-            "info",
-            "hybrid 모델은 --max-num-seqs가 Mamba 블록 수보다 크면 기동 시 'exceeds available Mamba cache blocks'로 실패",
-        )
+        seqs = extract_arg_value(args, "--max-num-seqs")
+        if mamba_cap and seqs and seqs.isdigit() and int(seqs) > mamba_cap:
+            add(
+                "warning",
+                f"--max-num-seqs={seqs}가 vLLM이 할당한 Mamba 캐시 블록 수 {mamba_cap}를 넘음 — full CUDA graph에서"
+                f" 'exceeds available Mamba cache blocks'로 기동 실패. {mamba_cap} 이하로 낮추거나"
+                " gpu-memory-utilization을 올림",
+            )
+        else:
+            cap_text = f" (현재 할당 블록 {mamba_cap}개)" if mamba_cap else ""
+            add(
+                "info",
+                "hybrid 모델은 디코드 시퀀스마다 Mamba 블록 1개가 필요 — --max-num-seqs가 할당된 블록 수보다 크면"
+                f" full CUDA graph 기동 시 'exceeds available Mamba cache blocks'로 실패{cap_text}",
+            )
     if a.sliding_attention_layers and a.sliding_window:
         add(
             "info",
@@ -361,6 +372,7 @@ def recommend_serving_args(
     args: list[str],
     gpu_count: int = 0,
     tensor_parallel_size: int | None = None,
+    mamba_cap: int | None = None,
 ) -> dict[str, Any]:
     """Recommendations + notes for a target. ``args`` is the full current argument list (static + tuning keys)."""
     recs: list[Recommendation] = [
@@ -375,6 +387,6 @@ def recommend_serving_args(
     missing_required = [r.arg for r in recs if r.kind == "required" and r.status == "missing" and r.arg]
     return {
         "recommendations": [r.__dict__ for r in recs],
-        "notes": _notes(analysis, args),
+        "notes": _notes(analysis, args, mamba_cap),
         "add_args": " ".join(missing_required),
     }

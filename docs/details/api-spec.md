@@ -42,38 +42,39 @@ status: draft
 | 21 | `DELETE` | `/api/tuner/sessions/{session_id}` | Tuner | Delete tuning session |
 | 22 | `GET` | `/api/tuner/model-analysis` | Tuner | Deterministic model analysis (config.json → KV, capacity, search ranges) |
 | 23 | `POST` | `/api/tuner/model-analysis/explain` | Tuner | Analyst LLM narrative of an analysis |
-| 24 | `POST` | `/api/load_test/start` | Load Test | Start load test |
-| 25 | `POST` | `/api/load_test/stop` | Load Test | Stop load test |
-| 26 | `GET` | `/api/load_test/status` | Load Test | Get load test status |
-| 27 | `POST` | `/api/load_test/sweep` | Load Test | Start parameter sweep |
-| 28 | `GET` | `/api/load_test/stream` | Load Test | SSE result stream |
-| 29 | `GET` | `/api/load_test/history` | Load Test | Load test history |
-| 30 | `POST` | `/api/load_test/sweep/save` | Load Test | Save sweep result |
-| 31 | `GET` | `/api/load_test/sweep/history` | Load Test | List saved sweeps |
-| 32 | `GET` | `/api/load_test/sweep/history/{sweep_id}` | Load Test | Get single sweep |
-| 33 | `DELETE` | `/api/load_test/sweep/history/{sweep_id}` | Load Test | Delete sweep |
-| 34 | `GET` | `/api/vllm-config` | vLLM Config | Get vLLM config from K8s |
-| 35 | `PATCH` | `/api/vllm-config` | vLLM Config | Update vLLM config in K8s |
-| 36 | `GET` | `/api/benchmark/list` | Benchmark | List saved benchmarks |
-| 37 | `POST` | `/api/benchmark/save` | Benchmark | Save benchmark result |
-| 38 | `GET` | `/api/benchmark/by-model` | Benchmark | Benchmarks by model |
-| 39 | `POST` | `/api/benchmark/import` | Benchmark | Import from GuideLLM |
-| 40 | `GET` | `/api/benchmark/{benchmark_id}` | Benchmark | Get single benchmark |
-| 41 | `DELETE` | `/api/benchmark/{benchmark_id}` | Benchmark | Delete benchmark |
-| 42 | `PATCH` | `/api/benchmark/{benchmark_id}/metadata` | Benchmark | Update benchmark metadata |
-| 43 | `GET` | `/api/sla/profiles` | SLA | List SLA profiles |
-| 44 | `POST` | `/api/sla/profiles` | SLA | Create SLA profile |
-| 45 | `GET` | `/api/sla/profiles/{profile_id}` | SLA | Get SLA profile |
-| 46 | `PUT` | `/api/sla/profiles/{profile_id}` | SLA | Update SLA profile |
-| 47 | `DELETE` | `/api/sla/profiles/{profile_id}` | SLA | Delete SLA profile |
-| 48 | `POST` | `/api/sla/evaluate` | SLA | Evaluate against SLA |
-| 49 | `GET` | `/api/alerts/sla-violations` | Alerts | Get SLA violations |
-| 50 | `GET` | `/api/status/interrupted` | Status | Get interrupted runs |
-| 51 | `GET` | `/health` | System | Health check |
-| 52 | `GET` | `/` | System | Root endpoint |
-| 53 | `GET` | `/docs` | System | Swagger UI |
-| 54 | `GET` | `/redoc` | System | ReDoc documentation |
-| 55 | `GET` | `/openapi.json` | System | OpenAPI spec JSON |
+| 24 | `GET` | `/api/tuner/boot-diagnosis` | Tuner | Why a target pod fails to boot: container status + previous/current log matched to known vLLM errors |
+| 25 | `POST` | `/api/load_test/start` | Load Test | Start load test |
+| 26 | `POST` | `/api/load_test/stop` | Load Test | Stop load test |
+| 27 | `GET` | `/api/load_test/status` | Load Test | Get load test status |
+| 28 | `POST` | `/api/load_test/sweep` | Load Test | Start parameter sweep |
+| 29 | `GET` | `/api/load_test/stream` | Load Test | SSE result stream |
+| 30 | `GET` | `/api/load_test/history` | Load Test | Load test history |
+| 31 | `POST` | `/api/load_test/sweep/save` | Load Test | Save sweep result |
+| 32 | `GET` | `/api/load_test/sweep/history` | Load Test | List saved sweeps |
+| 33 | `GET` | `/api/load_test/sweep/history/{sweep_id}` | Load Test | Get single sweep |
+| 34 | `DELETE` | `/api/load_test/sweep/history/{sweep_id}` | Load Test | Delete sweep |
+| 35 | `GET` | `/api/vllm-config` | vLLM Config | Get vLLM config from K8s |
+| 36 | `PATCH` | `/api/vllm-config` | vLLM Config | Update vLLM config in K8s |
+| 37 | `GET` | `/api/benchmark/list` | Benchmark | List saved benchmarks |
+| 38 | `POST` | `/api/benchmark/save` | Benchmark | Save benchmark result |
+| 39 | `GET` | `/api/benchmark/by-model` | Benchmark | Benchmarks by model |
+| 40 | `POST` | `/api/benchmark/import` | Benchmark | Import from GuideLLM |
+| 41 | `GET` | `/api/benchmark/{benchmark_id}` | Benchmark | Get single benchmark |
+| 42 | `DELETE` | `/api/benchmark/{benchmark_id}` | Benchmark | Delete benchmark |
+| 43 | `PATCH` | `/api/benchmark/{benchmark_id}/metadata` | Benchmark | Update benchmark metadata |
+| 44 | `GET` | `/api/sla/profiles` | SLA | List SLA profiles |
+| 45 | `POST` | `/api/sla/profiles` | SLA | Create SLA profile |
+| 46 | `GET` | `/api/sla/profiles/{profile_id}` | SLA | Get SLA profile |
+| 47 | `PUT` | `/api/sla/profiles/{profile_id}` | SLA | Update SLA profile |
+| 48 | `DELETE` | `/api/sla/profiles/{profile_id}` | SLA | Delete SLA profile |
+| 49 | `POST` | `/api/sla/evaluate` | SLA | Evaluate against SLA |
+| 50 | `GET` | `/api/alerts/sla-violations` | Alerts | Get SLA violations |
+| 51 | `GET` | `/api/status/interrupted` | Status | Get interrupted runs |
+| 52 | `GET` | `/health` | System | Health check |
+| 53 | `GET` | `/` | System | Root endpoint |
+| 54 | `GET` | `/docs` | System | Swagger UI |
+| 55 | `GET` | `/redoc` | System | ReDoc documentation |
+| 56 | `GET` | `/openapi.json` | System | OpenAPI spec JSON |
 
 ---
 
@@ -349,7 +350,7 @@ Omit both `namespace` and `is_name` to receive `400` — there is no default tar
 
 | Status | Condition |
 |--------|-----------|
-| 400 | `namespace` or `is_name` missing |
+| 401 | `namespace` or `is_name` missing |
 | 500 | Internal server error fetching metrics |
 
 ---
@@ -755,6 +756,20 @@ Deterministic analysis of a target model. Reads `/mnt/models/config.json`, `open
 `advice` (null when no CR spec is available) = `{recommendations, notes, add_args}`. Each recommendation: `flag`, `kind` (`required` | `workload` | `avoid`), `status` (`present` | `missing` | `mismatch`), `reason`, `value`, `current`, `arg` (paste-ready token or null when a value cannot be derived), `evidence`. It is evaluated against the target's current args (`static + tuning`), so it works for both InferenceService and LLMInferenceService. Rules: tool/reasoning parsers from chat-template signatures, `--chat-template` when none ships, `--kv-cache-dtype=fp8`, `--enable-prefix-caching` (hybrid), MTP `--speculative-config`, multimodal flags (`--language-model-only`, `--limit-mm-per-prompt`, `--mm-encoder-tp-mode=data`, Gemma4 `--attention-backend=TRITON_ATTN`), `--trust-remote-code` for `auto_map`, and `avoid` for `--quantization`/`--dtype` when the checkpoint carries a quantization config. `notes` flag `--max-model-len` above `context_limit`, remote/missing custom code, prefix-caching + MTP conflicts on hybrid models, Mamba block `--max-num-seqs` limits and the sliding-window reservation. `add_args` = space-joined `arg` of required + missing recommendations.
 
 KV per sequence = `kv_bytes_per_token × len + sliding_kv_bytes_per_token × min(len, sliding_window - 1 + max_num_batched_tokens) + linear_state_bytes_per_seq`. On accelerator targets a conservative per-GPU reserve for CUDA graph / activation / vision-encoder overhead (`memory_budget.overhead_gib`: 6/10/16/24 GiB per GPU for TP 1/2/4/8+) is subtracted, so the estimate is a planning figure — measured `observed` values take precedence. `observed` needs only pod `list` (no exec); measured rows stop at the served `max_model_len` (`observed_max_seqs = kv_cache_size_tokens // context_len`) and the suggested search space prefers measured capacity when present.
+
+`observed` also carries `num_gpu_blocks` and `mamba_cache_mode` when vLLM exposes them. For hybrid (GDN/Mamba) models with a known block count, `observed.mamba_seq_cap` equals `num_gpu_blocks` (vLLM refuses full-CUDA-graph start when `max_num_seqs` exceeds it); `suggested_search_space.max_num_seqs_max` is clamped to it and `advice.notes` warns when the current `--max-num-seqs` is above it.
+
+---
+
+### GET /api/tuner/boot-diagnosis
+
+Explains why a target's vLLM pod is not booting. Reads the newest matching pod's model container status (restarts, waiting/terminated reason, last terminated reason such as `OOMKilled`) and its log — the previous container's log when it has restarted — then matches known vLLM errors deterministically. Works for both CR types (container `kserve-container` / `main`); needs pod `get`/`list` and `pods/log`.
+
+**Query Parameters:** `namespace`, `is_name`, `cr_type` (runtime target when omitted), `tail_lines` (20–2000, default 300).
+
+**Response (200 OK):** `target`, `available` (false when no pod found), `pod` (`pod`, `container`, `phase`, `restarts`, `state`, `last_terminated_reason`, `exit_code`, `logs_source`: `current` | `previous`), `diagnoses` (each: `code`, `title`, `cause`, `fix`, `evidence`, `fix_args`, `suggested_value`), `log_tail` (last 40 lines). Covered causes: Mamba cache blocks exceeded (suggested `--max-num-seqs` from the log), KV cache smaller than one `max_model_len` sequence (estimated max length from the log), no KV memory, GPU memory busy at startup, CUDA OOM, `max_model_len` above the derived limit, `max_num_batched_tokens` < `max_model_len`, quantization mismatch, `--trust-remote-code` required, unsupported architecture, missing chat template, tool-parser flags, TP not dividing attention heads, bf16 unsupported, container OOMKilled, CrashLoopBackOff, image pull errors.
+
+The tuner also runs the same diagnosis on every failed trial: the `tuning_failure_explanation` SSE event gains `diagnoses`, and its `explanation` falls back to the diagnosis summary when the analyst LLM is disabled.
 
 ---
 

@@ -408,12 +408,15 @@ def test_parse_cache_config_info_new_and_legacy_formats() -> None:
         "gpu_memory_utilization": 0.9,
         "prefix_caching": True,
         "cache_dtype": "auto",
+        "num_gpu_blocks": None,
+        "mamba_cache_mode": "align",
     }
     legacy = parse_cache_config_info(
         'kserve_vllm:cache_config_info{block_size="16",num_gpu_blocks="2000",gpu_memory_utilization="0.85"} 1.0'
     )
     assert legacy is not None
     assert legacy["kv_cache_size_tokens"] == 32000
+    assert legacy["num_gpu_blocks"] == 2000
     assert legacy["max_concurrency"] is None
     assert parse_cache_config_info('vllm:num_requests_running{engine="0"} 0.0') is None
     assert parse_cache_config_info('vllm:cache_config_info{block_size="16",num_gpu_blocks="None"} 1.0') is None
