@@ -172,7 +172,9 @@ def _quantization_unsupported(logs: str) -> Diagnosis | None:
 def _trust_remote_code(logs: str) -> Diagnosis | None:
     if "trust_remote_code=True" not in logs and "trust-remote-code" not in logs:
         return None
-    if "execute the configuration file" not in logs and "requires you to execute" not in logs:
+    if not re.search(
+        r"custom code which must be executed|requires you to execute|Failed to load the model config", logs
+    ):
         return None
     return Diagnosis(
         code="trust_remote_code_required",
@@ -199,12 +201,7 @@ def _unsupported_arch(logs: str) -> Diagnosis | None:
 
 
 def _chat_template(logs: str) -> Diagnosis | None:
-    if not re.search(
-        r"default chat template is no longer allowed|does not have a chat template|"
-        r"chat template.*not (?:defined|provided)",
-        logs,
-        re.IGNORECASE,
-    ):
+    if "default chat template is no longer allowed" not in logs:
         return None
     return Diagnosis(
         code="chat_template_missing",

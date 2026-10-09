@@ -8,6 +8,8 @@ All notable changes to this project will be documented in this file.
 - **hybrid 모델 OOM 예측이 과도하게 보수적**: 실제 RTX 3060에서 건너뛴 trial 5건 중 3건이 정상 기동했음(`max_num_seqs`×전체 GDN 상태를 KV와 합산한 탓). CUDA 백엔드는 레이어 그룹(`min(full, linear)`층) 단위 블록으로 슬롯당 1블록(Qwen3.5-0.8B: 19.5MB가 아니라 6.5MB)만 필요하고, KV 1시퀀스와 슬롯 블록은 합산이 아니라 각각 풀과 비교됨(262144 토큰 KV + 500 슬롯이 합보다 작은 풀에서 기동 확인). `ModelAnalysis.boot_state_bytes_per_seq`(OpenVINO는 전체 상태 유지)·`kv_cache_oom_risk`가 `max()` 사용. 실측 기동 결과 5건을 회귀 테스트로 고정.
 - 튜너 시작 직후(파드 기동 미완료)에는 관측 보정이 없어 표 오버헤드 6.0 GiB로 대부분 건너뛰던 문제는 위 수정 + 준비 후 시작으로 해소 확인.
 
+- **소스 대조로 부팅 진단 규칙 검증**: RHAI vLLM 0.24 이미지의 vLLM/transformers 소스에서 실제 메시지를 확인. `tp_not_divisible`·`quantization_mismatch`·`bf16_unsupported`·`unsupported_architecture`는 정규식이 소스와 일치. `trust_remote_code_required`는 transformers가 실제로는 "contains custom code which must be executed"를 출력해 기존 규칙이 놓치던 것을 수정(vLLM의 "Failed to load the model config"도 인식). `chat_template_missing`은 소스에 없는 문구를 제거하고 실제 문구만 사용(요청 시점 400 오류이며 부팅 로그에는 나오지 않음). 소스 원문을 테스트로 고정.
+
 ### Changed
 - **예측/학습 스킵은 trial 예산을 소모하지 않음**: 파드 재시작 없이 건너뛴 trial은 `n_trials`에 포함하지 않고 계속 샘플링(상한 `n_trials × 5`회, 초과 시 경고). `trials_completed`도 스킵 제외. 이전에는 6회 요청 중 5회가 스킵되어 실질 1회만 평가됨.
 - `llm-ov`: cpu 4 / memory 8Gi 고정(requests=limits), `--max-num-batched-tokens=512` 추가. serving1/2의 InferenceService·LLMInferenceService는 `serving.kserve.io/stop` 어노테이션으로 중지.

@@ -246,3 +246,52 @@ def test_real_cuda_boot_failure_logs(name: str, code: str, suggested: int | None
     assert code in diagnoses, list(diagnoses)
     assert diagnoses[code]["suggested_value"] == suggested
     assert diagnoses[code]["evidence"] and "Traceback" not in diagnoses[code]["evidence"]
+
+
+# Messages copied verbatim from the vLLM 0.24 / transformers source shipped in the RHAI CUDA runtime image
+# (vllm/config/model.py, vllm/platforms/cuda.py, vllm/model_executor/models/registry.py,
+# vllm/transformers_utils/config.py, transformers/dynamic_module_utils.py, vllm/renderers/hf.py).
+_SOURCE_DERIVED_CASES = [
+    (
+        "ValueError: Total number of attention heads (14) must be divisible by tensor parallel size (4).",
+        "tp_not_divisible",
+    ),
+    (
+        "ValueError: Quantization method specified in the model config (compressed-tensors) does not match the "
+        "quantization method specified in the `quantization` argument (awq).",
+        "quantization_mismatch",
+    ),
+    (
+        "ValueError: Bfloat16 is only supported on GPUs with compute capability of at least 8.0. Your Tesla T4 GPU "
+        "has compute capability 7.5. You can use float16 instead by explicitly setting the `dtype` flag in CLI, "
+        "for example: --dtype=half.",
+        "bf16_unsupported",
+    ),
+    (
+        "ValueError: Model architectures ['FooForCausalLM'] are not supported for now. Supported architectures: "
+        "['LlamaForCausalLM']",
+        "unsupported_architecture",
+    ),
+    (
+        "ValueError: The repository /mnt/models contains custom code which must be executed to correctly load the "
+        "model. You can inspect the repository content at /mnt/models .\n"
+        "Please pass the argument `trust_remote_code=True` to allow custom code to be run.",
+        "trust_remote_code_required",
+    ),
+    (
+        "RuntimeError: Failed to load the model config. If the model is a custom model not yet available in the "
+        "HuggingFace transformers library, consider setting `trust_remote_code=True` in LLM or using the "
+        "`--trust-remote-code` flag in the CLI.",
+        "trust_remote_code_required",
+    ),
+    (
+        "As of transformers v4.44, default chat template is no longer allowed, so you must provide a chat "
+        "template if the tokenizer does not define one.",
+        "chat_template_missing",
+    ),
+]
+
+
+@pytest.mark.parametrize(("log", "code"), _SOURCE_DERIVED_CASES)
+def test_source_derived_boot_messages(log: str, code: str) -> None:
+    assert code in _codes([d for d in diagnose_boot(log) if d])
