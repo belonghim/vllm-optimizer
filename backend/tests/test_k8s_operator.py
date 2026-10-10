@@ -137,16 +137,14 @@ def test_params_to_args_generates_correct_flags(operator: K8sOperator) -> None:
         "max_num_seqs": 128,
         "gpu_memory_utilization": 0.85,
         "max_model_len": 4096,
-        "enable_chunked_prefill": True,
-        "enable_enforce_eager": False,
+        "max_num_batched_tokens": 512,
     }
-    args = operator.params_to_args(params)
-
-    assert "--max-num-seqs=128" in args
-    assert "--gpu-memory-utilization=0.85" in args
-    assert "--max-model-len=4096" in args
-    assert "--enable-chunked-prefill" in args
-    assert "--enforce-eager" not in args
+    assert operator.params_to_args(params) == [
+        "--max-num-seqs=128",
+        "--gpu-memory-utilization=0.85",
+        "--max-model-len=4096",
+        "--max-num-batched-tokens=512",
+    ]
 
 
 @pytest.mark.asyncio

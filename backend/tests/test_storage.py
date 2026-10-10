@@ -66,7 +66,6 @@ def _make_trial(trial_id: int, tps: float = 100.0, p99: float = 0.5) -> TuningTr
         p99_latency=p99,
         score=tps / p99,
         status="completed",
-        is_pareto_optimal=False,
         pruned=False,
     )
 

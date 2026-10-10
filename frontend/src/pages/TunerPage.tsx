@@ -21,6 +21,7 @@ interface TunerPageProps {
 
 function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
   const [selectedTarget, setSelectedTarget] = useState<ClusterTarget | null>(null);
+  const [maxModelLenLimit, setMaxModelLenLimit] = useState<number | null>(null);
   const {
     error,
     warning,
@@ -50,8 +51,6 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
   const applySearchSpace = (space: SuggestedSearchSpace) => {
     handleConfigChange('max_num_seqs_min', space.max_num_seqs_min);
     handleConfigChange('max_num_seqs_max', space.max_num_seqs_max);
-    handleConfigChange('max_model_len_min', space.max_model_len_min);
-    handleConfigChange('max_model_len_max', space.max_model_len_max);
   };
 
   return (
@@ -70,6 +69,7 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
         acceleratorMemoryGib={config.accelerator_memory_gib ?? null}
         onAcceleratorMemoryChange={(gib) => handleConfigChange('accelerator_memory_gib', gib)}
         onApplySearchSpace={applySearchSpace}
+        onMaxModelLenLimit={setMaxModelLenLimit}
         disabled={status.running}
       />
       <TunerBootDiagnosis isActive={isActive} targetOverride={selectedTarget} />
@@ -82,6 +82,7 @@ function TunerPage({ isActive, onTabChange, onRunningChange }: TunerPageProps) {
         isActive={isActive}
         status={status}
         config={config}
+        maxModelLenLimit={maxModelLenLimit}
         targetOverride={selectedTarget}
         error={error}
         warning={warning}

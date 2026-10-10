@@ -14,6 +14,7 @@ interface TunerModelAnalysisProps {
   acceleratorMemoryGib: number | null;
   onAcceleratorMemoryChange: (gib: number | null) => void;
   onApplySearchSpace: (space: SuggestedSearchSpace) => void;
+  onMaxModelLenLimit?: (limit: number | null) => void;
   disabled?: boolean;
 }
 
@@ -53,6 +54,7 @@ export default function TunerModelAnalysis({
   acceleratorMemoryGib,
   onAcceleratorMemoryChange,
   onApplySearchSpace,
+  onMaxModelLenLimit,
   disabled = false,
 }: TunerModelAnalysisProps) {
   const { endpoint, namespace, inferenceservice, crType } = useClusterConfig();
@@ -103,6 +105,10 @@ export default function TunerModelAnalysis({
     },
     [targetOverride, namespace, inferenceservice, crType, endpoint, acceleratorMemoryGib]
   );
+
+  useEffect(() => {
+    onMaxModelLenLimit?.(analysis?.max_model_len_limit ?? null);
+  }, [analysis, onMaxModelLenLimit]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -345,8 +351,7 @@ export default function TunerModelAnalysis({
         {space && (
           <>
             <span style={{ fontSize: '12px' }}>
-              Suggested: max_num_seqs {space.max_num_seqs_min}–{space.max_num_seqs_max} ·
-              max_model_len {space.max_model_len_min}–{space.max_model_len_max}
+              Suggested: max_num_seqs {space.max_num_seqs_min}–{space.max_num_seqs_max}
             </span>
             <button
               type="button"

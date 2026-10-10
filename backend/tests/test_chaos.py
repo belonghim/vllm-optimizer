@@ -76,7 +76,6 @@ def test_chaos_k8s_forbidden_tuner_sse_error(isolated_client: TestClient):
                     start_resp = isolated_client.post(
                         "/api/tuner/start",
                         json={
-                            "objective": "balanced",
                             "n_trials": 1,
                             "eval_requests": 2,
                             "vllm_endpoint": "http://mock-vllm:8080",

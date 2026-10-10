@@ -11,8 +11,9 @@ interface TunerCurrentConfigProps {
   isActive: boolean;
   isRunning: boolean;
   config: TunerConfig;
+  maxModelLenLimit?: number | null;
   targetOverride?: ClusterTarget | null;
-  onChange: (field: string, value: string | number | boolean | number[]) => void;
+  onChange: (field: string, value: string | number | boolean) => void;
   onSubmit: () => void;
   onStop: () => void;
   onApplyBest: () => void;
@@ -27,6 +28,7 @@ export default function TunerCurrentConfig({
   isActive,
   isRunning,
   config,
+  maxModelLenLimit,
   targetOverride,
   onChange,
   onSubmit,
@@ -190,6 +192,7 @@ export default function TunerCurrentConfig({
     <>
       <TunerConfigForm
         config={config}
+        maxModelLenLimit={maxModelLenLimit}
         onChange={onChange}
         onSubmit={onSubmit}
         onStop={onStop}

@@ -3,39 +3,19 @@ import TunerProgressBar from './TunerProgressBar';
 import TunerParamInputs from './TunerParamInputs';
 import TunerResourceInputs from './TunerResourceInputs';
 import { parseNumberInput } from '../utils/numberInput';
+import type { TunerConfig } from '../types';
 
 interface TunerPhase {
   trial_id: number;
   phase: string;
 }
 
-export interface TunerConfig {
-  objective: string;
-  evaluation_mode: 'single' | 'sweep';
-  n_trials: number;
-  vllm_endpoint: string;
-  max_num_seqs_min: number;
-  max_num_seqs_max: number;
-  gpu_memory_min: number;
-  gpu_memory_max: number;
-  max_model_len_min: number;
-  max_model_len_max: number;
-  max_num_batched_tokens_min: number;
-  max_num_batched_tokens_max: number;
-  block_size_options: number[];
-  include_swap_space: boolean;
-  swap_space_min: number;
-  swap_space_max: number;
-  eval_concurrency: number;
-  eval_rps: number;
-  eval_requests: number;
-  enable_llm_assistant?: boolean;
-  p99_latency_sla_ms?: number | null;
-}
+export type { TunerConfig } from '../types';
 
 interface TunerConfigFormProps {
   config: TunerConfig;
-  onChange: (field: string, value: string | number | boolean | number[]) => void;
+  maxModelLenLimit?: number | null;
+  onChange: (field: string, value: string | number | boolean) => void;
   onSubmit: () => void;
   onStop: () => void;
   onApplyBest: () => void;
@@ -76,6 +56,7 @@ function isValidGpu(v: string): boolean {
 
 export default function TunerConfigForm({
   config,
+  maxModelLenLimit,
   onChange,
   onSubmit,
   onStop,
@@ -131,24 +112,66 @@ export default function TunerConfigForm({
 
   return (
     <div className="panel">
-      <div className="section-title">Bayesian Optimization Settings</div>
-
+      <div className="section-title">Service Target</div>
+      <p className="td-desc" style={{ marginTop: 0 }}>
+        Finds the vLLM settings with the highest TPS for this many concurrent users while P99
+        end-to-end latency stays within the SLA.
+      </p>
       <div className="grid-form grid-form-compact" style={{ marginBottom: '20px' }}>
         <div>
-          <label className="label" htmlFor="tuner-objective">
-            Optimization Objective
+          <label className="label" htmlFor="tuner-eval-concurrency">
+            Concurrent Users
           </label>
-          <select
-            id="tuner-objective"
+          <input
+            id="tuner-eval-concurrency"
             className="input"
-            value={config.objective}
-            onChange={(e) => onChange('objective', e.target.value)}
-          >
-            <option value="tps">Max Throughput (TPS)</option>
-            <option value="latency">Min Latency</option>
-            <option value="balanced">Balanced (TPS / Latency)</option>
-            <option value="pareto">Pareto (TPS + Latency)</option>
-          </select>
+            type="number"
+            min={1}
+            max={512}
+            value={config.eval_concurrency}
+            onChange={(e) =>
+              onChange(
+                'eval_concurrency',
+                parseNumberInput(e.target.value, config.eval_concurrency)
+              )
+            }
+          />
+        </div>
+        <div>
+          <label className="label" htmlFor="tuner-p99-sla">
+            P99 Latency SLA (ms)
+          </label>
+          <input
+            id="tuner-p99-sla"
+            className="input"
+            type="number"
+            min={100}
+            max={600000}
+            step={100}
+            value={config.p99_latency_sla_ms}
+            onChange={(e) =>
+              onChange(
+                'p99_latency_sla_ms',
+                parseNumberInput(e.target.value, config.p99_latency_sla_ms)
+              )
+            }
+          />
+        </div>
+        <div>
+          <label className="label" htmlFor="tuner-max-tokens">
+            Output Tokens / Request
+          </label>
+          <input
+            id="tuner-max-tokens"
+            className="input"
+            type="number"
+            min={1}
+            max={8192}
+            value={config.max_tokens}
+            onChange={(e) =>
+              onChange('max_tokens', parseNumberInput(e.target.value, config.max_tokens))
+            }
+          />
         </div>
         <div>
           <label className="label" htmlFor="tuner-trials">
@@ -166,22 +189,9 @@ export default function TunerConfigForm({
             }
           />
         </div>
-        <div>
-          <label className="label" htmlFor="tuner-eval-mode">
-            Eval Mode
-          </label>
-          <select
-            id="tuner-eval-mode"
-            className="input"
-            value={config.evaluation_mode}
-            onChange={(e) => onChange('evaluation_mode', e.target.value as 'single' | 'sweep')}
-          >
-            <option value="single">Single (basic load test)</option>
-            <option value="sweep">Sweep (optimal RPS based)</option>
-          </select>
-        </div>
       </div>
 
+      <div className="section-title">Search Space</div>
       <div style={{ overflowX: 'auto', marginBottom: '20px' }}>
         <table className="table tuner-params-table">
           <thead>
@@ -195,6 +205,7 @@ export default function TunerConfigForm({
           <tbody>
             <TunerParamInputs
               config={config}
+              maxModelLenLimit={maxModelLenLimit}
               onChange={onChange}
               editedValues={editedValues}
               currentConfig={currentConfig}
@@ -247,75 +258,21 @@ export default function TunerConfigForm({
         </table>
       </div>
 
-      <div className="section-title">Evaluation Settings</div>
       <div className="grid-form grid-form-compact" style={{ marginBottom: '12px' }}>
         <div>
           <label className="label" htmlFor="tuner-eval-requests">
-            Eval Request Count
+            Eval Requests / Trial
           </label>
           <input
             id="tuner-eval-requests"
             className="input"
             type="number"
             min={10}
-            max={10000}
+            max={1000}
             step={10}
             value={config.eval_requests}
             onChange={(e) =>
               onChange('eval_requests', parseNumberInput(e.target.value, config.eval_requests))
-            }
-          />
-        </div>
-        <div>
-          <label className="label" htmlFor="tuner-eval-concurrency">
-            Eval Concurrency
-          </label>
-          <input
-            id="tuner-eval-concurrency"
-            className="input"
-            type="number"
-            min={1}
-            max={256}
-            value={config.eval_concurrency}
-            onChange={(e) =>
-              onChange(
-                'eval_concurrency',
-                parseNumberInput(e.target.value, config.eval_concurrency)
-              )
-            }
-          />
-        </div>
-        <div>
-          <label className="label" htmlFor="tuner-eval-rps">
-            Eval RPS
-          </label>
-          <input
-            id="tuner-eval-rps"
-            className="input"
-            type="number"
-            min={1}
-            max={1000}
-            value={config.eval_rps}
-            onChange={(e) =>
-              onChange('eval_rps', parseNumberInput(e.target.value, config.eval_rps))
-            }
-          />
-        </div>
-        <div>
-          <label className="label" htmlFor="tuner-p99-sla">
-            P99 Latency SLA (ms)
-          </label>
-          <input
-            id="tuner-p99-sla"
-            className="input"
-            type="number"
-            min={0}
-            max={60000}
-            step={100}
-            placeholder="Disabled"
-            value={config.p99_latency_sla_ms ?? ''}
-            onChange={(e) =>
-              onChange('p99_latency_sla_ms', e.target.value === '' ? 0 : +e.target.value)
             }
           />
         </div>
@@ -339,7 +296,12 @@ export default function TunerConfigForm({
       </div>
 
       <div className="tuner-config-actions">
-        <button type="button" className="btn btn-primary" onClick={onSubmit} disabled={isRunning}>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={onSubmit}
+          disabled={isRunning || (!!maxModelLenLimit && config.max_model_len > maxModelLenLimit)}
+        >
           ▶ Start Tuning
         </button>
         <button type="button" className="btn btn-danger" onClick={onStop} disabled={!isRunning}>

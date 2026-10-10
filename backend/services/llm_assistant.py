@@ -107,10 +107,7 @@ def format_analysis_facts(analysis: dict[str, Any]) -> str:
         )
     space = analysis.get("suggested_search_space")
     if space:
-        lines.append(
-            f"- 제안 탐색 범위: max_num_seqs {space['max_num_seqs_min']}~{space['max_num_seqs_max']}, "
-            f"max_model_len {space['max_model_len_min']}~{space['max_model_len_max']}"
-        )
+        lines.append(f"- 제안 탐색 범위: max_num_seqs {space['max_num_seqs_min']}~{space['max_num_seqs_max']}")
     recs = (analysis.get("advice") or {}).get("recommendations") or []
     gaps = [r for r in recs if r.get("kind") == "required" and r.get("status") in ("missing", "mismatch")]
     if gaps:
@@ -205,7 +202,8 @@ class LLMAssistant:
         system = (
             "You are a vLLM performance-tuning expert. Given model architecture, hardware, "
             "and a hyperparameter search space, propose initial configurations likely to "
-            "achieve high throughput without OOM. Output ONLY a JSON array — no prose, "
+            "achieve the highest throughput for the given concurrent users while p99 latency stays within "
+            "the SLA, without OOM. Output ONLY a JSON array — no prose, "
             "no markdown fences, no commentary."
         )
         user = (
@@ -214,8 +212,7 @@ class LLMAssistant:
             f"Search space (min/max or choices):\n{json.dumps(search_space, indent=2)}\n\n"
             f"Propose {count} distinct configurations as a JSON array. Each element must be "
             f"an object with keys: max_num_seqs (int), gpu_memory_utilization (float), "
-            f"max_model_len (int), max_num_batched_tokens (int), block_size (int from the choices), "
-            f"enable_chunked_prefill (bool), enable_enforce_eager (bool). "
+            f"max_num_batched_tokens (int). "
             f"All values must fall within the search space. Output the JSON array now."
         )
         raw = await self._chat(system, user, max_tokens=1024, temperature=0.0)

@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-10] - 튜너를 "동시 사용자 N명·P99 SLA 이하 최대 TPS" 하나로 단순화
+
+### Changed
+- **목표 단일화**: 튜너는 지정한 동시 사용자 수(closed-loop, RPS 제한 없음)에서 P99 총 지연시간이 SLA 이하인 최대 TPS만 찾는다. 점수 = SLA 충족 시 TPS, 위반 시 `-(p99/SLA)`. 입력: `eval_concurrency`(기본 16) · `p99_latency_sla_ms`(기본 10000) · `max_tokens`(요청당 출력 토큰, 기본 256). 어떤 trial도 SLA를 못 맞추면 경고 후 위반이 가장 작은 설정을 적용하고, 결과 화면·`best.sla_met`·trial별 `sla_met`로 표시.
+- **탐색 파라미터 축소**: `max_num_seqs`·`max_num_batched_tokens`·`gpu_memory_utilization`만 탐색. `max_model_len`은 서비스가 지원할 컨텍스트 길이로 고정(기본 8192, 사용자 수정 가능, 모델 config.json 상한(rope scaling 반영)을 넘으면 400 `invalid_max_model_len`·UI 시작 버튼 비활성). 모델 분석 응답에 `max_model_len_limit` 추가.
+- 튜닝·`/api/vllm-config`가 관리하는 인자는 위 4개뿐. `--enforce-eager`·`--block-size`·`--swap-space`·`--enable-chunked-prefill` 등은 운영자 인자로 취급해 trial 적용 시에도 보존(이전에는 trial마다 제거·덮어씀).
+
+### Removed
+- 목적 함수 `tps`/`latency`/`balanced`/`pareto`(NSGA-II·Pareto front), 튜너 sweep 평가 모드, `eval_rps`, `enforce_eager`/`chunked_prefill`/`block_size`/`swap_space` 탐색(`swap_space`는 vLLM 0.24 인자 목록에 없음), `max_model_len` 범위 탐색, vllm-config 값으로 탐색 범위를 덮어쓰던 프론트 자동 채움(min=max가 되어 범위 검증 실패 유발). `tuner_trials.is_pareto_optimal` 컬럼은 기동 시 DROP. 부하 테스트 페이지의 RPS sweep은 그대로 유지.
+
 ## [2026-10-10] - GPU 실측 검증·튜너 낭비 제거
 
 ### Fixed

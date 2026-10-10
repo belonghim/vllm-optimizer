@@ -104,13 +104,11 @@ def test_pod_restart_on_tuner_apply(
         "n_trials": 1,
         "eval_requests": 10,
         "warmup_requests": 0,
-        "objective": "tps",
         "max_num_seqs_min": 32,
         "max_num_seqs_max": 128,
         "gpu_memory_min": 0.8,
         "gpu_memory_max": 0.9,
-        "max_model_len_min": 2048,
-        "max_model_len_max": 8192,
+        "max_model_len": 8192,
     }
     vllm_endpoint = os.getenv("VLLM_ENDPOINT", "http://llm-ov-predictor.vllm-lab-dev.svc.cluster.local")
     resp = http_client.post("/api/tuner/start", json={**config, "vllm_endpoint": vllm_endpoint}, timeout=30)

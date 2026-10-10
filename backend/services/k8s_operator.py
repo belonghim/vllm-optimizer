@@ -333,18 +333,6 @@ class K8sOperator:
         if "max_num_batched_tokens" in params:
             args.append(f"--max-num-batched-tokens={params['max_num_batched_tokens']}")
 
-        if "block_size" in params:
-            args.append(f"--block-size={params['block_size']}")
-
-        if "swap_space" in params:
-            args.append(f"--swap-space={params['swap_space']}")
-
-        if params.get("enable_chunked_prefill"):
-            args.append("--enable-chunked-prefill")
-
-        if params.get("enable_enforce_eager"):
-            args.append("--enforce-eager")
-
         return args
 
     async def apply_params(self, params: dict[str, Any], k8s_lock: asyncio.Lock) -> dict[str, Any]:

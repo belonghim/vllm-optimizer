@@ -15,86 +15,56 @@ def _make_load_engine() -> MagicMock:
     return engine
 
 
-def _default_config(objective: str = "tps") -> TuningConfig:
-    return TuningConfig(objective=objective)
-
-
 @pytest.mark.asyncio
-async def test_setup_study_tps_creates_maximize_study() -> None:
+async def test_setup_study_creates_maximize_study() -> None:
     logic = TunerLogic(_make_load_engine())
-    config = _default_config("tps")
 
-    direction, study = await logic.setup_study(config, storage_url=None)
+    direction, study = await logic.setup_study(TuningConfig(), storage_url=None)
 
     assert direction == "maximize"
     assert isinstance(study, optuna.Study)
     assert study.direction == optuna.study.StudyDirection.MAXIMIZE
 
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize("objective", ["latency", "balanced", "sla_tps"])
-async def test_setup_study_signed_score_objectives_maximize(objective: str) -> None:
+def test_compute_trial_score_is_tps_within_sla() -> None:
     logic = TunerLogic(_make_load_engine())
-    config = _default_config(objective)
+    config = TuningConfig(p99_latency_sla_ms=500)
 
-    direction, study = await logic.setup_study(config, storage_url=None)
-
-    assert direction == "maximize"
-    assert study.direction == optuna.study.StudyDirection.MAXIMIZE
-
-
-def test_compute_trial_score_latency_prefers_lower_p99() -> None:
-    logic = TunerLogic(_make_load_engine())
-    config = _default_config("latency")
-
-    fast = logic.compute_trial_score({"tps": {"total": 1.0}, "latency": {"p99": 0.2}}, config)
-    slow = logic.compute_trial_score({"tps": {"total": 1.0}, "latency": {"p99": 2.0}}, config)
-
-    assert fast > slow
+    assert logic.compute_trial_score({"tps": {"total": 42.0}, "latency": {"p99": 0.3}}, config) == 42.0
 
 
 def test_compute_trial_score_sla_violation_ranks_below_feasible() -> None:
     logic = TunerLogic(_make_load_engine())
-    config = _default_config("sla_tps")
-    config.p99_latency_sla_ms = 500
+    config = TuningConfig(p99_latency_sla_ms=500)
 
     feasible = logic.compute_trial_score({"tps": {"total": 1.0}, "latency": {"p99": 0.4}}, config)
     violating = logic.compute_trial_score({"tps": {"total": 10000.0}, "latency": {"p99": 0.9}}, config)
+    worse = logic.compute_trial_score({"tps": {"total": 10000.0}, "latency": {"p99": 2.0}}, config)
 
-    assert feasible > violating
+    assert feasible > violating > worse
+    assert violating == pytest.approx(-1.8)
 
 
-def test_suggest_params_returns_all_required_keys() -> None:
+def test_suggest_params_searches_throughput_knobs_and_fixes_max_model_len() -> None:
     logic = TunerLogic(_make_load_engine())
-    config = _default_config("tps")
-    study = optuna.create_study(direction="maximize")
-    trial = study.ask()
+    config = TuningConfig(max_model_len=4096)
+    trial = optuna.create_study(direction="maximize").ask()
 
     params = logic.suggest_params(trial, config)
 
-    assert "max_num_seqs" in params
-    assert "gpu_memory_utilization" in params
-    assert "max_model_len" in params
-    assert "enable_chunked_prefill" in params
-    assert "enable_enforce_eager" in params
-    assert "max_num_batched_tokens" in params
+    assert set(params) == {"max_num_seqs", "gpu_memory_utilization", "max_num_batched_tokens", "max_model_len"}
+    assert params["max_model_len"] == 4096
+    assert "max_model_len" not in trial.params
 
 
-def test_compute_trial_score_tps_objective() -> None:
-    logic = TunerLogic(_make_load_engine())
-    config = _default_config("tps")
-    result = {"tps": {"total": 42.0}, "latency": {"p99": 0.3}}
+@pytest.mark.asyncio
+async def test_probe_load_uses_closed_loop_concurrency_and_output_tokens() -> None:
+    engine = _make_load_engine()
+    logic = TunerLogic(engine)
+    config = TuningConfig(eval_concurrency=24, max_tokens=128, eval_requests=10)
 
-    score = logic.compute_trial_score(result, config)
+    await logic.run_probe_load("http://x", "m", config, trial=None, trial_id=0)
 
-    assert score == 42.0
-
-
-def test_compute_trial_score_latency_objective_negates_p99() -> None:
-    logic = TunerLogic(_make_load_engine())
-    config = _default_config("latency")
-    result = {"tps": {"total": 10.0}, "latency": {"p99": 1.5}}
-
-    score = logic.compute_trial_score(result, config)
-
-    assert score == -1.5
+    for call in engine.run.await_args_list:
+        load = call.args[0]
+        assert (load.concurrency, load.max_tokens, load.rps) == (24, 128, 0)

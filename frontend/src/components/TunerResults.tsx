@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { fmt } from '../utils/format';
 import MetricCard from './MetricCard';
+import ErrorAlert from './ErrorAlert';
 import { downloadJSON, downloadCSV, trialsToCSV } from '../utils/export';
 import {
   ScatterChart,
@@ -25,6 +26,7 @@ interface BestParams {
   tps: number;
   p99_latency: number;
   params?: TrialParams;
+  sla_met?: boolean;
 }
 
 interface TunerStatus {
@@ -68,7 +70,7 @@ export default function TunerResults({
     y: t.p99_latency,
     name: `Trial ${t.id}`,
     best: bestParams?.params && JSON.stringify(t.params) === JSON.stringify(bestParams.params),
-    pareto_optimal: t.is_pareto_optimal || false,
+    sla_met: t.sla_met !== false,
   }));
 
   return (
@@ -106,6 +108,13 @@ export default function TunerResults({
       {bestParams && (
         <div className="tuner-best-panel">
           <div className="section-title section-title-accent">Best Parameters Found</div>
+          {bestParams.sla_met === false && (
+            <ErrorAlert
+              severity="warning"
+              className="error-alert--mb16"
+              message="No trial met the P99 latency SLA — this is the least-violating configuration. Lower the concurrent users or output tokens, or add resources."
+            />
+          )}
           <div className="grid-4 tuner-best-metrics-grid">
             <MetricCard
               label="Best TPS"
@@ -213,29 +222,29 @@ export default function TunerResults({
                 formatter={(v: number, n: string) => [fmt(v, 2), n]}
               />
               <Scatter
-                data={scatterData.filter((d) => !d.pareto_optimal)}
-                fill={COLORS.cyan}
-                opacity={0.7}
+                name="Within SLA"
+                data={scatterData.filter((d) => d.sla_met)}
+                fill={'rgb(var(--success-rgb))'}
+                opacity={0.9}
               />
               <Scatter
-                data={scatterData.filter((d) => d.pareto_optimal)}
-                fill={'rgb(var(--success-rgb))'}
-                opacity={1.0}
+                name="SLA violated"
+                data={scatterData.filter((d) => !d.sla_met)}
+                fill={'var(--red-color)'}
+                opacity={0.7}
               />
             </ScatterChart>
           </ResponsiveContainer>
-          {scatterData.some((d) => d.pareto_optimal) && (
-            <div className="tuner-scatter-legend">
-              <span className="tuner-legend-pareto">●</span> Pareto-optimal &nbsp;
-              <span className="tuner-legend-regular">●</span> Regular trial
-            </div>
-          )}
+          <div className="tuner-scatter-legend">
+            <span className="tuner-legend-sla-met">●</span> Within SLA &nbsp;
+            <span className="tuner-legend-sla-violated">●</span> SLA violated
+          </div>
         </div>
       )}
 
       {status.best_score_history && status.best_score_history.length > 1 && (
         <div className="panel" aria-label="Best score convergence chart">
-          <div className="section-title">Best Score Convergence</div>
+          <div className="section-title">Best TPS within SLA (convergence)</div>
           <ResponsiveContainer width="100%" height={180}>
             <LineChart
               data={status.best_score_history.map((score, i) => ({

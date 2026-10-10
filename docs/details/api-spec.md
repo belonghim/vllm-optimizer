@@ -656,33 +656,29 @@ Bayesian optimization engine for automatic vLLM parameter tuning using Optuna.
 
 ### POST /api/tuner/start
 
-Start Bayesian optimization auto-tuning. Launches an asynchronous optimization job that iteratively tests parameter configurations.
+Start auto-tuning. Finds the vLLM settings giving the highest TPS for `eval_concurrency` concurrent users (closed-loop load) while P99 end-to-end latency stays within `p99_latency_sla_ms`. Searches `max_num_seqs`, `max_num_batched_tokens` and `gpu_memory_utilization`; `max_model_len` is fixed to the requested context length. Other vLLM args on the CR (e.g. `--enforce-eager`) are preserved.
 
 **Request Body:**
 
 ```json
 {
-  "objective": "string (optional)",
+  "eval_concurrency": "number (optional)",
+  "p99_latency_sla_ms": "number (optional)",
+  "max_tokens": "number (optional)",
+  "max_model_len": "number (optional)",
   "n_trials": "number (optional)",
   "eval_requests": "number (optional)",
   "vllm_endpoint": "string (optional)",
+  "vllm_namespace": "string (optional)",
+  "vllm_is_name": "string (optional)",
+  "vllm_cr_type": "inferenceservice | llminferenceservice (optional)",
   "max_num_seqs_min": "number (optional)",
   "max_num_seqs_max": "number (optional)",
   "gpu_memory_min": "number (optional)",
   "gpu_memory_max": "number (optional)",
-  "max_model_len_min": "number (optional)",
-  "max_model_len_max": "number (optional)",
   "max_num_batched_tokens_min": "number (optional)",
   "max_num_batched_tokens_max": "number (optional)",
-  "block_size_options": "[number] (optional)",
-  "include_swap_space": "boolean (optional)",
-  "swap_space_min": "number (optional)",
-  "swap_space_max": "number (optional)",
-  "eval_concurrency": "number (optional)",
-  "eval_rps": "number (optional)",
   "auto_benchmark": "boolean (optional)",
-  "evaluation_mode": "single | sweep (optional)",
-  "sweep_config": "object (optional)",
   "enable_llm_assistant": "boolean (optional)",
   "accelerator_memory_gib": "number (optional)"
 }
@@ -692,27 +688,17 @@ Start Bayesian optimization auto-tuning. Launches an asynchronous optimization j
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `objective` | string | `max_tps` | Optimization objective |
-| `n_trials` | number | 20 | Number of optimization trials |
-| `eval_requests` | number | 100 | Number of requests per evaluation |
-| `vllm_endpoint` | string | current | vLLM endpoint to tune |
-| `max_num_seqs_min` | number | 16 | Minimum max_num_seqs |
-| `max_num_seqs_max` | number | 256 | Maximum max_num_seqs |
-| `gpu_memory_min` | number | 0.5 | Minimum GPU memory utilization |
-| `gpu_memory_max` | number | 0.95 | Maximum GPU memory utilization |
-| `max_model_len_min` | number | 512 | Minimum max_model_len |
-| `max_model_len_max` | number | 8192 | Maximum max_model_len |
-| `max_num_batched_tokens_min` | number | 512 | Minimum max_num_batched_tokens |
-| `max_num_batched_tokens_max` | number | 8192 | Maximum max_num_batched_tokens |
-| `block_size_options` | array | [16, 32] | Block size candidates |
-| `include_swap_space` | boolean | false | Whether to tune swap space |
-| `swap_space_min` | number | 0 | Minimum swap space (GB) |
-| `swap_space_max` | number | 8 | Maximum swap space (GB) |
-| `eval_concurrency` | number | 1 | Concurrent evaluation requests |
-| `eval_rps` | number | auto | Requests per second for evaluation |
-| `auto_benchmark` | boolean | false | Run benchmark after tuning |
-| `evaluation_mode` | string | `single` | `single` or `sweep` mode |
-| `sweep_config` | object | null | Configuration for sweep mode |
+| `eval_concurrency` | number | 16 | Concurrent users during evaluation (1–512, no RPS cap) |
+| `p99_latency_sla_ms` | number | 10000 | P99 end-to-end latency SLA. Score = TPS when met, otherwise a negative violation ratio |
+| `max_tokens` | number | 256 | Output tokens per request |
+| `max_model_len` | number | 8192 | Context length to serve (fixed). 400 `invalid_max_model_len` when above the model limit from config.json |
+| `n_trials` | number | 10 | Evaluated trials (predicted/learned skips do not count) |
+| `eval_requests` | number | 100 | Requests per evaluation |
+| `vllm_endpoint` | string | derived | Load endpoint. Empty + target given → derived from the target CR |
+| `max_num_seqs_min` / `_max` | number | 64 / 512 | max_num_seqs search range |
+| `gpu_memory_min` / `_max` | number | 0.80 / 0.95 | gpu_memory_utilization search range |
+| `max_num_batched_tokens_min` / `_max` | number | 256 / 2048 | max_num_batched_tokens search range |
+| `auto_benchmark` | boolean | false | Save the best trial as a benchmark |
 | `enable_llm_assistant` | boolean | true | Use the analyst LLM (`ANALYST_ENDPOINT`) for warm-start suggestions, failure explanations and the report. No-op when unset or equal to the tuning endpoint |
 | `accelerator_memory_gib` | number | null | Per-GPU memory in GiB. Enables the KV budget (GPU count × this) for the startup-OOM pre-filter and the gpu_memory_utilization floor |
 
@@ -795,11 +781,11 @@ Get the current status of the tuner, including running state, trial progress, an
   "best": {
     "params": "object",
     "tps": "number",
-    "p99_latency": "number"
+    "p99_latency": "number",
+    "sla_met": "boolean"
   },
   "status": "string",
   "best_score_history": "[number]",
-  "pareto_front_size": "number",
   "last_rollback_trial": "object (optional)"
 }
 ```
@@ -813,9 +799,9 @@ Get the current status of the tuner, including running state, trial progress, an
 | `best.params` | object | Best parameter configuration found |
 | `best.tps` | number | TPS achieved with best params |
 | `best.p99_latency` | number | P99 latency with best params |
+| `best.sla_met` | boolean | `false` when no trial met the P99 SLA (best = least-violating) |
 | `status` | string | Current status string |
-| `best_score_history` | array | Historical best scores over trials |
-| `pareto_front_size` | number | Size of Pareto front (multi-objective) |
+| `best_score_history` | array | Best score after each trial (TPS within SLA; negative = SLA violated) |
 | `last_rollback_trial` | object | Last trial that triggered a rollback |
 
 ---
@@ -845,12 +831,11 @@ Get tuning trials with pagination support. Returns details of each trial includi
       "max_num_seqs": "number",
       "gpu_memory_utilization": "number",
       "max_model_len": "number",
-      "max_num_batched_tokens": "number",
-      "block_size": "number"
+      "max_num_batched_tokens": "number"
     },
     "score": "number",
     "status": "string",
-    "is_pareto_optimal": "boolean",
+    "sla_met": "boolean | null",
     "pruned": "boolean",
     "failure": "object | null"
   }
@@ -873,7 +858,7 @@ Get tuning trials with pagination support. Returns details of each trial includi
 | `params` | object | Parameters used in this trial |
 | `score` | number | Computed score for this trial |
 | `status` | string | Trial status (completed, running, failed, skipped) |
-| `is_pareto_optimal` | boolean | Whether this trial is on the Pareto front |
+| `sla_met` | boolean \| null | P99 within the SLA (`null` for failed/skipped trials) |
 | `pruned` | boolean | Whether this trial was pruned early |
 | `failure` | object \| null | For `failed`/`skipped` trials: `{reason, diagnoses:[{code,title,fix}]}` (max 3 diagnoses). `reason` is the classified failure (`OOM_predicted`, `learned_limit`, `startup_timeout`, ...) |
 
@@ -949,9 +934,7 @@ Get parameter importance rankings from Optuna FAnova analysis. Shows which param
 {
   "max_num_seqs": 0.35,
   "gpu_memory_utilization": 0.28,
-  "max_model_len": 0.18,
-  "max_num_batched_tokens": 0.12,
-  "block_size": 0.07
+  "max_num_batched_tokens": 0.37
 }
 ```
 
@@ -996,7 +979,7 @@ Get combined tuner state in a single request. Returns status, trials, and parame
       "params": "object",
       "score": "number",
       "status": "string",
-      "is_pareto_optimal": "boolean",
+      "sla_met": "boolean | null",
       "pruned": "boolean"
     }
   ],
@@ -1024,8 +1007,7 @@ Apply the best parameters found during tuning to the vLLM deployment. Updates th
     "max_num_seqs": "number",
     "gpu_memory_utilization": "number",
     "max_model_len": "number",
-    "max_num_batched_tokens": "number",
-    "block_size": "number"
+    "max_num_batched_tokens": "number"
   },
   "deployment_name": "string"
 }
@@ -1061,7 +1043,7 @@ List saved tuning sessions with pagination. Each session represents a complete t
   {
     "id": "string",
     "timestamp": "string",
-    "objective": "string",
+    "objective": "string (e.g. p99<=10000ms@16users)",
     "n_trials": "number",
     "best_tps": "number",
     "best_p99": "number",
@@ -1103,7 +1085,7 @@ Get detailed information for a specific tuning session, including all trials and
 {
   "id": "string",
   "timestamp": "string",
-  "objective": "string",
+  "objective": "string (e.g. p99<=10000ms@16users)",
   "n_trials": "number",
   "best_tps": "number",
   "best_p99": "number",
@@ -1589,9 +1571,7 @@ Get the current vLLM configuration from the Kubernetes InferenceService resource
     "max_num_seqs": "string",
     "gpu_memory_utilization": "string",
     "max_model_len": "string",
-    "max_num_batched_tokens": "string",
-    "block_size": "string",
-    "swap_space": "string"
+    "max_num_batched_tokens": "string"
   },
   "storageUri": "string",
   "resources": {
@@ -1614,11 +1594,9 @@ Get the current vLLM configuration from the Kubernetes InferenceService resource
 | `data.gpu_memory_utilization` | string | GPU memory utilization fraction |
 | `data.max_model_len` | string | Maximum model context length |
 | `data.max_num_batched_tokens` | string | Maximum batched tokens |
-| `data.block_size` | string | Paged attention block size |
-| `data.swap_space` | string | CPU swap space in GB |
 | `storageUri` | string | Model storage URI |
 | `resources` | object | Kubernetes resource requests and limits |
-| `extraArgs` | array | Additional vLLM arguments |
+| `extraArgs` | array | All other vLLM args on the CR (e.g. `--enforce-eager`) — preserved by tuning and PATCH |
 | `modelName` | string | Configured model name |
 | `resolvedModelName` | string | Resolved model name |
 
@@ -1643,11 +1621,7 @@ Update vLLM configuration in the Kubernetes InferenceService resource. Triggers 
     "max_num_seqs": "string (optional)",
     "gpu_memory_utilization": "string (optional)",
     "max_model_len": "string (optional)",
-    "max_num_batched_tokens": "string (optional)",
-    "block_size": "string (optional)",
-    "swap_space": "string (optional)",
-    "enable_chunked_prefill": "string (optional)",
-    "enable_enforce_eager": "string (optional)"
+    "max_num_batched_tokens": "string (optional)"
   },
   "storageUri": "string (optional)",
   "resources": {
@@ -1665,10 +1639,8 @@ Update vLLM configuration in the Kubernetes InferenceService resource. Triggers 
 | `gpu_memory_utilization` | Fraction of GPU memory to use (0.0-1.0) |
 | `max_model_len` | Maximum model context length |
 | `max_num_batched_tokens` | Maximum tokens per batch |
-| `block_size` | Paged attention block size |
-| `swap_space` | CPU swap space in GB |
-| `enable_chunked_prefill` | Enable chunked prefill optimization |
-| `enable_enforce_eager` | Enable eager mode enforcement |
+
+Other keys are rejected (422); edit other vLLM args in the CR directly.
 
 **Response (200 OK):**
 

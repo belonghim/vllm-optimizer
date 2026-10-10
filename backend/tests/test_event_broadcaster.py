@@ -75,7 +75,6 @@ async def test_emit_trial_metrics_increments_prometheus_counters() -> None:
             trial_start=trial_start,
             status="completed",
             best_trial=None,
-            config=None,
         )
 
     mock_histogram.observe.assert_called_once()

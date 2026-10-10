@@ -73,8 +73,7 @@ tuner_trials_total = Counter(
 
 tuner_best_score = Gauge(
     "vllm_optimizer_tuner_best_score",
-    "Best optimization score achieved by the auto-tuner",
-    ["objective"],
+    "Best auto-tuner score: TPS when p99 meets the SLA, negative SLA-violation ratio otherwise",
     registry=_registry,
 )
 

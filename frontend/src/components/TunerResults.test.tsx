@@ -45,7 +45,7 @@ const sampleTrial = {
   score: 0.85,
   params: { max_num_seqs: 64 },
   status: 'complete',
-  is_pareto_optimal: false,
+  sla_met: true,
 };
 
 const failedTrial = {
@@ -55,7 +55,7 @@ const failedTrial = {
   score: 0,
   params: { max_num_seqs: 256 },
   status: 'failed',
-  is_pareto_optimal: false,
+  sla_met: true,
   failure: {
     reason: 'crash',
     diagnoses: [
@@ -76,7 +76,7 @@ const skippedTrial = {
   score: 0,
   params: { max_num_seqs: 512 },
   status: 'skipped',
-  is_pareto_optimal: false,
+  sla_met: true,
   failure: {
     reason: 'learned_limit',
     diagnoses: [{ code: 'learned_limit', title: '학습된 상한 초과', fix: '탐색 범위를 낮춤' }],

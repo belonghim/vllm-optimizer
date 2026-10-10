@@ -33,24 +33,18 @@ const defaultStatus: TunerStatus = {
 };
 
 const defaultConfig: TunerConfig = {
-  objective: 'throughput',
-  evaluation_mode: 'single',
   n_trials: 10,
   vllm_endpoint: 'http://localhost:8000',
   max_num_seqs_min: 16,
   max_num_seqs_max: 256,
   gpu_memory_min: 0.7,
   gpu_memory_max: 0.95,
-  max_model_len_min: 512,
-  max_model_len_max: 4096,
+  max_model_len: 8192,
   max_num_batched_tokens_min: 256,
   max_num_batched_tokens_max: 8192,
-  block_size_options: [16, 32],
-  include_swap_space: false,
-  swap_space_min: 0,
-  swap_space_max: 8,
   eval_concurrency: 10,
-  eval_rps: 5,
+  p99_latency_sla_ms: 10000,
+  max_tokens: 256,
   eval_requests: 100,
 };
 

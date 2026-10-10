@@ -524,13 +524,11 @@ def suggest_search_space(
     served_max_model_len: int | None,
     key: str = "max_concurrent_seqs",
 ) -> dict[str, int] | None:
-    """Tuner ranges consistent with the KV budget.
+    """max_num_seqs range consistent with the KV budget.
 
-    max_model_len: never above what is served today (the tuner should not widen the context),
-    lowered to the longest context that still fits one sequence. max_num_seqs: ceiling from the
-    capacity at a typical request length (prompt + output ≈ TYPICAL_REQUEST_TOKENS); beyond it
-    vLLM only preempts, so it is a useful upper bound rather than a hard limit. ``key`` selects the
-    estimated (``max_concurrent_seqs``) or measured (``observed_max_seqs``) capacity.
+    The ceiling is the capacity at a typical request length (prompt + output ≈ TYPICAL_REQUEST_TOKENS);
+    beyond it vLLM only preempts, so it is a useful upper bound rather than a hard limit. ``key`` selects
+    the estimated (``max_concurrent_seqs``) or measured (``observed_max_seqs``) capacity.
     """
     fitting = [
         r
@@ -539,18 +537,11 @@ def suggest_search_space(
     ]
     if not fitting:
         return None
-    max_len_max = fitting[-1]["context_len"]
-    max_len_min = min(TYPICAL_REQUEST_TOKENS, max_len_max // 2)
     by_len = {r["context_len"]: r.get(key) for r in fitting}
     typical_cap = by_len.get(TYPICAL_REQUEST_TOKENS) or fitting[0][key]
     seqs_max = max(64, min(1024, (typical_cap // 32) * 32))
     seqs_min = max(32, (seqs_max // 4 // 32) * 32)
-    return {
-        "max_num_seqs_min": seqs_min,
-        "max_num_seqs_max": seqs_max,
-        "max_model_len_min": max_len_min,
-        "max_model_len_max": max_len_max,
-    }
+    return {"max_num_seqs_min": seqs_min, "max_num_seqs_max": seqs_max}
 
 
 def mamba_seq_cap(analysis: ModelAnalysis, observed: dict[str, Any] | None) -> int | None:

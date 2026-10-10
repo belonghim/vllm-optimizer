@@ -191,6 +191,14 @@ describe('useTunerLogic', () => {
         expect(lastRequestBody).not.toBeNull();
         expect(lastRequestBody?.vllm_namespace).toBe('default-ns');
         expect(lastRequestBody?.vllm_is_name).toBe('default-isvc');
+        expect(lastRequestBody).toMatchObject({
+          eval_concurrency: 16,
+          p99_latency_sla_ms: 10000,
+          max_tokens: 256,
+          max_model_len: 8192,
+        });
+        expect(lastRequestBody).not.toHaveProperty('objective');
+        expect(lastRequestBody).not.toHaveProperty('eval_rps');
       });
     });
 

@@ -560,11 +560,11 @@ select.input option {
   color: var(--muted-color);
   margin-top: 4px;
 }
-.tuner-legend-pareto {
-  color: #4caf50;
+.tuner-legend-sla-met {
+  color: rgb(var(--success-rgb));
 }
-.tuner-legend-regular {
-  color: var(--cyan-color);
+.tuner-legend-sla-violated {
+  color: var(--red-color);
 }
 .tuner-importance-row {
   margin-bottom: 8px;

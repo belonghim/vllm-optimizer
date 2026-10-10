@@ -18,12 +18,11 @@ from kubernetes.client.exceptions import ApiException
 from models.load_test import (
     TUNING_DEFAULTS,
     ErrorResponse,
-    SweepConfig,
     TuningConfig,
     TuningSessionDetail,
     TuningSessionSummary,
 )
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 from services.auto_tuner import AutoTuner
 from services.boot_diagnosis import LEARNED_LIMIT_TTL_S, diagnose_boot
 from services.cr_adapter import CRAdapter, config_dict_to_args_list, extract_arg_value, get_cr_adapter
@@ -84,43 +83,27 @@ class ApplyBestResponse(BaseModel):
 
 
 class TuningStartRequest(BaseModel):
-    """Request to start auto-tuning (flat schema matching frontend)"""
+    """Max TPS for `eval_concurrency` users with p99 latency ≤ `p99_latency_sla_ms` (flat schema matching frontend)"""
 
-    objective: str = TUNING_DEFAULTS["objective"]
     n_trials: int = Field(default=TUNING_DEFAULTS["n_trials"], ge=1, le=100)
     eval_requests: int = Field(default=TUNING_DEFAULTS["eval_requests"], ge=1, le=1000)
+    eval_concurrency: int = Field(default=TUNING_DEFAULTS["eval_concurrency"], ge=1, le=512)
+    p99_latency_sla_ms: int = Field(default=TUNING_DEFAULTS["p99_latency_sla_ms"], ge=100, le=600000)
+    max_tokens: int = Field(default=TUNING_DEFAULTS["max_tokens"], ge=1, le=8192)
+    max_model_len: int = Field(default=TUNING_DEFAULTS["max_model_len"], ge=256)
     vllm_endpoint: str = ""
     max_num_seqs_min: int = TUNING_DEFAULTS["max_num_seqs_min"]
     max_num_seqs_max: int = TUNING_DEFAULTS["max_num_seqs_max"]
     gpu_memory_min: float = TUNING_DEFAULTS["gpu_memory_min"]
     gpu_memory_max: float = TUNING_DEFAULTS["gpu_memory_max"]
-    max_model_len_min: int = TUNING_DEFAULTS["max_model_len_min"]
-    max_model_len_max: int = TUNING_DEFAULTS["max_model_len_max"]
-    # Expanded tuning controls
     max_num_batched_tokens_min: int = TUNING_DEFAULTS["max_num_batched_tokens_min"]
     max_num_batched_tokens_max: int = TUNING_DEFAULTS["max_num_batched_tokens_max"]
-    block_size_options: list[int] = TUNING_DEFAULTS["block_size_options"]
-    include_swap_space: bool = TUNING_DEFAULTS["include_swap_space"]
-    swap_space_min: float = TUNING_DEFAULTS["swap_space_min"]
-    swap_space_max: float = TUNING_DEFAULTS["swap_space_max"]
-    eval_concurrency: int = Field(default=TUNING_DEFAULTS["eval_concurrency"], ge=1, le=128)
-    eval_rps: float = Field(default=TUNING_DEFAULTS["eval_rps"], ge=0.1, le=500.0)
     auto_benchmark: bool = False
-    evaluation_mode: Literal["single", "sweep"] = "single"
-    sweep_config: SweepConfig | None = None
-    p99_latency_sla_ms: int | None = None
     enable_llm_assistant: bool = TUNING_DEFAULTS["enable_llm_assistant"]
     accelerator_memory_gib: float | None = Field(default=None, gt=0, le=1024)
     vllm_namespace: str | None = None
     vllm_is_name: str | None = None
     vllm_cr_type: Literal["inferenceservice", "llminferenceservice"] | None = None
-
-    @model_validator(mode="after")
-    def validate_sweep_mode(self) -> "TuningStartRequest":
-        """Validator that ensures sweep mode is active before starting a tuning session."""
-        if self.evaluation_mode == "sweep" and self.sweep_config is None:
-            raise ValueError("sweep_config is required when evaluation_mode='sweep'")
-        return self
 
 
 class TuningStartResponse(BaseModel):
@@ -137,6 +120,7 @@ class BestTrialInfo(BaseModel):
     params: dict[str, Any]
     tps: float
     p99_latency: float
+    sla_met: bool = True
 
 
 class TunerStatusFrontendResponse(BaseModel):
@@ -147,7 +131,6 @@ class TunerStatusFrontendResponse(BaseModel):
     best: BestTrialInfo | None = None
     status: str | None = None
     best_score_history: list[float] = []
-    pareto_front_size: int | None = None
     last_rollback_trial: int | None = None
 
 
@@ -160,7 +143,7 @@ class TrialFrontendInfo(BaseModel):
     params: dict[str, Any]
     score: float
     status: str
-    is_pareto_optimal: bool = False
+    sla_met: bool | None = None
     pruned: bool = False
     failure: dict[str, Any] | None = None
 
@@ -180,7 +163,7 @@ async def _auto_save_tuning_session() -> None:
             best = auto_tuner.best
             session_data = {
                 "timestamp": time.time(),
-                "objective": auto_tuner._config.objective if auto_tuner._config else "balanced",
+                "objective": auto_tuner._config.objective_label if auto_tuner._config else "",
                 "n_trials": len(existing_trials),
                 "best_tps": best.tps if best else None,
                 "best_p99": best.p99_latency * 1000 if best else None,
@@ -226,6 +209,7 @@ class ModelAnalysisResponse(BaseModel):
     capacity: list[dict[str, Any]] = Field(default_factory=list)
     observed: dict[str, Any] | None = None
     suggested_search_space: dict[str, int] | None = None
+    max_model_len_limit: int | None = None
     advice: dict[str, Any] | None = None
     analyst_available: bool = False
     warnings: list[str] = Field(default_factory=list)
@@ -370,6 +354,7 @@ async def _analyze_target(
             "OpenVINO KV 공간을 VLLM_OPENVINO_KVCACHE_SPACE 기본값(4 GiB)·u8로 가정 — 런타임 env로 바꿨다면 다를 수 있습니다"
         )
     served_len = analysis.served_max_model_len
+    resp.max_model_len_limit = analysis.context_limit or analysis.max_position_embeddings
     if budget.gib:
         max_context = analysis.context_limit or analysis.max_position_embeddings or served_len
         resp.capacity = capacity_table(analysis, budget, utilization, max_context, batched)
@@ -479,9 +464,7 @@ async def explain_model_analysis(body: ModelAnalysisResponse) -> ModelAnalysisEx
     return ModelAnalysisExplainResponse(markdown=markdown, analyst_available=True)
 
 
-async def _build_tuning_config(
-    body: TuningStartRequest, target: tuple[str, str, str]
-) -> tuple[TuningConfig, str, SweepConfig | None]:
+async def _build_tuning_config(body: TuningStartRequest, target: tuple[str, str, str]) -> tuple[TuningConfig, str]:
     import os
 
     if body.vllm_endpoint:
@@ -491,9 +474,6 @@ async def _build_tuning_config(
         vllm_endpoint = get_cr_adapter(target[2]).default_endpoint(target[1], target[0])
     else:
         vllm_endpoint = os.getenv("VLLM_ENDPOINT", "http://localhost:8000")
-    sweep_config = body.sweep_config
-    if body.evaluation_mode == "sweep" and sweep_config is not None and not sweep_config.endpoint:
-        sweep_config = sweep_config.model_copy(update={"endpoint": vllm_endpoint})
 
     analysis: ModelAnalysis | None = None
     analysis_resp: ModelAnalysisResponse | None = None
@@ -513,9 +493,15 @@ async def _build_tuning_config(
     except Exception as e:
         logger.warning("[Tuner] Model analysis failed, using blind search: %s", e)
 
-    model_max_position_embeddings = (
-        (analysis.max_position_embeddings or analysis.served_max_model_len) if analysis else None
-    )
+    model_max_position_embeddings = (analysis.context_limit or analysis.max_position_embeddings) if analysis else None
+    if model_max_position_embeddings and body.max_model_len > model_max_position_embeddings:
+        raise HTTPException(
+            status_code=400,
+            detail=ErrorResponse(
+                error=f"max_model_len {body.max_model_len}이 모델 상한 {model_max_position_embeddings}을 넘습니다.",
+                error_type="invalid_max_model_len",
+            ).model_dump(),
+        )
     memory_budget_gib = analysis_resp.memory_budget.get("gib") if analysis_resp else None
     analysis_summary: dict[str, Any] | None = None
     if analysis_resp and analysis_resp.available:
@@ -537,15 +523,12 @@ async def _build_tuning_config(
         learned_limits=learned_limits,
         max_num_seqs_range=(body.max_num_seqs_min, body.max_num_seqs_max),
         gpu_memory_utilization_range=(body.gpu_memory_min, body.gpu_memory_max),
-        max_model_len_range=(body.max_model_len_min, body.max_model_len_max),
         max_num_batched_tokens_range=(body.max_num_batched_tokens_min, body.max_num_batched_tokens_max),
-        block_size_options=body.block_size_options,
-        include_swap_space=body.include_swap_space,
-        swap_space_range=(body.swap_space_min, body.swap_space_max),
+        max_model_len=body.max_model_len,
         eval_concurrency=body.eval_concurrency,
-        eval_rps=body.eval_rps,
+        p99_latency_sla_ms=body.p99_latency_sla_ms,
+        max_tokens=body.max_tokens,
         eval_requests=body.eval_requests,
-        objective=body.objective,
         n_trials=body.n_trials,
         model_max_position_embeddings=model_max_position_embeddings,
         model_weight_gib=analysis.model_weight_gib if analysis else None,
@@ -559,10 +542,9 @@ async def _build_tuning_config(
         model_sliding_window=analysis.sliding_window if analysis else None,
         model_linear_state_bytes_per_seq=analysis.boot_state_bytes_per_seq if analysis else 0,
         model_analysis=analysis_summary,
-        p99_latency_sla_ms=body.p99_latency_sla_ms,
         enable_llm_assistant=body.enable_llm_assistant,
     )
-    return config, vllm_endpoint, sweep_config
+    return config, vllm_endpoint
 
 
 async def _run_preflight_or_raise() -> None:
@@ -604,14 +586,6 @@ async def start_tuning(request: Request, body: TuningStartRequest) -> dict[str, 
                 error_type="already_running",
             ).model_dump(),
         )
-    if body.evaluation_mode == "sweep" and load_engine.is_sweep_running():
-        raise HTTPException(
-            status_code=409,
-            detail=ErrorResponse(
-                error="Sweep evaluation is already running. Stop current sweep first.",
-                error_type="already_running",
-            ).model_dump(),
-        )
     await _auto_save_tuning_session()
     try:
         await storage.clear_trials()
@@ -631,7 +605,7 @@ async def start_tuning(request: Request, body: TuningStartRequest) -> dict[str, 
         )
     # Trials patch/recreate this CR; it stays pinned afterwards so apply-best hits the tuned target.
     auto_tuner.set_target(*target)
-    config, vllm_endpoint, sweep_config = await _build_tuning_config(body, target)
+    config, vllm_endpoint = await _build_tuning_config(body, target)
     await _run_preflight_or_raise()
     tuning_id = str(uuid.uuid4())
     auto_tuner._current_task = asyncio.create_task(
@@ -640,8 +614,6 @@ async def start_tuning(request: Request, body: TuningStartRequest) -> dict[str, 
             vllm_endpoint,
             auto_benchmark=body.auto_benchmark,
             skip_preflight=True,
-            evaluation_mode=body.evaluation_mode,
-            sweep_config=sweep_config,
         )
     )
     auto_tuner._current_task.add_done_callback(
@@ -664,6 +636,7 @@ async def get_tuner_status() -> TunerStatusFrontendResponse:
             params=auto_tuner.best.params,
             tps=auto_tuner.best.tps,
             p99_latency=auto_tuner.best.p99_latency * 1000,
+            sla_met=auto_tuner.best.score >= 0,
         )
     status_value = "running" if auto_tuner.is_running else "idle"
     return TunerStatusFrontendResponse(
@@ -672,7 +645,6 @@ async def get_tuner_status() -> TunerStatusFrontendResponse:
         best=best_info,
         status=status_value,
         best_score_history=getattr(auto_tuner, "_best_score_history", []),
-        pareto_front_size=getattr(auto_tuner, "_pareto_front_size", None),
         last_rollback_trial=auto_tuner._last_rollback_trial,
     )
 
@@ -704,7 +676,7 @@ async def get_tuning_trials(
             params=t.params,
             score=t.score,
             status=t.status,
-            is_pareto_optimal=getattr(t, "is_pareto_optimal", False),
+            sla_met=t.score >= 0 if t.status in ("completed", "pruned") else None,
             pruned=getattr(t, "pruned", False),
             failure=getattr(t, "failure", None),
         )

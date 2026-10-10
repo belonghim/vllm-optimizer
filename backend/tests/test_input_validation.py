@@ -21,7 +21,6 @@ class TestTuningStartRequestValidation:
         """n_trials=999 should fail validation (max 100)."""
         with pytest.raises(ValidationError) as exc_info:
             TuningStartRequest(
-                objective="balanced",
                 n_trials=999,
                 eval_requests=100,
                 vllm_endpoint="http://localhost:8000",
@@ -33,7 +32,6 @@ class TestTuningStartRequestValidation:
         """n_trials=0 should fail validation (min 1)."""
         with pytest.raises(ValidationError) as exc_info:
             TuningStartRequest(
-                objective="balanced",
                 n_trials=0,
                 eval_requests=100,
                 vllm_endpoint="http://localhost:8000",
@@ -44,7 +42,6 @@ class TestTuningStartRequestValidation:
     def test_n_trials_within_bounds(self):
         """n_trials=50 should pass validation."""
         req = TuningStartRequest(
-            objective="balanced",
             n_trials=50,
             eval_requests=100,
             vllm_endpoint="http://localhost:8000",
@@ -55,7 +52,6 @@ class TestTuningStartRequestValidation:
         """eval_requests=2000 should fail validation (max 1000)."""
         with pytest.raises(ValidationError) as exc_info:
             TuningStartRequest(
-                objective="balanced",
                 n_trials=10,
                 eval_requests=2000,
                 vllm_endpoint="http://localhost:8000",
@@ -64,43 +60,16 @@ class TestTuningStartRequestValidation:
         assert any("less than or equal to 1000" in str(e) for e in errors)
 
     def test_eval_concurrency_exceeds_upper_bound(self):
-        """eval_concurrency=256 should fail validation (max 128)."""
         with pytest.raises(ValidationError) as exc_info:
-            TuningStartRequest(
-                objective="balanced",
-                n_trials=10,
-                eval_requests=100,
-                vllm_endpoint="http://localhost:8000",
-                eval_concurrency=256,
-            )
+            TuningStartRequest(n_trials=10, eval_requests=100, eval_concurrency=1024)
         errors = exc_info.value.errors()
-        assert any("less than or equal to 128" in str(e) for e in errors)
+        assert any("less than or equal to 512" in str(e) for e in errors)
 
-    def test_eval_rps_exceeds_upper_bound(self):
-        """eval_rps=600.0 should fail validation (max 500.0)."""
+    def test_sla_below_lower_bound(self):
         with pytest.raises(ValidationError) as exc_info:
-            TuningStartRequest(
-                objective="balanced",
-                n_trials=10,
-                eval_requests=100,
-                vllm_endpoint="http://localhost:8000",
-                eval_rps=600.0,
-            )
+            TuningStartRequest(n_trials=10, p99_latency_sla_ms=10)
         errors = exc_info.value.errors()
-        assert any("less than or equal to 500" in str(e) for e in errors)
-
-    def test_eval_rps_below_lower_bound(self):
-        """eval_rps=0.05 should fail validation (min 0.1)."""
-        with pytest.raises(ValidationError) as exc_info:
-            TuningStartRequest(
-                objective="balanced",
-                n_trials=10,
-                eval_requests=100,
-                vllm_endpoint="http://localhost:8000",
-                eval_rps=0.05,
-            )
-        errors = exc_info.value.errors()
-        assert any("greater than or equal to 0.1" in str(e) for e in errors)
+        assert any("greater than or equal to 100" in str(e) for e in errors)
 
 
 class TestTuningConfigValidation:
@@ -121,26 +90,22 @@ class TestTuningConfigValidation:
         assert any("less than or equal to 1000" in str(e) for e in errors)
 
     def test_eval_concurrency_exceeds_upper_bound(self):
-        """eval_concurrency=256 should fail validation (max 128)."""
         with pytest.raises(ValidationError) as exc_info:
-            TuningConfig(eval_concurrency=256)
+            TuningConfig(eval_concurrency=1024)
         errors = exc_info.value.errors()
-        assert any("less than or equal to 128" in str(e) for e in errors)
+        assert any("less than or equal to 512" in str(e) for e in errors)
 
-    def test_eval_rps_exceeds_upper_bound(self):
-        """eval_rps=750 should fail validation (max 500)."""
+    def test_max_model_len_above_model_limit_rejected(self):
         with pytest.raises(ValidationError) as exc_info:
-            TuningConfig(eval_rps=750)
-        errors = exc_info.value.errors()
-        assert any("less than or equal to 500" in str(e) for e in errors)
+            TuningConfig(max_model_len=65536, model_max_position_embeddings=32768)
+        assert "exceeds the model limit" in str(exc_info.value)
 
     def test_tuning_config_within_bounds(self):
-        """Valid config with n_trials=50, eval_requests=500 should pass."""
-        config = TuningConfig(n_trials=50, eval_requests=500, eval_concurrency=64, eval_rps=100)
+        config = TuningConfig(n_trials=50, eval_requests=500, eval_concurrency=64, p99_latency_sla_ms=5000)
         assert config.n_trials == 50
         assert config.eval_requests == 500
         assert config.eval_concurrency == 64
-        assert config.eval_rps == 100
+        assert config.objective_label == "p99<=5000ms@64users"
 
 
 class TestLoadTestConfigValidation:

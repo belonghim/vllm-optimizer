@@ -144,6 +144,7 @@ export interface TunerStatus {
     tps: number;
     p99_latency: number;
     params?: Record<string, unknown>;
+    sla_met?: boolean;
   };
   best_score_history?: number[];
 }
@@ -166,7 +167,7 @@ export interface TunerTrial {
   score: number;
   params: Record<string, unknown>;
   status: string;
-  is_pareto_optimal?: boolean;
+  sla_met?: boolean | null;
   failure?: TunerTrialFailure | null;
 }
 
@@ -229,27 +230,20 @@ export interface BenchmarkItem {
 }
 
 export interface TunerConfig {
-  objective: string;
-  evaluation_mode: 'single' | 'sweep';
   n_trials: number;
   vllm_endpoint: string;
+  eval_concurrency: number;
+  p99_latency_sla_ms: number;
+  max_tokens: number;
+  max_model_len: number;
   max_num_seqs_min: number;
   max_num_seqs_max: number;
   gpu_memory_min: number;
   gpu_memory_max: number;
-  max_model_len_min: number;
-  max_model_len_max: number;
   max_num_batched_tokens_min: number;
   max_num_batched_tokens_max: number;
-  block_size_options: number[];
-  include_swap_space: boolean;
-  swap_space_min: number;
-  swap_space_max: number;
-  eval_concurrency: number;
-  eval_rps: number;
   eval_requests: number;
   enable_llm_assistant?: boolean;
-  p99_latency_sla_ms?: number | null;
   accelerator_memory_gib?: number | null;
 }
 
@@ -362,8 +356,6 @@ export interface ObservedKvCache {
 export interface SuggestedSearchSpace {
   max_num_seqs_min: number;
   max_num_seqs_max: number;
-  max_model_len_min: number;
-  max_model_len_max: number;
 }
 
 export type ServingRecommendationKind = 'required' | 'workload' | 'avoid';
@@ -413,6 +405,7 @@ export interface ModelAnalysis {
   capacity: ModelCapacityRow[];
   observed?: ObservedKvCache | null;
   suggested_search_space: SuggestedSearchSpace | null;
+  max_model_len_limit?: number | null;
   advice?: ServingAdvice | null;
   analyst_available: boolean;
   warnings: string[];

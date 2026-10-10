@@ -142,26 +142,23 @@ oc get route vllm-optimizer -n vllm-optimizer-dev
 
 | 필드 | 설명 | 기본값 |
 |:-----|:-----|:-----|
-| 최적화 목표 | 튜닝의 목표를 선택합니다. | 균형 (TPS / Latency) |
-| Trial 수 | Optuna가 탐색할 파라미터 조합의 총 개수입니다. | 10 |
-| max_num_seqs 범위 | vLLM의 `max_num_seqs` 파라미터(동시 처리 시퀀스 수)를 탐색할 최소/최대 범위입니다. | 32 ~ 256 |
-| GPU Memory Util 범위 | vLLM의 `gpu_memory_utilization` 파라미터(GPU 메모리 사용률)를 탐색할 최소/최대 범위입니다. | 0.8 ~ 0.95 |
+튜닝 목표는 하나입니다: **지정한 동시 사용자 수에서 P99 총 지연시간이 SLA 이하로 유지되는 최대 TPS**.
 
-**고급 설정** (▼ 버튼으로 펼치기):
+| 필드 | 설명 | 기본값 |
+|:-----|:-----|:-----|
+| Concurrent Users | 평가 시 동시에 요청하는 사용자 수(closed-loop, RPS 제한 없음) | 16 |
+| P99 Latency SLA (ms) | 요청 총 지연시간 P99 상한. 넘은 trial은 위반 정도만큼 감점 | 10000 |
+| Output Tokens / Request | 요청당 출력 토큰 수 | 256 |
+| Trial Count | 평가할 trial 수(예측/학습으로 건너뛴 trial은 제외) | 10 |
+| max_num_seqs / gpu_memory_utilization / max_num_batched_tokens | 탐색 범위(Min / Max) | 64~512 / 0.80~0.95 / 256~2048 |
+| max_model_len | 서비스가 지원할 컨텍스트 길이. 탐색하지 않고 고정. 모델 config.json 상한을 넘으면 시작 불가 | 8192 |
+| Eval Requests / Trial | trial마다 측정에 쓰는 요청 수 | 100 |
 
-| 필드 | 설명 |
-|:-----|:-----|
-| max_model_len 범위 | 최대 컨텍스트 길이 탐색 범위 (Min / Max) |
-| max_num_batched_tokens 범위 | 배치당 최대 토큰 수 탐색 범위 (Min / Max) |
-| block_size 옵션 | KV 캐시 블록 크기 선택 (체크박스: 8 / 16 / 32) |
-| swap_space 포함 | CPU 스왑 메모리 사용 여부 및 크기 범위 (GB) |
-| 평가 요청 수 / 동시 요청 / RPS | 각 trial의 성능 측정에 사용할 부하 테스트 설정 |
-
-**현재 vLLM 설정**: 고급 설정 섹션 상단에 현재 InferenceService args 값이 읽기 전용으로 표시됩니다.
+**Current Value 열**: 현재 InferenceService args 값입니다. 튜닝 대상이 아닌 다른 vLLM 인자(예: `--enforce-eager`)는 튜닝 중에도 그대로 유지됩니다.
 
 ### 실행
 
-1. `최적화 목표`와 각 파라미터의 `탐색 범위`를 지정합니다. 더 많은 파라미터를 탐색하려면 "고급 설정 ▼"을 펼치십시오.
+1. 동시 사용자 수·P99 SLA·출력 토큰 수와 탐색 범위를 지정합니다.
 2. **▶ Start Tuning** 버튼을 클릭하여 자동 튜닝을 시작합니다.
 3. `N / M trials` 형식으로 Trial 진행 상황이 표시되며, 각 trial의 현재 단계(args 업데이트 → 파드 재기동 → 메트릭 안정화 → 평가)가 실시간으로 표시됩니다.
 4. 튜닝이 진행되면서 최적의 파라미터 조합이 발견되면 **최적 파라미터 발견** 섹션이 화면에 나타납니다.

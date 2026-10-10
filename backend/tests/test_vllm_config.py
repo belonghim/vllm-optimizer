@@ -282,7 +282,7 @@ def test_patch_empty_data_preserves_all_args(client: TestClient):
         assert mock_custom.patch_namespaced_custom_object.call_count == 0
 
 
-def test_patch_boolean_false_removes_flag(client: TestClient):
+def test_patch_preserves_unmanaged_flags(client: TestClient):
     mock_is = {
         "spec": {
             "predictor": {
@@ -303,17 +303,15 @@ def test_patch_boolean_false_removes_flag(client: TestClient):
     with patch.dict(handler_globals, _isvc_handler_patches(mock_custom)):
         resp = client.patch(
             "/api/vllm-config",
-            json={"data": {"enable_chunked_prefill": "false"}},
+            json={"data": {"max_num_seqs": "128"}},
         )
         assert resp.status_code == 200
 
         body = mock_custom.patch_namespaced_custom_object.call_args.kwargs["body"]
         patched_args = body["spec"]["predictor"]["model"]["args"]
 
-        assert "--enable-chunked-prefill" not in patched_args
-        assert "--max-num-seqs=256" in patched_args
-        assert "--max-model-len=8192" in patched_args
-        assert len(patched_args) == 2
+        assert sorted(patched_args) == ["--enable-chunked-prefill", "--max-model-len=8192", "--max-num-seqs=128"]
+        assert client.patch("/api/vllm-config", json={"data": {"enable_chunked_prefill": "false"}}).status_code == 422
 
 
 def test_patch_resources_valid(client):

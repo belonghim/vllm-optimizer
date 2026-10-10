@@ -54,7 +54,7 @@ const makeTrial = (overrides: Record<string, unknown> = {}) => ({
   score: 0.8,
   params: { max_num_seqs: 64, gpu_memory_utilization: 0.9 },
   status: 'complete',
-  is_pareto_optimal: true,
+  sla_met: true,
   ...overrides,
 });
 
@@ -69,13 +69,13 @@ describe('trialsToCSV', () => {
     expect(headers).toContain('gpu_memory_utilization');
   });
 
-  it('converts is_pareto_optimal true to Y', () => {
-    const { rows } = trialsToCSV([makeTrial({ is_pareto_optimal: true })]);
+  it('converts sla_met true to Y', () => {
+    const { rows } = trialsToCSV([makeTrial({ sla_met: true })]);
     expect(rows[0][5]).toBe('Y');
   });
 
-  it('converts is_pareto_optimal false to N', () => {
-    const { rows } = trialsToCSV([makeTrial({ is_pareto_optimal: false })]);
+  it('converts sla_met false to N', () => {
+    const { rows } = trialsToCSV([makeTrial({ sla_met: false })]);
     expect(rows[0][5]).toBe('N');
   });
 

@@ -73,7 +73,7 @@ npm run type-check   # TypeScript type checking
 ### IS args Patching
 - `vllm_config PATCH`: dict-merge — preserves existing args, overwrites only changed keys
 - `auto_tuner._apply_params`: full replacement — intentional design, do not modify
-- boolean `false` removes the flag (e.g., `{"enable_chunked_prefill": "false"}` → removes `--enable-chunked-prefill`)
+- Managed (tuned) args: `--max-num-seqs`, `--gpu-memory-utilization`, `--max-model-len`, `--max-num-batched-tokens`. Every other arg (e.g. `--enforce-eager`) is the operator's and is preserved by both paths
 
 ### IS Resources
 - Path: `spec.predictor.model.resources.{requests,limits}`

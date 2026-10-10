@@ -64,34 +64,28 @@ class TestArgHelpers:
                 "--tensor-parallel-size=1",
             ]
         )
-        assert result == {
-            "max_num_seqs": "128",
-            "enable_chunked_prefill": "true",
-        }
+        assert result == {"max_num_seqs": "128"}
 
     def test_args_list_to_config_dict_space_separated(self):
         result = args_list_to_config_dict(
             ["--max-num-seqs", "128", "--enable-chunked-prefill", "--tensor-parallel-size", "1"]
         )
-        assert result == {"max_num_seqs": "128", "enable_chunked_prefill": "true"}
+        assert result == {"max_num_seqs": "128"}
 
     def test_strip_tuning_args_drops_space_separated_values(self):
         args = ["--max-num-seqs", "128", "--tensor-parallel-size", "1", "--enforce-eager", "--block-size=16"]
-        assert strip_tuning_args(args) == ["--tensor-parallel-size", "1"]
+        # Only the tuned args are managed; everything else (e.g. --enforce-eager) is preserved.
+        assert strip_tuning_args(args) == ["--tensor-parallel-size", "1", "--enforce-eager", "--block-size=16"]
 
     def test_config_dict_to_args_list(self):
         result = config_dict_to_args_list(
             {
                 "max_num_seqs": "512",
-                "enable_chunked_prefill": "true",
-                "enable_enforce_eager": "false",
+                "block_size": "16",
                 "unknown_key": "value",
             }
         )
-        assert "--max-num-seqs=512" in result
-        assert "--enable-chunked-prefill" in result
-        assert "--enforce-eager" not in result
-        assert len(result) == 2
+        assert result == ["--max-num-seqs=512"]
 
     def test_space_helpers(self):
         value = "--gpu-memory-utilization=0.9 --max-model-len=4096 --tensor-parallel-size=1"
@@ -144,7 +138,7 @@ class TestInferenceServiceAdapter:
         result = adapter.read_args(SAMPLE_IS_SPEC)
         assert result["max_num_seqs"] == "256"
         assert result["gpu_memory_utilization"] == "0.80"
-        assert result["enable_chunked_prefill"] == "true"
+        assert "enable_chunked_prefill" not in result
 
     def test_build_args_patch_preserves_static(self):
         adapter = InferenceServiceAdapter()

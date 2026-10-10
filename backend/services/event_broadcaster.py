@@ -7,7 +7,7 @@ from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from models.load_test import TuningConfig, TuningTrial
+    from models.load_test import TuningTrial
     from prometheus_client import Counter, Gauge, Histogram
 
 logger = logging.getLogger(__name__)
@@ -67,16 +67,13 @@ class EventBroadcaster:
     def reset_persistence_warning(self) -> None:
         self._persistence_warning_sent = False
 
-    async def emit_trial_metrics(
-        self, trial_start: float, status: str, best_trial: TuningTrial | None, config: TuningConfig | None
-    ) -> None:
+    async def emit_trial_metrics(self, trial_start: float, status: str, best_trial: TuningTrial | None) -> None:
         try:
             if tuner_trial_duration_seconds is not None:
                 tuner_trial_duration_seconds.observe(time.monotonic() - trial_start)
             if tuner_trials_total is not None:
                 tuner_trials_total.labels(status=status).inc()
             if status == "completed" and best_trial is not None and tuner_best_score is not None:
-                assert config is not None
-                tuner_best_score.labels(objective=config.objective).set(best_trial.score)
+                tuner_best_score.set(best_trial.score)
         except Exception as _e:  # intentional: non-critical metrics
             logger.debug("[AutoTuner] Metrics emit failed (non-critical): %s", _e)

@@ -149,7 +149,7 @@ export default function TunerHistoryPanel() {
             <tr>
               <th style={{ width: '40px' }}></th>
               <th>Date</th>
-              <th>Objective</th>
+              <th>Target</th>
               <th>Trials</th>
               <th>Best TPS</th>
               <th>Best P99</th>

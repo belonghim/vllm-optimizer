@@ -6,6 +6,7 @@ interface TunerConfigSectionProps {
   isActive: boolean;
   status: TunerStatus;
   config: TunerConfig;
+  maxModelLenLimit?: number | null;
   error: string | null;
   warning: string | null;
   applyStatus: string | null;
@@ -18,7 +19,7 @@ interface TunerConfigSectionProps {
   onDismissInterrupted: () => void;
   onAutoBenchmarkChange: (v: boolean) => void;
   onTabChange?: (tab: string) => void;
-  onConfigChange: (field: string, value: string | number | boolean | number[]) => void;
+  onConfigChange: (field: string, value: string | number | boolean) => void;
   onStart: () => void;
   onStop: () => void;
   onApplyBest: () => void;
@@ -30,6 +31,7 @@ export default function TunerConfigSection({
   isActive,
   status,
   config,
+  maxModelLenLimit,
   error,
   warning,
   applyStatus,
@@ -67,6 +69,7 @@ export default function TunerConfigSection({
         isActive={isActive}
         isRunning={status.running}
         config={config}
+        maxModelLenLimit={maxModelLenLimit}
         targetOverride={targetOverride}
         onChange={onConfigChange}
         onSubmit={onStart}

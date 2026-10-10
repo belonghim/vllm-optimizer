@@ -10,7 +10,7 @@ from kubernetes.client import AppsV1Api, CoreV1Api, CustomObjectsApi
 from pydantic import ValidationError
 
 from ..main import app
-from ..models.load_test import LoadTestConfig, SweepConfig, SweepResult, TuningConfig, TuningTrial
+from ..models.load_test import LoadTestConfig, TuningConfig, TuningTrial
 from ..services.auto_tuner import MAX_ATTEMPTS_PER_TRIAL, AutoTuner
 from ..services.k8s_operator import get_k8s_namespace, get_vllm_is_name
 from ..services.load_engine import LoadTestEngine
@@ -165,7 +165,6 @@ def test_tuner_apply_best_response(client):
 def test_tuner_start_endpoint(client):
     """Test starting auto-tuning with flat schema"""
     request_data = {
-        "objective": "balanced",
         "n_trials": 2,
         "eval_requests": 10,
         "vllm_endpoint": "http://localhost:8000",
@@ -180,52 +179,6 @@ def test_tuner_start_endpoint(client):
     assert "success" in data
     assert "message" in data
     assert data["success"] is True
-
-
-def test_tuner_start_endpoint_rejects_when_sweep_running(client):
-    request_data = {
-        "objective": "balanced",
-        "evaluation_mode": "sweep",
-        "n_trials": 1,
-        "eval_requests": 10,
-        "vllm_endpoint": "http://localhost:8000",
-        "sweep_config": {
-            "endpoint": "http://localhost:8000",
-            "model": "auto",
-            "rps_start": 10,
-            "rps_end": 20,
-            "rps_step": 5,
-            "requests_per_step": 10,
-            "concurrency": 4,
-            "max_tokens": 64,
-            "stream": True,
-            "prompt": "hello",
-            "saturation_error_rate": 0.1,
-            "saturation_latency_factor": 3.0,
-            "min_stable_steps": 1,
-        },
-        "max_num_seqs_min": 64,
-        "max_num_seqs_max": 512,
-        "gpu_memory_min": 0.80,
-        "gpu_memory_max": 0.95,
-    }
-
-    handler_globals = get_route_handler_globals(client.app, "/api/tuner/start")
-    assert handler_globals is not None
-
-    mock_tuner = MagicMock()
-    mock_tuner.is_running = False
-
-    mock_load_engine = MagicMock()
-    mock_load_engine.is_sweep_running.return_value = True
-
-    with patch.dict(handler_globals, {"auto_tuner": mock_tuner, "load_engine": mock_load_engine}):
-        resp = client.post("/api/tuner/start", json=request_data)
-
-    assert resp.status_code == 409
-    data = resp.json()
-    assert "detail" in data
-    assert data["detail"]["error_type"] == "already_running"
 
 
 @pytest.mark.asyncio
@@ -300,7 +253,7 @@ async def test_start_reapplies_best_params_at_end(auto_tuner_instance, mock_k8s_
     # Mock _apply_params to track calls
     tuner._apply_params = AsyncMock(wraps=tuner._apply_params)
 
-    config = TuningConfig(n_trials=2, eval_requests=10, objective="tps")
+    config = TuningConfig(n_trials=2, eval_requests=10)
     vllm_endpoint = "http://mock-vllm-endpoint"
 
     await tuner.start(config, vllm_endpoint)
@@ -390,7 +343,7 @@ async def test_median_pruner_marks_trial_as_pruned(auto_tuner_instance, mock_k8s
     tuner._wait_for_ready = AsyncMock(return_value=True)
     tuner._apply_params = AsyncMock(return_value={"success": True})
 
-    config = TuningConfig(n_trials=5, eval_requests=10, warmup_requests=0, objective="tps")
+    config = TuningConfig(n_trials=5, eval_requests=10, warmup_requests=0)
 
     await tuner.start(config, "http://mock:8080")
 
@@ -521,18 +474,13 @@ async def test_apply_params_uses_correct_configmap_keys(auto_tuner_instance, moc
         "spec": {
             "predictor": {
                 "model": {
-                    "args": [],
+                    "args": ["--enforce-eager", "--max-num-seqs=32"],
                 }
             },
         },
     }
 
-    params = {
-        "max_num_seqs": 128,
-        "gpu_memory_utilization": 0.8,
-        "max_model_len": 4096,
-        "enable_chunked_prefill": True,
-    }
+    params = {"max_num_seqs": 128, "gpu_memory_utilization": 0.8, "max_model_len": 4096}
 
     await tuner._apply_params(params)
 
@@ -540,7 +488,10 @@ async def test_apply_params_uses_correct_configmap_keys(auto_tuner_instance, moc
     call_args = mock_custom_api.create_namespaced_custom_object.call_args
     patch_args = _extract_tuning_args_from_created_cr(call_args.kwargs["body"])
 
-    assert "--enable-chunked-prefill" in patch_args
+    # Args the tuner does not search are the operator's choice and survive a trial.
+    assert "--enforce-eager" in patch_args
+    assert "--max-num-seqs=128" in patch_args
+    assert "--max-num-seqs=32" not in patch_args
 
 
 @pytest.mark.asyncio
@@ -635,30 +586,6 @@ async def test_suggest_params_batched_tokens_constraint(auto_tuner_instance, moc
 
 
 @pytest.mark.asyncio
-async def test_suggest_params_swap_space_excluded_by_default(auto_tuner_instance, mock_k8s_clients):
-    import optuna
-
-    config = TuningConfig()
-    study = optuna.create_study()
-    trial = study.ask()
-    params = auto_tuner_instance._suggest_params(trial, config)
-    assert "swap_space" not in params, f"swap_space should not be in params: {params}"
-
-
-def test_suggest_params_empty_model_len_no_crash(auto_tuner_instance):
-    import optuna
-
-    config = TuningConfig(max_model_len_range=(10000, 16384))
-    study = optuna.create_study()
-    trial = study.ask()
-    try:
-        params = auto_tuner_instance._suggest_params(trial, config)
-        assert "max_model_len" in params
-    except ValueError as e:
-        pytest.fail(f"_suggest_params raised ValueError: {e}")
-
-
-@pytest.mark.asyncio
 async def test_apply_params_includes_new_configmap_keys(auto_tuner_instance, mock_k8s_clients):
     tuner = auto_tuner_instance
     mock_custom_api = mock_k8s_clients[2].return_value
@@ -677,9 +604,7 @@ async def test_apply_params_includes_new_configmap_keys(auto_tuner_instance, moc
         "max_num_seqs": 128,
         "gpu_memory_utilization": 0.85,
         "max_model_len": 4096,
-        "enable_chunked_prefill": False,
         "max_num_batched_tokens": 512,
-        "block_size": 16,
     }
 
     await tuner._apply_params(params)
@@ -689,12 +614,10 @@ async def test_apply_params_includes_new_configmap_keys(auto_tuner_instance, moc
     patch_args = _extract_tuning_args_from_created_cr(call_args.kwargs["body"])
 
     assert "--max-num-batched-tokens=512" in patch_args
-    assert "--block-size=16" in patch_args
-    assert "--enable-chunked-prefill" not in patch_args
 
 
 @pytest.mark.asyncio
-async def test_eval_uses_config_concurrency_and_rps(auto_tuner_instance, mock_k8s_clients):
+async def test_eval_uses_config_concurrency_and_output_tokens(auto_tuner_instance, mock_k8s_clients):
     tuner = auto_tuner_instance
 
     captured_configs = []
@@ -705,7 +628,7 @@ async def test_eval_uses_config_concurrency_and_rps(auto_tuner_instance, mock_k8
 
     tuner._load_engine.run = mock_run
 
-    config = TuningConfig(eval_concurrency=16, eval_rps=5, eval_requests=10, warmup_requests=0)
+    config = TuningConfig(eval_concurrency=16, max_tokens=64, eval_requests=10, warmup_requests=0)
     tuner._config = config
     from ..services import auto_tuner as _at_mod
 
@@ -713,43 +636,10 @@ async def test_eval_uses_config_concurrency_and_rps(auto_tuner_instance, mock_k8
         score, tps, p99 = await tuner._evaluate("http://mock:8080", config)
 
     assert len(captured_configs) == 2
-    assert captured_configs[0].concurrency == 16
-    assert captured_configs[0].rps == 5
-    assert captured_configs[0].total_requests == 5
-    assert captured_configs[1].concurrency == 16
-    assert captured_configs[1].rps == 5
-    assert captured_configs[1].total_requests == 5
-
-
-@pytest.mark.asyncio
-async def test_objective_uses_run_sweep_when_evaluation_mode_sweep(auto_tuner_instance, mock_k8s_clients):
-    tuner = auto_tuner_instance
-
-    sweep_config = SweepConfig(
-        endpoint="http://mock:8080",
-        model="auto",
-        rps_start=10,
-        rps_end=20,
-        rps_step=5,
-        requests_per_step=10,
-        concurrency=4,
-        max_tokens=64,
-    )
-    sweep_result = SweepResult(config=sweep_config, steps=[], optimal_rps=42.0, total_duration=1.2)
-
-    tuner.evaluation_mode = "sweep"
-    tuner._sweep_config = sweep_config
-    tuner._load_engine.run_sweep = AsyncMock(return_value=sweep_result)
-    tuner._evaluate = AsyncMock(return_value=(1.0, 1.0, 0.1))
-
-    config = TuningConfig(eval_requests=10, warmup_requests=0)
-    score, tps, p99 = await tuner._objective("http://mock:8080", config, trial=None, trial_num=0)
-
-    tuner._load_engine.run_sweep.assert_awaited_once_with(sweep_config)
-    tuner._evaluate.assert_not_awaited()
-    assert score == 42.0
-    assert tps == 42.0
-    assert p99 == 0.0
+    assert [(c.concurrency, c.rps, c.max_tokens, c.total_requests) for c in captured_configs] == [
+        (16, 0, 64, 5),
+        (16, 0, 64, 5),
+    ]
 
 
 @pytest.mark.asyncio
@@ -767,7 +657,7 @@ async def test_warmup_runs_before_evaluation(auto_tuner_instance, mock_k8s_clien
 
     tuner._load_engine.run = mock_run
 
-    config = TuningConfig(warmup_requests=5, eval_requests=10, eval_concurrency=8, eval_rps=0)
+    config = TuningConfig(warmup_requests=5, eval_requests=10, eval_concurrency=8)
     from ..services import auto_tuner as _at_mod
 
     with patch.object(_at_mod, "resolve_model_name", new=AsyncMock(return_value="test-model")):
@@ -814,7 +704,7 @@ def test_start_uses_inmemory_when_no_storage_url(auto_tuner_instance, mock_k8s_c
 async def test_setup_study_fresh_study_per_session(auto_tuner_instance, mock_k8s_clients):
     """Two consecutive sessions with identical config must not share trial history."""
     tuner = auto_tuner_instance
-    config = TuningConfig(n_trials=2, eval_requests=5, warmup_requests=0, objective="tps")
+    config = TuningConfig(n_trials=2, eval_requests=5, warmup_requests=0)
 
     with tempfile.TemporaryDirectory() as tmp:
         storage_url = f"sqlite:///{tmp}/optuna.db"
@@ -856,67 +746,30 @@ async def test_warmstart_enqueues_previous_best(auto_tuner_instance, mock_k8s_cl
 
 
 @pytest.mark.asyncio
-async def test_importance_returns_empty_for_pareto_mode(auto_tuner_instance):
-    """get_importance() should return {} for multi-objective study"""
-    import optuna
-
-    tuner = auto_tuner_instance
-    tuner._study = optuna.create_study(
-        directions=["maximize", "minimize"],
-        sampler=optuna.samplers.NSGAIISampler(seed=42),
-    )
-    tuner._trials = [object()] * 10
-
-    result = await tuner.get_importance()
-    assert result == {}, f"Expected empty dict for Pareto mode, got: {result}"
-
-
-def test_start_accepts_pareto_objective(client):
-    """POST /api/tuner/start with objective='pareto' should return success=true"""
-    request_data = {
-        "objective": "pareto",
-        "n_trials": 2,
-        "eval_requests": 5,
-        "vllm_endpoint": "http://mock-vllm:8080",
-        "max_num_seqs_min": 64,
-        "max_num_seqs_max": 512,
-    }
-    resp = client.post("/api/tuner/start", json=request_data)
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["success"] is True, f"Expected success=true, got: {data}"
-
-
-@pytest.mark.asyncio
 async def test_suggest_params_new_params_included(auto_tuner_instance, mock_k8s_clients):
-    """New params (block_size, max_num_batched_tokens) should appear in suggested params"""
     import optuna
 
     tuner = auto_tuner_instance
-    config = TuningConfig(block_size_options=[16], eval_concurrency=8, eval_rps=0)
-    study = optuna.create_study()
-    trial = study.ask()
+    config = TuningConfig(eval_concurrency=8, max_model_len=2048)
+    trial = optuna.create_study().ask()
     params = tuner._suggest_params(trial, config)
 
-    assert "block_size" in params
-    assert params["block_size"] == 16
     assert "max_num_batched_tokens" in params
+    assert params["max_model_len"] == 2048
 
 
 def test_status_response_includes_new_fields(client):
-    """Status response should include best_score_history, pareto_front_size, last_rollback_trial"""
     resp = client.get("/api/tuner/status")
     assert resp.status_code == 200
     data = resp.json()
     assert "best_score_history" in data
     assert isinstance(data["best_score_history"], list)
-    assert "pareto_front_size" in data
     assert "last_rollback_trial" in data
 
 
 @pytest.mark.asyncio
 async def test_best_score_history_monotonically_nondecreasing_for_tps(auto_tuner_instance, mock_k8s_clients):
-    """For tps objective (maximize), best_score_history should be non-decreasing"""
+    """best_score_history should be non-decreasing"""
     tuner = auto_tuner_instance
     scores = [10.0, 30.0, 20.0, 50.0, 40.0]
     call_idx = [0]
@@ -925,7 +778,7 @@ async def test_best_score_history_monotonically_nondecreasing_for_tps(auto_tuner
         idx = call_idx[0]
         call_idx[0] += 1
         score = scores[idx % len(scores)]
-        if trial and config.objective != "pareto":
+        if trial:
             trial.report(score, step=0)
         return score, score, 0.1
 
@@ -933,7 +786,7 @@ async def test_best_score_history_monotonically_nondecreasing_for_tps(auto_tuner
     tuner._wait_for_ready = AsyncMock(return_value=True)
     tuner._apply_params = AsyncMock(return_value={"success": True})
 
-    config = TuningConfig(n_trials=5, eval_requests=5, warmup_requests=0, objective="tps")
+    config = TuningConfig(n_trials=5, eval_requests=5, warmup_requests=0)
     await tuner.start(config, "http://mock:8080")
 
     history = tuner._best_score_history
@@ -1005,34 +858,6 @@ async def test_multiple_subscribers_all_receive_broadcast(auto_tuner_instance):
 
 
 @pytest.mark.asyncio
-async def test_suggest_params_swap_space_enabled_by_flag(auto_tuner_instance, mock_k8s_clients):
-    """swap_space should appear in suggested params when include_swap_space=True"""
-    import optuna
-
-    config = TuningConfig(include_swap_space=True, swap_space_range=(1.0, 8.0))
-    study = optuna.create_study()
-    trial = study.ask()
-    params = auto_tuner_instance._suggest_params(trial, config)
-    assert "swap_space" in params, f"Expected swap_space in params: {params}"
-    assert 1.0 <= params["swap_space"] <= 8.0
-
-
-@pytest.mark.asyncio
-async def test_pareto_front_size_set_after_pareto_trials(auto_tuner_instance, mock_k8s_clients):
-    """After running pareto trials, _pareto_front_size should be set and >= 1"""
-    tuner = auto_tuner_instance
-    tuner._evaluate = AsyncMock(return_value=(50.0, 50.0, 0.5))
-    tuner._wait_for_ready = AsyncMock(return_value=True)
-    tuner._apply_params = AsyncMock(return_value={"success": True})
-
-    config = TuningConfig(n_trials=3, eval_requests=5, warmup_requests=0, objective="pareto")
-    await tuner.start(config, "http://mock:8080")
-
-    assert tuner._pareto_front_size is not None
-    assert tuner._pareto_front_size >= 1
-
-
-@pytest.mark.asyncio
 async def test_broadcast_trial_start_event_for_each_trial(auto_tuner_instance, mock_k8s_clients):
     """Each trial in start() should broadcast a trial_start event"""
     tuner = auto_tuner_instance
@@ -1043,7 +868,7 @@ async def test_broadcast_trial_start_event_for_each_trial(auto_tuner_instance, m
     q = await tuner.subscribe()
 
     n_trials = 2
-    config = TuningConfig(n_trials=n_trials, eval_requests=5, warmup_requests=0, objective="tps")
+    config = TuningConfig(n_trials=n_trials, eval_requests=5, warmup_requests=0)
     await tuner.start(config, "http://mock:8080")
 
     # Drain all events queued during start()
@@ -1055,36 +880,6 @@ async def test_broadcast_trial_start_event_for_each_trial(auto_tuner_instance, m
 
     trial_start_events = [e for e in events if e.get("type") == "trial_start"]
     assert len(trial_start_events) == n_trials
-
-
-@pytest.mark.asyncio
-async def test_apply_params_swap_space_configmap_key(auto_tuner_instance, mock_k8s_clients):
-    tuner = auto_tuner_instance
-    mock_custom_api = mock_k8s_clients[2].return_value
-
-    mock_custom_api.get_namespaced_custom_object.return_value = {
-        "spec": {
-            "predictor": {
-                "model": {
-                    "args": [],
-                }
-            },
-        },
-    }
-
-    params = {
-        "max_num_seqs": 64,
-        "gpu_memory_utilization": 0.8,
-        "max_model_len": 4096,
-        "enable_chunked_prefill": False,
-        "swap_space": 4.0,
-    }
-
-    await tuner._apply_params(params)
-
-    call_args = mock_custom_api.create_namespaced_custom_object.call_args
-    patch_args = _extract_tuning_args_from_created_cr(call_args.kwargs["body"])
-    assert "--swap-space=4.0" in patch_args
 
 
 @pytest.mark.asyncio
@@ -1106,7 +901,7 @@ async def test_pruned_trials_not_counted_as_best_trial(auto_tuner_instance, mock
     tuner._wait_for_ready = AsyncMock(return_value=True)
     tuner._apply_params = AsyncMock(return_value={"success": True})
 
-    config = TuningConfig(n_trials=5, eval_requests=10, warmup_requests=0, objective="tps")
+    config = TuningConfig(n_trials=5, eval_requests=10, warmup_requests=0)
     await tuner.start(config, "http://mock:8080")
 
     pruned_trials = [t for t in tuner.trials if t.pruned]
@@ -1115,99 +910,6 @@ async def test_pruned_trials_not_counted_as_best_trial(auto_tuner_instance, mock
     if tuner._best_trial is not None:
         assert not tuner._best_trial.pruned, "Best trial should not be marked as pruned"
         assert tuner._best_trial.status != "pruned"
-
-
-@pytest.mark.asyncio
-async def test_chunked_prefill_false_writes_empty_string(auto_tuner_instance, mock_k8s_clients):
-    tuner = auto_tuner_instance
-    mock_custom_api = mock_k8s_clients[2].return_value
-
-    mock_custom_api.get_namespaced_custom_object.return_value = {
-        "spec": {
-            "predictor": {
-                "model": {
-                    "args": [],
-                }
-            },
-        },
-    }
-
-    params = {
-        "max_num_seqs": 64,
-        "gpu_memory_utilization": 0.8,
-        "max_model_len": 4096,
-        "enable_chunked_prefill": False,
-        "enable_enforce_eager": False,
-        "max_num_batched_tokens": 512,
-    }
-
-    await tuner._apply_params(params)
-
-    call_args = mock_custom_api.create_namespaced_custom_object.call_args
-    patch_args = _extract_tuning_args_from_created_cr(call_args.kwargs["body"])
-
-    assert "--enable-chunked-prefill" not in patch_args
-
-    mock_custom_api.create_namespaced_custom_object.reset_mock()
-    params_true = {**params, "enable_chunked_prefill": True}
-    await tuner._apply_params(params_true)
-    patch_args_true = _extract_tuning_args_from_created_cr(
-        mock_custom_api.create_namespaced_custom_object.call_args.kwargs["body"]
-    )
-    assert "--enable-chunked-prefill" in patch_args_true
-
-
-@pytest.mark.asyncio
-async def test_enforce_eager_writes_correct_values(auto_tuner_instance, mock_k8s_clients):
-    tuner = auto_tuner_instance
-    mock_custom_api = mock_k8s_clients[2].return_value
-
-    mock_custom_api.get_namespaced_custom_object.return_value = {
-        "spec": {
-            "predictor": {
-                "model": {
-                    "args": [],
-                }
-            },
-        },
-    }
-
-    params_false = {
-        "max_num_seqs": 64,
-        "gpu_memory_utilization": 0.8,
-        "max_model_len": 4096,
-        "enable_chunked_prefill": False,
-        "enable_enforce_eager": False,
-        "max_num_batched_tokens": 512,
-    }
-
-    await tuner._apply_params(params_false)
-    patch_args_false = _extract_tuning_args_from_created_cr(
-        mock_custom_api.create_namespaced_custom_object.call_args.kwargs["body"]
-    )
-    assert "--enforce-eager" not in patch_args_false
-
-    mock_custom_api.create_namespaced_custom_object.reset_mock()
-    params_true = {**params_false, "enable_enforce_eager": True}
-    await tuner._apply_params(params_true)
-    patch_args_true = _extract_tuning_args_from_created_cr(
-        mock_custom_api.create_namespaced_custom_object.call_args.kwargs["body"]
-    )
-    assert "--enforce-eager" in patch_args_true
-
-
-def test_suggest_params_includes_enforce_eager(auto_tuner_instance):
-    tuner = auto_tuner_instance
-    trial_mock = MagicMock()
-    trial_mock.suggest_int.side_effect = lambda name, low, high, step=1: low
-    trial_mock.suggest_float.side_effect = lambda name, low, high: low
-    trial_mock.suggest_categorical.side_effect = lambda name, choices: choices[0]
-
-    config = TuningConfig()
-    params = tuner._suggest_params(trial_mock, config)
-
-    assert "enable_enforce_eager" in params
-    assert params["enable_enforce_eager"] in [True, False]
 
 
 @pytest.mark.asyncio
@@ -1250,8 +952,6 @@ async def test_apply_params_returns_failure_when_is_patch_throws(auto_tuner_inst
         "max_num_seqs": 64,
         "gpu_memory_utilization": 0.8,
         "max_model_len": 4096,
-        "enable_chunked_prefill": False,
-        "enable_enforce_eager": False,
     }
 
     result = await tuner._apply_params(params)
@@ -1800,20 +1500,6 @@ async def test_preflight_check_returns_not_found_on_404(auto_tuner_instance):
     assert result["error_type"] == "not_found"
 
 
-def test_compute_trial_score_latency_objective():
-    """compute_trial_score returns negative p99 for latency objective."""
-    from unittest.mock import AsyncMock
-
-    from ..models.load_test import TuningConfig
-    from ..services.tuner_logic import TunerLogic
-
-    logic = TunerLogic(load_engine=AsyncMock())
-    config = TuningConfig(n_trials=1, objective="latency")
-    result = {"tps": {"total": 100}, "latency": {"p99": 0.5}}
-    score = logic.compute_trial_score(result, config)
-    assert score == -0.5  # negative for minimization
-
-
 def test_compute_trial_score_missing_data():
     """compute_trial_score handles missing tps/latency gracefully."""
     from unittest.mock import AsyncMock
@@ -1822,10 +1508,8 @@ def test_compute_trial_score_missing_data():
     from ..services.tuner_logic import TunerLogic
 
     logic = TunerLogic(load_engine=AsyncMock())
-    config = TuningConfig(n_trials=1, objective="tps")
-    result = {}  # empty result
-    score = logic.compute_trial_score(result, config)
-    assert score == 0  # default when tps missing
+    config = TuningConfig(n_trials=1)
+    assert logic.compute_trial_score({}, config) < 0  # no measurement ranks below any SLA-compliant trial
 
 
 @pytest.mark.parametrize("cr_type", ["inferenceservice", "llminferenceservice"])
@@ -1837,7 +1521,7 @@ def test_tuner_start_pins_requested_target(cr_type: str) -> None:
 
     async def fake_build(body, target):
         seen["target"] = target
-        return MagicMock(), body.vllm_endpoint, None
+        return MagicMock(), body.vllm_endpoint
 
     with (
         patch.dict(
@@ -1883,7 +1567,7 @@ async def test_oom_skipped_trial_recorded_with_skipped_status(auto_tuner_instanc
     tuner._wait_for_ready = AsyncMock(return_value=True)
     tuner._apply_params = AsyncMock(return_value={"success": True})
 
-    config = TuningConfig(n_trials=1, eval_requests=10, warmup_requests=0, objective="tps")
+    config = TuningConfig(n_trials=1, eval_requests=10, warmup_requests=0)
     with patch("services.tuner_logic.kv_cache_oom_risk", side_effect=[True, False]):
         await tuner.start(config, "http://mock:8080")
 
@@ -1905,7 +1589,7 @@ async def test_learned_limit_skips_trials_without_restarting(auto_tuner_instance
     tuner._wait_for_ready = AsyncMock(return_value=True)
     tuner._apply_params = AsyncMock(return_value={"success": True})
     limit = {"param": "max_num_seqs", "max": 1, "util": None, "code": "mamba_blocks_exceeded"}
-    config = TuningConfig(n_trials=2, eval_requests=10, warmup_requests=0, objective="tps", learned_limits=[limit])
+    config = TuningConfig(n_trials=2, eval_requests=10, warmup_requests=0, learned_limits=[limit])
     await tuner.start(config, "http://mock:8080")
 
     # Skips are free, so the tuner keeps sampling up to MAX_ATTEMPTS_PER_TRIAL × n_trials before giving up.
@@ -1926,7 +1610,7 @@ async def test_skipped_trials_do_not_consume_trial_budget(auto_tuner_instance, m
     tuner._evaluate = mock_evaluate
     tuner._wait_for_ready = AsyncMock(return_value=True)
     tuner._apply_params = AsyncMock(return_value={"success": True})
-    config = TuningConfig(n_trials=2, eval_requests=10, warmup_requests=0, objective="tps")
+    config = TuningConfig(n_trials=2, eval_requests=10, warmup_requests=0)
     with patch("services.tuner_logic.kv_cache_oom_risk", side_effect=[True, True, False, True, False]):
         await tuner.start(config, "http://mock:8080")
 
@@ -1955,7 +1639,7 @@ async def test_startup_failure_records_trial_learns_limit_and_reads_logs_before_
     tuner._rollback_to_snapshot = rollback
     tuner._assistant_enabled = lambda: False
 
-    config = TuningConfig(n_trials=1, eval_requests=10, warmup_requests=0, objective="tps")
+    config = TuningConfig(n_trials=1, eval_requests=10, warmup_requests=0)
     await tuner.start(config, "http://mock:8080")
 
     assert order == ["logs", "rollback"]
@@ -1985,6 +1669,27 @@ async def test_tuning_load_endpoint_follows_target_when_not_given(cr_type: str, 
         raise RuntimeError("skip analysis")
 
     with patch.dict(_build_tuning_config.__globals__, {"_analyze_target": fake_analyze}):
-        _, endpoint, _ = await _build_tuning_config(body, ("serving3", "qwen-gpu", cr_type))
+        _, endpoint = await _build_tuning_config(body, ("serving3", "qwen-gpu", cr_type))
     assert endpoint == expected
     assert seen == [expected]
+
+
+@pytest.mark.asyncio
+async def test_tuning_rejects_max_model_len_above_model_limit() -> None:
+    from fastapi import HTTPException
+
+    from ..routers.tuner import TuningStartRequest, _build_tuning_config
+
+    analysis = MagicMock(context_limit=None, max_position_embeddings=32768, served_model_name=None)
+
+    async def fake_analyze(endpoint, *args, **kwargs):
+        return MagicMock(), analysis, None, None
+
+    body = TuningStartRequest(n_trials=1, max_model_len=65536)
+    with (
+        patch.dict(_build_tuning_config.__globals__, {"_analyze_target": fake_analyze}),
+        pytest.raises(HTTPException) as exc,
+    ):
+        await _build_tuning_config(body, ("ns", "m", "inferenceservice"))
+    assert exc.value.status_code == 400
+    assert exc.value.detail["error_type"] == "invalid_max_model_len"

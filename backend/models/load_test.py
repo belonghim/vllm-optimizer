@@ -10,7 +10,7 @@ and internal data structures. Models are divided into:
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class SyntheticPromptConfig(BaseModel):
@@ -183,20 +183,14 @@ TUNING_DEFAULTS: dict[str, Any] = {
     "max_num_seqs_max": 512,
     "gpu_memory_min": 0.80,
     "gpu_memory_max": 0.95,
-    "max_model_len_min": 2048,
-    "max_model_len_max": 8192,
+    "max_model_len": 8192,
     "max_num_batched_tokens_min": 256,
     "max_num_batched_tokens_max": 2048,
-    # vLLM's CUDA FlashAttention backend rejects block sizes that are not a multiple of 16
-    "block_size_options": [16, 32],
-    "include_swap_space": False,
-    "swap_space_min": 1.0,
-    "swap_space_max": 8.0,
     "eval_concurrency": 16,
-    "eval_rps": 20.0,
+    "p99_latency_sla_ms": 10000,
+    "max_tokens": 256,
     "eval_requests": 100,
     "n_trials": 10,
-    "objective": "balanced",
     "warmup_requests": 20,
     "enable_llm_assistant": True,
 }
@@ -205,48 +199,40 @@ _D = TUNING_DEFAULTS
 
 
 class TuningConfig(BaseModel):
-    """Configuration for auto-tuning parameters"""
+    """Find the vLLM args giving the most TPS for `eval_concurrency` users while p99 latency stays within the SLA."""
 
-    # Search space ranges
+    model_config = ConfigDict(extra="forbid")
+
     max_num_seqs_range: tuple[int, int] = Field(
         default=(_D["max_num_seqs_min"], _D["max_num_seqs_max"]), description="Range for max-num-seqs parameter"
     )
     gpu_memory_utilization_range: tuple[float, float] = Field(
         default=(_D["gpu_memory_min"], _D["gpu_memory_max"]), description="Range for GPU memory utilization"
     )
-    max_model_len_range: tuple[int, int] = Field(
-        default=(_D["max_model_len_min"], _D["max_model_len_max"]), description="Range for max-model-len parameter"
-    )
-    # Expanded search space and tuning controls
     max_num_batched_tokens_range: tuple[int, int] = Field(
         default=(_D["max_num_batched_tokens_min"], _D["max_num_batched_tokens_max"]),
         description="Range for max-num-batched-tokens parameter",
     )
-    block_size_options: list[int] = Field(default=_D["block_size_options"], description="KV cache block size options")
-    include_swap_space: bool = Field(
-        default=_D["include_swap_space"], description="Enable swap_space parameter search (disable on CPU/OpenVINO)"
-    )
-    swap_space_range: tuple[float, float] = Field(
-        default=(_D["swap_space_min"], _D["swap_space_max"]), description="Range for swap-space parameter (GB)"
+    max_model_len: int = Field(
+        default=_D["max_model_len"], ge=256, description="Context length the service must support (fixed, not searched)"
     )
     eval_concurrency: int = Field(
-        default=_D["eval_concurrency"], ge=1, le=128, description="Concurrent requests during evaluation load test"
+        default=_D["eval_concurrency"], ge=1, le=512, description="Concurrent users (closed-loop) during evaluation"
     )
-    eval_rps: float = Field(
-        default=_D["eval_rps"], ge=0, le=500, description="Requests per second during evaluation (0=unlimited)"
+    p99_latency_sla_ms: int = Field(
+        default=_D["p99_latency_sla_ms"], ge=100, le=600000, description="P99 end-to-end request latency SLA (ms)"
     )
+    max_tokens: int = Field(default=_D["max_tokens"], ge=1, le=8192, description="Output tokens per request")
     eval_fast_fraction: float = Field(
         default=0.5, ge=0.1, le=1.0, description="Fraction of eval_requests for MedianPruner fast probe"
     )
-    # Optimization objectives
-    objective: str = Field(default=_D["objective"], description="Optimization objective: tps, latency, or balanced")
     n_trials: int = Field(default=_D["n_trials"], ge=1, le=100, description="Number of optimization trials")
     warmup_requests: int = Field(default=_D["warmup_requests"], ge=0, description="Number of warmup requests per trial")
     eval_requests: int = Field(
         default=_D["eval_requests"], ge=1, le=1000, description="Number of evaluation requests per trial"
     )
     model_max_position_embeddings: int | None = Field(
-        default=None, description="Model's actual max context length — clamps max_model_len search space"
+        default=None, description="Model's actual max context length — upper bound for max_model_len"
     )
     model_weight_gib: float | None = Field(
         default=None, description="Model weight size in GiB (sum of safetensors/bin/gguf files)"
@@ -287,10 +273,6 @@ class TuningConfig(BaseModel):
     model_analysis: dict[str, Any] | None = Field(
         default=None, description="Deterministic model analysis snapshot — context for the analyst LLM"
     )
-    p99_latency_sla_ms: int | None = Field(
-        default=None,
-        description="P99 latency SLA in ms — used with objective='sla_tps' to maximize TPS within latency budget",
-    )
     enable_llm_assistant: bool = Field(
         default=_D["enable_llm_assistant"],
         description="Enable the analyst LLM (ANALYST_ENDPOINT) for warmup suggestions, failure explanations and the final report",
@@ -301,14 +283,20 @@ class TuningConfig(BaseModel):
         ranges = {
             "max_num_seqs_range": self.max_num_seqs_range,
             "gpu_memory_utilization_range": self.gpu_memory_utilization_range,
-            "max_model_len_range": self.max_model_len_range,
             "max_num_batched_tokens_range": self.max_num_batched_tokens_range,
-            "swap_space_range": self.swap_space_range,
         }
         for name, r in ranges.items():
             if r[0] >= r[1]:
                 raise ValueError(f"{name}: min({r[0]}) must be less than max({r[1]})")
+        if self.model_max_position_embeddings and self.max_model_len > self.model_max_position_embeddings:
+            raise ValueError(
+                f"max_model_len({self.max_model_len}) exceeds the model limit ({self.model_max_position_embeddings})"
+            )
         return self
+
+    @property
+    def objective_label(self) -> str:
+        return f"p99<={self.p99_latency_sla_ms}ms@{self.eval_concurrency}users"
 
 
 class TuningTrial(BaseModel):
@@ -320,7 +308,6 @@ class TuningTrial(BaseModel):
     p99_latency: float = Field(description="P99 latency in seconds")
     score: float = Field(description="Optimization score")
     status: str = Field(default="pending", description="Trial status: pending, completed, failed")
-    is_pareto_optimal: bool = Field(default=False, description="Whether this trial is on the Pareto front")
     pruned: bool = Field(default=False, description="Whether this trial was pruned by MedianPruner")
     failure: dict[str, Any] | None = Field(
         default=None, description="For failed/skipped trials: {reason, diagnoses:[{code,title,fix}]}"

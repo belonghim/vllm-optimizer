@@ -38,7 +38,7 @@ interface Trial {
   score: number;
   params: Record<string, unknown>;
   status: string;
-  is_pareto_optimal?: boolean;
+  sla_met?: boolean | null;
 }
 
 function escapeCsv(value: unknown): string {
@@ -121,7 +121,7 @@ export function trialsToCSV(trials: Trial[]): { headers: string[]; rows: string[
     'P99 Latency(ms)',
     'Score',
     'Status',
-    'Pareto',
+    'SLA Met',
     ...sortedParamKeys,
   ];
 
@@ -132,7 +132,7 @@ export function trialsToCSV(trials: Trial[]): { headers: string[]; rows: string[
       String(trial.p99_latency),
       String(trial.score),
       String(trial.status),
-      trial.is_pareto_optimal ? 'Y' : 'N',
+      trial.sla_met == null ? '' : trial.sla_met ? 'Y' : 'N',
     ];
 
     const paramValues = sortedParamKeys.map((key) => {

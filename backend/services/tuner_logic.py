@@ -4,7 +4,6 @@ import json
 import logging
 import math
 import time
-from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
 import httpx
@@ -15,7 +14,6 @@ from models.load_test import (  # pyright: ignore[reportImplicitRelativeImport] 
     LatencyStats,
     LoadTestConfig,
     LoadTestResult,
-    SweepConfig,
     TpsStats,
     TuningConfig,
     TuningTrial,
@@ -31,40 +29,26 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
-def _power_of_2_range(low: int, high: int) -> list[int]:
-    p = 1
-    while p < low:
-        p <<= 1
-    result: list[int] = []
-    while p <= high:
-        result.append(p)
-        p <<= 1
-    if not result:
-        result = [max(low, min(high, (low + high) // 2))]
-    return result
-
-
 def study_name_for(config: TuningConfig) -> str:
     """Persistent study name scoped to the tuned CR and its search space.
 
-    Optuna refuses a categorical whose choices differ from earlier trials in the same study, and
-    warm-starting from another model's best params is meaningless — so each target/space gets its own.
+    Warm-starting from another model's best params or another SLA's scores is meaningless — so each
+    target/space/SLA gets its own.
     """
     space = json.dumps(
         [
             config.target_key,
             config.max_num_seqs_range,
             config.gpu_memory_utilization_range,
-            config.max_model_len_range,
-            config.model_max_position_embeddings,
             config.max_num_batched_tokens_range,
-            config.block_size_options,
-            config.include_swap_space,
-            config.swap_space_range if config.include_swap_space else None,
+            config.max_model_len,
+            config.eval_concurrency,
+            config.p99_latency_sla_ms,
+            config.max_tokens,
         ],
         default=str,
     )
-    return f"vllm-tuner-{config.objective}-{hashlib.sha1(space.encode()).hexdigest()[:12]}"
+    return f"vllm-tuner-{hashlib.sha1(space.encode()).hexdigest()[:12]}"
 
 
 def kv_cache_oom_risk(params: dict[str, Any], config: TuningConfig) -> bool:
@@ -77,7 +61,7 @@ def kv_cache_oom_risk(params: dict[str, Any], config: TuningConfig) -> bool:
     """
     if not (config.model_kv_bytes_per_token and config.memory_budget_gib):
         return False
-    max_model_len = params.get("max_model_len", 4096)
+    max_model_len = params.get("max_model_len", config.max_model_len)
     max_num_seqs = params.get("max_num_seqs", 256)
     gpu_util = params.get("gpu_memory_utilization", 0.9)
     window = max_model_len
@@ -101,12 +85,6 @@ class _Broadcaster(Protocol):
     async def broadcast(self, data: dict[str, Any]) -> None: ...
 
 
-_EvalFn = Callable[
-    [str, TuningConfig, optuna.trial.Trial | None, int, _Broadcaster | None],
-    Awaitable[tuple[float, float, float]],
-]
-
-
 class TunerLogic:
     def __init__(self, load_engine: LoadTestEngine) -> None:
         self._load_engine = load_engine
@@ -118,15 +96,8 @@ class TunerLogic:
         broadcaster: _Broadcaster | None = None,
     ) -> tuple[str, optuna.Study]:
         direction = "maximize"
-        if config.objective == "pareto":
-            sampler = optuna.samplers.NSGAIISampler(seed=42)
-            pruner = optuna.pruners.NopPruner()
-            direction_kwarg: dict[str, Any] = {"directions": ["maximize", "minimize"]}
-        else:
-            # compute_trial_score is signed so that larger is always better for every objective
-            sampler = optuna.samplers.TPESampler(seed=42)
-            pruner = optuna.pruners.MedianPruner(n_startup_trials=3, n_warmup_steps=0)
-            direction_kwarg = {"direction": direction}
+        sampler = optuna.samplers.TPESampler(seed=42)
+        pruner = optuna.pruners.MedianPruner(n_startup_trials=3, n_warmup_steps=0)
         _study_name = study_name_for(config)
 
         if storage_url:
@@ -152,7 +123,7 @@ class TunerLogic:
                     storage=storage,
                     study_name=_study_name,
                     load_if_exists=True,
-                    **direction_kwarg,
+                    direction=direction,
                 )
                 logger.info("[AutoTuner] Using SQLite storage: %s (study: %s)", storage_url, _study_name)
                 if study.best_trials:
@@ -171,19 +142,19 @@ class TunerLogic:
                         }
                     )
                 try:
-                    study = optuna.create_study(sampler=sampler, pruner=pruner, **direction_kwarg)  # type: ignore[arg-type]  # direction_kwarg is dict, pyright can't verify TypedDict keys
+                    study = optuna.create_study(sampler=sampler, pruner=pruner, direction=direction)
                 except optuna.exceptions.OptunaError as e:
                     raise TunerError(
                         "Optuna study initialization failed after storage fallback",
-                        detail={"storage_url": storage_url, "objective": config.objective},
+                        detail={"storage_url": storage_url},
                     ) from e
         else:
             try:
-                study = optuna.create_study(sampler=sampler, pruner=pruner, **direction_kwarg)  # type: ignore[arg-type]  # direction_kwarg is dict, pyright can't verify TypedDict keys
+                study = optuna.create_study(sampler=sampler, pruner=pruner, direction=direction)
             except optuna.exceptions.OptunaError as e:
                 raise TunerError(
                     "Optuna study initialization failed",
-                    detail={"storage_url": storage_url, "objective": config.objective},
+                    detail={"storage_url": storage_url},
                 ) from e
 
         return direction, study
@@ -216,20 +187,6 @@ class TunerLogic:
             config.gpu_memory_utilization_range[1],
         )
 
-        _max_len_upper = config.max_model_len_range[1]
-        if config.model_max_position_embeddings:
-            _max_len_upper = min(_max_len_upper, config.model_max_position_embeddings)
-
-        _model_len_choices = _power_of_2_range(config.max_model_len_range[0], _max_len_upper)
-
-        params["max_model_len"] = trial.suggest_categorical(
-            "max_model_len",
-            _model_len_choices,
-        )
-
-        params["enable_chunked_prefill"] = trial.suggest_categorical("enable_chunked_prefill", [True, False])
-        params["enable_enforce_eager"] = trial.suggest_categorical("enable_enforce_eager", [True, False])
-
         _step = 256
         _batched_low = max(config.max_num_batched_tokens_range[0], params["max_num_seqs"])
         _batched_low = math.ceil(_batched_low / _step) * _step
@@ -244,30 +201,16 @@ class TunerLogic:
             step=256,
         )
 
-        if config.block_size_options:
-            params["block_size"] = trial.suggest_categorical("block_size", config.block_size_options)
-
-        if config.include_swap_space:
-            params["swap_space"] = trial.suggest_float(
-                "swap_space",
-                config.swap_space_range[0],
-                config.swap_space_range[1],
-            )
-
+        params["max_model_len"] = config.max_model_len
         return params
 
     def compute_trial_score(self, result: dict[str, Any], config: TuningConfig) -> float:
+        """TPS when p99 meets the SLA; otherwise negative, closer to 0 the smaller the violation."""
         tps = result.get("tps", {}).get("total", 0)
-        p99_lat = result.get("latency", {}).get("p99", 9999)
-        if config.objective == "tps":
-            return tps
-        if config.objective == "latency":
-            return -p99_lat
-        if config.objective == "sla_tps":
-            if config.p99_latency_sla_ms and p99_lat * 1000 > config.p99_latency_sla_ms:
-                return -(p99_lat * 1000 / config.p99_latency_sla_ms)
-            return tps
-        return tps / (p99_lat + 1) * 100
+        p99_ms = result.get("latency", {}).get("p99", 9999) * 1000
+        if p99_ms > config.p99_latency_sla_ms:
+            return -(p99_ms / config.p99_latency_sla_ms)
+        return tps
 
     async def run_warmup_load(
         self,
@@ -289,7 +232,7 @@ class TunerLogic:
             model=model,
             total_requests=config.warmup_requests,
             concurrency=min(config.eval_concurrency, config.warmup_requests),
-            rps=config.eval_rps,
+            max_tokens=config.max_tokens,
             stream=True,
         )
         try:
@@ -313,7 +256,7 @@ class TunerLogic:
             model=model,
             total_requests=fast_requests,
             concurrency=config.eval_concurrency,
-            rps=config.eval_rps,
+            max_tokens=config.max_tokens,
             stream=True,
         )
         if broadcaster is not None:
@@ -326,7 +269,7 @@ class TunerLogic:
         fast_result = await self._load_engine.run(fast_config)
         fast_score = self.compute_trial_score(fast_result, config)
 
-        if trial is not None and config.objective != "pareto":
+        if trial is not None:
             trial.report(fast_score, step=0)
             if trial.should_prune():
                 tps = fast_result.get("tps", {}).get("total", 0)
@@ -340,7 +283,7 @@ class TunerLogic:
                 model=model,
                 total_requests=remaining_requests,
                 concurrency=config.eval_concurrency,
-                rps=config.eval_rps,
+                max_tokens=config.max_tokens,
                 stream=True,
             )
             full_result = await self._load_engine.run(full_config)
@@ -381,50 +324,11 @@ class TunerLogic:
         )
         return score, tps, p99_lat
 
-    async def objective(
-        self,
-        endpoint: str,
-        config: TuningConfig,
-        evaluation_mode: str,
-        sweep_config: SweepConfig | None,
-        trial: optuna.trial.Trial | None = None,
-        trial_num: int = 0,
-        broadcaster: _Broadcaster | None = None,
-        evaluate_fn: _EvalFn | None = None,
-    ) -> tuple[float, float, float]:
-        if evaluation_mode == "sweep":
-            if sweep_config is None:
-                raise TunerError(
-                    "Sweep evaluation requires sweep_config",
-                    detail={"evaluation_mode": evaluation_mode},
-                )
-            _trial_id = trial.number if trial is not None and hasattr(trial, "number") else trial_num
-            if broadcaster is not None:
-                await broadcaster.broadcast(
-                    {
-                        "type": "phase",
-                        "data": {"trial_id": _trial_id, "phase": "evaluating"},
-                    }
-                )
-            sweep_result = await self._load_engine.run_sweep(sweep_config)
-            score = float(sweep_result.optimal_rps or 0.0)
-            if trial is not None and config.objective != "pareto":
-                trial.report(score, step=0)
-            return score, score, 0.0
-
-        evaluator = evaluate_fn if evaluate_fn is not None else self.evaluate
-        return await evaluator(endpoint, config, trial=trial, trial_num=trial_num, broadcaster=broadcaster)  # type: ignore[call-args]
-
     async def get_importance(
         self, study: optuna.Study | None, trials: list[optuna.trial.FrozenTrial]
     ) -> dict[str, Any]:
         if not study or len(trials) < 5:
             return {}
-        try:
-            if hasattr(study, "directions") and len(getattr(study, "directions", [])) > 1:
-                return {}
-        except optuna.exceptions.OptunaError as e:
-            logger.warning("[AutoTuner] Multi-objective check failed: %s", e)
         try:
             importance = await asyncio.to_thread(optuna.importance.get_param_importances, study)
             return dict(importance)
@@ -448,18 +352,6 @@ def classify_failure_from_logs(logs: str | None) -> str:
     return "unknown"
 
 
-async def update_pareto_front_for_tuner(tuner: Any) -> None:  # AutoTuner — avoid circular import
-    try:
-        assert tuner._study is not None
-        pareto = {t.number for t in tuner._study.best_trials}
-        async with tuner._lock:
-            for recorded in tuner._trials:
-                recorded.is_pareto_optimal = recorded.trial_id in pareto
-        tuner._pareto_front_size = len(pareto)
-    except (optuna.exceptions.OptunaError, RuntimeError, ValueError, TypeError) as e:
-        logger.warning("[AutoTuner] Pareto front update failed: %s", e)
-
-
 async def handle_trial_result_for_tuner(
     tuner: Any,  # AutoTuner — avoid circular import
     trial,
@@ -472,7 +364,7 @@ async def handle_trial_result_for_tuner(
     save_trial_fn,
 ) -> bool:
     assert tuner._config is not None
-    if tuner._config.objective != "pareto" and trial.should_prune():
+    if trial.should_prune():
         async with tuner._study_lock:
             assert tuner._study is not None
             tuner._study.tell(trial, state=optuna.trial.TrialState.PRUNED)
@@ -495,23 +387,13 @@ async def handle_trial_result_for_tuner(
             }
         )
         return True
-    if tuner._config.objective == "pareto":
-        async with tuner._study_lock:
-            assert tuner._study is not None
-            tuner._study.tell(trial, [tps, p99_lat])
-        score = tps / (p99_lat + 1) * 100
-    else:
-        async with tuner._study_lock:
-            assert tuner._study is not None
-            tuner._study.tell(trial, score)
+    async with tuner._study_lock:
+        assert tuner._study is not None
+        tuner._study.tell(trial, score)
     t = TuningTrial(trial_id=trial_num, params=params, tps=tps, p99_latency=p99_lat, score=score, status="completed")
     async with tuner._lock:
         tuner._trials.append(t)
-        if (
-            tuner._best_trial is None
-            or (tuner._direction == "maximize" and score > tuner._best_trial.score)
-            or (tuner._direction == "minimize" and score < tuner._best_trial.score)
-        ):
+        if tuner._best_trial is None or score > tuner._best_trial.score:
             tuner._best_trial = t
         tuner._best_score_history.append(tuner._best_trial.score if tuner._best_trial else score)
     try:
@@ -520,8 +402,6 @@ async def handle_trial_result_for_tuner(
         logger.warning("[AutoTuner] Failed to persist trial %d to storage: %s", trial_num, e)
         await tuner._broadcast_persistence_warning_once()
     await tuner._emit_trial_metrics(trial_start, "completed")
-    if tuner._config.objective == "pareto":
-        await update_pareto_front_for_tuner(tuner)
     await tuner._broadcast(
         {
             "type": "trial_complete",
@@ -657,7 +537,7 @@ async def save_auto_benchmark_for_tuner(
             model=model_name,
             total_requests=tuner._config.eval_requests,
             concurrency=tuner._config.eval_concurrency,
-            rps=tuner._config.eval_rps,
+            max_tokens=tuner._config.max_tokens,
             stream=True,
         ),
         result=LoadTestResult(
@@ -679,6 +559,18 @@ async def finalize_tuning_for_tuner(
     tuner: Any, auto_benchmark: bool = False
 ) -> int | None:  # AutoTuner — avoid circular import
     benchmark_id: int | None = None
+    if tuner._best_trial and tuner._best_trial.score < 0 and tuner._config is not None:
+        await tuner._broadcast(
+            {
+                "type": "tuning_warning",
+                "data": {
+                    "message": (
+                        f"동시 사용자 {tuner._config.eval_concurrency}명에서 p99 ≤ {tuner._config.p99_latency_sla_ms}ms를 "
+                        "만족한 설정이 없습니다. SLA 위반이 가장 작은 설정을 적용합니다. 동시 사용자 수나 출력 토큰 수를 줄이거나 자원을 늘리세요."
+                    )
+                },
+            }
+        )
     if tuner._best_trial:
         apply_result = await tuner._apply_params(tuner._best_trial.params)
         best_applied = not (isinstance(apply_result, dict) and not apply_result.get("success", True))

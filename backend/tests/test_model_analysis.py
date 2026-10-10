@@ -162,16 +162,9 @@ def test_capacity_table_and_suggested_search_space() -> None:
     assert by_len[8192] == int(kv_budget // (131072 * 8192))
     assert rows[-1]["context_len"] == 131072
 
-    # Never widen beyond the served context; seqs ceiling from capacity at a 2K request
+    # seqs ceiling from capacity at a 2K request
     space = suggest_search_space(rows, served_max_model_len=8192)
-    assert space == {
-        "max_num_seqs_min": 32,
-        "max_num_seqs_max": min(1024, (by_len[2048] // 32) * 32),
-        "max_model_len_min": 2048,
-        "max_model_len_max": 8192,
-    }
-    # Unknown served length: bounded by what fits one sequence
-    assert suggest_search_space(rows, served_max_model_len=None)["max_model_len_max"] == 131072
+    assert space == {"max_num_seqs_min": 32, "max_num_seqs_max": min(1024, (by_len[2048] // 32) * 32)}
     # Nothing fits → no suggestion
     assert suggest_search_space([{"context_len": 1024, "kv_bytes_per_seq": 1, "max_concurrent_seqs": 0}], None) is None
 
@@ -476,12 +469,7 @@ def test_observed_capacity_merges_and_stops_at_served_len() -> None:
     }
     assert "observed_max_seqs" not in by_len[16384]
     space = suggest_search_space(rows, 8192, key="observed_max_seqs")
-    assert space == {
-        "max_num_seqs_min": 64,
-        "max_num_seqs_max": 256,
-        "max_model_len_min": 2048,
-        "max_model_len_max": 8192,
-    }
+    assert space == {"max_num_seqs_min": 64, "max_num_seqs_max": 256}
 
 
 OBSERVED = {"kv_cache_size_tokens": 570336, "max_concurrency": 69.62109375, "block_size": 32, "pod": "p-0"}
@@ -496,7 +484,8 @@ def test_model_analysis_endpoint_isvc_observed_compares_estimate() -> None:
     estimated_8k = next(r["max_concurrent_seqs"] for r in data["capacity"] if r["context_len"] == 8192)
     assert data["observed"]["estimate_ratio"] == round(estimated_8k / 69.62109375, 3)
     assert next(r for r in data["capacity"] if r["context_len"] == 8192)["observed_max_seqs"] == 69
-    assert data["suggested_search_space"]["max_model_len_max"] == 8192
+    assert data["suggested_search_space"]["max_num_seqs_max"] >= 64
+    assert data["max_model_len_limit"] == 131072
 
 
 def test_model_analysis_endpoint_llmis_observed_without_gpu_memory() -> None:

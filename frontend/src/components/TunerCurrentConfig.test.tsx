@@ -18,24 +18,18 @@ vi.mock('./ConfirmDialog', () => ({
 }));
 
 const defaultConfig: TunerConfig = {
-  objective: 'tps',
-  evaluation_mode: 'single',
   n_trials: 10,
   vllm_endpoint: 'http://test:8080',
   max_num_seqs_min: 64,
   max_num_seqs_max: 512,
   gpu_memory_min: 0.7,
   gpu_memory_max: 0.95,
-  max_model_len_min: 2048,
-  max_model_len_max: 8192,
+  max_model_len: 8192,
   max_num_batched_tokens_min: 2048,
   max_num_batched_tokens_max: 8192,
-  block_size_options: [16, 32],
-  include_swap_space: false,
-  swap_space_min: 0,
-  swap_space_max: 4,
   eval_concurrency: 4,
-  eval_rps: 0,
+  p99_latency_sla_ms: 10000,
+  max_tokens: 256,
   eval_requests: 5,
 };
 

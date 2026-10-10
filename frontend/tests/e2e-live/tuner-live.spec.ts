@@ -74,3 +74,20 @@ test('failed and skipped trials render in the problem table', async ({ page }) =
 
   expect(consoleErrors.get(page)).toEqual([]);
 });
+
+test('tuner asks for concurrent users and P99 SLA and guards max_model_len', async ({ page }) => {
+  await openTuner(page);
+
+  await expect(page.getByLabel('Concurrent Users')).toBeVisible();
+  await expect(page.getByLabel('P99 Latency SLA (ms)')).toBeVisible();
+  await expect(page.getByLabel('Output Tokens / Request')).toBeVisible();
+  await expect(page.getByLabel('Optimization Objective')).toHaveCount(0);
+  await expect(page.getByLabel('max_model_len', { exact: true })).toHaveValue('8192');
+
+  await expect(page.getByText(/model limit \d+/)).toBeVisible({ timeout: 30_000 });
+  await page.getByLabel('max_model_len', { exact: true }).fill('100000000');
+  await expect(page.getByText(/exceeds the model limit/)).toBeVisible();
+  await expect(page.getByRole('button', { name: /Start Tuning/ })).toBeDisabled();
+
+  expect(consoleErrors.get(page)).toEqual([]);
+});

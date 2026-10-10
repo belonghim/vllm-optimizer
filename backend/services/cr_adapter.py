@@ -9,10 +9,6 @@ _ARG_TO_KEY = {
     "--gpu-memory-utilization": "gpu_memory_utilization",
     "--max-model-len": "max_model_len",
     "--max-num-batched-tokens": "max_num_batched_tokens",
-    "--block-size": "block_size",
-    "--swap-space": "swap_space",
-    "--enable-chunked-prefill": "enable_chunked_prefill",
-    "--enforce-eager": "enable_enforce_eager",
 }
 _KEY_TO_ARG = {v: k for k, v in _ARG_TO_KEY.items()}
 TUNING_ARG_PREFIXES = tuple(_ARG_TO_KEY.keys())
@@ -67,9 +63,6 @@ def extract_arg_value(args: list[str], flag: str) -> str | None:
     return value
 
 
-_BOOLEAN_FLAGS = frozenset({"--enable-chunked-prefill", "--enforce-eager"})
-
-
 def args_list_to_config_dict(args: list[str]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     i = 0
@@ -78,11 +71,9 @@ def args_list_to_config_dict(args: list[str]) -> dict[str, Any]:
         i += 1
         key = _ARG_TO_KEY.get(arg)
         if key is not None:
-            if arg not in _BOOLEAN_FLAGS and i < len(args) and not args[i].startswith("--"):
+            if i < len(args) and not args[i].startswith("--"):
                 result[key] = args[i]
                 i += 1
-            else:
-                result[key] = "true"
             continue
         for cli_flag, config_key in _ARG_TO_KEY.items():
             if arg.startswith(cli_flag + "="):
@@ -98,7 +89,7 @@ def strip_tuning_args(args: list[str]) -> list[str]:
         arg = args[i]
         i += 1
         if arg in _ARG_TO_KEY:
-            if arg not in _BOOLEAN_FLAGS and i < len(args) and not args[i].startswith("--"):
+            if i < len(args) and not args[i].startswith("--"):
                 i += 1
             continue
         if not arg.startswith(TUNING_ARG_PREFIXES):
@@ -112,12 +103,6 @@ def config_dict_to_args_list(config: dict[str, Any]) -> list[str]:
         cli_flag = _KEY_TO_ARG.get(key)
         if cli_flag is None:
             continue
-
-        if key in ("enable_chunked_prefill", "enable_enforce_eager"):
-            if str(value).lower() in ("true", "1", "yes"):
-                result.append(cli_flag)
-            continue
-
         if value is not None and str(value):
             result.append(f"{cli_flag}={value}")
     return result

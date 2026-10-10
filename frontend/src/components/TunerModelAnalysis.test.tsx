@@ -69,8 +69,6 @@ const ANALYSIS = {
   suggested_search_space: {
     max_num_seqs_min: 32,
     max_num_seqs_max: 128,
-    max_model_len_min: 2048,
-    max_model_len_max: 8192,
   },
   advice: {
     recommendations: [

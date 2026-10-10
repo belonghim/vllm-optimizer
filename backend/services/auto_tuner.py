@@ -1,10 +1,10 @@
 import asyncio
 import logging
 import os
-from typing import Any, Literal
+from typing import Any
 
 import optuna
-from models.load_test import SweepConfig, TuningConfig, TuningTrial
+from models.load_test import TuningConfig, TuningTrial
 from services.boot_diagnosis import compact_failure, diagnose_boot, learn_limits, summarize_diagnoses
 from services.event_broadcaster import EventBroadcaster
 from services.k8s_operator import K8sOperator
@@ -12,7 +12,6 @@ from services.llm_assistant import get_llm_assistant
 from services.shared import storage
 from services.tuner_logic import (
     TunerLogic,
-    _power_of_2_range,
     classify_failure_from_logs,
     execute_trial_for_tuner,
     finalize_tuning_for_tuner,
@@ -66,9 +65,6 @@ class AutoTuner:
         self._direction = "maximize"
         self._vllm_endpoint = ""
         self._config: TuningConfig | None = None
-        self._sweep_config: SweepConfig | None = None
-        self.evaluation_mode: Literal["single", "sweep"] = "single"
-        self._pareto_front_size: int | None = None
         self._best_score_history: list[float] = []
         self._k8s_core = None
         self._lock, self._study_lock, self._k8s_lock = asyncio.Lock(), asyncio.Lock(), asyncio.Lock()
@@ -106,7 +102,7 @@ class AutoTuner:
         await self._event_broadcaster.broadcast(data)
 
     async def _emit_trial_metrics(self, trial_start: float, status: str) -> None:
-        await self._event_broadcaster.emit_trial_metrics(trial_start, status, self._best_trial, self._config)
+        await self._event_broadcaster.emit_trial_metrics(trial_start, status, self._best_trial)
 
     async def _broadcast_persistence_warning_once(self) -> None:
         await self._event_broadcaster.broadcast_persistence_warning_once()
@@ -135,31 +131,14 @@ class AutoTuner:
             model_resolver=resolve_model_name,
         )
 
-    async def _objective(
-        self, endpoint: str, config: TuningConfig, trial=None, trial_num: int = 0
-    ) -> tuple[float, float, float]:
-        return await self._tuner_logic.objective(
-            endpoint,
-            config,
-            evaluation_mode=self.evaluation_mode,
-            sweep_config=self._sweep_config,
-            trial=trial,
-            trial_num=trial_num,
-            broadcaster=self._event_broadcaster,
-            evaluate_fn=self._evaluate,
-        )
-
     async def _init_tuning_state(self, config: TuningConfig) -> None:
         self._config, self._trials, self._best_score_history, self._best_trial = config, [], [], None
-        self._pareto_front_size = None
         self._event_broadcaster.reset_persistence_warning()
         self._direction, self._study = await self._tuner_logic.setup_study(
             config, os.getenv("OPTUNA_STORAGE_URL"), broadcaster=self._event_broadcaster
         )
 
-    async def _initialize_start_state(
-        self, config: TuningConfig, evaluation_mode: Literal["single", "sweep"], sweep_config: SweepConfig | None
-    ) -> tuple[bool, int | None, dict[str, Any] | None]:
+    async def _initialize_start_state(self, config: TuningConfig) -> tuple[bool, int | None, dict[str, Any] | None]:
         running_row_id: int | None = None
         async with self._lock:
             if self._running:
@@ -170,8 +149,6 @@ class AutoTuner:
                 await asyncio.sleep(0.1)
             self._cancel_event.clear()
             self._running = True
-            self.evaluation_mode = evaluation_mode
-            self._sweep_config = sweep_config.model_copy(deep=True) if sweep_config is not None else None
             try:
                 running_row_id = await storage.set_running("tuner")
             except (OSError, RuntimeError, ValueError) as e:
@@ -253,7 +230,7 @@ class AutoTuner:
 
     async def _run_trial_evaluation(self, trial, trial_num: int) -> tuple[Any, ...]:
         assert self._config is not None
-        return await self._objective(self._vllm_endpoint, self._config, trial=trial, trial_num=trial_num)
+        return await self._evaluate(self._vllm_endpoint, self._config, trial=trial, trial_num=trial_num)
 
     async def _execute_trial(self, trial_num: int, config: TuningConfig) -> bool:
         return await execute_trial_for_tuner(self, trial_num, config)
@@ -305,7 +282,10 @@ class AutoTuner:
         except Exception:
             importance = {}
         summary: dict[str, Any] = {
-            "objective": self._config.objective,
+            "objective": "max TPS with p99 latency within SLA",
+            "concurrent_users": self._config.eval_concurrency,
+            "p99_latency_sla_ms": self._config.p99_latency_sla_ms,
+            "sla_met": self._best_trial.score >= 0,
             "best_params": self._best_trial.params,
             "best_tps": self._best_trial.tps,
             "best_p99_latency_ms": self._best_trial.p99_latency * 1000,
@@ -314,7 +294,6 @@ class AutoTuner:
             "status_counts": status_counts,
             "failure_breakdown": failure_breakdown,
             "parameter_importance": {k: round(v, 4) for k, v in list(importance.items())[:5]},
-            "pareto_front_size": self._pareto_front_size,
             "model_analysis": self._config.model_analysis,
         }
         try:
@@ -409,20 +388,12 @@ class AutoTuner:
 
     def _sanitize_suggestion(self, suggestion: dict[str, Any], config: TuningConfig) -> dict[str, Any] | None:
         try:
-            max_len_upper = config.max_model_len_range[1]
-            if config.model_max_position_embeddings:
-                max_len_upper = min(max_len_upper, config.model_max_position_embeddings)
-            len_choices = _power_of_2_range(config.max_model_len_range[0], max_len_upper)
-
             mns = int(suggestion.get("max_num_seqs", config.max_num_seqs_range[0]))
             mns = max(config.max_num_seqs_range[0], min(config.max_num_seqs_range[1], mns))
             mns = (mns // 32) * 32 or config.max_num_seqs_range[0]
 
             gmu = float(suggestion.get("gpu_memory_utilization", config.gpu_memory_utilization_range[0]))
             gmu = max(config.gpu_memory_utilization_range[0], min(config.gpu_memory_utilization_range[1], gmu))
-
-            mml_raw = int(suggestion.get("max_model_len", len_choices[0]))
-            mml = min(len_choices, key=lambda v: abs(v - mml_raw))
 
             mnbt_raw = int(suggestion.get("max_num_batched_tokens", config.max_num_batched_tokens_range[0]))
             batched_low = max(config.max_num_batched_tokens_range[0], mns)
@@ -432,23 +403,7 @@ class AutoTuner:
             mnbt = max(batched_low, min(batched_high, mnbt_raw))
             mnbt = (mnbt // 256) * 256 or batched_low
 
-            clean: dict[str, Any] = {
-                "max_num_seqs": mns,
-                "gpu_memory_utilization": gmu,
-                "max_model_len": mml,
-                "max_num_batched_tokens": mnbt,
-                "enable_chunked_prefill": bool(suggestion.get("enable_chunked_prefill", False)),
-                "enable_enforce_eager": bool(suggestion.get("enable_enforce_eager", False)),
-            }
-            if config.block_size_options:
-                bs_raw = suggestion.get("block_size", config.block_size_options[0])
-                clean["block_size"] = (
-                    int(bs_raw) if int(bs_raw) in config.block_size_options else config.block_size_options[0]
-                )
-            if config.include_swap_space:
-                sws = float(suggestion.get("swap_space", config.swap_space_range[0]))
-                clean["swap_space"] = max(config.swap_space_range[0], min(config.swap_space_range[1], sws))
-            return clean
+            return {"max_num_seqs": mns, "gpu_memory_utilization": gmu, "max_num_batched_tokens": mnbt}
         except (ValueError, TypeError, KeyError) as e:
             logger.debug("[AutoTuner] Warmup suggestion sanitize failed: %s (input=%s)", e, suggestion)
             return None
@@ -466,21 +421,19 @@ class AutoTuner:
                 "min": config.gpu_memory_utilization_range[0],
                 "max": config.gpu_memory_utilization_range[1],
             },
-            "max_model_len": {
-                "min": config.max_model_len_range[0],
-                "max": config.max_model_len_range[1],
-                "note": "power-of-2 preferred",
-            },
             "max_num_batched_tokens": {
                 "min": config.max_num_batched_tokens_range[0],
                 "max": config.max_num_batched_tokens_range[1],
                 "step": 256,
             },
-            "block_size": {"choices": config.block_size_options},
-            "enable_chunked_prefill": {"choices": [True, False]},
-            "enable_enforce_eager": {"choices": [True, False]},
         }
-        hw_context = {"memory_budget_gib": config.memory_budget_gib, "runtime": "OpenVINO or CUDA"}
+        hw_context = {
+            "memory_budget_gib": config.memory_budget_gib,
+            "runtime": "OpenVINO or CUDA",
+            "fixed_max_model_len": config.max_model_len,
+            "concurrent_users": config.eval_concurrency,
+            "p99_latency_sla_ms": config.p99_latency_sla_ms,
+        }
         try:
             suggestions = await get_llm_assistant().suggest_warmup_params(
                 model_info=model_info,
@@ -526,14 +479,10 @@ class AutoTuner:
         vllm_endpoint: str,
         auto_benchmark: bool = False,
         skip_preflight: bool = False,
-        evaluation_mode: Literal["single", "sweep"] = "single",
-        sweep_config: SweepConfig | None = None,
     ) -> dict[str, Any]:
         state_initialized, running_row_id = False, None
         try:
-            state_initialized, running_row_id, init_error = await self._initialize_start_state(
-                config, evaluation_mode, sweep_config
-            )
+            state_initialized, running_row_id, init_error = await self._initialize_start_state(config)
             if init_error is not None:
                 return init_error
             self._vllm_endpoint = vllm_endpoint

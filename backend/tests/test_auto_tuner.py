@@ -84,16 +84,12 @@ async def test_start_happy_path_two_trials_returns_best_result(auto_tuner_instan
         "gpu_memory_utilization": 0.8,
         "max_model_len": 2048,
         "max_num_batched_tokens": 256,
-        "enable_chunked_prefill": False,
-        "enable_enforce_eager": False,
     }
     params_1 = {
         "max_num_seqs": 128,
         "gpu_memory_utilization": 0.85,
         "max_model_len": 4096,
         "max_num_batched_tokens": 512,
-        "enable_chunked_prefill": True,
-        "enable_enforce_eager": False,
     }
 
     tuner._preflight_check = AsyncMock(return_value={"success": True})
@@ -109,7 +105,7 @@ async def test_start_happy_path_two_trials_returns_best_result(auto_tuner_instan
         patch.object(auto_tuner_module.storage, "save_trial", new=AsyncMock()),
     ):
         result = await tuner.start(
-            TuningConfig(n_trials=2, eval_requests=5, warmup_requests=0, objective="tps"),
+            TuningConfig(n_trials=2, eval_requests=5, warmup_requests=0),
             "http://mock-vllm:8080",
         )
 
@@ -130,8 +126,6 @@ async def test_start_broadcasts_report_before_tuning_complete(auto_tuner_instanc
         "gpu_memory_utilization": 0.8,
         "max_model_len": 2048,
         "max_num_batched_tokens": 256,
-        "enable_chunked_prefill": False,
-        "enable_enforce_eager": False,
     }
     assistant = MagicMock()
     assistant.suggest_warmup_params = AsyncMock(return_value=None)
@@ -152,7 +146,7 @@ async def test_start_broadcasts_report_before_tuning_complete(auto_tuner_instanc
         patch.object(auto_tuner_module.storage, "save_trial", new=AsyncMock()),
     ):
         result = await tuner.start(
-            TuningConfig(n_trials=1, eval_requests=5, warmup_requests=0, objective="tps"),
+            TuningConfig(n_trials=1, eval_requests=5, warmup_requests=0),
             "http://mock-vllm:8080",
         )
 
@@ -175,8 +169,6 @@ async def test_apply_params_handles_k8s_api_exception_during_patch(auto_tuner_in
             "gpu_memory_utilization": 0.8,
             "max_model_len": 2048,
             "max_num_batched_tokens": 256,
-            "enable_chunked_prefill": False,
-            "enable_enforce_eager": False,
         }
     )
 
@@ -199,8 +191,6 @@ async def test_start_handles_vllm_connect_error_gracefully(auto_tuner_instance):
             "gpu_memory_utilization": 0.8,
             "max_model_len": 2048,
             "max_num_batched_tokens": 256,
-            "enable_chunked_prefill": False,
-            "enable_enforce_eager": False,
         }
     )
     tuner._run_trial_evaluation = AsyncMock(
@@ -217,7 +207,7 @@ async def test_start_handles_vllm_connect_error_gracefully(auto_tuner_instance):
         patch.object(auto_tuner_module.storage, "save_trial", new=AsyncMock()),
     ):
         result = await tuner.start(
-            TuningConfig(n_trials=1, eval_requests=5, warmup_requests=0, objective="tps"),
+            TuningConfig(n_trials=1, eval_requests=5, warmup_requests=0),
             "http://mock-vllm:8080",
         )
 
@@ -249,7 +239,7 @@ async def test_start_rejects_concurrent_execution_guard(auto_tuner_instance):
 async def test_save_auto_benchmark_uses_env_fallback_when_model_resolution_unavailable(auto_tuner_instance):
     tuner = auto_tuner_instance
     tuner._vllm_endpoint = "http://mock-vllm:8080"
-    tuner._config = TuningConfig(n_trials=1, eval_requests=11, eval_concurrency=3, eval_rps=5, warmup_requests=0)
+    tuner._config = TuningConfig(n_trials=1, eval_requests=11, eval_concurrency=3, warmup_requests=0)
     tuner._best_trial = TuningTrial(
         trial_id=0,
         params={"max_num_seqs": 64},
@@ -289,7 +279,7 @@ async def test_evaluate_uses_mocked_httpx_async_client_for_model_lookup(auto_tun
     ) as resolve_mock:
         score, tps, p99 = await tuner._evaluate(
             "http://mock-vllm:8080",
-            TuningConfig(eval_requests=2, warmup_requests=0, eval_concurrency=1, eval_rps=0, objective="tps"),
+            TuningConfig(eval_requests=2, warmup_requests=0, eval_concurrency=1),
         )
 
     resolve_mock.assert_awaited_once_with("http://mock-vllm:8080")
@@ -304,11 +294,12 @@ async def test_evaluate_uses_mocked_httpx_async_client_for_model_lookup(auto_tun
 def test_study_name_is_scoped_to_target_and_search_space() -> None:
     from ..services.tuner_logic import study_name_for
 
-    gpu = TuningConfig(objective="tps", target_key="serving3/qwen-gpu/inferenceservice")
+    gpu = TuningConfig(target_key="serving3/qwen-gpu/inferenceservice")
     assert study_name_for(gpu) == study_name_for(gpu.model_copy())
-    assert study_name_for(gpu).startswith("vllm-tuner-tps-")
+    assert study_name_for(gpu).startswith("vllm-tuner-")
     other_target = gpu.model_copy(update={"target_key": "vllm-lab-dev/llm-ov/inferenceservice"})
-    other_choices = gpu.model_copy(update={"max_model_len_range": (8192, 8192)})
-    other_blocks = gpu.model_copy(update={"block_size_options": [16]})
-    names = {study_name_for(c) for c in (gpu, other_target, other_choices, other_blocks)}
-    assert len(names) == 4
+    other_len = gpu.model_copy(update={"max_model_len": 4096})
+    other_sla = gpu.model_copy(update={"p99_latency_sla_ms": 3000})
+    other_users = gpu.model_copy(update={"eval_concurrency": 32})
+    names = {study_name_for(c) for c in (gpu, other_target, other_len, other_sla, other_users)}
+    assert len(names) == 5

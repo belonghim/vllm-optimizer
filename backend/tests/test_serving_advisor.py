@@ -241,11 +241,10 @@ def test_mamba_seq_cap_requires_hybrid_and_block_count() -> None:
 
 
 def test_clamp_search_space_to_cap() -> None:
-    space = {"max_num_seqs_min": 64, "max_num_seqs_max": 256, "max_model_len_min": 4096, "max_model_len_max": 8192}
+    space = {"max_num_seqs_min": 64, "max_num_seqs_max": 256}
     clamped = clamp_search_space_to_cap(space, 48)
     assert clamped is not None
     assert (clamped["max_num_seqs_min"], clamped["max_num_seqs_max"]) == (48, 48)
-    assert clamped["max_model_len_max"] == 8192
     assert clamp_search_space_to_cap(space, 512) == space
     assert clamp_search_space_to_cap(space, None) == space
     assert clamp_search_space_to_cap(None, 48) is None

@@ -24,10 +24,6 @@ ALLOWED_CONFIG_KEYS = {
     "gpu_memory_utilization",
     "max_model_len",
     "max_num_batched_tokens",
-    "block_size",
-    "swap_space",
-    "enable_chunked_prefill",
-    "enable_enforce_eager",
 }
 
 CrType = Literal["inferenceservice", "llminferenceservice"]
@@ -37,10 +33,6 @@ ConfigKey = Literal[
     "gpu_memory_utilization",
     "max_model_len",
     "max_num_batched_tokens",
-    "block_size",
-    "swap_space",
-    "enable_chunked_prefill",
-    "enable_enforce_eager",
 ]
 
 

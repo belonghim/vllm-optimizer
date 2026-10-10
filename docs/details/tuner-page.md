@@ -85,19 +85,15 @@ Contains the tuning configuration form and control buttons. Also fetches current
 
 | Field | Type | Description |
 |-------|------|-------------|
-| Objective | Select | Optimization objective: "balanced", "maximize_tps", "minimize_latency" |
-| Evaluation Mode | Select | "single" (single-point evaluation) or "sweep" (RPS sweep evaluation) |
-| N Trials | Number | Number of optimization trials to run |
-| Max Num Seqs (min-max) | Number range | Minimum and maximum `max_num_seqs` values to explore |
-| GPU Memory (min-max) | Number range | GPU memory utilization range (0.0–1.0) |
-| Max Model Len (min-max) | Number range | Maximum model length range in tokens |
-| Max Num Batched Tokens (min-max) | Number range | Batched tokens range |
-| Block Size Options | Multi-select | Block size options: [8, 16, 32] |
-| Include Swap Space | Checkbox | Whether to include swap space in tuning |
-| Swap Space (min-max) | Number range | Swap space range in GB |
-| Eval Concurrency | Number | Number of concurrent requests for evaluation |
-| Eval RPS | Number | Requests per second for evaluation |
-| Eval Requests | Number | Total requests per evaluation trial |
+| Concurrent Users | Number | Closed-loop concurrent requests during evaluation (default 16) |
+| P99 Latency SLA (ms) | Number | End-to-end P99 limit (default 10000). Goal: highest TPS within it |
+| Output Tokens / Request | Number | `max_tokens` per request (default 256) |
+| Trial Count | Number | Evaluated trials (predicted/learned skips do not count) |
+| max_num_seqs (min-max) | Number range | Searched |
+| gpu_memory_utilization (min-max) | Number range | Searched (0.0–1.0) |
+| max_num_batched_tokens (min-max) | Number range | Searched |
+| max_model_len | Number | Fixed context length (default 8192). Start is disabled above the model limit (config.json, rope-scaling aware) |
+| Eval Requests / Trial | Number | Total requests per evaluation trial |
 | VLLM Endpoint | Text (read-only) | Auto-populated from cluster config or selected target |
 
 **Control Buttons**:
@@ -144,9 +140,8 @@ Shown when `bestParams` exists.
 | Y-axis | P99 Latency (ms) |
 
 **Visual encoding**:
-- **Cyan dots** (opacity 0.7): Regular trials
-- **Green dots** (opacity 1.0): Pareto-optimal trials
-- Legend appears below chart when pareto-optimal trials exist
+- **Green dots**: trials whose P99 met the SLA
+- **Red dots**: trials that violated the SLA
 
 #### 3.4 Best Score Convergence Chart (Line Chart)
 
@@ -225,16 +220,13 @@ The core business logic for the TunerPage.
 
 #### Configuration Auto-Population
 
-- Fetches current vLLM config from `/api/vllm-config` on mount
-- Auto-fills form fields with current vLLM values
-- User-edited fields are tracked via `userEditedRef` and not overwritten by auto-fetch
+- Search ranges start from defaults (or "Apply to search space" from the model analysis); current CR values are shown in the Current Value column only
 
 #### Start Tuning
 
 - POST to `/api/tuner/start` with full config payload
 - Includes `auto_benchmark` flag
 - Resolves endpoint from target override or global config
-- In "sweep" evaluation mode, generates `sweep_config` with RPS range
 
 #### Stop Tuning
 
