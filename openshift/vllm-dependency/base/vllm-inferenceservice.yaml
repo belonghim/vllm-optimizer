@@ -22,6 +22,7 @@ spec:
         - --max-num-batched-tokens=512
         # llm-ov is also used as the analyst LLM — pin sampling to greedy for deterministic output.
         - '--override-generation-config={"temperature":0}'
+        - '--default-chat-template-kwargs={"enable_thinking":false}'
         - --enable-prefix-caching
       resources:
         requests:
