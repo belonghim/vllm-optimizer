@@ -13,17 +13,22 @@ spec:
       runtime: vllm-openvino-runtime
       storageUri: oci://quay.io/joopark/ai1/modelcar-qwen3.5-2b-int4-ov
       args:
-        - --served-model-name=OpenVINO/Qwen3.5-2B-int4-ov
-        # Qwen3.5 is hybrid (GDN): OpenVINO reserves linear state per max_num_seqs slot from the 4 GiB KV space;
-        # 256 slots leave 0 KV blocks and the engine fails to start.
-        - --max-num-seqs=32
-        - --gpu-memory-utilization=0.90
-        - --max-model-len=8192
-        - --max-num-batched-tokens=512
-        # llm-ov is also used as the analyst LLM — pin sampling to greedy for deterministic output.
-        - '--override-generation-config={"temperature":0}'
-        - '--default-chat-template-kwargs={"enable_thinking":false}'
-        - --enable-prefix-caching
+      - --served-model-name=OpenVINO/Qwen3.5-2B-int4-ov
+      # Qwen3.5 is hybrid (GDN): OpenVINO reserves linear state per max_num_seqs slot from the 4 GiB KV space;
+      # 256 slots leave 0 KV blocks and the engine fails to start.
+      - --max-num-seqs=32
+      - --gpu-memory-utilization=0.90
+      - --max-model-len=8192
+      - --max-num-batched-tokens=512
+      # llm-ov is also used as the analyst LLM — pin sampling to greedy for deterministic output.
+      - '--override-generation-config={"temperature":0}'
+      - '--default-chat-template-kwargs={"enable_thinking":false}'
+      - --enable-prefix-caching
+      env:
+      - name: OMP_NUM_THREADS
+        value: "1"
+      - name: VLLM_OPENVINO_DYNAMIC_QUANTIZATION_GROUP_SIZE
+        value: "128"
       resources:
         requests:
           cpu: "4"
